@@ -24,6 +24,7 @@ import cc3d
 from Config import Config
 import OverlayPlots
 from CreateFrame import CreateFrame
+from ROI import ROI
 
 # contains various ROI methods and variables
 class CreateROIFrame(CreateFrame):
@@ -36,47 +37,78 @@ class CreateROIFrame(CreateFrame):
         self.currentt1threshold = tk.DoubleVar()
         self.currentt2threshold = tk.DoubleVar()
         self.currentbcsize = tk.DoubleVar(value=1.5)
+        self.layerlist = {'blast':['ET','edema','both'],'seg':['all','ET','TC','WT']}
+        self.layer = tk.StringVar(value='both')
+        self.layertype = tk.StringVar(value='blast')
+        self.currentroi = tk.IntVar(value=0)
+        self.roilist = [str(i) for i in range(len(self.ui.roi)+1)]
 
         ########################
         # layout for the buttons
         ########################
 
-        self.frame.grid(column=2,row=3,rowspan=4,sticky='e')
+        self.frame.grid(column=2,row=3,rowspan=5,sticky='e')
 
         # normal slice button
         normalSlice = ttk.Button(self.frame,text='normal slice',command=self.normalslice_callback)
-        normalSlice.grid(column=0,row=0,sticky='e')
+        normalSlice.grid(column=0,row=0,sticky='w')
 
         # ROI buttons
         enhancingROI_frame = ttk.Frame(self.frame,padding='0')
-        enhancingROI_frame.grid(column=1,row=0,sticky='e')
-        enhancingROI = ttk.Button(enhancingROI_frame,text='enhancing ROI',
+        enhancingROI_frame.grid(column=0,row=1,sticky='w')
+        enhancingROI = ttk.Button(enhancingROI_frame,text='BLAST',
                                 #   command=lambda arg1=None: self.ui.runblast(currentslice=arg1))
                                   command=self.enhancingROI_callback)
-        enhancingROI.grid(column=0,row=0,sticky='e')
+        enhancingROI.grid(column=0,row=0,sticky='w')
         enhancingROI_overlay = ttk.Checkbutton(enhancingROI_frame,text='',
                                                variable=self.enhancingROI_overlay_value,
                                                command=self.enhancingROI_overlay_callback)
-        enhancingROI_overlay.grid(column=1,row=0,sticky='e')
+        enhancingROI_overlay.grid(column=1,row=0,sticky='w')
         enhancingROI_frame.update()
+
+        # enhancing layer choice
+        layerframe = ttk.Frame(self.frame,padding='0')
+        layerframe.grid(row=1,column=2,sticky='w')
+        layerlabel = ttk.Label(layerframe,text='layer:')
+        layerlabel.grid(row=0,column=0,sticky='w')
+        self.layer.trace_add('write',lambda *args: self.layer.get())
+        self.layermenu = ttk.OptionMenu(layerframe,self.layer,*self.layerlist[self.layertype.get()],command=self.layer_callback)
+        self.layermenu.config(width=6)
+        self.layermenu.grid(column=1,row=0,sticky='w')
+
+        # n'th roi number choice
+        roinumberframe = ttk.Frame(self.frame,padding='0')
+        roinumberframe.grid(row=1,column=3,sticky='w')
+        roinumberlabel = ttk.Label(roinumberframe,text='roi:')
+        roinumberlabel.grid(row=0,column=0,sticky='w')
+        self.currentroi.trace_add('write',lambda *args: self.currentroi.get())
+        self.roinumbermenu = ttk.OptionMenu(roinumberframe,self.currentroi,*self.roilist,command=self.roinumber_callback)
+        self.roinumbermenu.config(width=2)
+        self.roinumbermenu.grid(column=1,row=0,sticky='w')
 
         # select ROI button
         finalROI_frame = ttk.Frame(self.frame,padding='0')
-        finalROI_frame.grid(column=2,row=0,sticky='e')
+        finalROI_frame.grid(column=1,row=1,sticky='w')
         finalROI = ttk.Button(finalROI_frame,text='select ROI',command = self.selectROI)
-        finalROI.grid(row=0,column=0,sticky='e')
+        finalROI.grid(row=0,column=0,sticky='w')
         finalROI_overlay = ttk.Checkbutton(finalROI_frame,text='',
                                            variable=self.finalROI_overlay_value,
                                            command=self.finalROI_overlay_callback)
-        finalROI_overlay.grid(column=1,row=0,sticky='e')
+        finalROI_overlay.grid(column=1,row=0,sticky='w')
+
+
+        # update ROI button. runs full 3d after a round of 2d adjustments
+        # this could also be implemented as an automatic update
+        updateROI = ttk.Button(self.frame,text='update ROI',command = self.updateROI)
+        updateROI.grid(row=0,column=1,sticky='w')
 
         # save ROI button
         saveROI = ttk.Button(self.frame,text='save ROI',command = self.saveROI)
-        saveROI.grid(row=0,column=4,sticky='e')
+        saveROI.grid(row=0,column=2,sticky='w')
 
         # clear ROI button
         clearROI = ttk.Button(self.frame,text='clear ROI',command = self.clearROI)
-        clearROI.grid(row=0,column=5,sticky='e')
+        clearROI.grid(row=0,column=3,sticky='w')
         self.frame.update()
 
         ########################
@@ -85,7 +117,7 @@ class CreateROIFrame(CreateFrame):
 
         # t1 slider
         self.t1sliderframe = ttk.Frame(self.frame,padding='0')
-        self.t1sliderframe.grid(column=0,row=1,columnspan=6,sticky='e')
+        self.t1sliderframe.grid(column=0,row=2,columnspan=7,sticky='e')
         t1label = ttk.Label(self.t1sliderframe, text='T1')
         t1label.grid(column=0,row=0,sticky='w')
         self.currentt1threshold.set(1.)
@@ -114,11 +146,40 @@ class CreateROIFrame(CreateFrame):
         self.bcsliderlabel = ttk.Label(self.t1sliderframe,text='{:.1f}'.format(self.currentbcsize.get()))
         self.bcsliderlabel.grid(row=2,column=2,sticky='e')
 
+    # methods for layer options menu
+    def layer_callback(self,layer):
+        self.ui.currentlayer = self.layer.get()
+        # generate a new overlay
+
+    def update_layermenu_options(self,type):
+        self.layertype.set(type)
+        menu = self.layermenu['menu']
+        menu.delete(0,'end')
+        for s in self.layerlist[type]:
+            menu.add_command(label=s,command = tk._setit(self.layertype,s,self.layer_callback))
+        self.layer.set(self.layerlist[type][0])
+
+    # methods for roi number choice menu
+    def roinumber_callback(self,item):
+        self.ui.currentroi = self.currentroi.get()
+        # reference or copy
+        self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
+        self.ui.updateslice()
+        return
+    
+    def update_roinumber_options(self,n=None):
+        if n is None:
+            n = len(self.ui.roi)
+        menu = self.roinumbermenu['menu']
+        menu.delete(0,'end')
+        for s in [str(i) for i in range(len(self.ui.roi))]:
+            menu.add_command(label=s,command = tk._setit(self.currentroi,s,self.roinumber_callback))
 
     # updates blast segmentation upon slider release only
     def updatet1threshold(self,event=None,currentslice=True):
-        self.ui.blast.et_gate = None
-        self.ui.blast.wt_gate = None
+        # force recalc of gates
+        self.ui.data['gates'][1] = None
+        self.ui.data['gates'][2] = None
         self.ui.runblast(currentslice=currentslice)
         self.t1sliderlabel['text'] = '{:.1f}'.format(self.currentt1threshold.get())
         # if operating in finalROI mode additionally reprocess the final segmentation
@@ -130,8 +191,9 @@ class CreateROIFrame(CreateFrame):
         self.t1sliderlabel['text'] = '{:.1f}'.format(self.currentt1threshold.get())
 
     def updatet2threshold(self,event=None,currentslice=True):
-        self.ui.blast.et_gate = None
-        self.ui.blast.wt_gate = None
+        # force recalc of gates
+        self.ui.data['gates'][1] = None
+        self.ui.data['gates'][2] = None
         self.ui.runblast(currentslice=currentslice)
         self.t2sliderlabel['text'] = '{:.1f}'.format(self.currentt2threshold.get())
         if self.finalROI_overlay_value.get() == True:
@@ -142,7 +204,7 @@ class CreateROIFrame(CreateFrame):
         self.t2sliderlabel['text'] = '{:.1f}'.format(self.currentt2threshold.get())
 
     def updatebcsize(self,event=None):
-        self.ui.blast.brain = None
+        self.ui.data['gates'][0] = None
         self.ui.runblast(currentslice=True)
         self.bcsliderlabel['text'] = '{:.1f}'.format(self.currentbcsize.get())
         return
@@ -158,6 +220,7 @@ class CreateROIFrame(CreateFrame):
             self.ui.dataselection = 'seg_fusion_d'
             self.ui.updateslice(wl=True)
             self.enhancingROI_overlay_value.set(False)
+            self.update_layermenu_options('seg')
 
     def enhancingROI_overlay_callback(self,event=None):
         if self.enhancingROI_overlay_value.get() == False:
@@ -167,10 +230,12 @@ class CreateROIFrame(CreateFrame):
             self.ui.dataselection = 'seg_raw_fusion_d'
             self.ui.updateslice(wl=True)
             self.finalROI_overlay_value.set(False)
+            self.update_layermenu_options('blast')
 
     def enhancingROI_callback(self,event=None):
         self.finalROI_overlay_value.set(False)
         self.enhancingROI_overlay_value.set(True)
+        self.update_layermenu_options('blast')
         self.ui.runblast()
 
     def normalslice_callback(self,event=None):
@@ -212,14 +277,10 @@ class CreateROIFrame(CreateFrame):
     def selectROI(self):
         self.finalROI_overlay_value.set(True)
         self.enhancingROI_overlay_value.set(False)
-        # if there is an existing ROI and this button is clicked again, the assumption is that the 
-        # BLAST thresholds have been adjusted. redo 3d BLAST and then reprocess final segmentation
-        if self.ui.x:
-            self.ui.runblast()
-            self.ROIclick()
-        else:
-            self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.ROIclick)
-            self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
+        self.update_layermenu_options('seg')
+
+        self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.ROIclick)
+        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
         return None
     
     def ROIclick(self,event=None,do3d=True):
@@ -231,10 +292,9 @@ class CreateROIFrame(CreateFrame):
             if event.xdata < 0 or event.ydata < 0:
                 return None
             else:
-                self.ui.x = int(event.xdata)
-                self.ui.y = int(event.ydata)
+                self.createROI(int(event.xdata),int(event.ydata),self.ui.currentslice)
             
-        self.closeROI(self.ui.x,self.ui.y,self.ui.data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
+        self.closeROI(self.ui.data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
         fusionstack = np.zeros((155,240,240,2))
         if False:
             for slice in range(0,155):  
@@ -255,10 +315,18 @@ class CreateROIFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='arrow')
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
         return None
- 
-    def closeROI(self,xpos,ypos,metmaskstack,currentslice,do3d=True):
+    
+    def createROI(self,x,y,slice):
+        self.ui.roi.append(ROI(x,y,slice))
+        self.ui.currentroi += 1
+        self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
+        self.update_roinumber_options()
+
+    def closeROI(self,metmaskstack,currentslice,do3d=True):
         # awkward mess of 2d,3d ET and WT
         # a quick config for ET, WT smoothing
+        xpos = self.ui.roi[self.ui.currentroi].x
+        ypos = self.ui.roi[self.ui.currentroi].y
         mlist = {'et':{'threshold':3,'ball':10,'cube':2},
                     'wt':{'threshold':1,'ball':10,'cube':2}}
         for m in mlist.keys():
@@ -379,13 +447,17 @@ class CreateROIFrame(CreateFrame):
     #     niftiwrite(manualmasktc,outputpath + "/" + filename + "_manualmask_tc" + ".nii")
     #     niftiwrite(t1mprage_template,outputpath + "/" + 't1mprage_template.nii')
 
+    def updateROI(self):
+        # save current dataset into the current roi. 
+        self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
+
     def clearROI(self):
-        self.ui.data = {'wt':None,'et':None,'tc':None}
-        self.ui.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
-        self.ui.dataselection = 'raw'
+        self.ui.roi.pop(self.ui.currentroi)
+        self.ui.currentroi -= 1
+        # self.ui.data = {'wt':None,'et':None,'tc':None}
+        # self.ui.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
+        # self.ui.dataselection = 'raw'
         # ROI selection coordinates
-        self.ui.x = None
-        self.ui.y = None
         self.ui.updateslice()
 
     #######

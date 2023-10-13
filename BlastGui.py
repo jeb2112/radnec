@@ -6,9 +6,10 @@ from pstats import SortKey,Stats
 
 import Config
 import UIActions
-from Blastbratsv3 import Blast
+import Blastbratsv3
 from CreateFrame import CreateCaseFrame,CreateSliceViewerFrame
 from CreateROIFrame import CreateROIFrame
+from ROI import ROI
 
 # main gui class
 class BlastGui(object):
@@ -21,19 +22,18 @@ class BlastGui(object):
         self.logoImg = os.path.join(self.config.UIResourcesPath,'sunnybrook.png')
         self.blastImage = PhotoImage(file=self.logoImg)
         self.uiactions = UIActions.UIActions(self)
-        self.blast = Blast()
-        self.data = {'wt':None,'et':None,'tc':None}
-        self.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
-        self.dataselection = 'raw'
-        self.casename = None
         self.normalslice = None
         self.currentslice = None
-        # ROI selection coordinates
-        self.x = None
-        self.y = None
+        self.dataselection = 'raw'
 
+        self.data = {'gates':[None,None,None], 'wt':None,'et':None,'tc':None}
+        # self.data = {}
+        self.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
+
+        self.roi = []
+        self.currentroi = -1
+        self.currentlayer = 0
         self.OS = sys.platform
-
 
         self.createGeneralLayout()
 
@@ -45,11 +45,18 @@ class BlastGui(object):
             self.roiframe.normalslice_callback()
             self.set_currentslice(75)
             self.updateslice()
-            self.x = 132
-            self.y = 102
+            self.roiframe.createROI(132,102,75)
             self.roiframe.ROIclick(event=None)
+            self.roiframe.updateROI()
             self.roiframe.finalROI_overlay_value.set(True)
+            self.roiframe.update_layermenu_options('seg')
             self.roiframe.enhancingROI_overlay_value.set(False)
+            self.roiframe.createROI(141,150,75)
+            self.roiframe.ROIclick(event=None)
+            self.roiframe.updateROI()
+            self.currentroi = 1
+            self.roiframe.currentroi.set(1)
+            self.roiframe.update_roinumber_options()
 
 
     #########
@@ -99,7 +106,7 @@ class BlastGui(object):
                     .print_stats(15)
                 )
         else:
-            self.data['seg_raw'],self.data['seg_raw_fusion'] = self.blast.run_blast(
+            self.data['seg_raw'],self.data['seg_raw_fusion'],self.data['gates'] = Blastbratsv3.run_blast(
                                 self.data,self.roiframe.t1slider.get(),
                                 self.roiframe.t2slider.get(),self.roiframe.bcslider.get(),
                                 currentslice=currentslice)
