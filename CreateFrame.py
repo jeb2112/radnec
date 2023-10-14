@@ -136,7 +136,9 @@ class CreateSliceViewerFrame(CreateFrame):
         slice = self.currentslice.get()
         self.ui.set_currentslice(slice)
         self.ui.runblast(currentslice=slice)
-        self.ui.roiframe.ROIclick(do3d=False)
+        # 2d preview of final segmentation will still require 3d connected components, 
+        # need to fix this.
+        self.ui.roiframe.ROIclick(do3d=True)
         self.vslicenumberlabel['text'] = '{}'.format(slice)
         self.canvas.draw()
         

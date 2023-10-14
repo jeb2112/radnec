@@ -36,9 +36,9 @@ class CreateROIFrame(CreateFrame):
         self.enhancingROI_overlay_value = tk.BooleanVar(value=False)
         self.currentt1threshold = tk.DoubleVar()
         self.currentt2threshold = tk.DoubleVar()
-        self.currentbcsize = tk.DoubleVar(value=1.5)
-        self.layerlist = {'blast':['ET','edema','both'],'seg':['all','ET','TC','WT']}
-        self.layer = tk.StringVar(value='both')
+        self.currentbcsize = tk.DoubleVar(value=2)
+        self.layerlist = {'blast':['ET','edema','both'],'seg':['ET','TC','WT','all']}
+        self.layer = tk.StringVar(value='ET')
         self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=0)
         self.roilist = [str(i) for i in range(len(self.ui.roi)+1)]
@@ -150,13 +150,20 @@ class CreateROIFrame(CreateFrame):
     def layer_callback(self,layer):
         self.ui.currentlayer = self.layer.get()
         # generate a new overlay
+        if self.layertype.get() == 'blast':
+            self.ui.data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get())
+            self.ui.data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
+        elif self.layertype.get() == 'seg':
+            self.ui.data['seg_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg'],self.layer.get())
+            self.ui.data['seg_fusion_d'] = copy.copy(self.ui.data['seg_fusion'])
+        self.ui.updateslice()
 
     def update_layermenu_options(self,type):
         self.layertype.set(type)
         menu = self.layermenu['menu']
         menu.delete(0,'end')
         for s in self.layerlist[type]:
-            menu.add_command(label=s,command = tk._setit(self.layertype,s,self.layer_callback))
+            menu.add_command(label=s,command = tk._setit(self.layer,s,self.layer_callback))
         self.layer.set(self.layerlist[type][0])
 
     # methods for roi number choice menu
@@ -184,7 +191,8 @@ class CreateROIFrame(CreateFrame):
         self.t1sliderlabel['text'] = '{:.1f}'.format(self.currentt1threshold.get())
         # if operating in finalROI mode additionally reprocess the final segmentation
         if self.finalROI_overlay_value.get() == True:
-            self.ROIclick(do3d=False)
+            # still working on a fast 2d update to final ROI
+            self.ROIclick(do3d=True)
 
     # updates the text field showing the value during slider drag
     def updatet1label(self,event):
@@ -197,7 +205,7 @@ class CreateROIFrame(CreateFrame):
         self.ui.runblast(currentslice=currentslice)
         self.t2sliderlabel['text'] = '{:.1f}'.format(self.currentt2threshold.get())
         if self.finalROI_overlay_value.get() == True:
-            self.ROIclick(do3d=False)
+            self.ROIclick(do3d=True)
         return
     
     def updatet2label(self,event):
@@ -302,7 +310,7 @@ class CreateROIFrame(CreateFrame):
                 newfusion = 0.5*self.ui.data['wt'][slice,:,:] + 0.5*self.ui.data['raw'][0][slice,:,:]
                 segfusionstack[slice] = newfusion
         else:
-            fusionstack = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg'])
+            fusionstack = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg'],self.ui.roiframe.layer.get())
         self.ui.data['seg_fusion'] = fusionstack
         self.ui.data['seg_fusion_d'] = copy.copy(self.ui.data['seg_fusion'])
         # if triggered by a button event

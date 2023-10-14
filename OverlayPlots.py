@@ -1,6 +1,7 @@
 from typing import Tuple, Union
 import numpy as np
 import pandas as pd
+import copy
 
 color_cycle = (
     "000000",
@@ -20,13 +21,16 @@ color_cycle = (
     "469990",
 )
 
+# hard-coded convention
+layerdict = {'ET':[3],'TC':[2],'WT':[1],'edema':[1],'all':[1,2,3],'both':[1,3]}
 
 def hex_to_rgb(hex: str):
     assert len(hex) == 6
     return tuple(int(hex[i:i + 2], 16) for i in (0, 2, 4))
 
 
-def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray, mapping: dict = None,
+def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray, layer: str = None,
+                     mapping: dict = None,
                      color_cycle: Tuple[str, ...] = color_cycle,
                      overlay_intensity: float = 0.6):
     """
@@ -36,9 +40,18 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray, mapping:
 
     mapping can be label_id -> idx_in_cycle or None
 
+    layer is a string in layerdict
+
     """
     # create a copy of image
     imagestack = np.copy(input_image)
+
+    if layer in layerdict.keys():
+        layer = layerdict[layer]
+    elif layer is not None:
+        raise KeyError('layer {} is not recognized.'.format(layer))
+    else:
+        layer = [1,2,3]
 
     if len(imagestack.shape) == 4:
         if imagestack.shape[0]<5:
@@ -73,8 +86,12 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray, mapping:
         for l in mapping.keys():
             if l==0:
                 continue # skipping background here
-            overlay = overlay_intensity * np.array(hex_to_rgb(color_cycle[mapping[l]]))
-            image[segmentation == l] += overlay
+            if l in layer:
+                overlay = overlay_intensity * np.array(hex_to_rgb(color_cycle[mapping[l]]))
+                if len(layer) == 1:
+                    image[segmentation >= l] += overlay
+                else:
+                    image[segmentation == l] += overlay
 
         # rescale result to [0,1]
         image = image / image.max() * 1
@@ -84,7 +101,10 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray, mapping:
     output_image = np.squeeze(output_image)
     return output_image.astype(np.float32)
 
-
+def select_layer(segmentation,layer):
+    layersegmentation = copy.copy(segmentation)
+    layersegmentation = (segmentation == layerdict[layer]).astype('int')*layerdict[layer]
+    return layersegmentation
 
 
 

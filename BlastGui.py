@@ -9,6 +9,7 @@ import UIActions
 import Blastbratsv3
 from CreateFrame import CreateCaseFrame,CreateSliceViewerFrame
 from CreateROIFrame import CreateROIFrame
+from OverlayPlots import *
 from ROI import ROI
 
 # main gui class
@@ -54,9 +55,10 @@ class BlastGui(object):
             self.roiframe.createROI(141,150,75)
             self.roiframe.ROIclick(event=None)
             self.roiframe.updateROI()
-            self.currentroi = 1
-            self.roiframe.currentroi.set(1)
+            self.currentroi = 0
+            self.roiframe.currentroi.set(0)
             self.roiframe.update_roinumber_options()
+            self.roiframe.roinumber_callback(item=None)
 
 
     #########
@@ -106,12 +108,13 @@ class BlastGui(object):
                     .print_stats(15)
                 )
         else:
-            self.data['seg_raw'],self.data['seg_raw_fusion'],self.data['gates'] = Blastbratsv3.run_blast(
+            self.data['seg_raw'],self.data['gates'] = Blastbratsv3.run_blast(
                                 self.data,self.roiframe.t1slider.get(),
                                 self.roiframe.t2slider.get(),self.roiframe.bcslider.get(),
                                 currentslice=currentslice)
+        self.data['seg_raw_fusion'] = generate_overlay(self.data['raw'],self.data['seg_raw'],self.roiframe.layer.get())
         self.data['seg_raw_fusion_d'] = copy.copy(self.data['seg_raw_fusion'])
-
+            
         if self.roiframe.finalROI_overlay_value.get() == True:
             self.dataselection = 'seg_fusion_d'
         else:

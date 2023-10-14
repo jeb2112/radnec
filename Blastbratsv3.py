@@ -143,13 +143,6 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
         et_mask = np.logical_and(et_gate, np.logical_not(brain)) # 
         # et_mask = max(et_mask,0)
         # fusion = imfuse(et_mask,t1mprage_template[slice,:,:,slice],'blend')
-        if False:
-            fusion = 0.5*et_mask + 0.5*t1mprage_template # alpha composite unweighted
-        else:
-            start = time.time()
-            fusion = OverlayPlots.generate_overlay(data['raw'],et_mask) 
-            end = time.time()
-            print('generate overlay time = {:.2f} sec'.format(end-start))
 
         #se = strel('line',2,0) 
         #et_mask = imerode(et_mask,se) # erosion added to get rid of non
@@ -158,8 +151,8 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
         wt_mask = np.logical_and(wt_gate, np.logical_not(brain))
         # maskstack = et_mask + wtmask
         c_maskstack = et_mask.astype('int')*2 + wt_mask.astype('int')
-        fusion = OverlayPlots.generate_overlay(data['raw'],c_maskstack) 
-        fusionstack = fusion
+        # fusion = dotime(OverlayPlots.generate_overlay,(data['raw'],c_maskstack),txt='overlay') 
+        # fusionstack = fusion
         et_maskstack = et_mask
 
     # a single 2d slice
@@ -198,10 +191,10 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
             compound_mask = et_mask.astype('int')*2+wt_mask.astype('int')
             # et_mask = max(et_mask,0)
             # fusion = imfuse(et_mask,t1mprage_template[slice,:,:,slice],'blend')
-            if False:
-                fusion = 0.5*et_mask + 0.5*t1mprage_template[slice,:,:] # alpha composite unweighted
-            else:
-                fusion = OverlayPlots.generate_overlay(data['raw'][:,slice,:,:],compound_mask)
+            # if False:
+            #     fusion = 0.5*et_mask + 0.5*t1mprage_template[slice,:,:] # alpha composite unweighted
+            # else:
+                # fusion = OverlayPlots.generate_overlay(data['raw'][:,slice,:,:],compound_mask)
 
             #se = strel('line',2,0) 
             #et_mask = imerode(et_mask,se) # erosion added to get rid of non
@@ -210,7 +203,7 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
             et_maskstack[slice] = et_mask
             wt_maskstack[slice] = wt_mask
             c_maskstack[slice] = compound_mask
-            fusionstack[:,slice,:,:] = fusion
+            # fusionstack[:,slice,:,:] = fusion
 
     # Calculate connected objects 
     # CC_labeled = bwlabeln(et_maskstack[slicestart:slicend,:,:],26) # beta edit on this line
@@ -223,8 +216,7 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
     # Display Volume
     # f1 = figure(1)
     # s = sliceViewer(fusionstack,"ScaleFactors",[2,2,1])
-    # TODO: return only the seg, not the composite
-    return c_maskstack,fusionstack,(brain,et_gate,wt_gate)
+    return c_maskstack,[brain,et_gate,wt_gate]
 
 
 #################
