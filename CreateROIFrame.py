@@ -1,6 +1,6 @@
 import os,sys
 import numpy as np
-import glob
+import pickle
 import copy
 import re
 import time
@@ -17,6 +17,7 @@ from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_
 from cucim.skimage.morphology import binary_closing as cucim_binary_closing
 from scipy.spatial.distance import dice
 from scipy.ndimage import binary_closing as scipy_binary_closing
+from scipy.io import savemat
 from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
 import cupy as cp
 import cc3d
@@ -41,7 +42,8 @@ class CreateROIFrame(CreateFrame):
         self.layer = tk.StringVar(value='ET')
         self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=0)
-        self.roilist = [str(i) for i in range(len(self.ui.roi)+1)]
+        # self.roilist = [str(i) for i in range(len(self.ui.roi)+1)]
+        self.roilist = []
 
         ########################
         # layout for the buttons
@@ -181,6 +183,7 @@ class CreateROIFrame(CreateFrame):
         menu.delete(0,'end')
         for s in [str(i) for i in range(len(self.ui.roi))]:
             menu.add_command(label=s,command = tk._setit(self.currentroi,s,self.roinumber_callback))
+        self.roilist = [str(i) for i in range(len(self.ui.roi))]
 
     # updates blast segmentation upon slider release only
     def updatet1threshold(self,event=None,currentslice=True):
@@ -303,6 +306,7 @@ class CreateROIFrame(CreateFrame):
                 self.createROI(int(event.xdata),int(event.ydata),self.ui.currentslice)
             
         self.closeROI(self.ui.data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
+        self.ROIstats()
         fusionstack = np.zeros((155,240,240,2))
         if False:
             for slice in range(0,155):  
@@ -331,191 +335,194 @@ class CreateROIFrame(CreateFrame):
         self.update_roinumber_options()
 
     def closeROI(self,metmaskstack,currentslice,do3d=True):
-        # awkward mess of 2d,3d ET and WT
+        # this method needs tidy-up
         # a quick config for ET, WT smoothing
         xpos = self.ui.roi[self.ui.currentroi].x
         ypos = self.ui.roi[self.ui.currentroi].y
-        mlist = {'et':{'threshold':3,'ball':10,'cube':2},
-                    'wt':{'threshold':1,'ball':10,'cube':2}}
+        mlist = {'et':{'threshold':3,'dball':10,'dcube':2},
+                    'wt':{'threshold':1,'dball':10,'dcube':2}}
         for m in mlist.keys():
             mask = (metmaskstack >= mlist[m]['threshold']).astype('double')
-            # TODO: 2d versus 3d connected components
+            # TODO: 2d versus 3d connected components?
             CC_labeled = cc3d.connected_components(mask,connectivity=26)
             stats = cc3d.statistics(CC_labeled)
 
-            # ypos = round(h.Position(2)/2) # divide by ScaleFactor
-            # xpos = round(h.Position(1)/2) # divide by ScaleFactor
-
             # objectnumber = CC_labeled(ypos,xpos,s.SliceNumber)
-
-            # ie one click should be in both compartments
+            # NB. one click is assumed to be in both compartments here
             objectnumber = CC_labeled[currentslice,ypos,xpos]
 
             # objectmask = ismember(CC_labeled,objectnumber)
             objectmask = (CC_labeled == objectnumber).astype('double')
+            # currently there is no additional processing on ET or WT
+            self.ui.data[m] = objectmask.astype('uint8')
 
-            # thisBB = BB.BoundingBox[objectnumber,:,:]
-            thisBB = stats['bounding_boxes'][objectnumber]
 
-            # Creates filled in contour of objectmask 
-            # se = strel('disk',10) 
-            # close_object = imclose(objectmask,se) 
-            # se2 = strel('square',2) #added to imdilate
-            # se2 = square(2)
+            # calculate tc
+            if m == 'et':
+                objectmask_closed = np.zeros(np.shape(self.ui.data['raw']))
+                objectmask_final = np.zeros(np.shape(self.ui.data['raw']))
 
-            # step 1. binary closing
-            # for 3d closing, gpu is faster. use cucim library
-            if do3d:
-                se = ball(mlist[m]['ball'])
-                start = time.time()
-                objectmask_cp = cp.array(objectmask)
-                se_cp = cp.array(se)
-                # TODO: iterate binary_closing?
-                close_object_cucim = cucim_binary_closing(objectmask_cp,footprint=se_cp)
-                close_object = np.array(close_object_cucim.get())
-                end = time.time()
-                print('binary closing time = {:.2f} sec'.format(end-start))
-                objectmask_final = close_object
-                # ie not doing the floodfill step on ET
-                if m == 'et':
-                    self.ui.data[m] = objectmask_final
-                # use cupy library.
-                if False:
+                # thisBB = BB.BoundingBox[objectnumber,:,:]
+                thisBB = stats['bounding_boxes'][objectnumber]
+
+                # Creates filled in contour of objectmask 
+                # se = strel('disk',10) 
+                # close_object = imclose(objectmask,se) 
+                # se2 = strel('square',2) #added to imdilate
+                # se2 = square(2)
+
+                # step 1. binary closing
+                # for 3d closing, gpu is faster. use cucim library
+                if do3d:
+                    se = ball(mlist[m]['dball'])
                     start = time.time()
                     objectmask_cp = cp.array(objectmask)
                     se_cp = cp.array(se)
-                    close_object_cupy = cupy_binary_closing(objectmask_cp,se_cp)
-                    close_object = np.array(close_object_cupy.get())
+                    # TODO: iterate binary_closing?
+                    close_object_cucim = cucim_binary_closing(objectmask_cp,footprint=se_cp)
+                    objectmask_closed = np.array(close_object_cucim.get())
                     end = time.time()
-                    print('time = {}'.format(end-start))
-            else:
-           # cpu only. use skimage library
-                # if a final 3d seg already exists, use it
-                if self.ui.data[m] is not None:
-                    objectmask_final = self.ui.data[m]
+                    print('binary closing time = {:.2f} sec'.format(end-start))
+                    # use cupy library.
+                    if False:
+                        start = time.time()
+                        objectmask_cp = cp.array(objectmask)
+                        se_cp = cp.array(se)
+                        close_object_cupy = cupy_binary_closing(objectmask_cp,se_cp)
+                        close_object = np.array(close_object_cupy.get())
+                        end = time.time()
+                        print('time = {}'.format(end-start))
                 else:
-                    objectmask_final = np.zeros(np.shape(self.ui.data['raw']))
-                se = disk(mlist[m]['ball'])
-                start = time.time()
-                close_object = binary_closing(objectmask[currentslice,:,:],se)
-                end = time.time()
-                print('binary closing time = {}'.format(end-start))
-                # use scipy
-                if False:
+                    # 2d preview mode. not sure if this is going to be useful
+                    # cpu only. use skimage library
+                    # if a final 3d seg already exists, use it?
+                    # if self.ui.data[m] is not None:
+                    #     objectmask_final = self.ui.data[m]
+                    # else:
+                    se = disk(mlist[m]['dball'])
                     start = time.time()
-                    close_object_scipy = scipy_binary_closing(objectmask,structure=se)
+                    close_object = binary_closing(objectmask[currentslice,:,:],se)
                     end = time.time()
                     print('binary closing time = {}'.format(end-start))
-                objectmask_final[currentslice,:,:] = close_object
-                if m == 'et':
-                    self.ui.data[m] = objectmask_final
+                    # use scipy
+                    if False:
+                        start = time.time()
+                        close_object_scipy = scipy_binary_closing(objectmask,structure=se)
+                        end = time.time()
+                        print('binary closing time = {}'.format(end-start))
+                    objectmask_closed[currentslice,:,:] = close_object
 
-            # self.ui.data[m] = close_object
-            # se2 = strel('square',2) #added to imdilate
-            # se2 = square(2)
+                # self.ui.data[m] = close_object
+                # se2 = strel('square',2) #added to imdilate
+                # se2 = square(2)
 
-            # step 2. flood fill
-            # for small kernel, don't need gpu
-            # TODO: does ET need anything further
-            if do3d:
-                se2 = cube(mlist[m]['cube'])
-                objectmask_filled = binary_dilation(objectmask,se2)
-                objectmask_filled = flood_fill(objectmask_filled,(currentslice,ypos,xpos),True)
-                objectmask_final = objectmask_filled.astype('int')
-                if m == 'et':
+                # step 2. flood fill
+                # for small kernel, don't need gpu
+                # TODO: does ET need anything further. otherwise, tc has dilation that et does not
+                if do3d:
+                    se2 = cube(mlist[m]['dcube'])
+                    objectmask_filled = binary_dilation(objectmask_closed,se2)
+                    objectmask_filled = flood_fill(objectmask_filled,(currentslice,ypos,xpos),True)
+                    objectmask_final = objectmask_filled.astype('int')
                     self.ui.data['tc'] = objectmask_final
-                elif m == 'wt':
-                    self.ui.data['wt'] = objectmask_final
-            else:
-                # if a final 3d seg already exists, use it
-                # for step2, et is already done, and here tc is being calculated from et.
-                if m == 'et' and self.ui.data['et'] is not None:
-                    objectmask_final = self.ui.data['tc']
-                se2 = square(mlist[m]['cube'])
-                objectmask_filled = binary_dilation(objectmask[currentslice,:,:],se2)
-                objectmask_filled = flood_fill(objectmask_filled,(ypos,xpos),True)
-                objectmask_final[currentslice,:,:] = objectmask_filled.astype('int')     
-                if m == 'et' and self.ui.data['et'] is not None:
-                    self.ui.data['tc'] = objectmask_final
-                elif m == 'wt' and self.ui.data['wt'] is not None:
-                    self.ui.data['wt'] = objectmask_final
+                else:
+                    se2 = square(mlist[m]['dcube'])
+                    objectmask_filled = binary_dilation(objectmask_closed[currentslice,:,:],se2)
+                    objectmask_filled = flood_fill(objectmask_filled,(ypos,xpos),True)
+                    objectmask_final[currentslice,:,:] = objectmask_filled.astype('int')     
+                    self.ui.data['tc'] = objectmask_final.astype('uint8')
 
+            # update WT with smoothed TC
+            elif m == 'wt':
+                self.ui.data['wt'] = self.ui.data['wt'] | self.ui.data['tc']
+
+        # nnunet convention for labels
         self.ui.data['seg'] = 1*self.ui.data['et'] + 1*self.ui.data['tc'] + self.ui.data['wt']
         return None
     
-    def saveROI(self):
-        return
+    def saveROI(self,roi=None):
         # Save ROI data
+        outputpath = self.ui.caseframe.casedir
+        fileroot = os.path.join(outputpath,self.ui.caseframe.casefile_prefix + self.ui.caseframe.casename.get())
+        filename = fileroot+'_stats.pkl'
+        # t1mprage template? need to save separately?
+
+        # BLAST outputs. combined ROI or separate? doing separate for now
+        roisuffix = ''
+        for img in ['seg','et','tc','wt']:
+            for roi in self.roilist:
+                if len(self.roilist) > 1:
+                    roisuffix = '_roi'+roi
+                outputfilename = fileroot + '_blast_' + img + roisuffix + '.nii'
+                self.WriteImage(self.ui.roi[int(roi)].data[img],outputfilename)
+        # manual outputs. for now these have only one roi
+        for img in ['manual_et','manual_tc','manual_wt']:
+            outputfilename = fileroot + '_' + img + '.nii'
+            self.WriteImage(self.ui.data[img],outputfilename)
+            # sitk.WriteImage(sitk.GetImageFromArray(self.ui.data[img]),fileroot+'_'+img+'.nii')
+
+        with open(filename,'ab') as fp:
+            pickle.dump(dict(self.ui.stats),fp)
+        # matlab compatible output
+        filename = filename[:-3] + 'mat'
+        with open(filename,'ab') as fp:
+            savemat(filename,dict(self.ui.stats))
+
+
+    def WriteImage(self,img_arr,filename):
+        # for now output only segmentations so uint8
+        img = sitk.GetImageFromArray(img_arr.astype('uint8'))
+        # img.CopyInformation(self.ui.data['nifti'])
+        # sitk.WriteImage(img,filename)
+        writer = sitk.ImageFileWriter()
+        writer.SetImageIO('NiftiImageIO')
+        writer.SetFileName(filename)
+        writer.Execute(img)
+
     #     filename = "t1ce_" + self.casename
     #     outputpath = os.path.join(self.config.UIdataroot+self.casename,filename)
-    #     save(outputpath + "/" + filename + ".mat",'greengate_count','redgate_count','objectmask','objectmask_filled','manualmasket','manualmasktc','centreimage','specificity_et','sensitivity_et','dicecoefficient_et','specificity_tc','sensitivity_tc','dicecoefficient_tc','b','b2','manualmask_et_volume','manualmask_tc_volume','objectmask_filled_volume','cumulative_elapsed_time')
+    #     save(outputpath + "/" + filename + ".mat",'greengate_count','redgate_count','objectmask','objectmask_filled',
+    # 'manualmasket','manualmasktc','centreimage','specificity_et','sensitivity_et','dicecoefficient_et','specificity_tc',
+    # 'sensitivity_tc','dicecoefficient_tc','b','b2','manualmask_et_volume','manualmask_tc_volume','objectmask_filled_volume',
+    # 'cumulative_elapsed_time')
     #     niftiwrite(objectmask,outputpath + "/" + filename + ".nii")
     #     niftiwrite(objectmask_filled,outputpath + "/" + filename + "_filled" + ".nii")
     #     niftiwrite(manualmasket,outputpath + "/" + filename + "_manualmask_et" + ".nii")
     #     niftiwrite(manualmasktc,outputpath + "/" + filename + "_manualmask_tc" + ".nii")
     #     niftiwrite(t1mprage_template,outputpath + "/" + 't1mprage_template.nii')
+        return
+
 
     def updateROI(self):
         # save current dataset into the current roi. 
         self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
+        self.ROIstats()
 
     def clearROI(self):
         self.ui.roi.pop(self.ui.currentroi)
         self.ui.currentroi -= 1
-        # self.ui.data = {'wt':None,'et':None,'tc':None}
-        # self.ui.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
-        # self.ui.dataselection = 'raw'
-        # ROI selection coordinates
         self.ui.updateslice()
 
-    #######
-    # STATS
-    #######
+    def ROIstats(self):
+        
+        for t in ['et','tc','wt']:
+            sums = self.ui.data['manual_'+t] + self.ui.data[t]
+            subs = self.ui.data['manual_'+t] - self.ui.data[t]
+                    
+            TP = len(np.where(sums == 2))
+            FP = len(np.where(subs == -1))
+            TN = len(np.where(sums == 0))
+            FN = len(np.where(subs == 1))
 
-    def ROIstats(self,objectmask,objectmask_filled):
-        # Load gold standard manual ROIs and create manual mask
-        # manualmask = niftiread(inputpath + "/" + "BraTS2021_" + casename + "_seg" )
-        manualmask = self.ui.data['label']
-        manualmasket = manualmask>3 #enhancing tumor 
-        manualmasknc = manualmask==1 #necrotic core
-        manualmasket = manualmasket.astype('double')
-        manualmasknc = manualmasknc.astype('double')
-        manualmasktc = manualmasknc + manualmasket #tumor core
-                
-        # enhancing tumour
-        groundtruth = manualmask['et']
-        segmentation = objectmask
-
-        sums = groundtruth + segmentation
-        subs = groundtruth - segmentation
-                
-        TP = len(np.find(sums == 2))
-        FP = len(np.find(subs == -1))
-        TN = len(np.find(sums == 0))
-        FN = len(np.find(subs == 1))
-
-        specificity_et = TN/(TN+FP)
-        sensitivity_et = TP/(TP+FN)
-        dicecoefficient_et = dice(groundtruth.flatten(),segmentation.flatten()) 
-
-        # tumour core
-        groundtruth = manualmask['tc']
-        segmentation = objectmask_filled
-
-        sums = groundtruth + segmentation
-        subs = groundtruth - segmentation
-                
-        TP = len(np.find(sums == 2))
-        FP = len(np.find(subs == -1))
-        TN = len(np.find(sums == 0))
-        FN = len(np.find(subs == 1))
-
-        specificity_tc = TN/(TN+FP)
-        sensitivity_tc = TP/(TP+FN)
-        dicecoefficient_tc = dice(groundtruth.flatten(),segmentation.flatten())
+            self.ui.stats['spec'][t][self.currentroi.get()] = TN/(TN+FP)
+            self.ui.stats['sens'][t][self.currentroi.get()] = TP/(TP+FN)
+            self.ui.stats['dice'][t][self.currentroi.get()] = dice(self.ui.data['manual_'+t].flatten(),self.ui.data[t].flatten()) 
 
         # Calculate volumes
-        manualmask_et_volume = len(np.where(manualmasket))
-        manualmask_tc_volume = len(np.where(manualmasktc))
-        objectmask_filled_volume = len(np.where(objectmask_filled))
+            self.ui.stats['vol']['manual_'+t][self.currentroi.get()] = len(np.where(self.ui.data['manual_'+t]))
+            self.ui.stats['vol'][t][self.currentroi.get()] = len(np.where(self.ui.data['tc']))
+
+        # copy gate counts
+            self.ui.stats['t1gate_count'] = self.ui.data['gates'][3]
+            self.ui.stats['t2gate_count'] = self.ui.data['gates'][4]
 

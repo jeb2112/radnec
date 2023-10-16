@@ -216,7 +216,7 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
     # Display Volume
     # f1 = figure(1)
     # s = sliceViewer(fusionstack,"ScaleFactors",[2,2,1])
-    return c_maskstack,[brain,et_gate,wt_gate]
+    return c_maskstack,[brain,et_gate,wt_gate,t1gate_count,t2gate_count]
 
 
 #################

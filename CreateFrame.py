@@ -216,6 +216,7 @@ class CreateCaseFrame(CreateFrame):
         self.datadir.set(self.config.UIdatadir)
         self.casename = StringVar()
         self.casename.set(self.caselist[0])
+        self.casefile_prefix = None
 
         # case selection
         caseframe = ttk.Frame(parent,padding='5')
@@ -262,6 +263,8 @@ class CreateCaseFrame(CreateFrame):
         # 2 channels hard-coded
         self.ui.data['raw'] = np.zeros((2,)+np.shape(img_arr))
         self.ui.data['raw'][0] = img_arr
+        # awkward. to store nifti header
+        # self.ui.data['nifti'] = t1ce
 
         # Create t2flair template 
         t2flair = sitk.ReadImage(os.path.join(self.casedir,self.config.UIdataroot + self.casename.get() + "_flair_bias.nii") )
@@ -275,6 +278,17 @@ class CreateCaseFrame(CreateFrame):
         label = sitk.ReadImage(os.path.join(self.casedir,self.config.UIdataroot+self.casename.get()+'_seg.nii'))
         img_arr = sitk.GetArrayFromImage(label)
         self.ui.data['label'] = img_arr
+
+        # supplementary labels. brats and nnunet conventions are differnt.
+        if False: # nnunet
+            self.ui.data['manual_et'] = (self.ui.data['label'] == 3).astype('int') #enhancing tumor 
+            self.ui.data['manual_tc'] = (self.ui.data['label'] >= 2).astype('int') #tumour core
+            self.ui.data['manual_wt'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
+        else: # brats
+            self.ui.data['manual_et'] = (self.ui.data['label'] == 4).astype('int') #enhancing tumor 
+            self.ui.data['manual_tc'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
+            self.ui.data['manual_wt'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
+
 
     # assumes first dim is channel
     def rescale(self,img_arr,vmin=None,vmax=None):
@@ -296,7 +310,9 @@ class CreateCaseFrame(CreateFrame):
     def datadirentry_callback(self,event=None):
         dir = self.datadir.get().strip()
         if os.path.exists(dir):
-            casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in os.listdir(dir) if re.search('_0[0-9]{4}$',f)]
+            files = os.listdir(dir)
+            self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
+            casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
             if len(casefiles):
                 # TODO: will need a better sort here
                 self.caselist = sorted(casefiles)

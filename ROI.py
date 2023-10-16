@@ -11,12 +11,15 @@ class ROI():
         self.data = {'wt':None,'et':None,'tc':None}
         self.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
         self.casename = None
+
         # ROI selection coordinates
         self.x = xpos
         self.y = ypos
         self.slice = slice
 
+        # threshold gates saved as intermediate values
         self.brain = None
         self.et_gate = None
         self.wt_gate = None
+
 

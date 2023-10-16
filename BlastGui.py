@@ -3,6 +3,7 @@ import copy
 from tkinter import messagebox,ttk,PhotoImage
 from cProfile import Profile
 from pstats import SortKey,Stats
+from collections import defaultdict
 
 import Config
 import UIActions
@@ -35,11 +36,15 @@ class BlastGui(object):
         self.currentroi = -1
         self.currentlayer = 0
         self.OS = sys.platform
+        # ROI stats
+        self.stats = nested_dict()
+
 
         self.createGeneralLayout()
 
         # hard-coded for debugging
         if debug:
+            self.caseframe.datadirentry_callback()
             self.set_currentslice(105)
             self.casename = '00000'
             self.caseframe.loadCase()
@@ -114,6 +119,8 @@ class BlastGui(object):
                                 currentslice=currentslice)
         self.data['seg_raw_fusion'] = generate_overlay(self.data['raw'],self.data['seg_raw'],self.roiframe.layer.get())
         self.data['seg_raw_fusion_d'] = copy.copy(self.data['seg_raw_fusion'])
+        self.data['params']['t1gate_count'] = self.data['gates'][3]
+        self.data['params']['t2gate_count'] = self.data['gates'][4]
             
         if self.roiframe.finalROI_overlay_value.get() == True:
             self.dataselection = 'seg_fusion_d'
@@ -195,3 +202,6 @@ class BlastGui(object):
         if msg is not None:
             self.actions.sendMessage(msg)
 
+
+def nested_dict():
+    return defaultdict(nested_dict)
