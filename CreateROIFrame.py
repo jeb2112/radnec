@@ -305,7 +305,7 @@ class CreateROIFrame(CreateFrame):
             else:
                 self.createROI(int(event.xdata),int(event.ydata),self.ui.currentslice)
             
-        self.closeROI(self.ui.data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
+        self.closeROI(self.ui.roi[self.ui.currentroi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
         self.ROIstats()
         fusionstack = np.zeros((155,240,240,2))
         if False:
@@ -314,9 +314,12 @@ class CreateROIFrame(CreateFrame):
                 newfusion = 0.5*self.ui.data['wt'][slice,:,:] + 0.5*self.ui.data['raw'][0][slice,:,:]
                 segfusionstack[slice] = newfusion
         else:
-            fusionstack = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg'],self.ui.roiframe.layer.get())
-        self.ui.data['seg_fusion'] = fusionstack
-        self.ui.data['seg_fusion_d'] = copy.copy(self.ui.data['seg_fusion'])
+            fusionstack = OverlayPlots.generate_overlay(self.ui.roi[self.ui.currentroi].data['raw'],self.ui.roi[self.ui.currentroi].data['seg'],self.ui.roiframe.layer.get())
+        self.ui.roi[self.ui.currentroi].data['seg_fusion'] = fusionstack
+        self.ui.roi[self.ui.currentroi].data['seg_fusion_d'] = copy.copy(self.ui.roi[self.ui.currentroi].data['seg_fusion'])
+        # current roi populates data dict
+        self.updateData()
+
         # if triggered by a button event
         if self.buttonpress_id:
             self.ui.sliceviewerframe.canvas.callbacks.disconnect(self.buttonpress_id)
@@ -354,7 +357,7 @@ class CreateROIFrame(CreateFrame):
             # objectmask = ismember(CC_labeled,objectnumber)
             objectmask = (CC_labeled == objectnumber).astype('double')
             # currently there is no additional processing on ET or WT
-            self.ui.data[m] = objectmask.astype('uint8')
+            self.ui.roi[self.ui.currentroi].data[m] = objectmask.astype('uint8')
 
 
             # calculate tc
@@ -424,23 +427,26 @@ class CreateROIFrame(CreateFrame):
                     objectmask_filled = binary_dilation(objectmask_closed,se2)
                     objectmask_filled = flood_fill(objectmask_filled,(currentslice,ypos,xpos),True)
                     objectmask_final = objectmask_filled.astype('int')
-                    self.ui.data['tc'] = objectmask_final
+                    self.ui.roi[self.ui.currentroi].data['tc'] = objectmask_final
                 else:
                     se2 = square(mlist[m]['dcube'])
                     objectmask_filled = binary_dilation(objectmask_closed[currentslice,:,:],se2)
                     objectmask_filled = flood_fill(objectmask_filled,(ypos,xpos),True)
                     objectmask_final[currentslice,:,:] = objectmask_filled.astype('int')     
-                    self.ui.data['tc'] = objectmask_final.astype('uint8')
+                    self.ui.roi[self.ui.currentroi].data['tc'] = objectmask_final.astype('uint8')
 
             # update WT with smoothed TC
             elif m == 'wt':
-                self.ui.data['wt'] = self.ui.data['wt'] | self.ui.data['tc']
+                self.ui.roi[self.ui.currentroi].data['wt'] = self.ui.roi[self.ui.currentroi].data['wt'] | self.ui.roi[self.ui.currentroi].data['tc']
 
         # nnunet convention for labels
-        self.ui.data['seg'] = 1*self.ui.data['et'] + 1*self.ui.data['tc'] + self.ui.data['wt']
+        self.ui.roi[self.ui.currentroi].data['seg'] = 1*self.ui.roi[self.ui.currentroi].data['et'] + \
+                                                    1*self.ui.roi[self.ui.currentroi].data['tc'] + \
+                                                    1*self.ui.roi[self.ui.currentroi].data['wt']
         return None
     
     def saveROI(self,roi=None):
+        self.ui.endtime()
         # Save ROI data
         outputpath = self.ui.caseframe.casedir
         fileroot = os.path.join(outputpath,self.ui.caseframe.casefile_prefix + self.ui.caseframe.casename.get())
@@ -461,12 +467,42 @@ class CreateROIFrame(CreateFrame):
             self.WriteImage(self.ui.data[img],outputfilename)
             # sitk.WriteImage(sitk.GetImageFromArray(self.ui.data[img]),fileroot+'_'+img+'.nii')
 
+        sdict = {}
+        msdict = {} 
+        for i,r in enumerate(self.ui.roi):
+            sdict['roi'+str(i)] = r.stats
+            msdict['roi'+str(i)] = {}
+            mdict = msdict['roi'+str(i)]
+            mdict['greengate_count'] = r.stats['gatecount']['t2']
+            mdict['redgate_count'] = r.stats['gatecount']['t1']
+            mdict['objectmask'] = r.data['et']
+            mdict['objectmask_filled'] = r.data['tc']
+            mdict['manualmasket'] = r.data['manual_et']
+            mdict['manualmasktc'] = r.data['manual_tc']
+            mdict['centreimage'] = 0
+            mdict['specificity_et'] = r.stats['spec']['et']
+            mdict['sensitivity_et'] = r.stats['sens']['et']
+            mdict['dicecoefficient_et'] = r.stats['dice']['et']
+            mdict['specificity_tc'] = r.stats['spec']['tc']
+            mdict['sensitivity_tc'] = r.stats['sens']['tc']
+            mdict['dicecoefficient_tc'] = r.stats['dice']['tc']
+            mdict['b'] = 0
+            mdict['b2'] = 0
+            mdict['manualmask_et_volume'] = r.stats['vol']['manual_et']
+            mdict['manualmask_tc_volume'] = r.stats['vol']['manual_tc']
+            mdict['objectmask_filled_volume'] = r.stats['vol']['tc']
+            mdict['cumulative_elapsed_time'] = r.stats['elapsed_time']
         with open(filename,'ab') as fp:
-            pickle.dump(dict(self.ui.stats),fp)
+            pickle.dump(sdict,fp)
+
         # matlab compatible output
         filename = filename[:-3] + 'mat'
         with open(filename,'ab') as fp:
-            savemat(filename,dict(self.ui.stats))
+            savemat(filename,sdict)
+        filename = filename[:-4] + '_origvarnames.mat'
+        with open(filename,'ab') as fp:
+            savemat(filename,msdict)
+            
 
 
     def WriteImage(self,img_arr,filename):
@@ -498,31 +534,48 @@ class CreateROIFrame(CreateFrame):
         self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
         self.ROIstats()
 
+    def updateData(self):
+        self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
+
     def clearROI(self):
         self.ui.roi.pop(self.ui.currentroi)
         self.ui.currentroi -= 1
         self.ui.updateslice()
 
+    def append_roi(self,d):
+        for k,v in d.items():
+            if isinstance(v,dict):
+                self.append_roi(d)
+            else:
+                v.append(0)
+
     def ROIstats(self):
         
+        data = self.ui.roi[self.ui.currentroi].data
+        roi = self.currentroi.get()
+        # if roi > len(self.ui.roi):
+        #     self.append_roi(self.ui.stats)
         for t in ['et','tc','wt']:
-            sums = self.ui.data['manual_'+t] + self.ui.data[t]
-            subs = self.ui.data['manual_'+t] - self.ui.data[t]
+            sums = data['manual_'+t] + data[t]
+            subs = data['manual_'+t] - data[t]
                     
             TP = len(np.where(sums == 2))
             FP = len(np.where(subs == -1))
             TN = len(np.where(sums == 0))
             FN = len(np.where(subs == 1))
 
-            self.ui.stats['spec'][t][self.currentroi.get()] = TN/(TN+FP)
-            self.ui.stats['sens'][t][self.currentroi.get()] = TP/(TP+FN)
-            self.ui.stats['dice'][t][self.currentroi.get()] = dice(self.ui.data['manual_'+t].flatten(),self.ui.data[t].flatten()) 
+            # self.ui.stats['spec'][t][roi] = TN/(TN+FP)
+            # self.ui.stats['sens'][t][roi] = TP/(TP+FN)
+            # self.ui.stats['dice'][t][roi] = dice(data['manual_'+t].flatten(),data[t].flatten()) 
+            self.ui.roi[roi].stats['spec'][t] = TN/(TN+FP)
+            self.ui.roi[roi].stats['sens'][t] = TP/(TP+FN)
+            self.ui.roi[roi].stats['dice'][t] = dice(data['manual_'+t].flatten(),data[t].flatten()) 
 
         # Calculate volumes
-            self.ui.stats['vol']['manual_'+t][self.currentroi.get()] = len(np.where(self.ui.data['manual_'+t]))
-            self.ui.stats['vol'][t][self.currentroi.get()] = len(np.where(self.ui.data['tc']))
+            self.ui.roi[roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t]))
+            self.ui.roi[roi].stats['vol'][t] = len(np.where(data['tc']))
 
         # copy gate counts
-            self.ui.stats['t1gate_count'] = self.ui.data['gates'][3]
-            self.ui.stats['t2gate_count'] = self.ui.data['gates'][4]
+            self.ui.roi[roi].stats['gatecount']['t1'] = self.ui.roi[roi].data['gates'][3]
+            self.ui.roi[roi].stats['gatecount']['t2'] = self.ui.roi[roi].data['gates'][4]
 

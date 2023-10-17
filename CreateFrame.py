@@ -252,6 +252,7 @@ class CreateCaseFrame(CreateFrame):
         self.ui.dataselection = 'raw'
         self.ui.sliceviewerframe.tbar.home()
         self.ui.updateslice()
+        self.ui.starttime()
 
     def loadCase(self,case=None):
         if case is not None:

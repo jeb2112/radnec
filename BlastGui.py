@@ -1,5 +1,6 @@
 import os,sys
 import copy
+import time
 from tkinter import messagebox,ttk,PhotoImage
 from cProfile import Profile
 from pstats import SortKey,Stats
@@ -36,9 +37,7 @@ class BlastGui(object):
         self.currentroi = -1
         self.currentlayer = 0
         self.OS = sys.platform
-        # ROI stats
-        self.stats = nested_dict()
-
+        self.tstart = time.time()
 
         self.createGeneralLayout()
 
@@ -57,9 +56,6 @@ class BlastGui(object):
             self.roiframe.finalROI_overlay_value.set(True)
             self.roiframe.update_layermenu_options('seg')
             self.roiframe.enhancingROI_overlay_value.set(False)
-            self.roiframe.createROI(141,150,75)
-            self.roiframe.ROIclick(event=None)
-            self.roiframe.updateROI()
             self.currentroi = 0
             self.roiframe.currentroi.set(0)
             self.roiframe.update_roinumber_options()
@@ -169,8 +165,11 @@ class BlastGui(object):
     def updateslice(self,event=None,**kwargs):
         self.sliceviewerframe.updateslice(event,**kwargs)
 
-    # def updateslice(self,event=None):
-    #     self.sliceviewerframe.updateslice(event)
+    def starttime(self):
+        self.tstart = time.time()
+
+    def endtime(self):
+        self.roi[self.currentroi].stats['elapsed_time'] = time.time() - self.tstart
 
     def clearMsg(self):
         self.uiactions.setStatusMessage('')
