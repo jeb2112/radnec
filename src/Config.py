@@ -16,9 +16,6 @@ class Config(object):
         # Path for UI based resources (images, icons, etc)
         self.UIResourcesPath = os.path.join(self.UIPath, 'resources')
 
-        # Path where temporary image files used in UI are saved
-        self.UIWorkingFilesPath = os.path.join(self.UIPath, 'temp')
-
         # Path to log files
         self.LogFilePath = os.path.join(os.path.expanduser('~'), 'Documents', 'Blast', 'Log')
 

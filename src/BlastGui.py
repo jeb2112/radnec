@@ -7,7 +7,6 @@ from pstats import SortKey,Stats
 from collections import defaultdict
 
 import Config
-import UIActions
 import Blastbratsv3
 from CreateFrame import CreateCaseFrame,CreateSliceViewerFrame
 from CreateROIFrame import CreateROIFrame
