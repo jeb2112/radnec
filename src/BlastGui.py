@@ -4,7 +4,6 @@ import time
 from tkinter import messagebox,ttk,PhotoImage
 from cProfile import Profile
 from pstats import SortKey,Stats
-from collections import defaultdict
 
 import Config
 import Blastbratsv3
@@ -23,7 +22,6 @@ class BlastGui(object):
         self.config = Config.Config()
         self.logoImg = os.path.join(self.config.UIResourcesPath,'sunnybrook.png')
         self.blastImage = PhotoImage(file=self.logoImg)
-        self.uiactions = UIActions.UIActions(self)
         self.normalslice = None
         self.currentslice = None
         self.dataselection = 'raw'
@@ -200,6 +198,3 @@ class BlastGui(object):
         if msg is not None:
             self.actions.sendMessage(msg)
 
-
-def nested_dict():
-    return defaultdict(nested_dict)

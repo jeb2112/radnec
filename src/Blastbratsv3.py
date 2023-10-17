@@ -5,9 +5,15 @@ from scipy.spatial.distance import dice
 import copy
 from matplotlib.path import Path
 import time
-import cudf
-from cuspatial import point_in_polygon
-from cuspatial import GeoSeries
+try:
+    import cudf
+    from cuspatial import point_in_polygon
+    from cuspatial import GeoSeries
+    use_gpu = True
+except:
+    print('No rapidsai libraries.')
+    use_gpu = False
+
 import multiprocessing
 import cc3d
 import OverlayPlots
@@ -111,33 +117,56 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
         xy_wtverts = np.concatenate((xy_wtverts,np.atleast_2d(xy_wtverts[0,:])),axis=0) # close path
         xyverts =  np.vstack((xv,yv)).T
         xyverts = np.concatenate((xyverts,np.atleast_2d(xyverts[0,:])),axis=0) # close path
-        RGcoords = cudf.DataFrame({'x':t1t2verts[:,0],'y':t1t2verts[:,1]}).interleave_columns()
-        RGseries = GeoSeries.from_points_xy(RGcoords)
-        xy_etcoords = cudf.DataFrame({'x':xy_etverts[:,0],'y':xy_etverts[:,1]}).interleave_columns()
-        xy_etseries = GeoSeries.from_polygons_xy(xy_etcoords,[0, np.shape(xy_etverts)[0]],
-                                            [0,1],[0,1] )
-        xy_wtcoords = cudf.DataFrame({'x':xy_wtverts[:,0],'y':xy_wtverts[:,1]}).interleave_columns()
-        xy_wtseries = GeoSeries.from_polygons_xy(xy_wtcoords,[0, np.shape(xy_wtverts)[0]],
-                                            [0,1],[0,1] )
-        xycoords = cudf.DataFrame({'x':xyverts[:,0],'y':xyverts[:,1]}).interleave_columns()
-        xyseries = GeoSeries.from_polygons_xy(xycoords,[0,np.shape(xyverts)[0]],[0,1],[0,1])
 
-        # only redo the gates if required due to change in threshold
-        if data['gates'][1] is None:
-            et_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-            gate_etpts = dotime(point_in_polygon,(RGseries,xy_etseries),txt='gate')
-            gate_etpts = gate_etpts.values.get().astype('int').flatten()
-            et_gate[region_of_support] = gate_etpts
-        if data['gates'][2] is None:
-            wt_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-            gate_wtpts = dotime(point_in_polygon,(RGseries,xy_wtseries),txt='gate')
-            gate_wtpts = gate_wtpts.values.get().astype('int').flatten()
-            wt_gate[region_of_support] = gate_wtpts
-        if data['gates'][0] is None:
-            brain = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-            brainpts = dotime(point_in_polygon,(RGseries,xyseries),txt='brain')
-            brainpts = brainpts.values.get().astype('int').flatten()
-            brain[region_of_support] = brainpts
+        if use_gpu:
+            RGcoords = cudf.DataFrame({'x':t1t2verts[:,0],'y':t1t2verts[:,1]}).interleave_columns()
+            RGseries = GeoSeries.from_points_xy(RGcoords)
+            xy_etcoords = cudf.DataFrame({'x':xy_etverts[:,0],'y':xy_etverts[:,1]}).interleave_columns()
+            xy_etseries = GeoSeries.from_polygons_xy(xy_etcoords,[0, np.shape(xy_etverts)[0]],
+                                                [0,1],[0,1] )
+            xy_wtcoords = cudf.DataFrame({'x':xy_wtverts[:,0],'y':xy_wtverts[:,1]}).interleave_columns()
+            xy_wtseries = GeoSeries.from_polygons_xy(xy_wtcoords,[0, np.shape(xy_wtverts)[0]],
+                                                [0,1],[0,1] )
+            xycoords = cudf.DataFrame({'x':xyverts[:,0],'y':xyverts[:,1]}).interleave_columns()
+            xyseries = GeoSeries.from_polygons_xy(xycoords,[0,np.shape(xyverts)[0]],[0,1],[0,1])
+
+            # only redo the gates if required due to change in threshold
+            if data['gates'][1] is None:
+                et_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
+                gate_etpts = dotime(point_in_polygon,(RGseries,xy_etseries),txt='gate')
+                gate_etpts = gate_etpts.values.get().astype('int').flatten()
+                et_gate[region_of_support] = gate_etpts
+            if data['gates'][2] is None:
+                wt_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
+                gate_wtpts = dotime(point_in_polygon,(RGseries,xy_wtseries),txt='gate')
+                gate_wtpts = gate_wtpts.values.get().astype('int').flatten()
+                wt_gate[region_of_support] = gate_wtpts
+            if data['gates'][0] is None:
+                brain = np.zeros(np.shape(t1mpragestack),dtype='uint8')
+                brainpts = dotime(point_in_polygon,(RGseries,xyseries),txt='brain')
+                brainpts = brainpts.values.get().astype('int').flatten()
+                brain[region_of_support] = brainpts
+        else:
+            path = Path(xyverts,closed=True)
+            path_et = Path(xy_etverts)
+            path_wt = Path(xy_wtverts)
+            if data['gates'][1] is None:
+                et_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
+                et_gate_pts = path_et.contains_points(t1t2verts).flatten()
+                et_gate[region_of_support] = et_gate_pts
+            if data['gates'][2] is None:
+                wt_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
+                wt_gate_pts = path_wt.contains_points(t1t2verts).flatten()
+                wt_gate[region_of_support] = wt_gate_pts
+            if data['gates'][0] is None:
+                brain = np.zeros(np.shape(t1mpragestack),dtype='uint8')
+                brain_pts = path.contains_points(t1t2verts).flatten()
+                brain[region_of_support] = brain_pts
+            # et_gate = dotime(path_et.contains_points,(t1t2verts)).reshape(155,240,240)
+            # wt_gate = path_wt.contains_points(t1t2verts).reshape(240,240)
+            # brain = path.contains_points(t1t2verts).reshape(240,240)
+
+
         end = time.time()
         print('polygon contains points time = {:.2f} sec'.format(end-start))
         et_mask = np.logical_and(et_gate, np.logical_not(brain)) # 

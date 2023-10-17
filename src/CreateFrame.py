@@ -12,12 +12,7 @@ import matplotlib
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
 from sklearn.cluster import KMeans,MiniBatchKMeans
-from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube
-from cucim.skimage.morphology import binary_closing as cucim_binary_closing
 from scipy.spatial.distance import dice
-from scipy.ndimage import binary_closing as scipy_binary_closing
-from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
-import cupy as cp
 import cc3d
 
 from NavigationBar import NavigationBar
@@ -98,8 +93,9 @@ class CreateSliceViewerFrame(CreateFrame):
 
         OS = sys.platform
         if OS in ('win32','darwin'):
-            self.frame.bind('<MouseWheel>', self.updatew2())
-            self.frame.bind('<Shift-MouseWheel>', self.updatel2())
+            # self.frame.bind('<MouseWheel>', self.updatew2())
+            # self.frame.bind('<Shift-MouseWheel>', self.updatel2())
+            self.ui.root.bind('<Button>',self.touchpad)
         if OS == 'linux':
             self.ui.root.bind('<Button>',self.touchpad)
             # self.ui.root.bind('<ButtonRelease>',self.touchpad)
@@ -193,6 +189,18 @@ class CreateSliceViewerFrame(CreateFrame):
         else:
             ax = 1
         if self.ui.OS == 'linux':
+            if event.state:
+                if event.num == 4:
+                    # increment is hard-coded
+                    self.updatewl(ax=ax,wval=.01)
+                elif event.num == 5:
+                    self.updatewl(ax=ax,wval=-.01)
+            else:
+                if event.num == 4:
+                    self.updatewl(ax=ax,lval=.01)
+                elif event.num == 5:
+                    self.updatewl(ax=ax,lval=-.01)
+        elif self.ui.OS == 'nt':
             if event.state:
                 if event.num == 4:
                     # increment is hard-coded

@@ -6,15 +6,15 @@ class Config(object):
         ### Paths that tend to change based on local install
 
         if os.name == 'nt':
-            self.InstallPath = os.path.join('C:\\','Program Files (x86)','Blast')
+            self.InstallPath = os.path.join('C:\\','Users','Chris Heyn Lab','src','blast')
         else:
-            self.InstallPath = os.path.join('/home','src')
+            self.InstallPath = os.path.join('/home','src','blast')
 
         # Path where R&D user interface built in Python is located
-        self.UIPath = os.path.join(self.InstallPath, 'blast')
+        self.UIPath = os.path.join(self.InstallPath, 'src')
 
         # Path for UI based resources (images, icons, etc)
-        self.UIResourcesPath = os.path.join(self.UIPath, 'resources')
+        self.UIResourcesPath = os.path.join(self.InstallPath, 'resources')
 
         # Path to log files
         self.LogFilePath = os.path.join(os.path.expanduser('~'), 'Documents', 'Blast', 'Log')
@@ -23,6 +23,9 @@ class Config(object):
         self.DataFilePath = os.path.join(os.path.expanduser('~'), 'Documents', 'Blast', 'Data')
 
         # Path to dataset images
-        self.UIdatadir = '/media/jbishop/WD4/brainmets/blast/'
+        if os.name == 'nt':
+            self.UIdatadir = os.path.join('D:\\','BLAST','test')
+        elif os.name == 'posix':
+            self.UIdatadir = '/media/jbishop/WD4/brainmets/blast/'
         self.UIdataroot = 'BraTS2021_'
 

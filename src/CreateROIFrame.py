@@ -14,11 +14,13 @@ matplotlib.use('TkAgg')
 import SimpleITK as sitk
 from sklearn.cluster import KMeans,MiniBatchKMeans
 from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube
-from cucim.skimage.morphology import binary_closing as cucim_binary_closing
 from scipy.spatial.distance import dice
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
-from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
+if os.name == 'posix':
+    from cucim.skimage.morphology import binary_closing as cucim_binary_closing
+elif os.name == 'nt':
+    from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
 import cupy as cp
 import cc3d
 
@@ -362,8 +364,8 @@ class CreateROIFrame(CreateFrame):
 
             # calculate tc
             if m == 'et':
-                objectmask_closed = np.zeros(np.shape(self.ui.data['raw']))
-                objectmask_final = np.zeros(np.shape(self.ui.data['raw']))
+                objectmask_closed = np.zeros(np.shape(self.ui.data['raw'])[1:])
+                objectmask_final = np.zeros(np.shape(self.ui.data['raw'])[1:])
 
                 # thisBB = BB.BoundingBox[objectnumber,:,:]
                 thisBB = stats['bounding_boxes'][objectnumber]
@@ -382,8 +384,12 @@ class CreateROIFrame(CreateFrame):
                     objectmask_cp = cp.array(objectmask)
                     se_cp = cp.array(se)
                     # TODO: iterate binary_closing?
-                    close_object_cucim = cucim_binary_closing(objectmask_cp,footprint=se_cp)
-                    objectmask_closed = np.array(close_object_cucim.get())
+                    if os.name == 'posix':
+                        close_object_cucim = cucim_binary_closing(objectmask_cp,footprint=se_cp)
+                        objectmask_closed = np.array(close_object_cucim.get())
+                    elif os.name == 'nt':
+                        close_object_cupy = cupy_binary_closing(objectmask_cp,se_cp)
+                        close_object = np.array(close_object_cupy.get())            
                     end = time.time()
                     print('binary closing time = {:.2f} sec'.format(end-start))
                     # use cupy library.

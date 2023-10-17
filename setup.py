@@ -8,12 +8,12 @@ setup(name='blast',
       author='JB',
       install_requires=[
             "scipy",
+            "scikit-learn",
             "numpy",
             "scikit-image",
             "SimpleITK",
             "pandas",
             "matplotlib",
             "connected-components-3d",
-            "twisted"
-      ])
+            "twisted"      ])
  

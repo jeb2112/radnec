@@ -24,9 +24,6 @@ class Gui(object):
                 iconfile = os.path.join(self.config.UIResourcesPath,'sunnybrook.png')
                 self.root.call('wm','iconphoto',self.root._w,PhotoImage(file=iconfile))
             self.UI = BlastGui.BlastGui(self.root, optionsFlag)
-            # self.UI.rxinfo.tabs.selectSeq()
-            # self.UI.geomPanel.updateAxes(anatomicplane=1)
-            # self.UI.load.loadSeriesParams()
 
             tksupport.install(self.root)
             reactor.run()

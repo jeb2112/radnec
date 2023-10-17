@@ -8,7 +8,7 @@
             "name": "Gui",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/startGui.py",
+            "program": "${workspaceFolder}/src/startGui.py",
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": false
