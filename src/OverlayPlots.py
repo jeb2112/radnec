@@ -80,7 +80,7 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray, layer: s
 
         # create output
         if mapping is None:
-            uniques = np.sort(pd.unique(segmentation.ravel()))  # np.unique(segmentation)
+            uniques = np.sort(np.unique(segmentation.ravel()))  # np.unique(segmentation)
             mapping = {i: c for c, i in enumerate(uniques)} 
 
         for l in mapping.keys():

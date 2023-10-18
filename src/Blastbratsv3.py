@@ -4,6 +4,7 @@ from skimage.draw import ellipse_perimeter
 from scipy.spatial.distance import dice
 import copy
 from matplotlib.path import Path
+import matplotlib.pyplot as plt
 import time
 try:
     import cudf
@@ -148,8 +149,8 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
                 brain[region_of_support] = brainpts
         else:
             path = Path(xyverts,closed=True)
-            path_et = Path(xy_etverts)
-            path_wt = Path(xy_wtverts)
+            path_et = Path(xy_etverts,closed=True)
+            path_wt = Path(xy_wtverts,closed=True)
             if data['gates'][1] is None:
                 et_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
                 et_gate_pts = path_et.contains_points(t1t2verts).flatten()
@@ -162,10 +163,6 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
                 brain = np.zeros(np.shape(t1mpragestack),dtype='uint8')
                 brain_pts = path.contains_points(t1t2verts).flatten()
                 brain[region_of_support] = brain_pts
-            # et_gate = dotime(path_et.contains_points,(t1t2verts)).reshape(155,240,240)
-            # wt_gate = path_wt.contains_points(t1t2verts).reshape(240,240)
-            # brain = path.contains_points(t1t2verts).reshape(240,240)
-
 
         end = time.time()
         print('polygon contains points time = {:.2f} sec'.format(end-start))
@@ -178,6 +175,11 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
         #specific small non target voxels removed for ROC paper
 
         wt_mask = np.logical_and(wt_gate, np.logical_not(brain))
+
+        # check for redundancy
+        if (et_mask == wt_mask).all() and t1thresh < 0:
+            et_mask = np.where(et_mask,False,False)
+
         # maskstack = et_mask + wtmask
         c_maskstack = et_mask.astype('int')*2 + wt_mask.astype('int')
         # fusion = dotime(OverlayPlots.generate_overlay,(data['raw'],c_maskstack),txt='overlay') 
@@ -203,8 +205,8 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
             xyverts =  np.vstack((xv,yv)).T
             xyverts = np.concatenate((xyverts,np.atleast_2d(xyverts[0,:])),axis=0) # close path
             path = Path(xyverts,closed=True)
-            path_et = Path(xy_etverts)
-            path_wt = Path(xy_wtverts)
+            path_et = Path(xy_etverts,closed=True)
+            path_wt = Path(xy_wtverts,closed=True)
 
             # find polygons
             # matplotlib. don't need gpu for 1 slice
@@ -217,6 +219,11 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
             et_mask = et_mask.reshape((240,240))
             wt_mask = np.logical_and(gate_wt, np.logical_not(brain)) # 
             wt_mask = wt_mask.reshape((240,240))
+
+            # check for redundancy
+            if (et_mask == wt_mask).all() and t1thresh < 0:
+                et_mask = np.where(et_mask,False,False)
+
             compound_mask = et_mask.astype('int')*2+wt_mask.astype('int')
             # et_mask = max(et_mask,0)
             # fusion = imfuse(et_mask,t1mprage_template[slice,:,:,slice],'blend')
