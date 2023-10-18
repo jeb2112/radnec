@@ -25,7 +25,7 @@ class ROI():
 
         self.stats = {'spec':{'et':0,'tc':0,'wt':0},
             'sens':{'et':0,'tc':0,'wt':0},
-            'dice':{'et':0,'tc':0,'wt':0},
+            'dsc':{'et':0,'tc':0,'wt':0},
             'vol':{'et':0,'tc':0,'wt':0,'manual_et':0,'manual_tc':0,'manual_wt':0},
             'gatecount':{'t1':0,'t2':0},
             'elapsed_time':0}

@@ -389,7 +389,7 @@ class CreateROIFrame(CreateFrame):
                         objectmask_closed = np.array(close_object_cucim.get())
                     elif os.name == 'nt':
                         close_object_cupy = cupy_binary_closing(objectmask_cp,se_cp)
-                        close_object = np.array(close_object_cupy.get())            
+                        objectmask_closed = np.array(close_object_cupy.get())            
                     end = time.time()
                     print('binary closing time = {:.2f} sec'.format(end-start))
                     # use cupy library.
@@ -488,10 +488,13 @@ class CreateROIFrame(CreateFrame):
             mdict['centreimage'] = 0
             mdict['specificity_et'] = r.stats['spec']['et']
             mdict['sensitivity_et'] = r.stats['sens']['et']
-            mdict['dicecoefficient_et'] = r.stats['dice']['et']
+            mdict['dicecoefficient_et'] = r.stats['dsc']['et']
             mdict['specificity_tc'] = r.stats['spec']['tc']
             mdict['sensitivity_tc'] = r.stats['sens']['tc']
-            mdict['dicecoefficient_tc'] = r.stats['dice']['tc']
+            mdict['dicecoefficient_tc'] = r.stats['dsc']['tc']
+            mdict['specificity_wt'] = r.stats['spec']['wt']
+            mdict['sensitivity_wt'] = r.stats['sens']['wt']
+            mdict['dicecoefficient_wt'] = r.stats['dsc']['wt']
             mdict['b'] = 0
             mdict['b2'] = 0
             mdict['manualmask_et_volume'] = r.stats['vol']['manual_et']
@@ -565,21 +568,21 @@ class CreateROIFrame(CreateFrame):
             sums = data['manual_'+t] + data[t]
             subs = data['manual_'+t] - data[t]
                     
-            TP = len(np.where(sums == 2))
-            FP = len(np.where(subs == -1))
-            TN = len(np.where(sums == 0))
-            FN = len(np.where(subs == 1))
+            TP = len(np.where(sums == 2)[0])
+            FP = len(np.where(subs == -1)[0])
+            TN = len(np.where(sums == 0)[0])
+            FN = len(np.where(subs == 1)[0])
 
             # self.ui.stats['spec'][t][roi] = TN/(TN+FP)
             # self.ui.stats['sens'][t][roi] = TP/(TP+FN)
             # self.ui.stats['dice'][t][roi] = dice(data['manual_'+t].flatten(),data[t].flatten()) 
             self.ui.roi[roi].stats['spec'][t] = TN/(TN+FP)
             self.ui.roi[roi].stats['sens'][t] = TP/(TP+FN)
-            self.ui.roi[roi].stats['dice'][t] = dice(data['manual_'+t].flatten(),data[t].flatten()) 
+            self.ui.roi[roi].stats['dsc'][t] = 1-dice(data['manual_'+t].flatten(),data[t].flatten()) 
 
         # Calculate volumes
-            self.ui.roi[roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t]))
-            self.ui.roi[roi].stats['vol'][t] = len(np.where(data['tc']))
+            self.ui.roi[roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
+            self.ui.roi[roi].stats['vol'][t] = len(np.where(data[t])[0])
 
         # copy gate counts
             self.ui.roi[roi].stats['gatecount']['t1'] = self.ui.roi[roi].data['gates'][3]

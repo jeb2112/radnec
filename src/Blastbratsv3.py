@@ -11,7 +11,7 @@ try:
     from cuspatial import GeoSeries
     use_gpu = True
 except:
-    print('No rapidsai libraries.')
+    print('No rapidsai GPU libraries.')
     use_gpu = False
 
 import multiprocessing

@@ -14,7 +14,7 @@ from ROI import ROI
 
 # main gui class
 class BlastGui(object):
-    def __init__(self, root, toolsFlag, debug=True):
+    def __init__(self, root, toolsFlag, debug=False):
         self.root = root
         self.toolsFlag = toolsFlag
         self.titletext = 'BLAST User Interface'
