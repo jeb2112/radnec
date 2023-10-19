@@ -39,6 +39,10 @@ class Config(object):
         if os.name == 'nt':
             self.UIdatadir = os.path.join('D:\\','BLAST','test')
         elif os.name == 'posix':
-            self.UIdatadir = '/media/jbishop/WD4/brainmets/blast/'
+            self.UIdatadir = '/media/jbishop/WD4/brainmets/raw/BraTS2021'
+            # self.UIdatadir = '/media/jbishop/WD4/brainmets/blast'
         self.UIdataroot = 'BraTS2021_'
+
+        # do n4 bias field correction
+        self.n4 = True
 

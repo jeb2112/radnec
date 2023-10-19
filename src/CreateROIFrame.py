@@ -501,9 +501,9 @@ class CreateROIFrame(CreateFrame):
             mdict['manualmask_tc_volume'] = r.stats['vol']['manual_tc']
             mdict['objectmask_filled_volume'] = r.stats['vol']['tc']
             mdict['cumulative_elapsed_time'] = r.stats['elapsed_time']
+
         with open(filename,'ab') as fp:
             pickle.dump(sdict,fp)
-
         # matlab compatible output
         filename = filename[:-3] + 'mat'
         with open(filename,'ab') as fp:

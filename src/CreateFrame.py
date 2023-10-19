@@ -9,6 +9,7 @@ from tkinter import ttk,StringVar,DoubleVar,PhotoImage
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib
+import matplotlib.pyplot as plt
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
 from sklearn.cluster import KMeans,MiniBatchKMeans
@@ -221,12 +222,11 @@ class CreateCaseFrame(CreateFrame):
         super().__init__(parent,ui=ui)
 
         self.fd = FileDialog(initdir=self.config.UIdatadir)
-        self.caselist = ['00000','00001']
         self.datadir = StringVar()
-        self.datadir.set(self.config.UIdatadir)
+        self.datadir.set(self.fd.dir)
         self.casename = StringVar()
-        self.casename.set(self.caselist[0])
         self.casefile_prefix = None
+        self.caselist = []
 
         # case selection
         caseframe = ttk.Frame(parent,padding='5')
@@ -242,9 +242,12 @@ class CreateCaseFrame(CreateFrame):
         self.datadirentry.grid(column=3,row=0,columnspan=5)
         caselabel = ttk.Label(caseframe, text='Case: ')
         caselabel.grid(column=0,row=0,sticky='we')
-        self.casename.trace_add('write',lambda *args: self.casename.get())
-        self.w = ttk.OptionMenu(caseframe,self.casename,*self.caselist,command=self.case_callback)
+        self.casename.trace_add('write',self.case_callback)
+        self.w = ttk.Combobox(caseframe,width=6,textvariable=self.casename,values=self.caselist)
         self.w.grid(column=1,row=0)
+
+        # initialize default directory
+        self.datadirentry_callback()
 
     def select_dir(self):
         self.fd.select_dir()
@@ -254,9 +257,9 @@ class CreateCaseFrame(CreateFrame):
         self.casename.set(self.caselist[0])
         self.ui.set_casename(self.caselist[0])
 
-    def case_callback(self,case):
+    def case_callback(self,casevar,val,event):
+        case = self.casename.get()
         print('Loading case {}'.format(case))
-        self.casename.set(case)
         self.ui.set_casename(case)
         self.loadCase()
         self.ui.dataselection = 'raw'
@@ -267,19 +270,25 @@ class CreateCaseFrame(CreateFrame):
     def loadCase(self,case=None):
         if case is not None:
             self.casename.set(case)
-        self.casedir = os.path.join(self.config.UIdatadir,self.config.UIdataroot+self.casename.get())
+        self.casedir = os.path.join(self.datadir.get(),self.config.UIdataroot+self.casename.get())
+        files = os.listdir(self.casedir)
         # create t1mprage template
-        t1ce = sitk.ReadImage(os.path.join(self.casedir,self.config.UIdataroot + self.casename.get() + "_t1ce_bias.nii"))
+        t1ce_file = next((f for f in files if 't1ce' in f),None)
+        t1ce = sitk.ReadImage(os.path.join(self.casedir,t1ce_file))
         img_arr = sitk.GetArrayFromImage(t1ce)
         # 2 channels hard-coded
-        self.ui.data['raw'] = np.zeros((2,)+np.shape(img_arr))
+        self.ui.data['raw'] = np.zeros((2,)+np.shape(img_arr),dtype='float32')
         self.ui.data['raw'][0] = img_arr
 
         # Create t2flair template 
-        t2flair = sitk.ReadImage(os.path.join(self.casedir,self.config.UIdataroot + self.casename.get() + "_flair_bias.nii") )
+        t2flair_file = next((f for f in files if 'flair' in f),None)
+        t2flair = sitk.ReadImage(os.path.join(self.casedir,t2flair_file))
         img_arr = sitk.GetArrayFromImage(t2flair)
         self.ui.data['raw'][1] = img_arr
 
+        # bias correction. by convention, any pre-corrected files should have 'bias' in the filename
+        if self.ui.config.n4 and 'bias' not in t1ce_file:  
+            self.n4()
         # rescale the data
         self.ui.data['raw'] = self.rescale(self.ui.data['raw'])
 
@@ -315,6 +324,25 @@ class CreateCaseFrame(CreateFrame):
             scaled_arr[ch] = (img_arr[ch]-minv) / (maxv-minv)
             scaled_arr[ch] = np.clip(scaled_arr[ch],a_min=0,a_max=1)
         return scaled_arr
+    
+    def n4(self,shrinkFactor=4,nFittingLevels=4):
+        # self.ui.set_message('Performing N4 bias correction')
+        print('N4 bias correction')
+        for ch in range(np.shape(self.ui.data['raw'])[0]):
+            data = self.ui.data['raw'][ch]
+            dataImage = sitk.Cast(sitk.GetImageFromArray(data),sitk.sitkFloat32)
+            sdataImage = sitk.Shrink(dataImage,[shrinkFactor]*dataImage.GetDimension())
+            maskImage = sitk.Cast(sitk.GetImageFromArray(np.where(data,True,False).astype('uint8')),sitk.sitkUInt8)
+            maskImage = sitk.Shrink(maskImage,[shrinkFactor]*maskImage.GetDimension())
+            corrector = sitk.N4BiasFieldCorrectionImageFilter()
+            lowres_img = corrector.Execute(sdataImage,maskImage)
+            log_bias_field = corrector.GetLogBiasFieldAsImage(dataImage)
+            log_bias_field_arr = sitk.GetArrayFromImage(log_bias_field)
+            corrected_img = dataImage / sitk.Exp(log_bias_field)
+            corrected_img_arr = sitk.GetArrayFromImage(corrected_img)
+            self.ui.data['raw'][ch] = corrected_img_arr
+            a=1
+        return
 
     def datadirentry_callback(self,event=None):
         dir = self.datadir.get().strip()
@@ -326,12 +354,11 @@ class CreateCaseFrame(CreateFrame):
             if len(casefiles):
                 # TODO: will need a better sort here
                 self.caselist = sorted(casefiles)
-                self.w.config(state='normal')
-                self.w.set_menu(*self.caselist,default=self.caselist[0])
+                self.w['values'] = self.caselist   
+                self.casename.set(self.caselist[0])             
             else:
                 print('No cases found in directory {}'.format(dir))
                 self.ui.set_message('No cases found in directory {}'.format(dir))
-                self.w.config(state='disable')
         else:
             print('Directory {} not found.'.format(dir))
             self.ui.set_message('Directory {} not found.'.format(dir))
