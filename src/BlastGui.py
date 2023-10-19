@@ -10,7 +10,6 @@ import Blastbratsv3
 from CreateFrame import CreateCaseFrame,CreateSliceViewerFrame
 from CreateROIFrame import CreateROIFrame
 from OverlayPlots import *
-from ROI import ROI
 
 # main gui class
 class BlastGui(object):
@@ -172,29 +171,6 @@ class BlastGui(object):
 
     def clearMsg(self):
         self.uiactions.setStatusMessage('')
-
-
-    ### stats ###
-    #  @param self The UI object
-    #  @param analysis The type of analysis tool to run, allowed values = ['SNR', 'RMS', 'Distortion', 'Ghosting']
-    def compute(self, analysis='stats'):
-        try:
-            activeElem = self.rxinfo.seqList.curInd
-            #     scriptpath = Config.ScriptPath
-            #     if scriptpath not in sys.path:
-            #         sys.path.append(scriptpath)
-
-            imfile = os.path.join(Config.TempDataStorePath, self.uiactions.getCurrentImageFile())
-            if analysis == 'stats':
-                # import TemporalSNR
-                # app = TemporalSNR.TemporalSNR(imfile)
-                # result = app.run()
-                result = 'Test'
-                msg = 'Stats Results = {}'.format(result)
-            messagebox.showinfo(title="{}".format(analysis), message=msg)
-
-        except Exception as e:
-            self.uiactions.setCommunicationMessage("Error running stats procedure")
 
     def SendMessage(self, msg=None):
         if msg is not None:

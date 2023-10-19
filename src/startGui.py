@@ -1,14 +1,17 @@
 import sys
+import argparse
 
 from Gui import Gui
 
-def main(optionsFlag):
+def main(optionsFlag,debug=False):
 
-    gui = Gui(optionsFlag)
+    gui = Gui(optionsFlag, debug=debug)
 
 if __name__ == '__main__':
-    if len(sys.argv)>1:
-        optionsFlag = int(sys.argv[1])
-    else:
-        optionsFlag = 0
-    main(optionsFlag)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--debug',action = 'store_true',default=False)
+    parser.add_argument('--options',default='0')
+    args = parser.parse_args()
+    optionsFlag = int(args.options)
+
+    main(optionsFlag,debug=args.debug)

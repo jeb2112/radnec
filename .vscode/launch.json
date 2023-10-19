@@ -9,19 +9,26 @@
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/startGui.py",
+            "args": [
+                "--options","0",
+            ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": false
-        },
+        } ,
         {
-            "name": "testpip",
+            "name": "Gui (debug)",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/testpip.py",
+            "program": "${workspaceFolder}/src/startGui.py",
+            "args": [
+                "--options","0",
+                "--debug"
+            ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": false
-        }
-
+        } 
+        
     ]
 }

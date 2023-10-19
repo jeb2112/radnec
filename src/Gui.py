@@ -8,9 +8,9 @@ import Config
 
 from twisted.internet import tksupport, reactor, protocol
 
-class Gui(object):
+class Gui():
 
-    def __init__(self, optionsFlag = 0):
+    def __init__(self, optionsFlag = 0, debug=False):
         try:
             self.root = Tk()
             self.root.rowconfigure(0,minsize=600,weight=1)
@@ -23,13 +23,12 @@ class Gui(object):
             else:
                 iconfile = os.path.join(self.config.UIResourcesPath,'sunnybrook.png')
                 self.root.call('wm','iconphoto',self.root._w,PhotoImage(file=iconfile))
-            self.UI = BlastGui.BlastGui(self.root, optionsFlag)
+            self.UI = BlastGui.BlastGui(self.root, optionsFlag, debug=debug)
 
             tksupport.install(self.root)
             reactor.run()
         except Exception as e:
-            Log.error(logname='BlastGUI', group=self.__class__.__name__).exception("{}: {}".format(e, sys.exc_info()[0]))
-            
+            Log.error(logname='BlastUI', group=self.__class__.__name__).exception("{}: {}".format(e, sys.exc_info()[0]))
         else:
             print("Exit")
 
