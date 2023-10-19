@@ -164,8 +164,8 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
                 brain_pts = path.contains_points(t1t2verts).flatten()
                 brain[region_of_support] = brain_pts
 
-        end = time.time()
-        print('polygon contains points time = {:.2f} sec'.format(end-start))
+        dtime = time.time()-start
+        print('polygon contains points time = {:.2f} sec'.format(dtime))
         et_mask = np.logical_and(et_gate, np.logical_not(brain)) # 
         # et_mask = max(et_mask,0)
         # fusion = imfuse(et_mask,t1mprage_template[slice,:,:,slice],'blend')

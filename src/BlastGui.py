@@ -2,6 +2,7 @@ import os,sys
 import copy
 import time
 from tkinter import messagebox,ttk,PhotoImage
+import tkinter as tk
 from cProfile import Profile
 from pstats import SortKey,Stats
 
@@ -13,12 +14,12 @@ from OverlayPlots import *
 
 # main gui class
 class BlastGui(object):
-    def __init__(self, root, toolsFlag, debug=False):
+    def __init__(self, root, toolsFlag, config, debug=False):
         self.root = root
         self.toolsFlag = toolsFlag
         self.titletext = 'BLAST User Interface'
         self.root.title(self.titletext)
-        self.config = Config.Config()
+        self.config = config
         self.logoImg = os.path.join(self.config.UIResourcesPath,'sunnybrook.png')
         self.blastImage = PhotoImage(file=self.logoImg)
         self.normalslice = None
@@ -34,6 +35,8 @@ class BlastGui(object):
         self.currentlayer = 0
         self.OS = sys.platform
         self.tstart = time.time()
+
+        self.message = tk.StringVar(value='')
 
         self.createGeneralLayout()
 
@@ -169,10 +172,13 @@ class BlastGui(object):
     def endtime(self):
         self.roi[self.currentroi].stats['elapsed_time'] = time.time() - self.tstart
 
-    def clearMsg(self):
-        self.uiactions.setStatusMessage('')
+    def clear_message(self):
+        self.sliceviewerframe.messagelabel['text'] = ''
+        self.message.set('')
 
-    def SendMessage(self, msg=None):
-        if msg is not None:
-            self.actions.sendMessage(msg)
-
+    def set_message(self, msg=None):
+        if msg is None:
+            msg = self.message.get()
+        else:
+            self.message.set(msg)
+        self.sliceviewerframe.messagelabel['text'] = msg

@@ -2,7 +2,7 @@ import os,sys
 import numpy as np
 import pickle
 import copy
-import re
+import logging
 import time
 import tkinter as tk
 from tkinter import ttk,StringVar,DoubleVar,PhotoImage
@@ -24,7 +24,6 @@ elif os.name == 'nt':
 import cupy as cp
 import cc3d
 
-from Config import Config
 import OverlayPlots
 from CreateFrame import CreateFrame
 from ROI import ROI
@@ -547,9 +546,10 @@ class CreateROIFrame(CreateFrame):
         self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
 
     def clearROI(self):
-        self.ui.roi.pop(self.ui.currentroi)
-        self.ui.currentroi -= 1
-        self.ui.updateslice()
+        if len(self.ui.roi):    
+            self.ui.roi.pop(self.ui.currentroi)
+            self.ui.currentroi -= 1
+            self.ui.updateslice()
 
     def append_roi(self,d):
         for k,v in d.items():

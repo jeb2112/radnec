@@ -3,7 +3,7 @@ import numpy as np
 import glob
 import copy
 import re
-import time
+import logging
 import tkinter as tk
 from tkinter import ttk,StringVar,DoubleVar,PhotoImage
 from matplotlib.figure import Figure
@@ -16,7 +16,6 @@ from scipy.spatial.distance import dice
 import cc3d
 
 from NavigationBar import NavigationBar
-from Config import Config
 from FileDialog import FileDialog
 import OverlayPlots
 
@@ -26,7 +25,7 @@ class CreateFrame():
         self.ui = ui
         self.parentframe = frame # parent
         self.frame = ttk.Frame(self.parentframe,padding=padding)
-        self.config = Config()
+        self.config = self.ui.config
         self.padding = padding
 
 
@@ -90,6 +89,10 @@ class CreateSliceViewerFrame(CreateFrame):
         # self.lslider.grid(row=2,column=1,sticky='w')
         # self.lslidernumberlabel = ttk.Label(slidersframe,text='{}'.format(self.level.get()))
         # self.lslidernumberlabel.grid(row=2,column=2)
+
+        # messages text frame
+        self.messagelabel = ttk.Label(self.frame,text=self.ui.message.get(),padding='5',borderwidth=0,relief='groove')
+        self.messagelabel.grid(column=0,row=5,columnspan=3,sticky='ew')
 
         OS = sys.platform
         if OS in ('win32','darwin'):
@@ -272,8 +275,6 @@ class CreateCaseFrame(CreateFrame):
         # 2 channels hard-coded
         self.ui.data['raw'] = np.zeros((2,)+np.shape(img_arr))
         self.ui.data['raw'][0] = img_arr
-        # awkward. to store nifti header
-        # self.ui.data['nifti'] = t1ce
 
         # Create t2flair template 
         t2flair = sitk.ReadImage(os.path.join(self.casedir,self.config.UIdataroot + self.casename.get() + "_flair_bias.nii") )
@@ -322,6 +323,7 @@ class CreateCaseFrame(CreateFrame):
             files = os.listdir(dir)
             self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
             casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
+            self.ui.set_message('')
             if len(casefiles):
                 # TODO: will need a better sort here
                 self.caselist = sorted(casefiles)
@@ -329,9 +331,11 @@ class CreateCaseFrame(CreateFrame):
                 self.w.set_menu(*self.caselist,default=self.caselist[0])
             else:
                 print('No cases found in directory {}'.format(dir))
+                self.ui.set_message('No cases found in directory {}'.format(dir))
                 self.w.config(state='disable')
         else:
             print('Directory {} not found.'.format(dir))
+            self.ui.set_message('Directory {} not found.'.format(dir))
             self.w.config(state='disable')
             self.datadirentry.update()
         return

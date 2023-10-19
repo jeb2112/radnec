@@ -1,4 +1,5 @@
 import os, sys
+import logging
 
 class Config(object):
     def __init__(self):
@@ -17,10 +18,22 @@ class Config(object):
         self.UIResourcesPath = os.path.join(self.InstallPath, 'resources')
 
         # Path to log files
-        self.LogFilePath = os.path.join(os.path.expanduser('~'), 'Documents', 'Blast', 'Log')
+        self.logger = logging.getLogger('blast')
+        self.logger.setLevel(logging.DEBUG)
+        self.LogFileName = 'BlastUI.log'
+        if self.LogFileName is not None:
+            self.LogFilePath = os.path.join(os.path.expanduser('~'), 'Documents', 'Blast', 'Log')
+            if not os.path.exists(self.LogFilePath):
+                os.makedirs(self.LogFilePath)
+            filehandler = logging.FileHandler(os.path.join(self.LogFilePath,self.LogFileName),mode='w')
+            self.logger.addHandler(filehandler)
+            # logging.basicConfig(filename = os.path.join(self.LogFilePath,self.LogFileName),
+            #                     filemode='w',level=logging.DEBUG)
 
         # Path to data files
         self.DataFilePath = os.path.join(os.path.expanduser('~'), 'Documents', 'Blast', 'Data')
+        if not os.path.exists(self.LogFilePath):
+            os.makedirs(self.LogFilePath)
 
         # Path to dataset images
         if os.name == 'nt':
