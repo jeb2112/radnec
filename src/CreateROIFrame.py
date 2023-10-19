@@ -285,6 +285,7 @@ class CreateROIFrame(CreateFrame):
         # awkward have to reference to get the tk Var
         self.ui.roiframe.updatet1threshold(currentslice=None)
         self.ui.dataselection = 'seg_raw_fusion_d'
+        self.enhancingROI_overlay_value.set(True)
 
     def selectROI(self):
         self.finalROI_overlay_value.set(True)

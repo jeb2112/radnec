@@ -91,15 +91,14 @@ class CreateSliceViewerFrame(CreateFrame):
         # self.lslidernumberlabel.grid(row=2,column=2)
 
         # messages text frame
-        self.messagelabel = ttk.Label(self.frame,text=self.ui.message.get(),padding='5',borderwidth=0,relief='groove')
+        self.messagelabel = ttk.Label(self.frame,text=self.ui.message.get(),padding='5',borderwidth=0)
         self.messagelabel.grid(column=0,row=5,columnspan=3,sticky='ew')
 
-        OS = sys.platform
-        if OS in ('win32','darwin'):
+        if self.ui.OS in ('win32','darwin'):
             # self.frame.bind('<MouseWheel>', self.updatew2())
             # self.frame.bind('<Shift-MouseWheel>', self.updatel2())
             self.ui.root.bind('<Button>',self.touchpad)
-        if OS == 'linux':
+        if self.ui.OS == 'linux':
             self.ui.root.bind('<Button>',self.touchpad)
             # self.ui.root.bind('<ButtonRelease>',self.touchpad)
 
