@@ -282,7 +282,6 @@ class CreateROIFrame(CreateFrame):
         self.ui.roiframe.t2slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet2threshold)
 
         # automatically run the default thresholds in 3d to start things off
-        # awkward have to reference to get the tk Var
         self.ui.roiframe.updatet1threshold(currentslice=None)
         self.ui.dataselection = 'seg_raw_fusion_d'
         self.enhancingROI_overlay_value.set(True)
@@ -310,13 +309,7 @@ class CreateROIFrame(CreateFrame):
         self.closeROI(self.ui.roi[self.ui.currentroi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
         self.ROIstats()
         fusionstack = np.zeros((155,240,240,2))
-        if False:
-            for slice in range(0,155):  
-            # newfusion = imfuse(objectmask_filled[slice,:,:],t1mpragestack[slice,:,:],'blend')
-                newfusion = 0.5*self.ui.data['wt'][slice,:,:] + 0.5*self.ui.data['raw'][0][slice,:,:]
-                segfusionstack[slice] = newfusion
-        else:
-            fusionstack = OverlayPlots.generate_overlay(self.ui.roi[self.ui.currentroi].data['raw'],self.ui.roi[self.ui.currentroi].data['seg'],self.ui.roiframe.layer.get())
+        fusionstack = OverlayPlots.generate_overlay(self.ui.roi[self.ui.currentroi].data['raw'],self.ui.roi[self.ui.currentroi].data['seg'],self.ui.roiframe.layer.get())
         self.ui.roi[self.ui.currentroi].data['seg_fusion'] = fusionstack
         self.ui.roi[self.ui.currentroi].data['seg_fusion_d'] = copy.copy(self.ui.roi[self.ui.currentroi].data['seg_fusion'])
         # current roi populates data dict
@@ -511,14 +504,10 @@ class CreateROIFrame(CreateFrame):
         filename = filename[:-4] + '_origvarnames.mat'
         with open(filename,'ab') as fp:
             savemat(filename,msdict)
-            
 
-
+    # for now output only segmentations so uint8
     def WriteImage(self,img_arr,filename):
-        # for now output only segmentations so uint8
         img = sitk.GetImageFromArray(img_arr.astype('uint8'))
-        # img.CopyInformation(self.ui.data['nifti'])
-        # sitk.WriteImage(img,filename)
         writer = sitk.ImageFileWriter()
         writer.SetImageIO('NiftiImageIO')
         writer.SetFileName(filename)
@@ -541,16 +530,27 @@ class CreateROIFrame(CreateFrame):
     def updateROI(self):
         # save current dataset into the current roi. 
         self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
+        self.ROIclick()
         self.ROIstats()
 
     def updateData(self):
         self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
 
+    # eliminate one ROI if multiple ROIs in current case
     def clearROI(self):
         if len(self.ui.roi):    
             self.ui.roi.pop(self.ui.currentroi)
             self.ui.currentroi -= 1
             self.ui.updateslice()
+
+    # eliminate all ROIs, ie for loading another case
+    def resetROI(self):
+        self.currentroi.set(0)
+        self.ui.roi = []
+        self.ui.currentroi = -1
+        self.ui.roiframe.finalROI_overlay_value.set(False)
+        self.ui.roiframe.enhancingROI_overlay_value.set(False)
+        self.update_roinumber_options()
 
     def append_roi(self,d):
         for k,v in d.items():

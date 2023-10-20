@@ -42,10 +42,10 @@ class BlastGui(object):
 
         # hard-coded for debugging
         if debug:
-            self.caseframe.datadirentry_callback()
             self.set_currentslice(105)
-            self.casename = '00000'
-            self.caseframe.loadCase()
+            self.caseframe.casename.set('00006')
+            self.caseframe.case_callback(None,None,None)
+            # self.caseframe.loadCase()
             self.roiframe.normalslice_callback()
             self.set_currentslice(75)
             self.updateslice()
@@ -77,11 +77,11 @@ class BlastGui(object):
         # slice viewer frame
         self.sliceviewerframe = CreateSliceViewerFrame(self.mainframe,ui=self,padding='10')        
 
-        # create case frame
-        self.caseframe = CreateCaseFrame(self.sliceviewerframe.frame,ui=self)
-
         # roi functions
         self.roiframe = CreateROIFrame(self.sliceviewerframe.frame,ui=self,padding='0')
+
+        # create case frame
+        self.caseframe = CreateCaseFrame(self.sliceviewerframe.frame,ui=self)
 
         self.mainframe.update()
 

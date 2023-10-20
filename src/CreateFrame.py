@@ -227,6 +227,7 @@ class CreateCaseFrame(CreateFrame):
         self.casename = StringVar()
         self.casefile_prefix = None
         self.caselist = []
+        self.n4_check_value = tk.BooleanVar(value=True)
 
         # case selection
         caseframe = ttk.Frame(parent,padding='5')
@@ -238,13 +239,14 @@ class CreateCaseFrame(CreateFrame):
         self.fdbutton.grid(row=0,column=2)
         self.datadirentry = ttk.Entry(caseframe,width=40,textvariable=self.datadir)
         self.datadirentry.bind('<Return>',self.datadirentry_callback)
-        # self.ui.datadirentry.insert(INSERT,self.config.UIdatadir)
         self.datadirentry.grid(column=3,row=0,columnspan=5)
         caselabel = ttk.Label(caseframe, text='Case: ')
         caselabel.grid(column=0,row=0,sticky='we')
         self.casename.trace_add('write',self.case_callback)
         self.w = ttk.Combobox(caseframe,width=6,textvariable=self.casename,values=self.caselist)
         self.w.grid(column=1,row=0)
+        self.n4_check = ttk.Checkbutton(caseframe,text='N4',variable=self.n4_check_value)
+        self.n4_check.grid(row=0,column=8,sticky='w')
 
         # initialize default directory
         self.datadirentry_callback()
@@ -264,6 +266,7 @@ class CreateCaseFrame(CreateFrame):
         self.loadCase()
         self.ui.dataselection = 'raw'
         self.ui.sliceviewerframe.tbar.home()
+        self.ui.roiframe.resetROI()
         self.ui.updateslice()
         self.ui.starttime()
 
@@ -287,7 +290,7 @@ class CreateCaseFrame(CreateFrame):
         self.ui.data['raw'][1] = img_arr
 
         # bias correction. by convention, any pre-corrected files should have 'bias' in the filename
-        if self.ui.config.n4 and 'bias' not in t1ce_file:  
+        if self.n4_check_value.get() and 'bias' not in t1ce_file:  
             self.n4()
         # rescale the data
         self.ui.data['raw'] = self.rescale(self.ui.data['raw'])
@@ -341,7 +344,6 @@ class CreateCaseFrame(CreateFrame):
             corrected_img = dataImage / sitk.Exp(log_bias_field)
             corrected_img_arr = sitk.GetArrayFromImage(corrected_img)
             self.ui.data['raw'][ch] = corrected_img_arr
-            a=1
         return
 
     def datadirentry_callback(self,event=None):
