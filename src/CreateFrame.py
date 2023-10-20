@@ -35,6 +35,8 @@ class CreateSliceViewerFrame(CreateFrame):
         super().__init__(parentframe,ui=ui)
         self.currentslice = tk.IntVar()
         self.currentslice.set(75)
+        self.slicevolume_norm = tk.IntVar()
+
 
         self.frame.grid(column=0,row=0, sticky='NEW',in_=self.parentframe)
         # self.frame.rowconfigure(0,weight=2)
@@ -91,9 +93,19 @@ class CreateSliceViewerFrame(CreateFrame):
         # self.lslidernumberlabel = ttk.Label(slidersframe,text='{}'.format(self.level.get()))
         # self.lslidernumberlabel.grid(row=2,column=2)
 
+        # normal slice button
+        normal_frame = ttk.Frame(self.frame,padding='0')
+        normal_frame.grid(row=5,column=0,sticky='w')
+        normalSlice = ttk.Button(normal_frame,text='normal',command=self.normalslice_callback)
+        normalSlice.grid(column=0,row=0,sticky='w')
+        slicevolume_slice_button = ttk.Radiobutton(normal_frame,text='slice',variable=self.slicevolume_norm,value=0)
+        slicevolume_slice_button.grid(row=0,column=1,sticky='w')
+        slicevolume_volume_button = ttk.Radiobutton(normal_frame,text='vol.',variable=self.slicevolume_norm,value=1)
+        slicevolume_volume_button.grid(row=0,column=2,sticky='w')
+
         # messages text frame
         self.messagelabel = ttk.Label(self.frame,text=self.ui.message.get(),padding='5',borderwidth=0)
-        self.messagelabel.grid(column=0,row=5,columnspan=3,sticky='ew')
+        self.messagelabel.grid(row=6,column=0,columnspan=3,sticky='ew')
 
         if self.ui.OS in ('win32','darwin'):
             # self.frame.bind('<MouseWheel>', self.updatew2())
@@ -215,6 +227,53 @@ class CreateSliceViewerFrame(CreateFrame):
                     self.updatewl(ax=ax,lval=.01)
                 elif event.num == 5:
                     self.updatewl(ax=ax,lval=-.01)
+
+
+    def normalslice_callback(self,event=None):
+        # do kmeans
+        # Creates a matrix of voxels for normal brain slice
+        # Gating Routine
+
+        if self.slicevolume_norm.get() == 0:
+            self.normalslice=self.ui.get_currentslice()
+            region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]>0) 
+            t1channel_normal = self.ui.data['raw'][0,self.normalslice][region_of_support]
+            t2channel_normal = self.ui.data['raw'][1,self.normalslice][region_of_support]
+        else:
+            self.normalslice = None
+            region_of_support = np.where(self.ui.data['raw'][0]>0) 
+            t1channel_normal = self.ui.data['raw'][0][region_of_support]
+            t2channel_normal = self.ui.data['raw'][1][region_of_support]
+
+        # kmeans to calculate statistics for brain voxels
+        t2 = np.ravel(t2channel_normal)
+        t1 = np.ravel(t1channel_normal)
+        X = np.column_stack((t2,t1))
+        # rng(1)
+        np.random.seed(1)
+        # [idx,C] = KMeans(n_clusters=2).fit(X)
+        kmeans = KMeans(n_clusters=2,n_init='auto').fit(X)
+
+        # Calculate stats for brain cluster
+        self.ui.data['params']['stdt1'] = np.std(X[kmeans.labels_==1,1])
+        self.ui.data['params']['stdt2'] = np.std(X[kmeans.labels_==1,0])
+        self.ui.data['params']['meant1'] = np.mean(X[kmeans.labels_==1,1])
+        self.ui.data['params']['meant2'] = np.mean(X[kmeans.labels_==1,0])
+
+        # activate thresholds only after normal slice stats are available
+        self.ui.roiframe.bcslider['state']='normal'
+        self.ui.roiframe.t2slider['state']='normal'
+        self.ui.roiframe.t1slider['state']='normal'
+        self.ui.roiframe.t1slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet1threshold)
+        self.ui.roiframe.bcslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatebcsize)
+        self.ui.roiframe.t2slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet2threshold)
+
+        # automatically run the default thresholds in 3d to start things off
+        self.ui.roiframe.updatet1threshold(currentslice=None)
+        self.ui.dataselection = 'seg_raw_fusion_d'
+        self.ui.roiframe.enhancingROI_overlay_value.set(True)
+        self.ui.roiframe.finalROI_overlay_value.set(False)
+
 
 
 class CreateCaseFrame(CreateFrame):

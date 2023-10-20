@@ -43,7 +43,7 @@ class CreateROIFrame(CreateFrame):
         self.layer = tk.StringVar(value='ET')
         self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=0)
-        # self.roilist = [str(i) for i in range(len(self.ui.roi)+1)]
+        self.slicevolume_norm = tk.IntVar()
         self.roilist = []
 
         ########################
@@ -53,8 +53,15 @@ class CreateROIFrame(CreateFrame):
         self.frame.grid(column=2,row=3,rowspan=5,sticky='e')
 
         # normal slice button
-        normalSlice = ttk.Button(self.frame,text='normal slice',command=self.normalslice_callback)
-        normalSlice.grid(column=0,row=0,sticky='w')
+        if False:
+            normal_frame = ttk.Frame(self.frame,padding='0')
+            normal_frame.grid(row=0,column=0,sticky='w')
+            normalSlice = ttk.Button(normal_frame,text='normal',command=self.normalslice_callback)
+            normalSlice.grid(column=0,row=0,sticky='w')
+            slicevolume_slice_button = ttk.Radiobutton(normal_frame,text='slice',variable=self.slicevolume_norm,value=0)
+            slicevolume_slice_button.grid(row=0,column=1,sticky='w')
+            slicevolume_volume_button = ttk.Radiobutton(normal_frame,text='vol.',variable=self.slicevolume_norm,value=1)
+            slicevolume_volume_button.grid(row=0,column=2,sticky='w')
 
         # ROI buttons
         enhancingROI_frame = ttk.Frame(self.frame,padding='0')
@@ -274,15 +281,21 @@ class CreateROIFrame(CreateFrame):
         self.ui.data['params']['meant2'] = np.mean(X[kmeans.labels_==1,0])
 
         # activate thresholds only after normal slice stats are available
-        self.ui.roiframe.bcslider['state']='normal'
-        self.ui.roiframe.t2slider['state']='normal'
-        self.ui.roiframe.t1slider['state']='normal'
-        self.ui.roiframe.t1slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet1threshold)
-        self.ui.roiframe.bcslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatebcsize)
-        self.ui.roiframe.t2slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet2threshold)
+        # self.ui.roiframe.bcslider['state']='normal'
+        # self.ui.roiframe.t2slider['state']='normal'
+        # self.ui.roiframe.t1slider['state']='normal'
+        # self.ui.roiframe.t1slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet1threshold)
+        # self.ui.roiframe.bcslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatebcsize)
+        # self.ui.roiframe.t2slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet2threshold)
+        self.bcslider['state']='normal'
+        self.t2slider['state']='normal'
+        self.t1slider['state']='normal'
+        self.t1slider.bind("<ButtonRelease-1>",self.updatet1threshold)
+        self.bcslider.bind("<ButtonRelease-1>",self.updatebcsize)
+        self.t2slider.bind("<ButtonRelease-1>",self.updatet2threshold)
 
         # automatically run the default thresholds in 3d to start things off
-        self.ui.roiframe.updatet1threshold(currentslice=None)
+        self.updatet1threshold(currentslice=None)
         self.ui.dataselection = 'seg_raw_fusion_d'
         self.enhancingROI_overlay_value.set(True)
 

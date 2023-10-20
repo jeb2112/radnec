@@ -27,8 +27,6 @@ class Config(object):
                 os.makedirs(self.LogFilePath)
             filehandler = logging.FileHandler(os.path.join(self.LogFilePath,self.LogFileName),mode='w')
             self.logger.addHandler(filehandler)
-            # logging.basicConfig(filename = os.path.join(self.LogFilePath,self.LogFileName),
-            #                     filemode='w',level=logging.DEBUG)
 
         # Path to data files
         self.DataFilePath = os.path.join(os.path.expanduser('~'), 'Documents', 'Blast', 'Data')
@@ -42,7 +40,4 @@ class Config(object):
             self.UIdatadir = '/media/jbishop/WD4/brainmets/raw/BraTS2021'
             # self.UIdatadir = '/media/jbishop/WD4/brainmets/blast'
         self.UIdataroot = 'BraTS2021_'
-
-        # do n4 bias field correction
-        self.n4 = True
 
