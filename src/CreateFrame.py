@@ -124,7 +124,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ax_img.set(data=self.ui.data[self.ui.dataselection][0,slice,:,:])
         self.ax2_img.set(data=self.ui.data[self.ui.dataselection][1,slice,:,:])
         self.vslicenumberlabel['text'] = '{}'.format(slice)
-        if self.ui.dataselection == 'enhancefusion_d' or self.ui.dataselection == 'segfusion_d':
+        if self.ui.dataselection == 'seg_raw_fusion_d' or self.ui.dataselection == 'seg_fusion_d':
             self.ax_img.set(cmap='viridis')
             self.ax2_img.set(cmap='viridis')
         else:

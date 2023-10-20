@@ -42,7 +42,7 @@ class CreateROIFrame(CreateFrame):
         self.layerlist = {'blast':['ET','edema','both'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layertype = tk.StringVar(value='blast')
-        self.currentroi = tk.IntVar(value=0)
+        self.currentroi = tk.IntVar(value=-1)
         self.slicevolume_norm = tk.IntVar()
         self.roilist = []
 
@@ -95,6 +95,7 @@ class CreateROIFrame(CreateFrame):
         self.roinumbermenu = ttk.OptionMenu(roinumberframe,self.currentroi,*self.roilist,command=self.roinumber_callback)
         self.roinumbermenu.config(width=2)
         self.roinumbermenu.grid(column=1,row=0,sticky='w')
+        self.roinumbermenu.configure(state='disabled')
 
         # select ROI button
         finalROI_frame = ttk.Frame(self.frame,padding='0')
@@ -157,15 +158,17 @@ class CreateROIFrame(CreateFrame):
         self.bcsliderlabel.grid(row=2,column=2,sticky='e')
 
     # methods for layer options menu
-    def layer_callback(self,layer):
+    def layer_callback(self,layer=None):
         self.ui.currentlayer = self.layer.get()
         # generate a new overlay
         if self.layertype.get() == 'blast':
-            self.ui.data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get())
-            self.ui.data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
+            self.ui.roi[self.ui.currentroi].data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get())
+            self.ui.roi[self.ui.currentroi].data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
         elif self.layertype.get() == 'seg':
-            self.ui.data['seg_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg'],self.layer.get())
-            self.ui.data['seg_fusion_d'] = copy.copy(self.ui.data['seg_fusion'])
+            self.ui.roi[self.ui.currentroi].data['seg_fusion'] = OverlayPlots.generate_overlay(
+                self.ui.roi[self.ui.currentroi].data['raw'],self.ui.roi[self.ui.currentroi].data['seg'],self.layer.get())
+            self.ui.roi[self.ui.currentroi].data['seg_fusion_d'] = copy.copy(self.ui.roi[self.ui.currentroi].data['seg_fusion'])
+        self.updateData()
         self.ui.updateslice()
 
     def update_layermenu_options(self,type):
@@ -177,10 +180,11 @@ class CreateROIFrame(CreateFrame):
         self.layer.set(self.layerlist[type][0])
 
     # methods for roi number choice menu
-    def roinumber_callback(self,item):
+    def roinumber_callback(self,item=None):
         self.ui.currentroi = self.currentroi.get()
         # reference or copy
         self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
+        self.layer_callback()
         self.ui.updateslice()
         return
     
@@ -189,9 +193,14 @@ class CreateROIFrame(CreateFrame):
             n = len(self.ui.roi)
         menu = self.roinumbermenu['menu']
         menu.delete(0,'end')
-        for s in [str(i) for i in range(len(self.ui.roi))]:
+        for s in [str(i) for i in range(n)]:
             menu.add_command(label=s,command = tk._setit(self.currentroi,s,self.roinumber_callback))
-        self.roilist = [str(i) for i in range(len(self.ui.roi))]
+        self.roilist = [str(i) for i in range(n)]
+        if n:
+            self.roinumbermenu.configure(state='active')
+        else:
+            self.roinumbermenu.configure(state='disabled')
+            self.finalROI_overlay_value.set(False)
 
     # updates blast segmentation upon slider release only
     def updatet1threshold(self,event=None,currentslice=True):
@@ -341,6 +350,7 @@ class CreateROIFrame(CreateFrame):
     
     def createROI(self,x,y,slice):
         self.ui.roi.append(ROI(x,y,slice))
+        self.currentroi.set(self.currentroi.get() + 1)
         self.ui.currentroi += 1
         self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
         self.update_roinumber_options()
@@ -541,24 +551,35 @@ class CreateROIFrame(CreateFrame):
 
 
     def updateROI(self):
-        # save current dataset into the current roi. 
-        self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
+        # rerun segmentation
         self.ROIclick()
         self.ROIstats()
+        # save current dataset into the current roi. 
+        self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
 
     def updateData(self):
         self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
 
     # eliminate one ROI if multiple ROIs in current case
     def clearROI(self):
-        if len(self.ui.roi):    
+        n = len(self.ui.roi)
+        if n:    
             self.ui.roi.pop(self.ui.currentroi)
-            self.ui.currentroi -= 1
-            self.ui.updateslice()
+            if self.ui.currentroi > 0 or len(self.ui.roi)==0:
+                # new current roi is decremented as an arbitrary choice
+                # or if all rois are now gone
+                self.ui.currentroi -= 1
+                self.currentroi.set(self.currentroi.get()-1)
+            self.update_roinumber_options()
+            if len(self.ui.roi):
+                self.roinumber_callback()
+            else:
+                self.ui.dataselection='raw'
+                self.ui.updateslice()
 
     # eliminate all ROIs, ie for loading another case
     def resetROI(self):
-        self.currentroi.set(0)
+        self.currentroi.set(-1)
         self.ui.roi = []
         self.ui.currentroi = -1
         self.ui.roiframe.finalROI_overlay_value.set(False)

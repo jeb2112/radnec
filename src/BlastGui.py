@@ -31,7 +31,7 @@ class BlastGui(object):
         self.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
 
         self.roi = []
-        self.currentroi = -1
+        self.currentroi = -1 # tracks the currentroi widget variable
         self.currentlayer = 0
         self.OS = sys.platform
         self.tstart = time.time()
