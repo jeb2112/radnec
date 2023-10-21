@@ -43,10 +43,10 @@ class BlastGui(object):
 
         # hard-coded for debugging
         if self.debug:
-            self.set_currentslice(106)
+            self.sliceviewerframe.currentslice.set(106)
             self.caseframe.casename.set('00000')
             self.sliceviewerframe.normalslice_callback()
-            self.set_currentslice(75)
+            self.sliceviewerframe.currentslice.set(75)
             self.updateslice()
 
             # create roi
@@ -150,20 +150,26 @@ class BlastGui(object):
     ###### Utility methods ######
     #############################
 
-    def set_currentslice(self,val):
-        self.sliceviewerframe.currentslice.set(val)
+    def set_currentslice(self,val=None):
+        self.currentslice = self.sliceviewerframe.currentslice.get()
 
     def get_currentslice(self):
         return self.currentslice
     
-    def set_casename(self,val):
-        self.casename = val
+    def set_casename(self,val=None):
+        self.casename = self.caseframe.casename.get()
 
     def get_casename(self):
         return self.casename
     
     def updateslice(self,event=None,**kwargs):
         self.sliceviewerframe.updateslice(event,**kwargs)
+
+    def set_currentroi(self,val=None):
+        self.currentroi = self.roiframe.currentroi.get()
+
+    def get_currentroi(self):
+        return self.currentroi
 
     def starttime(self):
         self.tstart = time.time()

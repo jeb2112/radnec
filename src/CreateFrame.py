@@ -118,7 +118,7 @@ class CreateSliceViewerFrame(CreateFrame):
     # TODO: different bindings and callbacks need some organization
     def updateslice(self,event=None,wl=False,blast=False):
         slice=self.currentslice.get()
-        self.ui.set_currentslice(slice)
+        self.ui.set_currentslice()
         if blast: # option for previewing enhancing in 2d
             self.ui.runblast(currentslice=slice)
         self.ax_img.set(data=self.ui.data[self.ui.dataselection][0,slice,:,:])
@@ -137,12 +137,13 @@ class CreateSliceViewerFrame(CreateFrame):
     # special update for previewing BLAST enhancing lesion in 2d
     def updateslice_blast(self,event=None):
         slice = self.currentslice.get()
-        self.ui.set_currentslice(slice)
+        self.ui.set_currentslice()
         self.ui.runblast(currentslice=slice)
         self.vslicenumberlabel['text'] = '{}'.format(slice)
         self.canvas.draw()
 
     # update for previewing final segmentation in 2d
+    # probably can't be implemented at this time.
     def updateslice_roi(self,event=None):
         slice = self.currentslice.get()
         self.ui.set_currentslice(slice)
@@ -310,18 +311,17 @@ class CreateCaseFrame(CreateFrame):
         # initialize default directory
         self.datadirentry_callback(load=load)
 
+    # callback for file dialog 
     def select_dir(self):
         self.fd.select_dir()
         self.datadir.set(self.fd.dir)
         self.datadirentry.update()
         self.datadirentry_callback()
-        self.casename.set(self.caselist[0])
-        self.ui.set_casename(self.caselist[0])
 
     def case_callback(self,casevar=None,val=None,event=None):
         case = self.casename.get()
+        self.ui.set_casename()
         print('Loading case {}'.format(case))
-        self.ui.set_casename(case)
         self.loadCase()
         self.ui.dataselection = 'raw'
         self.ui.sliceviewerframe.tbar.home()
@@ -332,6 +332,7 @@ class CreateCaseFrame(CreateFrame):
     def loadCase(self,case=None):
         if case is not None:
             self.casename.set(case)
+            self.ui.set_casename()
         self.casedir = os.path.join(self.datadir.get(),self.config.UIdataroot+self.casename.get())
         files = os.listdir(self.casedir)
         # create t1mprage template
@@ -405,6 +406,7 @@ class CreateCaseFrame(CreateFrame):
             self.ui.data['raw'][ch] = corrected_img_arr
         return
 
+    # main callback for selecting dir either by file dialog or text entry
     def datadirentry_callback(self,event=None,load=True):
         dir = self.datadir.get().strip()
         if os.path.exists(dir):
@@ -419,6 +421,7 @@ class CreateCaseFrame(CreateFrame):
                 # autoload first case
                 if load:
                     self.casename.set(self.caselist[0])
+                    self.ui.set_casename()
             else:
                 print('No cases found in directory {}'.format(dir))
                 self.ui.set_message('No cases found in directory {}'.format(dir))

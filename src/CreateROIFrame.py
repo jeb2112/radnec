@@ -164,14 +164,15 @@ class CreateROIFrame(CreateFrame):
     # methods for layer options menu
     def layer_callback(self,layer=None):
         self.ui.currentlayer = self.layer.get()
+        roi = self.ui.get_currentroi()
         # generate a new overlay
         if self.layertype.get() == 'blast':
-            self.ui.roi[self.ui.currentroi].data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get())
-            self.ui.roi[self.ui.currentroi].data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
+            self.ui.roi[roi].data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get())
+            self.ui.roi[roi].data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
         elif self.layertype.get() == 'seg':
-            self.ui.roi[self.ui.currentroi].data['seg_fusion'] = OverlayPlots.generate_overlay(
-                self.ui.roi[self.ui.currentroi].data['raw'],self.ui.roi[self.ui.currentroi].data['seg'],self.layer.get())
-            self.ui.roi[self.ui.currentroi].data['seg_fusion_d'] = copy.copy(self.ui.roi[self.ui.currentroi].data['seg_fusion'])
+            self.ui.roi[roi].data['seg_fusion'] = OverlayPlots.generate_overlay(
+                self.ui.roi[roi].data['raw'],self.ui.roi[roi].data['seg'],self.layer.get())
+            self.ui.roi[roi].data['seg_fusion_d'] = copy.copy(self.ui.roi[roi].data['seg_fusion'])
         self.updateData()
         self.ui.updateslice()
 
@@ -185,7 +186,7 @@ class CreateROIFrame(CreateFrame):
 
     # methods for roi number choice menu
     def roinumber_callback(self,item=None):
-        self.ui.currentroi = self.currentroi.get()
+        self.ui.set_currentroi()
         # reference or copy
         self.updateData()
         self.layer_callback()
@@ -208,7 +209,7 @@ class CreateROIFrame(CreateFrame):
 
     def set_currentroi(self,var,index,mode):
         if mode == 'write':
-            self.ui.currentroi = self.currentroi.get()    
+            self.ui.set_currentroi()    
 
     # updates blast segmentation upon slider release only
     def updatet1threshold(self,event=None,currentslice=True):
@@ -292,14 +293,15 @@ class CreateROIFrame(CreateFrame):
             if event.xdata < 0 or event.ydata < 0:
                 return None
             else:
-                self.createROI(int(event.xdata),int(event.ydata),self.ui.currentslice)
+                self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
             
-        self.closeROI(self.ui.roi[self.ui.currentroi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
+        roi = self.ui.get_currentroi()
+        self.closeROI(self.ui.roi[roi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
         self.ROIstats()
         fusionstack = np.zeros((155,240,240,2))
-        fusionstack = OverlayPlots.generate_overlay(self.ui.roi[self.ui.currentroi].data['raw'],self.ui.roi[self.ui.currentroi].data['seg'],self.ui.roiframe.layer.get())
-        self.ui.roi[self.ui.currentroi].data['seg_fusion'] = fusionstack
-        self.ui.roi[self.ui.currentroi].data['seg_fusion_d'] = copy.copy(self.ui.roi[self.ui.currentroi].data['seg_fusion'])
+        fusionstack = OverlayPlots.generate_overlay(self.ui.roi[roi].data['raw'],self.ui.roi[roi].data['seg'],self.ui.roiframe.layer.get())
+        self.ui.roi[roi].data['seg_fusion'] = fusionstack
+        self.ui.roi[roi].data['seg_fusion_d'] = copy.copy(self.ui.roi[roi].data['seg_fusion'])
         # current roi populates data dict
         self.updateData()
 
@@ -323,8 +325,9 @@ class CreateROIFrame(CreateFrame):
     def closeROI(self,metmaskstack,currentslice,do3d=True):
         # this method needs tidy-up
         # a quick config for ET, WT smoothing
-        xpos = self.ui.roi[self.ui.currentroi].x
-        ypos = self.ui.roi[self.ui.currentroi].y
+        roi = self.ui.get_currentroi()
+        xpos = self.ui.roi[roi].x
+        ypos = self.ui.roi[roi].y
         mlist = {'et':{'threshold':3,'dball':10,'dcube':2},
                     'wt':{'threshold':1,'dball':10,'dcube':2}}
         for m in mlist.keys():
@@ -340,7 +343,7 @@ class CreateROIFrame(CreateFrame):
             # objectmask = ismember(CC_labeled,objectnumber)
             objectmask = (CC_labeled == objectnumber).astype('double')
             # currently there is no additional processing on ET or WT
-            self.ui.roi[self.ui.currentroi].data[m] = objectmask.astype('uint8')
+            self.ui.roi[roi].data[m] = objectmask.astype('uint8')
 
 
             # calculate tc
@@ -414,22 +417,22 @@ class CreateROIFrame(CreateFrame):
                     objectmask_filled = binary_dilation(objectmask_closed,se2)
                     objectmask_filled = flood_fill(objectmask_filled,(currentslice,ypos,xpos),True)
                     objectmask_final = objectmask_filled.astype('int')
-                    self.ui.roi[self.ui.currentroi].data['tc'] = objectmask_final
+                    self.ui.roi[roi].data['tc'] = objectmask_final
                 else:
                     se2 = square(mlist[m]['dcube'])
                     objectmask_filled = binary_dilation(objectmask_closed[currentslice,:,:],se2)
                     objectmask_filled = flood_fill(objectmask_filled,(ypos,xpos),True)
                     objectmask_final[currentslice,:,:] = objectmask_filled.astype('int')     
-                    self.ui.roi[self.ui.currentroi].data['tc'] = objectmask_final.astype('uint8')
+                    self.ui.roi[roi].data['tc'] = objectmask_final.astype('uint8')
 
             # update WT with smoothed TC
             elif m == 'wt':
-                self.ui.roi[self.ui.currentroi].data['wt'] = self.ui.roi[self.ui.currentroi].data['wt'] | self.ui.roi[self.ui.currentroi].data['tc']
+                self.ui.roi[roi].data['wt'] = self.ui.roi[roi].data['wt'] | self.ui.roi[roi].data['tc']
 
         # nnunet convention for labels
-        self.ui.roi[self.ui.currentroi].data['seg'] = 1*self.ui.roi[self.ui.currentroi].data['et'] + \
-                                                    1*self.ui.roi[self.ui.currentroi].data['tc'] + \
-                                                    1*self.ui.roi[self.ui.currentroi].data['wt']
+        self.ui.roi[roi].data['seg'] = 1*self.ui.roi[roi].data['et'] + \
+                                                    1*self.ui.roi[roi].data['tc'] + \
+                                                    1*self.ui.roi[roi].data['wt']
         return None
     
     def saveROI(self,roi=None):
@@ -558,8 +561,8 @@ class CreateROIFrame(CreateFrame):
 
     def ROIstats(self):
         
-        data = self.ui.roi[self.ui.currentroi].data
-        roi = self.currentroi.get()
+        roi = self.ui.get_currentroi()
+        data = self.ui.roi[roi].data
         # if roi > len(self.ui.roi):
         #     self.append_roi(self.ui.stats)
         for t in ['et','tc','wt']:
