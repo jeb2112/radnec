@@ -91,7 +91,8 @@ class CreateROIFrame(CreateFrame):
         roinumberframe.grid(row=1,column=3,sticky='w')
         roinumberlabel = ttk.Label(roinumberframe,text='roi:')
         roinumberlabel.grid(row=0,column=0,sticky='w')
-        self.currentroi.trace_add('write',lambda *args: self.currentroi.get())
+        # self.currentroi.trace_add('write',lambda *args: self.currentroi.get())
+        self.currentroi.trace_add('write',self.set_currentroi)
         self.roinumbermenu = ttk.OptionMenu(roinumberframe,self.currentroi,*self.roilist,command=self.roinumber_callback)
         self.roinumbermenu.config(width=2)
         self.roinumbermenu.grid(column=1,row=0,sticky='w')
@@ -157,6 +158,9 @@ class CreateROIFrame(CreateFrame):
         self.bcsliderlabel = ttk.Label(self.t1sliderframe,text='{:.1f}'.format(self.currentbcsize.get()))
         self.bcsliderlabel.grid(row=2,column=2,sticky='e')
 
+    # ROI methods
+    # 
+
     # methods for layer options menu
     def layer_callback(self,layer=None):
         self.ui.currentlayer = self.layer.get()
@@ -183,7 +187,7 @@ class CreateROIFrame(CreateFrame):
     def roinumber_callback(self,item=None):
         self.ui.currentroi = self.currentroi.get()
         # reference or copy
-        self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
+        self.updateData()
         self.layer_callback()
         self.ui.updateslice()
         return
@@ -201,6 +205,10 @@ class CreateROIFrame(CreateFrame):
         else:
             self.roinumbermenu.configure(state='disabled')
             self.finalROI_overlay_value.set(False)
+
+    def set_currentroi(self,var,index,mode):
+        if mode == 'write':
+            self.ui.currentroi = self.currentroi.get()    
 
     # updates blast segmentation upon slider release only
     def updatet1threshold(self,event=None,currentslice=True):
@@ -266,48 +274,6 @@ class CreateROIFrame(CreateFrame):
         self.update_layermenu_options('blast')
         self.ui.runblast()
 
-    def normalslice_callback(self,event=None):
-        self.normalslice=self.ui.get_currentslice()
-        # do kmeans
-        # Creates a matrix of voxels for normal brain slice
-        # Gating Routine
-        t1channel_normal = self.ui.data['raw'][0,self.normalslice,:,:]
-        t2channel_normal = self.ui.data['raw'][1][self.normalslice,:,:,]
-
-        # kmeans to calculate statistics for brain voxels
-        t2 = np.ravel(t2channel_normal)
-        t1 = np.ravel(t1channel_normal)
-        X = np.column_stack((t2,t1))
-        # rng(1)
-        np.random.seed(1)
-        # [idx,C] = KMeans(n_clusters=2).fit(X)
-        kmeans = KMeans(n_clusters=2,n_init='auto').fit(X)
-
-        # Calculate stats for brain cluster
-        self.ui.data['params']['stdt1'] = np.std(X[kmeans.labels_==1,1])
-        self.ui.data['params']['stdt2'] = np.std(X[kmeans.labels_==1,0])
-        self.ui.data['params']['meant1'] = np.mean(X[kmeans.labels_==1,1])
-        self.ui.data['params']['meant2'] = np.mean(X[kmeans.labels_==1,0])
-
-        # activate thresholds only after normal slice stats are available
-        # self.ui.roiframe.bcslider['state']='normal'
-        # self.ui.roiframe.t2slider['state']='normal'
-        # self.ui.roiframe.t1slider['state']='normal'
-        # self.ui.roiframe.t1slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet1threshold)
-        # self.ui.roiframe.bcslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatebcsize)
-        # self.ui.roiframe.t2slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet2threshold)
-        self.bcslider['state']='normal'
-        self.t2slider['state']='normal'
-        self.t1slider['state']='normal'
-        self.t1slider.bind("<ButtonRelease-1>",self.updatet1threshold)
-        self.bcslider.bind("<ButtonRelease-1>",self.updatebcsize)
-        self.t2slider.bind("<ButtonRelease-1>",self.updatet2threshold)
-
-        # automatically run the default thresholds in 3d to start things off
-        self.updatet1threshold(currentslice=None)
-        self.ui.dataselection = 'seg_raw_fusion_d'
-        self.enhancingROI_overlay_value.set(True)
-
     def selectROI(self):
         self.finalROI_overlay_value.set(True)
         self.enhancingROI_overlay_value.set(False)
@@ -351,7 +317,6 @@ class CreateROIFrame(CreateFrame):
     def createROI(self,x,y,slice):
         self.ui.roi.append(ROI(x,y,slice))
         self.currentroi.set(self.currentroi.get() + 1)
-        self.ui.currentroi += 1
         self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
         self.update_roinumber_options()
 
@@ -568,7 +533,6 @@ class CreateROIFrame(CreateFrame):
             if self.ui.currentroi > 0 or len(self.ui.roi)==0:
                 # new current roi is decremented as an arbitrary choice
                 # or if all rois are now gone
-                self.ui.currentroi -= 1
                 self.currentroi.set(self.currentroi.get()-1)
             self.update_roinumber_options()
             if len(self.ui.roi):
@@ -581,7 +545,6 @@ class CreateROIFrame(CreateFrame):
     def resetROI(self):
         self.currentroi.set(-1)
         self.ui.roi = []
-        self.ui.currentroi = -1
         self.ui.roiframe.finalROI_overlay_value.set(False)
         self.ui.roiframe.enhancingROI_overlay_value.set(False)
         self.update_roinumber_options()

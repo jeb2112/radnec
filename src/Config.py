@@ -41,3 +41,5 @@ class Config(object):
             # self.UIdatadir = '/media/jbishop/WD4/brainmets/blast'
         self.UIdataroot = 'BraTS2021_'
 
+        # automatically load first case in directory
+        self.AutoLoad = False

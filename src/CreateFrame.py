@@ -277,7 +277,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
 
 class CreateCaseFrame(CreateFrame):
-    def __init__(self,parent,ui=None):
+    def __init__(self,parent,ui=None,load=True):
         super().__init__(parent,ui=ui)
 
         self.fd = FileDialog(initdir=self.config.UIdatadir)
@@ -308,7 +308,7 @@ class CreateCaseFrame(CreateFrame):
         self.n4_check.grid(row=0,column=8,sticky='w')
 
         # initialize default directory
-        self.datadirentry_callback()
+        self.datadirentry_callback(load=load)
 
     def select_dir(self):
         self.fd.select_dir()
@@ -318,7 +318,7 @@ class CreateCaseFrame(CreateFrame):
         self.casename.set(self.caselist[0])
         self.ui.set_casename(self.caselist[0])
 
-    def case_callback(self,casevar,val,event):
+    def case_callback(self,casevar=None,val=None,event=None):
         case = self.casename.get()
         print('Loading case {}'.format(case))
         self.ui.set_casename(case)
@@ -405,7 +405,7 @@ class CreateCaseFrame(CreateFrame):
             self.ui.data['raw'][ch] = corrected_img_arr
         return
 
-    def datadirentry_callback(self,event=None):
+    def datadirentry_callback(self,event=None,load=True):
         dir = self.datadir.get().strip()
         if os.path.exists(dir):
             files = os.listdir(dir)
@@ -415,8 +415,10 @@ class CreateCaseFrame(CreateFrame):
             if len(casefiles):
                 # TODO: will need a better sort here
                 self.caselist = sorted(casefiles)
-                self.w['values'] = self.caselist   
-                self.casename.set(self.caselist[0])             
+                self.w['values'] = self.caselist
+                # autoload first case
+                if load:
+                    self.casename.set(self.caselist[0])
             else:
                 print('No cases found in directory {}'.format(dir))
                 self.ui.set_message('No cases found in directory {}'.format(dir))

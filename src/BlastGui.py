@@ -23,7 +23,7 @@ class BlastGui(object):
         self.logoImg = os.path.join(self.config.UIResourcesPath,'sunnybrook.png')
         self.blastImage = PhotoImage(file=self.logoImg)
         self.normalslice = None
-        self.currentslice = None
+        self.currentslice = None # tracks the current slice widget variable
         self.dataselection = 'raw'
 
         self.data = {'gates':[None,None,None], 'wt':None,'et':None,'tc':None}
@@ -37,16 +37,15 @@ class BlastGui(object):
         self.tstart = time.time()
 
         self.message = tk.StringVar(value='')
+        self.debug = debug
 
         self.createGeneralLayout()
 
         # hard-coded for debugging
-        if debug:
-            self.set_currentslice(105)
-            self.caseframe.casename.set('00006')
-            self.caseframe.case_callback(None,None,None)
-            # self.caseframe.loadCase()
-            self.roiframe.normalslice_callback()
+        if self.debug:
+            self.set_currentslice(106)
+            self.caseframe.casename.set('00000')
+            self.sliceviewerframe.normalslice_callback()
             self.set_currentslice(75)
             self.updateslice()
 
@@ -81,7 +80,7 @@ class BlastGui(object):
         self.roiframe = CreateROIFrame(self.sliceviewerframe.frame,ui=self,padding='0')
 
         # create case frame
-        self.caseframe = CreateCaseFrame(self.sliceviewerframe.frame,ui=self)
+        self.caseframe = CreateCaseFrame(self.sliceviewerframe.frame,ui=self,load=self.config.AutoLoad)
 
         self.mainframe.update()
 
@@ -152,7 +151,7 @@ class BlastGui(object):
     #############################
 
     def set_currentslice(self,val):
-        self.currentslice = val
+        self.sliceviewerframe.currentslice.set(val)
 
     def get_currentslice(self):
         return self.currentslice
