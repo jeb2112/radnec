@@ -166,14 +166,22 @@ class CreateROIFrame(CreateFrame):
         self.ui.currentlayer = self.layer.get()
         roi = self.ui.get_currentroi()
         # generate a new overlay
+        if roi < 0:
+            data = self.ui.data
+        else:
+            data = self.ui.roi[roi].data
+
         if self.layertype.get() == 'blast':
-            self.ui.roi[roi].data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get())
-            self.ui.roi[roi].data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
+            data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get(),
+                                                                   overlay_intensity=self.config.OverlayIntensity)
+            data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
         elif self.layertype.get() == 'seg':
-            self.ui.roi[roi].data['seg_fusion'] = OverlayPlots.generate_overlay(
-                self.ui.roi[roi].data['raw'],self.ui.roi[roi].data['seg'],self.layer.get())
-            self.ui.roi[roi].data['seg_fusion_d'] = copy.copy(self.ui.roi[roi].data['seg_fusion'])
-        self.updateData()
+            data['seg_fusion'] = OverlayPlots.generate_overlay(data['raw'],data['seg'],self.layer.get(),
+                                                               overlay_intensity=self.config.OverlayIntensity)
+            data['seg_fusion_d'] = copy.copy(data['seg_fusion'])
+
+        if roi >= 0:
+            self.updateData()
         self.ui.updateslice()
 
     def update_layermenu_options(self,type):
@@ -299,7 +307,8 @@ class CreateROIFrame(CreateFrame):
         self.closeROI(self.ui.roi[roi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
         self.ROIstats()
         fusionstack = np.zeros((155,240,240,2))
-        fusionstack = OverlayPlots.generate_overlay(self.ui.roi[roi].data['raw'],self.ui.roi[roi].data['seg'],self.ui.roiframe.layer.get())
+        fusionstack = OverlayPlots.generate_overlay(self.ui.roi[roi].data['raw'],self.ui.roi[roi].data['seg'],self.ui.roiframe.layer.get(),
+                                                    overlay_intensity=self.config.OverlayIntensity)
         self.ui.roi[roi].data['seg_fusion'] = fusionstack
         self.ui.roi[roi].data['seg_fusion_d'] = copy.copy(self.ui.roi[roi].data['seg_fusion'])
         # current roi populates data dict

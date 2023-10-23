@@ -43,3 +43,9 @@ class Config(object):
 
         # automatically load first case in directory
         self.AutoLoad = False
+
+        # autoclip to window/level
+        self.WLClip = False
+
+        # < 1 overlay by alpha compositing, == 1 replacement
+        self.OverlayIntensity = 1.0

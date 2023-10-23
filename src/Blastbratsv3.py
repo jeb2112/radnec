@@ -27,6 +27,13 @@ import OverlayPlots
 def run_blast(data,t1thresh,t2thresh,clustersize,
             currentslice=None):
 
+    #check if any thresholds have actually changed
+    if len([i for i in data['gates'][0:3] if i is not None]) == 3:
+        # raise ValueError('No updates for point-in-polygon requested.')
+        # return
+        print('No updates for point-in-polygon requested.')
+        data['gates'][0] = None
+
     # hard-coded indexing
     t1mprage = data['raw'][0]
     t2flair = data['raw'][1]

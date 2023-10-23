@@ -43,10 +43,12 @@ class BlastGui(object):
 
         # hard-coded for debugging
         if self.debug:
-            self.sliceviewerframe.currentslice.set(106)
-            self.caseframe.casename.set('00000')
+            self.caseframe.casename.set('00005')
+            self.sliceviewerframe.currentslice.set(65)
             self.sliceviewerframe.normalslice_callback()
-            self.sliceviewerframe.currentslice.set(75)
+            self.sliceviewerframe.currentslice.set(105)
+            # self.sliceviewerframe.window=np.array([.6,1],dtype='float')
+            # self.sliceviewerframe.level = np.array([.3,.5])
             self.updateslice()
 
             # create roi
@@ -96,6 +98,9 @@ class BlastGui(object):
             self.root.config(cursor='watch')
             self.root.update_idletasks()
 
+        if self.config.WLClip:
+            self.sliceviewerframe.clipwl_raw()
+
         if False:
             with Profile() as profile:
                 self.data['seg_raw'],self.data['seg_raw_fusion'] = self.blast.run_blast(self.data,
@@ -109,11 +114,22 @@ class BlastGui(object):
                     .print_stats(15)
                 )
         else:
-            self.data['seg_raw'],self.data['gates'] = Blastbratsv3.run_blast(
-                                self.data,self.roiframe.t1slider.get(),
-                                self.roiframe.t2slider.get(),self.roiframe.bcslider.get(),
-                                currentslice=currentslice)
-        self.data['seg_raw_fusion'] = generate_overlay(self.data['raw'],self.data['seg_raw'],self.roiframe.layer.get())
+            try:
+                self.data['seg_raw'],self.data['gates'] = Blastbratsv3.run_blast(
+                                    self.data,self.roiframe.t1slider.get(),
+                                    self.roiframe.t2slider.get(),self.roiframe.bcslider.get(),
+                                    currentslice=currentslice)
+            except ValueError as e:
+                self.set_message(e)
+
+        if self.config.WLClip:
+            self.sliceviewerframe.restorewl_raw()
+            self.sliceviewerframe.window = np.array([1.,1.],dtype='float')
+            self.sliceviewerframe.level = np.array([0.5,0.5],dtype='float')
+            self.updateslice()
+
+
+        self.data['seg_raw_fusion'] = generate_overlay(self.data['raw'],self.data['seg_raw'],self.roiframe.layer.get(),overlay_intensity=self.config.OverlayIntensity)
         self.data['seg_raw_fusion_d'] = copy.copy(self.data['seg_raw_fusion'])
         self.data['params']['t1gate_count'] = self.data['gates'][3]
         self.data['params']['t2gate_count'] = self.data['gates'][4]

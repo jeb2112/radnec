@@ -36,6 +36,10 @@ class CreateSliceViewerFrame(CreateFrame):
         self.currentslice = tk.IntVar()
         self.currentslice.set(75)
         self.slicevolume_norm = tk.IntVar()
+        # window/level values
+        self.window = np.array([1.,1.],dtype='float')
+        self.level = np.array([0.5,0.5],dtype='float')
+        self.wlflag = False
 
 
         self.frame.grid(column=0,row=0, sticky='NEW',in_=self.parentframe)
@@ -73,10 +77,6 @@ class CreateSliceViewerFrame(CreateFrame):
         self.vslicenumberlabel = ttk.Label(slidersframe, text='{}'.format(self.currentslice.get()))
         self.vslicenumberlabel.grid(column=2,row=0)
 
-        # window/level values
-        self.window = np.array([1.,1.],dtype='float')
-        self.level = np.array([0.5,0.5],dtype='float')
-        self.wlflag = False
         # will use touchpad/mouse instead of onscreen widgets
         # self.window = tk.DoubleVar(value=1)
         # self.level = tk.DoubleVar(value=0.5)
@@ -124,14 +124,18 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ax_img.set(data=self.ui.data[self.ui.dataselection][0,slice,:,:])
         self.ax2_img.set(data=self.ui.data[self.ui.dataselection][1,slice,:,:])
         self.vslicenumberlabel['text'] = '{}'.format(slice)
-        if self.ui.dataselection == 'seg_raw_fusion_d' or self.ui.dataselection == 'seg_fusion_d':
+        if self.ui.dataselection in['seg_raw_fusion_d','seg_fusion_d']:
             self.ax_img.set(cmap='viridis')
             self.ax2_img.set(cmap='viridis')
         else:
             self.ax_img.set(cmap='gray')
             self.ax2_img.set(cmap='gray')
-        if wl:   # eg latency problem here
-            self.updatewl_fusion()
+        if wl:   
+            # possible latency problem here
+            if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
+                self.updatewl_fusion()
+            elif self.ui.dataselection == 'raw':
+                self.clipwl_raw()
         self.canvas.draw()
 
     # special update for previewing BLAST enhancing lesion in 2d
@@ -190,6 +194,17 @@ class CreateSliceViewerFrame(CreateFrame):
                     else:
                         self.ax2_img.set(data=self.ui.data[self.ui.dataselection][ax,slice,:,:])
             self.wlflag = False
+
+    # clip the raw data to window and level settings
+    def clipwl_raw(self):
+        for ax in range(2):
+            vmin = self.level[ax] - self.window[ax]/2
+            vmax = self.level[ax] + self.window[ax]/2
+            self.ui.data['raw'][ax] = self.ui.caseframe.rescale(self.ui.data['raw'][ax],vmin=vmin,vmax=vmax)
+
+    def restorewl_raw(self):
+        self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
+
             
     # touchpad event for window/level adjustment
     # TODO: extend to mouse and windows
@@ -354,6 +369,9 @@ class CreateCaseFrame(CreateFrame):
             self.n4()
         # rescale the data
         self.ui.data['raw'] = self.rescale(self.ui.data['raw'])
+
+        # save copy of the raw data
+        self.ui.data['raw_copy'] = copy.deepcopy(self.ui.data['raw'])
 
         # create the label
         label = sitk.ReadImage(os.path.join(self.casedir,self.config.UIdataroot+self.casename.get()+'_seg.nii'))
