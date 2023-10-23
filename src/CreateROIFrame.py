@@ -178,7 +178,7 @@ class CreateROIFrame(CreateFrame):
         if self.layertype.get() == 'blast':
             data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get(),
                                                                    overlay_intensity=self.config.OverlayIntensity)
-            data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
+            data['seg_raw_fusion_d'] = copy.copy(data['seg_raw_fusion'])
         elif self.layertype.get() == 'seg':
             data['seg_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],data['seg'],self.layer.get(),
                                                                overlay_intensity=self.config.OverlayIntensity)
@@ -189,11 +189,14 @@ class CreateROIFrame(CreateFrame):
         self.ui.updateslice()
 
     def update_layermenu_options(self,type):
-        self.layertype.set(type)
-        menu = self.layermenu['menu']
-        menu.delete(0,'end')
-        for s in self.layerlist[type]:
-            menu.add_command(label=s,command = tk._setit(self.layer,s,self.layer_callback))
+        currenttype = self.layertype.get()
+        if type != currenttype:
+            self.layertype.set(type)
+            menu = self.layermenu['menu']
+            menu.delete(0,'end')
+            for s in self.layerlist[type]:
+                menu.add_command(label=s,command = tk._setit(self.layer,s,self.layer_callback))
+            self.layer.set(self.layerlist[type][0])
 
     # methods for roi number choice menu
     def roinumber_callback(self,item=None):
@@ -266,10 +269,10 @@ class CreateROIFrame(CreateFrame):
             self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
             self.ui.updateslice()
         else:
-            self.ui.dataselection = 'seg_fusion_d'
-            self.ui.updateslice(wl=True)
             self.enhancingROI_overlay_value.set(False)
+            self.ui.dataselection = 'seg_fusion_d'
             self.update_layermenu_options('seg')
+            self.ui.updateslice(wl=True)
 
     def enhancingROI_overlay_callback(self,event=None):
         if self.enhancingROI_overlay_value.get() == False:
@@ -277,10 +280,10 @@ class CreateROIFrame(CreateFrame):
             self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
             self.ui.updateslice()
         else:
-            self.ui.dataselection = 'seg_raw_fusion_d'
-            self.ui.updateslice(wl=True)
             self.finalROI_overlay_value.set(False)
+            self.ui.dataselection = 'seg_raw_fusion_d'
             self.update_layermenu_options('blast')
+            self.ui.updateslice(wl=True)
 
     def enhancingROI_callback(self,event=None):
         self.finalROI_overlay_value.set(False)

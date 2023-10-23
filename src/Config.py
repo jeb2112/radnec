@@ -48,4 +48,4 @@ class Config(object):
         self.WLClip = False
 
         # < 1 overlay by alpha compositing, == 1 replacement
-        self.OverlayIntensity = 1.0
+        self.OverlayIntensity = 0.6
