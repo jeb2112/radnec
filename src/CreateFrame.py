@@ -129,11 +129,14 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ax2_img.set(cmap='viridis')
         else:
             self.ax_img.set(cmap='gray')
+            self.updatewl(ax=0)
             self.ax2_img.set(cmap='gray')
+            self.updatewl(ax=1)
         if wl:   
             # possible latency problem here
             if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
-                self.updatewl_fusion()
+                # self.updatewl_fusion()
+                self.ui.roiframe.layer_callback()
             elif self.ui.dataselection == 'raw':
                 self.clipwl_raw()
         self.canvas.draw()
@@ -180,20 +183,11 @@ class CreateSliceViewerFrame(CreateFrame):
     # color window/level scaling needs to be done separately for latency
     # for now, just tack it onto the fusion toggle button
     def updatewl_fusion(self):
-        slice=self.currentslice.get()
-        for ax in range(2):
-            vmin = self.level[ax] - self.window[ax]/2
-            vmax = self.level[ax] + self.window[ax]/2
-            if self.wlflag:
-                if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
-                    for d in ['seg_raw_fusion_d','seg_fusion_d']:
-                        if d in self.ui.data.keys():
-                            self.ui.data[d] = self.ui.caseframe.rescale(self.ui.data[d[:-2]],vmin=vmin,vmax=vmax)
-                    if ax == 0:
-                        self.ax_img.set(data=self.ui.data[self.ui.dataselection][ax,slice,:,:])
-                    else:
-                        self.ax2_img.set(data=self.ui.data[self.ui.dataselection][ax,slice,:,:])
-            self.wlflag = False
+        if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
+            for ax in range(2):
+                vmin = self.level[ax] - self.window[ax]/2
+                vmax = self.level[ax] + self.window[ax]/2
+                self.ui.data['raw'][ax] = self.ui.caseframe.rescale(self.ui.data['raw_copy'][ax],vmin=vmin,vmax=vmax)
 
     # clip the raw data to window and level settings
     def clipwl_raw(self):
@@ -368,7 +362,8 @@ class CreateCaseFrame(CreateFrame):
         if self.n4_check_value.get() and 'bias' not in t1ce_file:  
             self.n4()
         # rescale the data
-        self.ui.data['raw'] = self.rescale(self.ui.data['raw'])
+        for ch in range(np.shape(self.ui.data['raw'])[0]):
+            self.ui.data['raw'][ch] = self.rescale(self.ui.data['raw'][ch])
 
         # save copy of the raw data
         self.ui.data['raw_copy'] = copy.deepcopy(self.ui.data['raw'])
@@ -389,21 +384,20 @@ class CreateCaseFrame(CreateFrame):
             self.ui.data['manual_wt'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
 
 
-    # assumes first dim is channel
+    # operates on a single image channel 
     def rescale(self,img_arr,vmin=None,vmax=None):
         scaled_arr =  np.zeros(np.shape(img_arr))
-        for ch in range(np.shape(img_arr)[0]):
-            if vmin is None:
-                minv = np.min(img_arr[ch])
-            else:
-                minv = vmin
-            if vmax is None:
-                maxv = np.max(img_arr[ch])
-            else:
-                maxv = vmax
-            assert(maxv>minv)
-            scaled_arr[ch] = (img_arr[ch]-minv) / (maxv-minv)
-            scaled_arr[ch] = np.clip(scaled_arr[ch],a_min=0,a_max=1)
+        if vmin is None:
+            minv = np.min(img_arr)
+        else:
+            minv = vmin
+        if vmax is None:
+            maxv = np.max(img_arr)
+        else:
+            maxv = vmax
+        assert(maxv>minv)
+        scaled_arr = (img_arr-minv) / (maxv-minv)
+        scaled_arr = np.clip(scaled_arr,a_min=0,a_max=1)
         return scaled_arr
     
     def n4(self,shrinkFactor=4,nFittingLevels=4):

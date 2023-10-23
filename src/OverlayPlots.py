@@ -88,10 +88,20 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray, layer: s
                 continue # skipping background here
             if l in layer:
                 overlay = overlay_intensity * np.array(hex_to_rgb(color_cycle[mapping[l]]))
-                if len(layer) == 1:
-                    image[segmentation >= l] += overlay
+                if overlay_intensity == 1.0:
+                    if len(layer) == 1:
+                        image[segmentation >= l] = overlay
+                    else:
+                        if l == 1:
+                            image[segmentation == l] = overlay
+                        else:
+                            image[segmentation == l] = overlay
                 else:
-                    image[segmentation == l] += overlay
+                    if len(layer) == 1:
+                        image[segmentation >= l] += overlay
+                    else:
+                        image[segmentation == l] += overlay
+                    
 
         # rescale result to [0,1]
         image = image / image.max() * 1

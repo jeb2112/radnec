@@ -163,20 +163,24 @@ class CreateROIFrame(CreateFrame):
 
     # methods for layer options menu
     def layer_callback(self,layer=None):
+        self.ui.sliceviewerframe.updatewl_fusion()
+
         self.ui.currentlayer = self.layer.get()
         roi = self.ui.get_currentroi()
-        # generate a new overlay
+
+        # check for existing roi
         if roi < 0:
             data = self.ui.data
         else:
             data = self.ui.roi[roi].data
 
+        # generate a new overlay
         if self.layertype.get() == 'blast':
             data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get(),
                                                                    overlay_intensity=self.config.OverlayIntensity)
             data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
         elif self.layertype.get() == 'seg':
-            data['seg_fusion'] = OverlayPlots.generate_overlay(data['raw'],data['seg'],self.layer.get(),
+            data['seg_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],data['seg'],self.layer.get(),
                                                                overlay_intensity=self.config.OverlayIntensity)
             data['seg_fusion_d'] = copy.copy(data['seg_fusion'])
 
@@ -190,7 +194,6 @@ class CreateROIFrame(CreateFrame):
         menu.delete(0,'end')
         for s in self.layerlist[type]:
             menu.add_command(label=s,command = tk._setit(self.layer,s,self.layer_callback))
-        self.layer.set(self.layerlist[type][0])
 
     # methods for roi number choice menu
     def roinumber_callback(self,item=None):
@@ -260,6 +263,7 @@ class CreateROIFrame(CreateFrame):
     def finalROI_overlay_callback(self,event=None):
         if self.finalROI_overlay_value.get() == False:
             self.ui.dataselection = 'raw'
+            self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
             self.ui.updateslice()
         else:
             self.ui.dataselection = 'seg_fusion_d'
@@ -270,6 +274,7 @@ class CreateROIFrame(CreateFrame):
     def enhancingROI_overlay_callback(self,event=None):
         if self.enhancingROI_overlay_value.get() == False:
             self.ui.dataselection = 'raw'
+            self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
             self.ui.updateslice()
         else:
             self.ui.dataselection = 'seg_raw_fusion_d'
@@ -306,8 +311,9 @@ class CreateROIFrame(CreateFrame):
         roi = self.ui.get_currentroi()
         self.closeROI(self.ui.roi[roi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
         self.ROIstats()
-        fusionstack = np.zeros((155,240,240,2))
-        fusionstack = OverlayPlots.generate_overlay(self.ui.roi[roi].data['raw'],self.ui.roi[roi].data['seg'],self.ui.roiframe.layer.get(),
+        fusionstack = np.zeros((2,155,240,240))
+        # note 'raw' data is redundant in all roi's.
+        fusionstack = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.roi[roi].data['seg'],self.ui.roiframe.layer.get(),
                                                     overlay_intensity=self.config.OverlayIntensity)
         self.ui.roi[roi].data['seg_fusion'] = fusionstack
         self.ui.roi[roi].data['seg_fusion_d'] = copy.copy(self.ui.roi[roi].data['seg_fusion'])
@@ -328,7 +334,8 @@ class CreateROIFrame(CreateFrame):
     def createROI(self,x,y,slice):
         self.ui.roi.append(ROI(x,y,slice))
         self.currentroi.set(self.currentroi.get() + 1)
-        self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
+        # self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
+        self.updateROIData()
         self.update_roinumber_options()
 
     def closeROI(self,metmaskstack,currentslice,do3d=True):
@@ -532,7 +539,21 @@ class CreateROIFrame(CreateFrame):
         self.ROIclick()
         self.ROIstats()
         # save current dataset into the current roi. 
-        self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
+        for k,v in self.ui.roi[self.ui.currentroi].data:
+            if k != 'raw':
+                v = copy.deepcopy(self.ui.data[k])
+            else: # reference only
+                v = self.ui.data[k]
+
+        # self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
+
+    def updateROIData(self):
+        # save current dataset into the current roi. 
+        for k,v in self.ui.data.items():
+            if k != 'raw':
+                self.ui.roi[self.ui.currentroi].data[k] = copy.deepcopy(self.ui.data[k])
+            else: # reference only
+                self.ui.roi[self.ui.currentroi].data[k] = self.ui.data[k]
 
     def updateData(self):
         self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
