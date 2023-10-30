@@ -22,7 +22,7 @@ color_cycle = (
 )
 
 # hard-coded convention
-layerdict = {'ET':[3],'TC':[2],'WT':[1],'edema':[1],'all':[1,2,3],'both':[1,3]}
+layerdict = {'ET':[3],'TC':[2],'WT':[1],'NET':[1],'all':[1,2,3],'both':[1,3]}
 
 def hex_to_rgb(hex: str):
     assert len(hex) == 6
@@ -80,7 +80,8 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray, layer: s
 
         # create output
         if mapping is None:
-            uniques = np.sort(np.unique(segmentation.ravel()))  # np.unique(segmentation)
+            # uniques = np.sort(np.unique(segmentation.ravel()))
+            uniques = [0,1,2,3]
             mapping = {i: c for c, i in enumerate(uniques)} 
 
         for l in mapping.keys():

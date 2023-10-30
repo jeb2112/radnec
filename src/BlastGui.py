@@ -44,12 +44,23 @@ class BlastGui(object):
         # hard-coded for debugging
         if self.debug:
             self.caseframe.casename.set('00005')
-            self.sliceviewerframe.currentslice.set(65)
+            self.sliceviewerframe.currentslice.set(75)
+            self.updateslice()
             self.sliceviewerframe.normalslice_callback()
             self.sliceviewerframe.currentslice.set(105)
+            self.updateslice()
+
+            # adjusted BLAST
+            # self.roiframe.currentt2threshold.set(0.2)
+            self.roiframe.currentt1threshold.set(0.1)
+            self.roiframe.updatet1threshold()
+            # self.roiframe.updatet2threshold()
+            self.roiframe.enhancingROI_callback()
+            self.updateslice()
+
+            # adjusted window/level
             # self.sliceviewerframe.window=np.array([.6,1],dtype='float')
             # self.sliceviewerframe.level = np.array([.3,.5])
-            self.updateslice()
 
             # create roi
             # self.roiframe.createROI(132,102,75)
@@ -115,10 +126,12 @@ class BlastGui(object):
                 )
         else:
             try:
-                self.data['seg_raw'],self.data['gates'] = Blastbratsv3.run_blast(
+                retval = Blastbratsv3.run_blast(
                                     self.data,self.roiframe.t1slider.get(),
                                     self.roiframe.t2slider.get(),self.roiframe.bcslider.get(),
                                     currentslice=currentslice)
+                if retval is not None:
+                    self.data['seg_raw'],self.data['gates'] = retval
             except ValueError as e:
                 self.set_message(e)
 

@@ -28,11 +28,10 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
             currentslice=None):
 
     #check if any thresholds have actually changed
-    if len([i for i in data['gates'][0:3] if i is not None]) == 3:
+    if all(x is not None for x in data['gates'][0:3]):
         # raise ValueError('No updates for point-in-polygon requested.')
-        # return
         print('No updates for point-in-polygon requested.')
-        data['gates'][0] = None
+        return None
 
     # hard-coded indexing
     t1mprage = data['raw'][0]
@@ -69,7 +68,7 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
     yv_et = np.array([t1gate, 4, 4, t1gate])
     xv_et = np.array([t2gate, t2gate, 4, 4]) 
 
-    # define WT threshold gate, >= t2gate
+    # define NET threshold gate, >= t2gate
     yv_wt = np.array([-4, 4, 4, -4])
     xv_wt = np.array([t2gate, t2gate, 4, 4]) 
 
@@ -91,7 +90,9 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
     et_maskstack = np.zeros(stack_shape)
     wt_maskstack = np.zeros(stack_shape)
     c_maskstack = np.zeros(stack_shape)
-    brain = et_gate = wt_gate = None
+    brain = data['gates'][0]
+    et_gate = data['gates'][1]
+    wt_gate = data['gates'][2]
 
     # TODO: config option for Win 11 if WSL2 enabled otherwise no gpu
     # option for multi-processing if doing 3d volume slice by slice
@@ -116,6 +117,7 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
     elif (endslice-startslice)>1:
         start = time.time()
         region_of_support = np.where(t1mpragestack>0)
+        background_mask = np.where(t1mpragestack == 0)
         t1channel = t1mpragestack[region_of_support]
         t2channel = t2flairstack[region_of_support]
         t1t2verts = np.vstack((t2channel.flatten(),t1channel.flatten())).T
@@ -142,34 +144,34 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
             if data['gates'][1] is None:
                 et_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
                 gate_etpts = dotime(point_in_polygon,(RGseries,xy_etseries),txt='gate')
-                gate_etpts = gate_etpts.values.get().astype('int').flatten()
-                et_gate[region_of_support] = gate_etpts
+                et_gate[region_of_support] = gate_etpts.values.get().astype('int').flatten()
+                # et_gate[background_mask] = False
             if data['gates'][2] is None:
                 wt_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
                 gate_wtpts = dotime(point_in_polygon,(RGseries,xy_wtseries),txt='gate')
-                gate_wtpts = gate_wtpts.values.get().astype('int').flatten()
-                wt_gate[region_of_support] = gate_wtpts
+                wt_gate[region_of_support] = gate_wtpts.values.get().astype('int').flatten()
+                # wt_gate[background_mask] = False
             if data['gates'][0] is None:
                 brain = np.zeros(np.shape(t1mpragestack),dtype='uint8')
                 brainpts = dotime(point_in_polygon,(RGseries,xyseries),txt='brain')
-                brainpts = brainpts.values.get().astype('int').flatten()
-                brain[region_of_support] = brainpts
+                brain[region_of_support] = brainpts.values.get().astype('int').flatten()
+                # brain[background_mask] = False
         else:
             path = Path(xyverts,closed=True)
             path_et = Path(xy_etverts,closed=True)
             path_wt = Path(xy_wtverts,closed=True)
             if data['gates'][1] is None:
                 et_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-                et_gate_pts = path_et.contains_points(t1t2verts).flatten()
-                et_gate[region_of_support] = et_gate_pts
+                et_gate[region_of_support] = path_et.contains_points(t1t2verts).flatten()
+                # et_gate[background_mask] = False
             if data['gates'][2] is None:
                 wt_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-                wt_gate_pts = path_wt.contains_points(t1t2verts).flatten()
-                wt_gate[region_of_support] = wt_gate_pts
+                wt_gate[region_of_support] = path_wt.contains_points(t1t2verts).flatten()
+                # wt_gate[background_mask] = False
             if data['gates'][0] is None:
                 brain = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-                brain_pts = path.contains_points(t1t2verts).flatten()
-                brain[region_of_support] = brain_pts
+                brain[region_of_support] = path.contains_points(t1t2verts).flatten()
+                # brain[background_mask] = False
 
         dtime = time.time()-start
         print('polygon contains points time = {:.2f} sec'.format(dtime))
@@ -183,12 +185,9 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
 
         wt_mask = np.logical_and(wt_gate, np.logical_not(brain))
 
-        # check for redundancy
-        if (et_mask == wt_mask).all() and t1thresh < 0:
-            et_mask = np.where(et_mask,False,False)
+        c_maskstack = et_mask.astype('int')*2 + wt_mask.astype('int')
 
         # maskstack = et_mask + wtmask
-        c_maskstack = et_mask.astype('int')*2 + wt_mask.astype('int')
         # fusion = dotime(OverlayPlots.generate_overlay,(data['raw'],c_maskstack),txt='overlay') 
         # fusionstack = fusion
         et_maskstack = et_mask
@@ -198,8 +197,10 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
         for slice in range(startslice,endslice):  
 
             # Gating Routine    
-            t1channel = t1mpragestack[slice,:,:]
-            t2channel = t2flairstack[slice,:,:]
+            region_of_support = np.where(t1mpragestack[slice] > 0)
+            background_mask = np.where(t1mpragestack[slice] == 0)
+            t1channel = t1mpragestack[slice][region_of_support]
+            t2channel = t2flairstack[slice][region_of_support]
             
             # Applying gate to brain
             # gate = inpolygon(t2channel,t1channel,yv_et,xv_et)
@@ -217,22 +218,22 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
 
             # find polygons
             # matplotlib. don't need gpu for 1 slice
-            gate_et = path_et.contains_points(t1t2verts).reshape(240,240)
-            gate_wt = path_wt.contains_points(t1t2verts).reshape(240,240)
-            brain = path.contains_points(t1t2verts).reshape(240,240)
+            et_gate_2d = np.zeros(np.shape(t1mpragestack[slice]))
+            et_gate_2d[region_of_support] = path_et.contains_points(t1t2verts).flatten()
+            wt_gate_2d = np.zeros(np.shape(t1mpragestack[slice]))
+            wt_gate_2d[region_of_support] = path_wt.contains_points(t1t2verts).flatten()
+            brain_2d = np.zeros(np.shape(t1mpragestack[slice]))
+            brain_2d[region_of_support] = path.contains_points(t1t2verts).flatten()
 
             # form output image
-            et_mask = np.logical_and(gate_et, np.logical_not(brain)) # 
+            et_mask = np.logical_and(et_gate_2d, np.logical_not(brain_2d)) # 
             et_mask = et_mask.reshape((240,240))
-            wt_mask = np.logical_and(gate_wt, np.logical_not(brain)) # 
+            et_mask[background_mask] == False
+            wt_mask = np.logical_and(wt_gate_2d, np.logical_not(brain_2d)) # 
             wt_mask = wt_mask.reshape((240,240))
-
-            # check for redundancy
-            if (et_mask == wt_mask).all() and t1thresh < 0:
-                et_mask = np.where(et_mask,False,False)
+            wt_mask[background_mask] == False
 
             compound_mask = et_mask.astype('int')*2+wt_mask.astype('int')
-            # et_mask = max(et_mask,0)
             # fusion = imfuse(et_mask,t1mprage_template[slice,:,:,slice],'blend')
             # if False:
             #     fusion = 0.5*et_mask + 0.5*t1mprage_template[slice,:,:] # alpha composite unweighted
@@ -246,6 +247,7 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
             et_maskstack[slice] = et_mask
             wt_maskstack[slice] = wt_mask
             c_maskstack[slice] = compound_mask
+
             # fusionstack[:,slice,:,:] = fusion
 
     # Calculate connected objects 

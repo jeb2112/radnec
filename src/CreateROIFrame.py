@@ -39,7 +39,7 @@ class CreateROIFrame(CreateFrame):
         self.currentt1threshold = tk.DoubleVar()
         self.currentt2threshold = tk.DoubleVar()
         self.currentbcsize = tk.DoubleVar(value=2)
-        self.layerlist = {'blast':['ET','edema','both'],'seg':['ET','TC','WT','all']}
+        self.layerlist = {'blast':['ET','NET','both'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=-1)
@@ -235,6 +235,7 @@ class CreateROIFrame(CreateFrame):
         # if operating in finalROI mode additionally reprocess the final segmentation
         if self.finalROI_overlay_value.get() == True:
             # still working on a fast 2d update to final ROI
+            return
             self.ROIclick(do3d=True)
 
     # updates the text field showing the value during slider drag
