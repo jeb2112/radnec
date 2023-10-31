@@ -152,7 +152,7 @@ class CreateROIFrame(CreateFrame):
         #brain cluster slider
         bclabel = ttk.Label(self.t1sliderframe,text='b.c.')
         bclabel.grid(column=0,row=2,sticky='w')
-        self.bcslider = ttk.Scale(self.t1sliderframe,from_=0,to=4,variable=self.currentbcsize,state='disabled',
+        self.bcslider = ttk.Scale(self.t1sliderframe,from_=0.0,to=4,variable=self.currentbcsize,state='disabled',
                                   length='3i',command=self.updatebclabel,orient='horizontal')
         self.bcslider.grid(column=1,row=2,sticky='e')
         self.bcsliderlabel = ttk.Label(self.t1sliderframe,text='{:.1f}'.format(self.currentbcsize.get()))

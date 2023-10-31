@@ -43,20 +43,22 @@ class BlastGui(object):
 
         # hard-coded for debugging
         if self.debug:
-            self.caseframe.casename.set('00005')
-            self.sliceviewerframe.currentslice.set(75)
+            # 00005 75,105
+            # 00002
+            self.caseframe.casename.set('00002')
+            self.sliceviewerframe.currentslice.set(53)
             self.updateslice()
             self.sliceviewerframe.normalslice_callback()
-            self.sliceviewerframe.currentslice.set(105)
+            self.sliceviewerframe.currentslice.set(81)
             self.updateslice()
 
             # adjusted BLAST
             # self.roiframe.currentt2threshold.set(0.2)
-            self.roiframe.currentt1threshold.set(0.1)
-            self.roiframe.updatet1threshold()
+            # self.roiframe.currentt1threshold.set(0.1)
+            # self.roiframe.updatet1threshold()
             # self.roiframe.updatet2threshold()
-            self.roiframe.enhancingROI_callback()
-            self.updateslice()
+            # self.roiframe.enhancingROI_callback()
+            # self.updateslice()
 
             # adjusted window/level
             # self.sliceviewerframe.window=np.array([.6,1],dtype='float')

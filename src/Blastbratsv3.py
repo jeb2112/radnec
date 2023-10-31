@@ -4,6 +4,7 @@ from skimage.draw import ellipse_perimeter
 from scipy.spatial.distance import dice
 import copy
 from matplotlib.path import Path
+from matplotlib.patches import Ellipse
 import matplotlib.pyplot as plt
 import time
 try:
@@ -55,8 +56,8 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
     # Define brain
     # h = images.roi.Ellipse(gca,'Center',[meant2 meant1],'Semiaxes',[t2Diff t1Diff],'Color','y','LineWidth',1,'LabelAlpha',0.5,'InteractionsAllowed','none')
 
-    # row=y=t1 col=x=t2
-    (yv,xv) = get_ellipse_perimeter(data['params']['meant1'],data['params']['meant2'],t1Diff,t2Diff)
+    # row=y=t1 col=x=t2, but xy convention for patches.Ellipse is same as matlab
+    brain_perimeter = Ellipse((data['params']['meant2'],data['params']['meant1']),2*t2Diff,2*t1Diff)
 
     t2gate = data['params']['meant2']+(t2thresh)*data['params']['stdt2']
     t2gate_count = (t2gate-data['params']['meant2'])/data['params']['stdt2']
@@ -125,8 +126,8 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
         xy_etverts = np.concatenate((xy_etverts,np.atleast_2d(xy_etverts[0,:])),axis=0) # close path
         xy_wtverts = np.vstack((xv_wt,yv_wt)).T
         xy_wtverts = np.concatenate((xy_wtverts,np.atleast_2d(xy_wtverts[0,:])),axis=0) # close path
-        xyverts =  np.vstack((xv,yv)).T
-        xyverts = np.concatenate((xyverts,np.atleast_2d(xyverts[0,:])),axis=0) # close path
+        unitverts = brain_perimeter.get_path().vertices
+        xyverts = brain_perimeter.get_patch_transform().transform(unitverts)
 
         if use_gpu:
             RGcoords = cudf.DataFrame({'x':t1t2verts[:,0],'y':t1t2verts[:,1]}).interleave_columns()
@@ -145,17 +146,14 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
                 et_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
                 gate_etpts = dotime(point_in_polygon,(RGseries,xy_etseries),txt='gate')
                 et_gate[region_of_support] = gate_etpts.values.get().astype('int').flatten()
-                # et_gate[background_mask] = False
             if data['gates'][2] is None:
                 wt_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
                 gate_wtpts = dotime(point_in_polygon,(RGseries,xy_wtseries),txt='gate')
                 wt_gate[region_of_support] = gate_wtpts.values.get().astype('int').flatten()
-                # wt_gate[background_mask] = False
             if data['gates'][0] is None:
                 brain = np.zeros(np.shape(t1mpragestack),dtype='uint8')
                 brainpts = dotime(point_in_polygon,(RGseries,xyseries),txt='brain')
                 brain[region_of_support] = brainpts.values.get().astype('int').flatten()
-                # brain[background_mask] = False
         else:
             path = Path(xyverts,closed=True)
             path_et = Path(xy_etverts,closed=True)
@@ -163,15 +161,12 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
             if data['gates'][1] is None:
                 et_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
                 et_gate[region_of_support] = path_et.contains_points(t1t2verts).flatten()
-                # et_gate[background_mask] = False
             if data['gates'][2] is None:
                 wt_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
                 wt_gate[region_of_support] = path_wt.contains_points(t1t2verts).flatten()
-                # wt_gate[background_mask] = False
             if data['gates'][0] is None:
                 brain = np.zeros(np.shape(t1mpragestack),dtype='uint8')
                 brain[region_of_support] = path.contains_points(t1t2verts).flatten()
-                # brain[background_mask] = False
 
         dtime = time.time()-start
         print('polygon contains points time = {:.2f} sec'.format(dtime))
@@ -205,14 +200,18 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
             # Applying gate to brain
             # gate = inpolygon(t2channel,t1channel,yv_et,xv_et)
             # brain = inpolygon(t2channel,t1channel,yv,xv)
-            t1t2verts = np.vstack((t2channel.flatten(),t1channel.flatten())).T
+            # t1t2verts = np.vstack((t2channel.flatten(),t1channel.flatten())).T
+            t1t2verts = np.stack((t2channel*1,t1channel*1),axis=1)
             xy_etverts = np.vstack((xv_et,yv_et)).T
             xy_etverts = np.concatenate((xy_etverts,np.atleast_2d(xy_etverts[0,:])),axis=0) # close path
             xy_wtverts = np.vstack((xv_wt,yv_wt)).T
             xy_wtverts = np.concatenate((xy_wtverts,np.atleast_2d(xy_wtverts[0,:])),axis=0) # close path
-            xyverts =  np.vstack((xv,yv)).T
-            xyverts = np.concatenate((xyverts,np.atleast_2d(xyverts[0,:])),axis=0) # close path
-            path = Path(xyverts,closed=True)
+            unitverts = brain_perimeter.get_path().vertices
+            xyverts = brain_perimeter.get_patch_transform().transform(unitverts)
+            path = Path(xyverts)
+            if False:
+                plt.scatter(xyverts[:,0],xyverts[:,1],c='g')
+                plt.show(block=False)
             path_et = Path(xy_etverts,closed=True)
             path_wt = Path(xy_wtverts,closed=True)
 
@@ -223,7 +222,7 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
             wt_gate_2d = np.zeros(np.shape(t1mpragestack[slice]))
             wt_gate_2d[region_of_support] = path_wt.contains_points(t1t2verts).flatten()
             brain_2d = np.zeros(np.shape(t1mpragestack[slice]))
-            brain_2d[region_of_support] = path.contains_points(t1t2verts).flatten()
+            brain_2d[region_of_support] = path.contains_points(t1t2verts)
 
             # form output image
             et_mask = np.logical_and(et_gate_2d, np.logical_not(brain_2d)) # 
@@ -267,11 +266,6 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
 #################
 # utility methods
 #################
-
-# Prepare variable
-def get_ellipse_perimeter(r,c,dr,dc,scale=1024): 
-    (yv,xv) = ellipse_perimeter(int(r*scale),int(c*scale),int(dr*scale),int(dc*scale))
-    return (yv/scale,xv/scale)
 
 # initialize variables for do_pip()
 def pool_initializer(X,Y,X_shape):

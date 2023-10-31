@@ -12,7 +12,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
-from sklearn.cluster import KMeans,MiniBatchKMeans
+from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice
 import cc3d
 
@@ -246,12 +246,12 @@ class CreateSliceViewerFrame(CreateFrame):
 
         if self.slicevolume_norm.get() == 0:
             self.normalslice=self.ui.get_currentslice()
-            region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]>0) 
+            region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]>=0) 
             t1channel_normal = self.ui.data['raw'][0,self.normalslice][region_of_support]
             t2channel_normal = self.ui.data['raw'][1,self.normalslice][region_of_support]
         else:
             self.normalslice = None
-            region_of_support = np.where(self.ui.data['raw'][0]>0) 
+            region_of_support = np.where(self.ui.data['raw'][0]>=0) 
             t1channel_normal = self.ui.data['raw'][0][region_of_support]
             t2channel_normal = self.ui.data['raw'][1][region_of_support]
 
@@ -263,6 +263,16 @@ class CreateSliceViewerFrame(CreateFrame):
         np.random.seed(1)
         # [idx,C] = KMeans(n_clusters=2).fit(X)
         kmeans = KMeans(n_clusters=2,n_init='auto').fit(X)
+
+        if False:
+            plt.figure(2)
+            ax = plt.subplot(1,1,1)
+            plt.scatter(X[kmeans.labels_==0,0],X[kmeans.labels_==0,1],c='b')
+            plt.scatter(X[kmeans.labels_==1,0],X[kmeans.labels_==1,1],c='r')
+            ax.set_aspect('equal')
+            ax.set_xlim(left=0,right=0.6)
+            ax.set_ylim(bottom=0,top=1.0)
+            plt.show(block=False)
 
         # Calculate stats for brain cluster
         self.ui.data['params']['stdt1'] = np.std(X[kmeans.labels_==1,1])
