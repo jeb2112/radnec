@@ -69,16 +69,17 @@ class BlastGui(object):
 
             # create roi
             # self.roiframe.createROI(132,102,75) # 00000
-            self.roiframe.createROI(155,99,87) # 00002
-            self.roiframe.ROIclick(event=None)
-            self.roiframe.updateROI()
-            self.roiframe.finalROI_overlay_value.set(True)
-            self.roiframe.update_layermenu_options('seg')
-            self.roiframe.enhancingROI_overlay_value.set(False)
-            self.currentroi = 0
-            self.roiframe.currentroi.set(0)
-            self.roiframe.update_roinumber_options()
-            self.roiframe.roinumber_callback(item=None)
+            if False:
+                self.roiframe.createROI(155,99,87) # 00002
+                self.roiframe.ROIclick(event=None)
+                self.roiframe.updateROI()
+                self.roiframe.finalROI_overlay_value.set(True)
+                self.roiframe.update_layermenu_options('seg')
+                self.roiframe.enhancingROI_overlay_value.set(False)
+                self.currentroi = 0
+                self.roiframe.currentroi.set(0)
+                self.roiframe.update_roinumber_options()
+                self.roiframe.roinumber_callback(item=None)
 
 
     #########
@@ -115,8 +116,8 @@ class BlastGui(object):
             self.root.config(cursor='watch')
             self.root.update_idletasks()
 
-        if self.config.WLClip:
-            self.sliceviewerframe.clipwl_raw()
+        # if self.config.WLClip:
+        #     self.sliceviewerframe.clipwl_raw()
 
         if False:
             with Profile() as profile:
@@ -141,18 +142,20 @@ class BlastGui(object):
             except ValueError as e:
                 self.set_message(e)
 
-        if self.config.WLClip:
-            self.sliceviewerframe.restorewl_raw()
-            self.sliceviewerframe.window = np.array([1.,1.],dtype='float')
-            self.sliceviewerframe.level = np.array([0.5,0.5],dtype='float')
-            self.updateslice()
-
+        # if self.config.WLClip:
+        #     self.sliceviewerframe.restorewl_raw()
+        #     self.sliceviewerframe.window = np.array([1.,1.],dtype='float')
+        #     self.sliceviewerframe.level = np.array([0.5,0.5],dtype='float')
+        #     self.updateslice()
 
         self.data['seg_raw_fusion'] = generate_overlay(self.data['raw'],self.data['seg_raw'],self.roiframe.layer.get(),overlay_intensity=self.config.OverlayIntensity)
         self.data['seg_raw_fusion_d'] = copy.copy(self.data['seg_raw_fusion'])
         self.data['params']['t1gate_count'] = self.data['gates'][3]
         self.data['params']['t2gate_count'] = self.data['gates'][4]
             
+        if self.currentroi >= 0:
+            self.update_roidata()
+
         if self.roiframe.finalROI_overlay_value.get() == True:
             self.dataselection = 'seg_fusion_d'
         else:
@@ -205,6 +208,9 @@ class BlastGui(object):
 
     def get_currentroi(self):
         return self.currentroi
+
+    def update_roidata(self):
+        self.roiframe.updateROIData()
 
     def starttime(self):
         self.tstart = time.time()

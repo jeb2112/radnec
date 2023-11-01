@@ -235,7 +235,9 @@ class CreateROIFrame(CreateFrame):
         # for now, this event reverts to BLAST preview mode and will not directly reprocess the final segmentation
         if self.finalROI_overlay_value.get() == True:
             self.finalROI_overlay_value.set(False)
-        self.enhancingROI_overlay_value.set(True)
+            self.enhancingROI_overlay_value.set(True)
+            self.enhancingROI_overlay_callback()
+
         # force recalc of gates
         self.ui.data['gates'][1] = None
         self.ui.data['gates'][2] = None
@@ -249,7 +251,8 @@ class CreateROIFrame(CreateFrame):
     def updatet2threshold(self,event=None,currentslice=True):
         if self.finalROI_overlay_value.get() == True:
             self.finalROI_overlay_value.set(False)
-        self.enhancingROI_overlay_value.set(True)
+            self.enhancingROI_overlay_value.set(True)
+            self.enhancingROI_overlay_callback()
         # force recalc of gates
         self.ui.data['gates'][1] = None
         self.ui.data['gates'][2] = None
@@ -265,7 +268,8 @@ class CreateROIFrame(CreateFrame):
     def updatebcsize(self,event=None):
         if self.finalROI_overlay_value.get() == True:
             self.finalROI_overlay_value.set(False)
-        self.enhancingROI_overlay_value.set(True)
+            self.enhancingROI_overlay_value.set(True)
+            self.enhancingROI_overlay_callback()
         self.ui.data['gates'][0] = None
         self.ui.runblast(currentslice=True)
         self.bcsliderlabel['text'] = '{:.1f}'.format(self.currentbcsize.get())
