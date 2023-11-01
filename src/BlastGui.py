@@ -5,6 +5,7 @@ from tkinter import messagebox,ttk,PhotoImage
 import tkinter as tk
 from cProfile import Profile
 from pstats import SortKey,Stats
+import matplotlib.pyplot as plt
 
 import Config
 import Blastbratsv3
@@ -53,28 +54,31 @@ class BlastGui(object):
             self.updateslice()
 
             # adjusted BLAST
-            # self.roiframe.currentt2threshold.set(0.2)
-            # self.roiframe.currentt1threshold.set(0.1)
-            # self.roiframe.updatet1threshold()
-            # self.roiframe.updatet2threshold()
-            # self.roiframe.enhancingROI_callback()
-            # self.updateslice()
+            self.roiframe.currentt2threshold.set(0.2)
+            self.roiframe.currentt1threshold.set(0.1)
+            self.roiframe.currentbcsize.set(1.1)
+            self.roiframe.updatebcsize()
+            self.roiframe.updatet1threshold()
+            self.roiframe.updatet2threshold()
+            self.roiframe.enhancingROI_callback()
+            self.updateslice()
 
             # adjusted window/level
             # self.sliceviewerframe.window=np.array([.6,1],dtype='float')
             # self.sliceviewerframe.level = np.array([.3,.5])
 
             # create roi
-            # self.roiframe.createROI(132,102,75)
-            # self.roiframe.ROIclick(event=None)
-            # self.roiframe.updateROI()
-            # self.roiframe.finalROI_overlay_value.set(True)
-            # self.roiframe.update_layermenu_options('seg')
-            # self.roiframe.enhancingROI_overlay_value.set(False)
-            # self.currentroi = 0
-            # self.roiframe.currentroi.set(0)
-            # self.roiframe.update_roinumber_options()
-            # self.roiframe.roinumber_callback(item=None)
+            # self.roiframe.createROI(132,102,75) # 00000
+            self.roiframe.createROI(155,99,87) # 00002
+            self.roiframe.ROIclick(event=None)
+            self.roiframe.updateROI()
+            self.roiframe.finalROI_overlay_value.set(True)
+            self.roiframe.update_layermenu_options('seg')
+            self.roiframe.enhancingROI_overlay_value.set(False)
+            self.currentroi = 0
+            self.roiframe.currentroi.set(0)
+            self.roiframe.update_roinumber_options()
+            self.roiframe.roinumber_callback(item=None)
 
 
     #########

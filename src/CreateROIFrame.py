@@ -162,7 +162,7 @@ class CreateROIFrame(CreateFrame):
     # 
 
     # methods for layer options menu
-    def layer_callback(self,layer=None):
+    def layer_callback(self,layer=None,updateslice=True,updatedata=True):
         self.ui.sliceviewerframe.updatewl_fusion()
 
         self.ui.currentlayer = self.layer.get()
@@ -175,6 +175,7 @@ class CreateROIFrame(CreateFrame):
             data = self.ui.roi[roi].data
 
         # generate a new overlay
+        # TODO: check for existing
         if self.layertype.get() == 'blast':
             data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get(),
                                                                    overlay_intensity=self.config.OverlayIntensity)
@@ -184,9 +185,11 @@ class CreateROIFrame(CreateFrame):
                                                                overlay_intensity=self.config.OverlayIntensity)
             data['seg_fusion_d'] = copy.copy(data['seg_fusion'])
 
-        if roi >= 0:
+        # awkward. these updates are needed for mouse event, but not when layer_callback is called by statement
+        if roi >= 0 and updatedata:
             self.updateData()
-        self.ui.updateslice()
+        if updateslice:
+            self.ui.updateslice()
 
     def update_layermenu_options(self,type):
         currenttype = self.layertype.get()
@@ -203,7 +206,9 @@ class CreateROIFrame(CreateFrame):
         self.ui.set_currentroi()
         # reference or copy
         self.updateData()
-        self.layer_callback()
+        self.layer_callback(updatedata=False)
+        # current layer doesn't necessarily match data['seg_fusion_d'] on roi switch
+        # self.layer.set(self.layerlist[self.layertype.get()][0])
         self.ui.updateslice()
         return
     
@@ -227,22 +232,24 @@ class CreateROIFrame(CreateFrame):
 
     # updates blast segmentation upon slider release only
     def updatet1threshold(self,event=None,currentslice=True):
+        # for now, this event reverts to BLAST preview mode and will not directly reprocess the final segmentation
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+        self.enhancingROI_overlay_value.set(True)
         # force recalc of gates
         self.ui.data['gates'][1] = None
         self.ui.data['gates'][2] = None
         self.ui.runblast(currentslice=currentslice)
         self.t1sliderlabel['text'] = '{:.1f}'.format(self.currentt1threshold.get())
-        # if operating in finalROI mode additionally reprocess the final segmentation
-        if self.finalROI_overlay_value.get() == True:
-            # still working on a fast 2d update to final ROI
-            return
-            self.ROIclick(do3d=True)
 
     # updates the text field showing the value during slider drag
     def updatet1label(self,event):
         self.t1sliderlabel['text'] = '{:.1f}'.format(self.currentt1threshold.get())
 
     def updatet2threshold(self,event=None,currentslice=True):
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+        self.enhancingROI_overlay_value.set(True)
         # force recalc of gates
         self.ui.data['gates'][1] = None
         self.ui.data['gates'][2] = None
@@ -256,6 +263,9 @@ class CreateROIFrame(CreateFrame):
         self.t2sliderlabel['text'] = '{:.1f}'.format(self.currentt2threshold.get())
 
     def updatebcsize(self,event=None):
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+        self.enhancingROI_overlay_value.set(True)
         self.ui.data['gates'][0] = None
         self.ui.runblast(currentslice=True)
         self.bcsliderlabel['text'] = '{:.1f}'.format(self.currentbcsize.get())
@@ -290,6 +300,7 @@ class CreateROIFrame(CreateFrame):
         self.finalROI_overlay_value.set(False)
         self.enhancingROI_overlay_value.set(True)
         self.update_layermenu_options('blast')
+        # is this rerun needed
         self.ui.runblast()
 
     def selectROI(self):
@@ -543,7 +554,7 @@ class CreateROIFrame(CreateFrame):
         self.ROIclick()
         self.ROIstats()
         # save current dataset into the current roi. 
-        for k,v in self.ui.roi[self.ui.currentroi].data:
+        for k,v in self.ui.roi[self.ui.currentroi].data.items():
             if k != 'raw':
                 v = copy.deepcopy(self.ui.data[k])
             else: # reference only
