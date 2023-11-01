@@ -168,26 +168,28 @@ class CreateROIFrame(CreateFrame):
         self.ui.currentlayer = self.layer.get()
         roi = self.ui.get_currentroi()
 
-        # check for existing roi
-        if roi < 0:
-            data = self.ui.data
-        else:
+        # a convenience reference
+        if roi >= 0:
             data = self.ui.roi[roi].data
 
         # generate a new overlay
-        # TODO: check for existing
+        # TODO: check for existing instead of re-generating
+        # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
         if self.layertype.get() == 'blast':
-            data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get(),
+            self.ui.data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get(),
                                                                    overlay_intensity=self.config.OverlayIntensity)
-            data['seg_raw_fusion_d'] = copy.copy(data['seg_raw_fusion'])
+            self.ui.data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
+        # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
+        # then also copied back to main ui data
         elif self.layertype.get() == 'seg':
             data['seg_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],data['seg'],self.layer.get(),
                                                                overlay_intensity=self.config.OverlayIntensity)
             data['seg_fusion_d'] = copy.copy(data['seg_fusion'])
 
-        # awkward. these updates are needed for mouse event, but not when layer_callback is called by statement
-        if roi >= 0 and updatedata:
-            self.updateData()
+            # TODO: check mouse event, versus layer_callback called by statement
+            if roi >= 0 and updatedata:
+                self.updateData()
+
         if updateslice:
             self.ui.updateslice()
 

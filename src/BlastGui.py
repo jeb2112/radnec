@@ -67,9 +67,9 @@ class BlastGui(object):
             # self.sliceviewerframe.window=np.array([.6,1],dtype='float')
             # self.sliceviewerframe.level = np.array([.3,.5])
 
-            # create roi
-            # self.roiframe.createROI(132,102,75) # 00000
+            # create roi. might be a bug arising from this automation that isn't seen manually
             if False:
+                # self.roiframe.createROI(132,102,75) # 00000
                 self.roiframe.createROI(155,99,87) # 00002
                 self.roiframe.ROIclick(event=None)
                 self.roiframe.updateROI()
@@ -153,9 +153,6 @@ class BlastGui(object):
         self.data['params']['t1gate_count'] = self.data['gates'][3]
         self.data['params']['t2gate_count'] = self.data['gates'][4]
             
-        if self.currentroi >= 0:
-            self.update_roidata()
-
         if self.roiframe.finalROI_overlay_value.get() == True:
             self.dataselection = 'seg_fusion_d'
         else:
