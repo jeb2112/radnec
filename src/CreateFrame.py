@@ -40,6 +40,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.window = np.array([1.,1.],dtype='float')
         self.level = np.array([0.5,0.5],dtype='float')
         self.wlflag = False
+        self.b1x = self.b1y = None # for tracking mouse drags
 
 
         self.frame.grid(column=0,row=0, sticky='NEW',in_=self.parentframe)
@@ -111,8 +112,12 @@ class CreateSliceViewerFrame(CreateFrame):
             # self.frame.bind('<MouseWheel>', self.updatew2())
             # self.frame.bind('<Shift-MouseWheel>', self.updatel2())
             self.ui.root.bind('<Button>',self.touchpad)
+            self.ui.root.bind('<B1-Motion>',self.b1motion)
+            self.ui.root.bind('<ButtonRelease-1>',self.b1release)
         if self.ui.OS == 'linux':
             self.ui.root.bind('<Button>',self.touchpad)
+            self.ui.root.bind('<B1-Motion>',self.b1motion)
+            self.ui.root.bind('<ButtonRelease-1>',self.b1release)
             # self.ui.root.bind('<ButtonRelease>',self.touchpad)
 
     # TODO: different bindings and callbacks need some organization
@@ -200,6 +205,38 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
 
             
+    def b1release(self,event):
+        self.b1x = self.b1y = None
+
+    # mouse drag event for window/level adjustment
+    def b1motion(self,event):
+        # print(event.num,event.state,event.type)
+        # only allow adjustment in raw data view. overlays have latency to scale in 3d.
+        if self.ui.dataselection != 'raw':
+            return
+        if event.y < 0 and event.y > 400:
+            return
+        if event.x <=400:
+            ax = 0
+        else:
+            ax = 1
+        if self.b1x is None:
+            self.b1x,self.b1y = event.x,event.y
+            return
+        if np.abs(event.x-self.b1x) > np.abs(event.y-self.b1y):
+            if event.x-self.b1x > 0:
+                self.updatewl(ax=ax,wval=.02)
+            else:
+                self.updatewl(ax=ax,wval=-.02)
+        else:
+            if event.y - self.b1y > 0:
+                self.updatewl(ax=ax,lval=.02)
+            else:
+                self.updatewl(ax=ax,lval=-.02)
+
+        self.b1x,self.b1y = event.x,event.y
+
+
     # touchpad event for window/level adjustment
     # TODO: extend to mouse and windows
     def touchpad(self,event):
