@@ -19,12 +19,15 @@ class BlastGui(object):
     def __init__(self, root, toolsFlag, config, debug=False):
         self.root = root
         self.toolsFlag = toolsFlag
+        self.version = None
         if subprocess.call(['git','branch'],stderr=subprocess.STDOUT,stdout=open(os.devnull,'w')) == 0:
             try:
                 self.version = subprocess.check_output(['git','describe','--exact-match','--tags']).decode('ascii').strip()
             except:
                 self.version = subprocess.check_output(['git','rev-parse','--short','HEAD']).decode('ascii').strip()
-        self.titletext = 'BLAST User Interface ' + self.version
+            self.titletext = 'BLAST User Interface ' + self.version
+        else:
+            self.version = 'BLAST User Interface'
 
         self.root.title(self.titletext)
         self.config = config
