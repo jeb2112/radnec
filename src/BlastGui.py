@@ -1,6 +1,7 @@
 import os,sys
 import copy
 import time
+import subprocess
 from tkinter import messagebox,ttk,PhotoImage
 import tkinter as tk
 from cProfile import Profile
@@ -18,7 +19,13 @@ class BlastGui(object):
     def __init__(self, root, toolsFlag, config, debug=False):
         self.root = root
         self.toolsFlag = toolsFlag
-        self.titletext = 'BLAST User Interface'
+        if subprocess.call(['git','branch'],stderr=subprocess.STDOUT,stdout=open(os.devnull,'w')) == 0:
+            try:
+                self.version = subprocess.check_output(['git','describe','--exact-match','--tags']).decode('ascii').strip()
+            except:
+                self.version = subprocess.check_output(['git','rev-parse','--short','HEAD']).decode('ascii').strip()
+        self.titletext = 'BLAST User Interface ' + self.version
+
         self.root.title(self.titletext)
         self.config = config
         self.logoImg = os.path.join(self.config.UIResourcesPath,'sunnybrook.png')
