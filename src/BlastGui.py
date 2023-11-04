@@ -27,7 +27,7 @@ class BlastGui(object):
                 self.version = subprocess.check_output(['git','rev-parse','--short','HEAD']).decode('ascii').strip()
             self.titletext = 'BLAST User Interface ' + self.version
         else:
-            self.version = 'BLAST User Interface'
+            self.titletext = 'BLAST User Interface'
 
         self.root.title(self.titletext)
         self.config = config
