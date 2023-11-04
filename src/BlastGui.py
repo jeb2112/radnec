@@ -111,7 +111,7 @@ class BlastGui(object):
 
     def runblast(self,currentslice=None):
         if currentslice: # 2d in a single slice
-            currentslice=self.currentslice
+            currentslice=None # for now will run full 3d by default every update
         else: # entire volume
             self.root.config(cursor='watch')
             self.root.update_idletasks()

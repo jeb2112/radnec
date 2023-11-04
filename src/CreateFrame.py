@@ -35,7 +35,7 @@ class CreateSliceViewerFrame(CreateFrame):
         super().__init__(parentframe,ui=ui)
         self.currentslice = tk.IntVar()
         self.currentslice.set(75)
-        self.slicevolume_norm = tk.IntVar()
+        self.slicevolume_norm = tk.IntVar(value=1)
         # window/level values
         self.window = np.array([1.,1.],dtype='float')
         self.level = np.array([0.5,0.5],dtype='float')

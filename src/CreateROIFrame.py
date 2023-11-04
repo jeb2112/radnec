@@ -38,12 +38,11 @@ class CreateROIFrame(CreateFrame):
         self.enhancingROI_overlay_value = tk.BooleanVar(value=False)
         self.currentt1threshold = tk.DoubleVar()
         self.currentt2threshold = tk.DoubleVar()
-        self.currentbcsize = tk.DoubleVar(value=2)
+        self.currentbcsize = tk.DoubleVar(value=3)
         self.layerlist = {'blast':['ET','NET','both'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=-1)
-        self.slicevolume_norm = tk.IntVar()
         self.roilist = []
 
         ########################
@@ -52,24 +51,15 @@ class CreateROIFrame(CreateFrame):
 
         self.frame.grid(column=2,row=3,rowspan=5,sticky='e')
 
-        # normal slice button
-        if False:
-            normal_frame = ttk.Frame(self.frame,padding='0')
-            normal_frame.grid(row=0,column=0,sticky='w')
-            normalSlice = ttk.Button(normal_frame,text='normal',command=self.normalslice_callback)
-            normalSlice.grid(column=0,row=0,sticky='w')
-            slicevolume_slice_button = ttk.Radiobutton(normal_frame,text='slice',variable=self.slicevolume_norm,value=0)
-            slicevolume_slice_button.grid(row=0,column=1,sticky='w')
-            slicevolume_volume_button = ttk.Radiobutton(normal_frame,text='vol.',variable=self.slicevolume_norm,value=1)
-            slicevolume_volume_button.grid(row=0,column=2,sticky='w')
-
         # ROI buttons
         enhancingROI_frame = ttk.Frame(self.frame,padding='0')
         enhancingROI_frame.grid(column=0,row=1,sticky='w')
-        enhancingROI = ttk.Button(enhancingROI_frame,text='BLAST',
-                                #   command=lambda arg1=None: self.ui.runblast(currentslice=arg1))
-                                  command=self.enhancingROI_callback)
-        enhancingROI.grid(column=0,row=0,sticky='w')
+        # enhancingROI = ttk.Button(enhancingROI_frame,text='BLAST',
+        #                         #   command=lambda arg1=None: self.ui.runblast(currentslice=arg1))
+        #                           command=self.enhancingROI_callback)
+        # enhancingROI.grid(column=0,row=0,sticky='w')
+        enhancingROI_label = ttk.Label(enhancingROI_frame,text='overlay')
+        enhancingROI_label.grid(row=0,column=0,sticky='e')
         enhancingROI_overlay = ttk.Checkbutton(enhancingROI_frame,text='',
                                                variable=self.enhancingROI_overlay_value,
                                                command=self.enhancingROI_overlay_callback)
@@ -116,11 +106,11 @@ class CreateROIFrame(CreateFrame):
 
         # save ROI button
         saveROI = ttk.Button(self.frame,text='save ROI',command = self.saveROI)
-        saveROI.grid(row=0,column=2,sticky='w')
+        saveROI.grid(row=0,column=3,sticky='w')
 
         # clear ROI button
         clearROI = ttk.Button(self.frame,text='clear ROI',command = self.clearROI)
-        clearROI.grid(row=0,column=3,sticky='w')
+        clearROI.grid(row=0,column=2,sticky='w')
         self.frame.update()
 
         ########################
@@ -132,7 +122,7 @@ class CreateROIFrame(CreateFrame):
         self.t1sliderframe.grid(column=0,row=2,columnspan=7,sticky='e')
         t1label = ttk.Label(self.t1sliderframe, text='T1')
         t1label.grid(column=0,row=0,sticky='w')
-        self.currentt1threshold.set(1.)
+        self.currentt1threshold.set(0.)
         self.t1slider = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.currentt1threshold,state='disabled',
                                   length='3i',command=self.updatet1label,orient='horizontal')
         self.t1slider.grid(column=1,row=0,sticky='e')
@@ -142,7 +132,7 @@ class CreateROIFrame(CreateFrame):
         # t2 slider
         t2label = ttk.Label(self.t1sliderframe, text='T2')
         t2label.grid(column=0,row=1,stick='w')
-        self.currentt2threshold.set(1.)
+        self.currentt2threshold.set(0.)
         self.t2slider = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.currentt2threshold,state='disabled',
                                   length='3i',command=self.updatet2label,orient='horizontal')
         self.t2slider.grid(column=1,row=1,sticky='e')
@@ -306,8 +296,8 @@ class CreateROIFrame(CreateFrame):
         self.finalROI_overlay_value.set(False)
         self.enhancingROI_overlay_value.set(True)
         self.update_layermenu_options('blast')
-        # is this rerun needed
-        self.ui.runblast()
+        # when called from the button, it is 3d already so don't spawn background
+        self.ui.runblast(do_mp=False)
 
     def selectROI(self):
         self.finalROI_overlay_value.set(True)
