@@ -7,6 +7,7 @@ import tkinter as tk
 from cProfile import Profile
 from pstats import SortKey,Stats
 import matplotlib.pyplot as plt
+from importlib import metadata
 
 import Config
 import Blastbratsv3
@@ -27,6 +28,7 @@ class BlastGui(object):
                 self.version = subprocess.check_output(['git','rev-parse','--short','HEAD']).decode('ascii').strip()
             self.titletext = 'BLAST User Interface ' + self.version
         else:
+            self.version = metadata.version('blast')
             self.titletext = 'BLAST User Interface'
 
         self.root.title(self.titletext)
