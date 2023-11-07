@@ -32,6 +32,10 @@ dependencies = [
 where = ["."]  # list of folders that contain the packages (["."] by default)
 #include = ["src"]  # package names should match these glob patterns (["*"] by default)
 
+# beta support?
+[tool.setuptools.package-data]
+resources = ["*.png","*.ico","*.bat"]
+
 [build-system]
 # build-backend = "flit_core.buildapi"
 # requires = ["flit_core > 3.2,<4"]

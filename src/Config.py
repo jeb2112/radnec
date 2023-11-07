@@ -7,7 +7,7 @@ class Config(object):
         ### Paths that tend to change based on local install
 
         if os.name == 'nt':
-            self.InstallPath = os.path.join('C:\\','Users','chint','src','blast')
+            self.InstallPath = os.path.join('C:\\','Users','Chris Heyn Lab','src','blast')
         else:
             self.InstallPath = os.path.join('/home','src','blast')
 
@@ -15,7 +15,8 @@ class Config(object):
         self.UIPath = os.path.join(self.InstallPath, 'src')
 
         # Path for UI based resources (images, icons, etc)
-        self.UIResourcesPath = os.path.join(self.InstallPath, 'resources')
+        # use this hack for relative path for installation of a wheel distro into a virtual env
+        self.UIResourcesPath = os.path.join(os.path.dirname(__file__), '..','resources')
 
         # Path to log files
         self.logger = logging.getLogger('blast')
@@ -35,7 +36,7 @@ class Config(object):
 
         # Path to dataset images
         if os.name == 'nt':
-            self.UIdatadir = os.path.join('C:\\','Users','chint','Data')
+            self.UIdatadir = os.path.join('D:\\','BLAST')
         elif os.name == 'posix':
             self.UIdatadir = '/media/jbishop/WD4/brainmets/raw/BraTS2021'
             # self.UIdatadir = '/media/jbishop/WD4/brainmets/blast'
