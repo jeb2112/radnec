@@ -1,7 +1,7 @@
 [project]
 name = "blast"
 description = "BLAST user interface"
-version = "0.0.1"
+dynamic=["version"]
 authors = [
     {name = "JB", email = "j.bishop@utoronto.ca"}
 ]
