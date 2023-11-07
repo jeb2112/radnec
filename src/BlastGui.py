@@ -9,11 +9,10 @@ from pstats import SortKey,Stats
 import matplotlib.pyplot as plt
 from importlib import metadata
 
-import Config
-import Blastbratsv3
-from CreateFrame import CreateCaseFrame,CreateSliceViewerFrame
-from CreateROIFrame import CreateROIFrame
-from OverlayPlots import *
+from src import Blastbratsv3
+from src.CreateFrame import CreateCaseFrame,CreateSliceViewerFrame
+from src.CreateROIFrame import CreateROIFrame
+from src.OverlayPlots import *
 
 # main gui class
 class BlastGui(object):
@@ -21,15 +20,8 @@ class BlastGui(object):
         self.root = root
         self.toolsFlag = toolsFlag
         self.version = None
-        if subprocess.call(['git','branch'],stderr=subprocess.STDOUT,stdout=open(os.devnull,'w')) == 0:
-            try:
-                self.version = subprocess.check_output(['git','describe','--exact-match','--tags']).decode('ascii').strip()
-            except:
-                self.version = subprocess.check_output(['git','rev-parse','--short','HEAD']).decode('ascii').strip()
-            self.titletext = 'BLAST User Interface ' + self.version
-        else:
-            self.version = metadata.version('blast')
-            self.titletext = 'BLAST User Interface'
+        self.version = metadata.version('blast')
+        self.titletext = 'BLAST User Interface v' + self.version
 
         self.root.title(self.titletext)
         self.config = config

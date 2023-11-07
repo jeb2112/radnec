@@ -3,8 +3,8 @@ from tkinter import *
 import sys
 import logging
 
-import BlastGui
-import Config
+from src import BlastGui
+from src import Config
 
 from twisted.internet import tksupport, reactor, protocol
 
