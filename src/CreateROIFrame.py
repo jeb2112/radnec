@@ -36,13 +36,13 @@ class CreateROIFrame(CreateFrame):
         self.buttonpress_id = None # temp var for keeping track of button press event
         self.finalROI_overlay_value = tk.BooleanVar(value=False)
         self.enhancingROI_overlay_value = tk.BooleanVar(value=False)
-        self.currentt1threshold = tk.DoubleVar()
-        self.currentt2threshold = tk.DoubleVar()
-        self.currentbcsize = tk.DoubleVar(value=3)
+        self.currentt1threshold = tk.DoubleVar(value=self.ui.config.T1default)
+        self.currentt2threshold = tk.DoubleVar(value=self.ui.config.T2default)
+        self.currentbcsize = tk.DoubleVar(value=self.ui.config.BCdefault)
         self.layerlist = {'blast':['ET','NET','both'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layertype = tk.StringVar(value='blast')
-        self.currentroi = tk.IntVar(value=-1)
+        self.currentroi = tk.IntVar(value=0)
         self.roilist = []
 
         ########################
@@ -122,7 +122,7 @@ class CreateROIFrame(CreateFrame):
         self.t1sliderframe.grid(column=0,row=2,columnspan=7,sticky='e')
         t1label = ttk.Label(self.t1sliderframe, text='T1')
         t1label.grid(column=0,row=0,sticky='w')
-        self.currentt1threshold.set(0.)
+        # self.currentt1threshold.set(0.)
         self.t1slider = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.currentt1threshold,state='disabled',
                                   length='3i',command=self.updatet1label,orient='horizontal')
         self.t1slider.grid(column=1,row=0,sticky='e')
@@ -132,7 +132,7 @@ class CreateROIFrame(CreateFrame):
         # t2 slider
         t2label = ttk.Label(self.t1sliderframe, text='T2')
         t2label.grid(column=0,row=1,stick='w')
-        self.currentt2threshold.set(0.)
+        # self.currentt2threshold.set(0.)
         self.t2slider = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.currentt2threshold,state='disabled',
                                   length='3i',command=self.updatet2label,orient='horizontal')
         self.t2slider.grid(column=1,row=1,sticky='e')
@@ -159,7 +159,7 @@ class CreateROIFrame(CreateFrame):
         roi = self.ui.get_currentroi()
 
         # a convenience reference
-        if roi >= 0:
+        if roi >= 1:
             data = self.ui.roi[roi].data
 
         # generate a new overlay
@@ -209,10 +209,11 @@ class CreateROIFrame(CreateFrame):
             n = len(self.ui.roi)
         menu = self.roinumbermenu['menu']
         menu.delete(0,'end')
-        for s in [str(i) for i in range(n)]:
+        # 1-based indexing
+        for s in [str(i) for i in range(1,n)]:
             menu.add_command(label=s,command = tk._setit(self.currentroi,s,self.roinumber_callback))
-        self.roilist = [str(i) for i in range(n)]
-        if n:
+        self.roilist = [str(i) for i in range(1,n)]
+        if n>1:
             self.roinumbermenu.configure(state='active')
         else:
             self.roinumbermenu.configure(state='disabled')
@@ -224,10 +225,10 @@ class CreateROIFrame(CreateFrame):
 
     # updates blast segmentation upon slider release only
     def updatet1threshold(self,event=None,currentslice=True):
+        self.enhancingROI_overlay_value.set(True)
         # for now, this event reverts to BLAST preview mode and will not directly reprocess the final segmentation
         if self.finalROI_overlay_value.get() == True:
             self.finalROI_overlay_value.set(False)
-            self.enhancingROI_overlay_value.set(True)
             self.enhancingROI_overlay_callback()
 
         # force recalc of gates
@@ -241,9 +242,9 @@ class CreateROIFrame(CreateFrame):
         self.t1sliderlabel['text'] = '{:.1f}'.format(self.currentt1threshold.get())
 
     def updatet2threshold(self,event=None,currentslice=True):
+        self.enhancingROI_overlay_value.set(True)
         if self.finalROI_overlay_value.get() == True:
             self.finalROI_overlay_value.set(False)
-            self.enhancingROI_overlay_value.set(True)
             self.enhancingROI_overlay_callback()
         # force recalc of gates
         self.ui.data['gates'][1] = None
@@ -258,9 +259,9 @@ class CreateROIFrame(CreateFrame):
         self.t2sliderlabel['text'] = '{:.1f}'.format(self.currentt2threshold.get())
 
     def updatebcsize(self,event=None):
+        self.enhancingROI_overlay_value.set(True)
         if self.finalROI_overlay_value.get() == True:
             self.finalROI_overlay_value.set(False)
-            self.enhancingROI_overlay_value.set(True)
             self.enhancingROI_overlay_callback()
         self.ui.data['gates'][0] = None
         self.ui.runblast(currentslice=True)
@@ -296,8 +297,7 @@ class CreateROIFrame(CreateFrame):
         self.finalROI_overlay_value.set(False)
         self.enhancingROI_overlay_value.set(True)
         self.update_layermenu_options('blast')
-        # when called from the button, it is 3d already so don't spawn background
-        self.ui.runblast(do_mp=False)
+        self.ui.runblast()
 
     def selectROI(self):
         self.finalROI_overlay_value.set(True)
@@ -572,25 +572,35 @@ class CreateROIFrame(CreateFrame):
     # eliminate one ROI if multiple ROIs in current case
     def clearROI(self):
         n = len(self.ui.roi)
-        if n:    
+        if n>1:    
             self.ui.roi.pop(self.ui.currentroi)
-            if self.ui.currentroi > 0 or len(self.ui.roi)==0:
+            n -= 1
+            if self.ui.currentroi > 1 or n==1:
                 # new current roi is decremented as an arbitrary choice
                 # or if all rois are now gone
                 self.currentroi.set(self.currentroi.get()-1)
             self.update_roinumber_options()
-            if len(self.ui.roi):
+            if n > 1:
                 self.roinumber_callback()
-            else:
-                self.ui.dataselection='raw'
+            if n==1:
+                self.resetROI()
                 self.ui.updateslice()
 
     # eliminate all ROIs, ie for loading another case
     def resetROI(self):
-        self.currentroi.set(-1)
-        self.ui.roi = []
+        self.currentroi.set(0)
+        self.ui.roi = [0]
         self.ui.roiframe.finalROI_overlay_value.set(False)
         self.ui.roiframe.enhancingROI_overlay_value.set(False)
+        self.ui.roiframe.layertype.set('blast')
+        self.ui.roiframe.layer.set('ET')
+        self.ui.dataselection='raw'
+        self.currentt1threshold.set(self.ui.config.T1default)
+        self.updatet1label(event=None)
+        self.currentt2threshold.set(self.ui.config.T2default)
+        self.updatet2label(event=None)
+        self.currentbcsize.set(self.ui.config.BCdefault)
+        self.updatebclabel(event=None)
         self.update_roinumber_options()
 
     def append_roi(self,d):

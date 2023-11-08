@@ -37,8 +37,8 @@ class Config(object):
         if os.name == 'nt':
             self.UIdatadir = os.path.join('C:\\','Users','chint','Data')
         elif os.name == 'posix':
-            self.UIdatadir = '/media/jbishop/WD4/brainmets/raw/BraTS2021'
-            # self.UIdatadir = '/media/jbishop/WD4/brainmets/blast'
+            # self.UIdatadir = '/media/jbishop/WD4/brainmets/raw/BraTS2021'
+            self.UIdatadir = '/home/jbishop/Data/BraTS2021'
         self.UIdataroot = 'BraTS2021_'
 
         # automatically load first case in directory
@@ -49,3 +49,8 @@ class Config(object):
 
         # < 1 overlay by alpha compositing, == 1 replacement
         self.OverlayIntensity = 0.6
+
+        # default slider values
+        self.T1default = 0.
+        self.T2default = 0.
+        self.BCdefault = 3.

@@ -1,2 +1,6 @@
 __pycache__
 cufile.log
+dist
+build
+*.egg-info
+

@@ -277,6 +277,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
 
     def normalslice_callback(self,event=None):
+        print('normal stats')
         # do kmeans
         # Creates a matrix of voxels for normal brain slice
         # Gating Routine
@@ -327,9 +328,6 @@ class CreateSliceViewerFrame(CreateFrame):
 
         # automatically run the default thresholds in 3d to start things off
         self.ui.roiframe.updatet1threshold(currentslice=None)
-        self.ui.dataselection = 'seg_raw_fusion_d'
-        self.ui.roiframe.enhancingROI_overlay_value.set(True)
-        self.ui.roiframe.finalROI_overlay_value.set(False)
 
 
 
@@ -354,7 +352,8 @@ class CreateCaseFrame(CreateFrame):
         self.fdbutton = ttk.Button(caseframe,image=self.fdbicon, command=self.select_dir)
         self.fdbutton.grid(row=0,column=2)
         self.datadirentry = ttk.Entry(caseframe,width=40,textvariable=self.datadir)
-        self.datadirentry.bind('<Return>',self.datadirentry_callback)
+        # event currently a dummy arg since not being used in datadirentry_callback
+        self.datadirentry.bind('<Return>',lambda event=None,load=load:self.datadirentry_callback(event=event,load=load))
         self.datadirentry.grid(column=3,row=0,columnspan=5)
         caselabel = ttk.Label(caseframe, text='Case: ')
         caselabel.grid(column=0,row=0,sticky='we')
@@ -364,7 +363,7 @@ class CreateCaseFrame(CreateFrame):
         self.n4_check = ttk.Checkbutton(caseframe,text='N4',variable=self.n4_check_value)
         self.n4_check.grid(row=0,column=8,sticky='w')
 
-        # initialize default directory
+        # initialize default directory. not a tkinter event so no event arg explicitly needed.
         self.datadirentry_callback(load=load)
 
     # callback for file dialog 
@@ -376,16 +375,24 @@ class CreateCaseFrame(CreateFrame):
 
     def case_callback(self,casevar=None,val=None,event=None):
         case = self.casename.get()
-        self.ui.set_casename()
+        self.ui.set_casename(val=case)
         print('Loading case {}'.format(case))
         self.loadCase()
-        self.ui.dataselection = 'raw'
+        # if normal stats is 3d then seg runs automatically, can show 'seg_raw' directly
+        if self.ui.sliceviewerframe.slicevolume_norm.get() == 0:
+            self.ui.dataselection = 'raw'
+        else:
+            self.ui.roiframe.enhancingROI_overlay_callback()
         self.ui.sliceviewerframe.tbar.home()
-        self.ui.roiframe.resetROI()
         self.ui.updateslice()
         self.ui.starttime()
 
     def loadCase(self,case=None):
+
+        # reset and reinitialize
+        self.ui.resetUI()
+        self.ui.roiframe.resetROI()
+
         if case is not None:
             self.casename.set(case)
             self.ui.set_casename()
@@ -414,6 +421,10 @@ class CreateCaseFrame(CreateFrame):
 
         # save copy of the raw data
         self.ui.data['raw_copy'] = copy.deepcopy(self.ui.data['raw'])
+
+        # automatically run normal stats if volume selected
+        if self.ui.sliceviewerframe.slicevolume_norm.get() == 1:
+            self.ui.sliceviewerframe.normalslice_callback()
 
         # create the label
         label = sitk.ReadImage(os.path.join(self.casedir,self.config.UIdataroot+self.casename.get()+'_seg.nii'))
@@ -469,6 +480,7 @@ class CreateCaseFrame(CreateFrame):
     def datadirentry_callback(self,event=None,load=True):
         dir = self.datadir.get().strip()
         if os.path.exists(dir):
+            self.w.config(state='normal')            
             files = os.listdir(dir)
             self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
             casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
@@ -480,7 +492,7 @@ class CreateCaseFrame(CreateFrame):
                 # autoload first case
                 if load:
                     self.casename.set(self.caselist[0])
-                    self.ui.set_casename()
+                    # self.ui.set_casename()
             else:
                 print('No cases found in directory {}'.format(dir))
                 self.ui.set_message('No cases found in directory {}'.format(dir))

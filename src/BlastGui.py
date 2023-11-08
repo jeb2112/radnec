@@ -41,8 +41,8 @@ class BlastGui(object):
         # self.data = {}
         self.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
 
-        self.roi = []
-        self.currentroi = -1 # tracks the currentroi widget variable
+        self.roi = [0] # dummy value for Roi indexing 1-based
+        self.currentroi = 0 # tracks the currentroi widget variable
         self.currentlayer = 0
         self.OS = sys.platform
         self.tstart = time.time()
@@ -57,16 +57,17 @@ class BlastGui(object):
             # 00005 75,105
             # 00002
             self.caseframe.casename.set('00002')
-            self.sliceviewerframe.currentslice.set(53)
-            self.updateslice()
-            self.sliceviewerframe.normalslice_callback()
+            if self.sliceviewerframe.slicevolume_norm.get() == 0:
+                self.sliceviewerframe.currentslice.set(53)
+                self.updateslice()
+                self.sliceviewerframe.normalslice_callback()
             self.sliceviewerframe.currentslice.set(81)
             self.updateslice()
 
             # adjusted BLAST
-            self.roiframe.currentt2threshold.set(0.2)
-            self.roiframe.currentt1threshold.set(0.1)
-            self.roiframe.currentbcsize.set(1.1)
+            self.roiframe.currentt2threshold.set(-0.8)
+            self.roiframe.currentt1threshold.set(-0.7)
+            self.roiframe.currentbcsize.set(1.0)
             self.roiframe.updatebcsize()
             self.roiframe.updatet1threshold()
             self.roiframe.updatet2threshold()
@@ -202,7 +203,10 @@ class BlastGui(object):
         return self.currentslice
     
     def set_casename(self,val=None):
-        self.casename = self.caseframe.casename.get()
+        if val:
+            self.casename = val
+        else:   
+            self.casename = self.caseframe.casename.get()
 
     def get_casename(self):
         return self.casename
@@ -235,3 +239,17 @@ class BlastGui(object):
         else:
             self.message.set(msg)
         self.sliceviewerframe.messagelabel['text'] = msg
+
+    def resetUI(self):
+        self.normalslice = None
+        self.currentslice = None
+        self.dataselection = 'raw'
+
+        self.data = {'gates':[None,None,None], 'wt':None,'et':None,'tc':None}
+        self.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
+
+        self.roi = [0] # dummy value for Roi indexing 1-based
+        self.currentroi = 0 # tracks the currentroi widget variable
+        self.currentlayer = 0
+        self.tstart = time.time()
+        self.message = tk.StringVar(value='')
