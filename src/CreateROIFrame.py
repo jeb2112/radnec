@@ -5,15 +5,12 @@ import copy
 import logging
 import time
 import tkinter as tk
-from tkinter import ttk,StringVar,DoubleVar,PhotoImage
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from tkinter import ttk
 import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
-from sklearn.cluster import KMeans,MiniBatchKMeans
-from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube
+from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube,reconstruction
 from scipy.spatial.distance import dice
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
@@ -54,11 +51,11 @@ class CreateROIFrame(CreateFrame):
         # ROI buttons
         enhancingROI_frame = ttk.Frame(self.frame,padding='0')
         enhancingROI_frame.grid(column=0,row=1,sticky='w')
-        # enhancingROI = ttk.Button(enhancingROI_frame,text='BLAST',
+        # enhancingROI = ttk.Button(enhancingROI_frame,text='overlay on/off',
         #                         #   command=lambda arg1=None: self.ui.runblast(currentslice=arg1))
-        #                           command=self.enhancingROI_callback)
+        #                           command=self.enhancingROI_overlay_callback)
         # enhancingROI.grid(column=0,row=0,sticky='w')
-        enhancingROI_label = ttk.Label(enhancingROI_frame,text='overlay')
+        enhancingROI_label = ttk.Label(enhancingROI_frame,text='overlay on/off')
         enhancingROI_label.grid(row=0,column=0,sticky='e')
         enhancingROI_overlay = ttk.Checkbutton(enhancingROI_frame,text='',
                                                variable=self.enhancingROI_overlay_value,
@@ -101,8 +98,8 @@ class CreateROIFrame(CreateFrame):
 
         # update ROI button. runs full 3d after a round of 2d adjustments
         # this could also be implemented as an automatic update
-        updateROI = ttk.Button(self.frame,text='update ROI',command = self.updateROI)
-        updateROI.grid(row=0,column=1,sticky='w')
+        # updateROI = ttk.Button(self.frame,text='update ROI',command = self.updateROI)
+        # updateROI.grid(row=0,column=1,sticky='w')
 
         # save ROI button
         saveROI = ttk.Button(self.frame,text='save ROI',command = self.saveROI)
@@ -442,7 +439,14 @@ class CreateROIFrame(CreateFrame):
                 if do3d:
                     se2 = cube(mlist[m]['dcube'])
                     objectmask_filled = binary_dilation(objectmask_closed,se2)
-                    objectmask_filled = flood_fill(objectmask_filled,(currentslice,ypos,xpos),True)
+                    seed = np.ones_like(objectmask_filled)*255
+                    seed[:,:,0] = 0
+                    seed[:,:,-1] = 0
+                    seed[:,0,:] = 0
+                    seed[:,-1,:] = 0
+                    seed[0,:,:] = 0
+                    seed[-1,:,:] = 0
+                    objectmask_filled = reconstruction(seed,objectmask_filled,method='erosion')
                     objectmask_final = objectmask_filled.astype('int')
                     self.ui.roi[roi].data['tc'] = objectmask_final
                 else:
