@@ -18,7 +18,7 @@ except:
 
 import multiprocessing
 import cc3d
-import OverlayPlots
+from src import OverlayPlots
 
 
 #################

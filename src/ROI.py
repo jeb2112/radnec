@@ -4,8 +4,6 @@ from tkinter import messagebox,ttk,PhotoImage
 from cProfile import Profile
 from pstats import SortKey,Stats
 
-import Config
-
 class ROI():
     def __init__(self,xpos,ypos,slice):
         self.data = {'wt':None,'et':None,'tc':None}

@@ -14,11 +14,9 @@ matplotlib.use('TkAgg')
 import SimpleITK as sitk
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice
-import cc3d
 
-from NavigationBar import NavigationBar
-from FileDialog import FileDialog
-import OverlayPlots
+from src.NavigationBar import NavigationBar
+from src.FileDialog import FileDialog
 
 # base for various frames
 class CreateFrame():

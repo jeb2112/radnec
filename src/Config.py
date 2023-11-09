@@ -15,7 +15,8 @@ class Config(object):
         self.UIPath = os.path.join(self.InstallPath, 'src')
 
         # Path for UI based resources (images, icons, etc)
-        self.UIResourcesPath = os.path.join(self.InstallPath, 'resources')
+        # use this hack for relative path for installation of a wheel distro into a virtual env
+        self.UIResourcesPath = os.path.join(os.path.dirname(__file__), '..','resources')
 
         # Path to log files
         self.logger = logging.getLogger('blast')

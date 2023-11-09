@@ -15,15 +15,16 @@ from scipy.spatial.distance import dice
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
 if os.name == 'posix':
-    from cucim.skimage.morphology import binary_closing as cucim_binary_closing
+    from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
+    # from cucim.skimage.morphology import binary_closing as cucim_binary_closing
 elif os.name == 'nt':
     from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
 import cupy as cp
 import cc3d
 
-import OverlayPlots
-from CreateFrame import CreateFrame
-from ROI import ROI
+from src.OverlayPlots import *
+from src.CreateFrame import CreateFrame
+from src.ROI import ROI
 
 # contains various ROI methods and variables
 class CreateROIFrame(CreateFrame):
@@ -163,13 +164,13 @@ class CreateROIFrame(CreateFrame):
         # TODO: check for existing instead of re-generating
         # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
         if self.layertype.get() == 'blast':
-            self.ui.data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get(),
+            self.ui.data['seg_raw_fusion'] = generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get(),
                                                                    overlay_intensity=self.config.OverlayIntensity)
             self.ui.data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
         # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
         # then also copied back to main ui data
         elif self.layertype.get() == 'seg':
-            data['seg_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],data['seg'],self.layer.get(),
+            data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],self.layer.get(),
                                                                overlay_intensity=self.config.OverlayIntensity)
             data['seg_fusion_d'] = copy.copy(data['seg_fusion'])
 
@@ -321,7 +322,7 @@ class CreateROIFrame(CreateFrame):
         self.ROIstats()
         fusionstack = np.zeros((2,155,240,240))
         # note 'raw' data is redundant in all roi's.
-        fusionstack = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.roi[roi].data['seg'],self.ui.roiframe.layer.get(),
+        fusionstack = generate_overlay(self.ui.data['raw'],self.ui.roi[roi].data['seg'],self.ui.roiframe.layer.get(),
                                                     overlay_intensity=self.config.OverlayIntensity)
         self.ui.roi[roi].data['seg_fusion'] = fusionstack
         self.ui.roi[roi].data['seg_fusion_d'] = copy.copy(self.ui.roi[roi].data['seg_fusion'])
