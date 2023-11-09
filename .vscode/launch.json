@@ -8,7 +8,7 @@
             "name": "Gui",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/src/startGui.py",
+            "program": "${workspaceFolder}/startGui.py",
             "args": [
                 "--options","0",
             ],
@@ -20,7 +20,7 @@
             "name": "Gui (debug)",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/src/startGui.py",
+            "program": "${workspaceFolder}/startGui.py",
             "args": [
                 "--options","0",
                 "--debug"
