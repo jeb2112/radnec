@@ -33,29 +33,41 @@ class CreateFrame():
 class CreateSliceViewerFrame(CreateFrame):
     def __init__(self,parentframe,ui=None,padding='10'):
         super().__init__(parentframe,ui=ui)
-        self.currentslice = tk.IntVar()
-        self.currentslice.set(75)
+        self.currentslice = tk.IntVar(value=75)
+        self.currentsagslice = tk.IntVar(value=120)
+        self.currentcorslice = tk.IntVar(value=120)
+        self.sagcordisplay = tk.IntVar(value=0)
         self.slicevolume_norm = tk.IntVar(value=1)
-        # window/level values
+        # window/level values for T1,T2
         self.window = np.array([1.,1.],dtype='float')
         self.level = np.array([0.5,0.5],dtype='float')
         self.wlflag = False
-        self.b1x = self.b1y = None # for tracking mouse drags
+        self.b1x = self.b1y = None # for tracking window/level mouse drags
+        self.b3x = None # mouse drag for cor,sag slice
 
 
         self.frame.grid(column=0,row=0, sticky='NEW',in_=self.parentframe)
         # self.frame.rowconfigure(0,weight=2)
         # self.frame.rowconfigure(1,weight=10)
         # slice viewer widget
-        fig = Figure(figsize=(8, 4), dpi=100)
-        ax = fig.add_subplot(121)
-        ax.axis('off')
+        fig,axs = plt.subplot_mosaic([['A','B','C'],['A','B','D']],
+                                     width_ratios=[2.,2.,240/155.],
+                                     figsize=((2+2+240/155)*2,4),dpi=100)
+        self.ax_img = axs['A'].imshow(np.zeros((240,240)),vmin=0,vmax=1,cmap='gray')
+        self.ax2_img = axs['B'].imshow(np.zeros((240,240)),vmin=0,vmax=1,cmap='gray')
+        self.ax3_img = axs['C'].imshow(np.zeros((155,240)),vmin=0,vmax=1,cmap='gray')
+        self.ax4_img = axs['D'].imshow(np.zeros((155,240)),vmin=0,vmax=1,cmap='gray')
+        for a in axs.keys():
+            axs[a].axis('off')
+        # set up axis sharing
+        axs['B']._shared_axes['x'].join(axs['B'],axs['A'])
+        axs['B']._shared_axes['y'].join(axs['B'],axs['A'])
+        # for now no zoom in sag cor panes
+        # axs['C']._shared_axes['x'].join(axs['C'],axs['A'])
+        # axs['D']._shared_axes['x'].join(axs['D'],axs['A'])
+        # axs['C']._shared_axes['y'].join(axs['C'],axs['A'])
+        # axs['D']._shared_axes['y'].join(axs['D'],axs['A'])
         fig.tight_layout(pad=0)
-        self.ax_img = ax.imshow(np.zeros((240,240)),vmin=0,vmax=1,cmap='gray')
-        ax2 = fig.add_subplot(122,sharex=ax,sharey=ax)
-        ax2.axis('off')
-        fig.tight_layout(pad=0)
-        self.ax2_img = ax2.imshow(np.zeros((240,240)),vmin=0,vmax=1,cmap='gray')
 
         self.canvas = FigureCanvasTkAgg(fig, master=self.frame)  
         self.canvas.draw()
@@ -70,13 +82,15 @@ class CreateSliceViewerFrame(CreateFrame):
         # slidersframe.columnconfigure(0,weight=2)
         # slidersframe.columnconfigure(1,weight=10)
         # slidersframe.columnconfigure(2,weight=1)
-        slicetextlabel = ttk.Label(slidersframe, text='Slice: ')
+        slicetextlabel = ttk.Label(slidersframe, text='Ax slice: ')
         slicetextlabel.grid(column=0,row=0,sticky='w')
         self.vsliceslider = ttk.Scale(slidersframe,from_=0,to=154,variable=self.currentslice,
                                       length='3i',command=self.updateslice)
         self.vsliceslider.grid(column=1,row=0,sticky='w')
         self.vslicenumberlabel = ttk.Label(slidersframe, text='{}'.format(self.currentslice.get()))
         self.vslicenumberlabel.grid(column=2,row=0)
+
+        
 
         # will use touchpad/mouse instead of onscreen widgets
         # self.window = tk.DoubleVar(value=1)
@@ -104,6 +118,17 @@ class CreateSliceViewerFrame(CreateFrame):
         slicevolume_volume_button = ttk.Radiobutton(normal_frame,text='vol.',variable=self.slicevolume_norm,value=1)
         slicevolume_volume_button.grid(row=0,column=2,sticky='w')
 
+        # t1/t2 selection for sag/cor panes
+        sagcordisplay_label = ttk.Label(normal_frame, text='Sag/Cor: ')
+        sagcordisplay_label.grid(row=0,column=4,padx=(50,0),sticky='e')
+        self.sagcordisplay_button = ttk.Radiobutton(normal_frame,text='T1',variable=self.sagcordisplay,value=0,
+                                                    command=self.updateslice)
+        self.sagcordisplay_button.grid(column=5,row=0,sticky='w')
+        self.sagcordisplay_button = ttk.Radiobutton(normal_frame,text='T2',variable=self.sagcordisplay,value=1,
+                                                    command=self.updateslice)
+        self.sagcordisplay_button.grid(column=6,row=0,sticky='w')
+
+
         # messages text frame
         self.messagelabel = ttk.Label(self.frame,text=self.ui.message.get(),padding='5',borderwidth=0)
         self.messagelabel.grid(row=6,column=0,columnspan=3,sticky='ew')
@@ -113,30 +138,42 @@ class CreateSliceViewerFrame(CreateFrame):
             # self.frame.bind('<Shift-MouseWheel>', self.updatel2())
             self.ui.root.bind('<Button>',self.touchpad)
             self.ui.root.bind('<B1-Motion>',self.b1motion)
+            self.ui.root.bind('<B3-Motion>',self.b3motion)
             self.ui.root.bind('<ButtonRelease-1>',self.b1release)
         if self.ui.OS == 'linux':
             self.ui.root.bind('<Button>',self.touchpad)
             self.ui.root.bind('<B1-Motion>',self.b1motion)
+            self.ui.root.bind('<B3-Motion>',self.b3motion)
             self.ui.root.bind('<ButtonRelease-1>',self.b1release)
             # self.ui.root.bind('<ButtonRelease>',self.touchpad)
 
     # TODO: different bindings and callbacks need some organization
     def updateslice(self,event=None,wl=False,blast=False):
         slice=self.currentslice.get()
+        slicesag = self.currentsagslice.get()
+        slicecor = self.currentcorslice.get()
         self.ui.set_currentslice()
         if blast: # option for previewing enhancing in 2d
             self.ui.runblast(currentslice=slice)
         self.ax_img.set(data=self.ui.data[self.ui.dataselection][0,slice,:,:])
         self.ax2_img.set(data=self.ui.data[self.ui.dataselection][1,slice,:,:])
+        self.ax3_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,slicecor,:])
+        self.ax4_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,:,slicesag])
         self.vslicenumberlabel['text'] = '{}'.format(slice)
         if self.ui.dataselection in['seg_raw_fusion_d','seg_fusion_d']:
             self.ax_img.set(cmap='viridis')
             self.ax2_img.set(cmap='viridis')
+            self.ax3_img.set(cmap='viridis')
+            self.ax4_img.set(cmap='viridis')
         else:
             self.ax_img.set(cmap='gray')
             self.updatewl(ax=0)
             self.ax2_img.set(cmap='gray')
             self.updatewl(ax=1)
+            self.ax3_img.set(cmap='gray')
+            self.updatewl(ax=2)
+            self.ax4_img.set(cmap='gray')
+            self.updatewl(ax=3)
         if wl:   
             # possible latency problem here
             if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
@@ -171,18 +208,26 @@ class CreateSliceViewerFrame(CreateFrame):
     def updatewl(self,ax=0,lval=None,wval=None):
 
         self.wlflag = True
-        if lval:
-            self.level[ax] += lval
-        if wval:
-            self.window[ax] += wval
+        if ax < 2:
+            if lval:
+                self.level[ax] += lval
+            if wval:
+                self.window[ax] += wval
 
-        vmin = self.level[ax] - self.window[ax]/2
-        vmax = self.level[ax] + self.window[ax]/2
+            vmin = self.level[ax] - self.window[ax]/2
+            vmax = self.level[ax] + self.window[ax]/2
+        else: # currently hard-coded for T1
+            vmin = self.level[0] - self.window[0]/2
+            vmax = self.level[0] + self.window[0]/2
 
         if ax==0:
             self.ax_img.set_clim(vmin=vmin,vmax=vmax)
-        else:
+        elif ax==1:
             self.ax2_img.set_clim(vmin=vmin,vmax=vmax)
+        elif ax==2:
+            self.ax3_img.set_clim(vmin=vmin,vmax=vmax)
+        elif ax==3:
+            self.ax4_img.set_clim(vmin=vmin,vmax=vmax)
         self.canvas.draw()
 
     # color window/level scaling needs to be done separately for latency
@@ -208,31 +253,58 @@ class CreateSliceViewerFrame(CreateFrame):
     def b1release(self,event):
         self.b1x = self.b1y = None
 
+    # mouse drag for cor and sag slice
+    # screen coordinates are hard-coded
+    def b3motion(self,event):
+        print(event.x,event.y)
+        if event.y < 0 or event.y > 400 or event.x < 800:
+            return
+        if event.y <= 200:
+            item = self.currentcorslice
+        else:
+            item = self.currentsagslice
+
+        if self.b3x is None:
+            self.b3x = event.x
+            return
+        newslice = item.get() + (event.x-self.b3x)
+        newslice = min(max(newslice,0),239)
+        item.set(newslice) # increment hard-coded
+        self.updateslice()
+        self.b3x = event.x
+        return
+
+
+
     # mouse drag event for window/level adjustment
     def b1motion(self,event):
         # print(event.num,event.state,event.type)
         # only allow adjustment in raw data view. overlays have latency to scale in 3d.
         if self.ui.dataselection != 'raw':
             return
-        if event.y < 0 and event.y > 400:
+        if event.y < 0 or event.y > 400:
             return
         if event.x <=400:
-            ax = 0
+            ax = [0,2,3]
         else:
-            ax = 1
+            ax = [1]
         if self.b1x is None:
             self.b1x,self.b1y = event.x,event.y
             return
         if np.abs(event.x-self.b1x) > np.abs(event.y-self.b1y):
             if event.x-self.b1x > 0:
-                self.updatewl(ax=ax,wval=.02)
+                for a in ax:
+                    self.updatewl(ax=a,wval=.02)
             else:
-                self.updatewl(ax=ax,wval=-.02)
+                for a in ax:
+                    self.updatewl(ax=a,wval=-.02)
         else:
             if event.y - self.b1y > 0:
-                self.updatewl(ax=ax,lval=.02)
+                for a in ax:
+                    self.updatewl(ax=a,lval=.02)
             else:
-                self.updatewl(ax=ax,lval=-.02)
+                for a in ax:
+                    self.updatewl(ax=a,lval=-.02)
 
         self.b1x,self.b1y = event.x,event.y
 
@@ -401,7 +473,8 @@ class CreateCaseFrame(CreateFrame):
         # create t1mprage template
         t1ce_file = next((f for f in files if 't1ce' in f),None)
         t1ce = sitk.ReadImage(os.path.join(self.casedir,t1ce_file))
-        img_arr = sitk.GetArrayFromImage(t1ce)
+        # TODO: do coordinates properly for now just use flip for slice dimension
+        img_arr = np.flip(sitk.GetArrayFromImage(t1ce),axis=0)
         # 2 channels hard-coded
         self.ui.data['raw'] = np.zeros((2,)+np.shape(img_arr),dtype='float32')
         self.ui.data['raw'][0] = img_arr
@@ -409,7 +482,7 @@ class CreateCaseFrame(CreateFrame):
         # Create t2flair template 
         t2flair_file = next((f for f in files if 'flair' in f),None)
         t2flair = sitk.ReadImage(os.path.join(self.casedir,t2flair_file))
-        img_arr = sitk.GetArrayFromImage(t2flair)
+        img_arr = np.flip(sitk.GetArrayFromImage(t2flair),axis=0)
         self.ui.data['raw'][1] = img_arr
 
         # bias correction. by convention, any pre-corrected files should have 'bias' in the filename
