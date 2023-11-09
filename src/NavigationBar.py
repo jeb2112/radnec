@@ -96,10 +96,13 @@ class NavigationBar(NavigationToolbar2Tk):
         # dpi 100 hard-coded
         panelnum = int(start_x/(self.ui.config.PanelSize*100))    
         slicefovratio = self.ui.config.ImageDim[0]/self.ui.config.ImageDim[1]
-        start_x_sagcor = ((start_x/(self.ui.config.PanelSize*100))*(2/slicefovratio) + (2-panelnum)*self.ui.config.PanelSize) * 100
-        start_y_sagcor = ((start_y/(self.ui.config.PanelSize*100))*(2) + 2) * 100
-        event_x_sagcor = ((event.x/(self.ui.config.PanelSize*100))*(2/slicefovratio) + (2-panelnum)*self.ui.config.PanelSize) * 100
-        event_y_sagcor = ((event.y/(self.ui.config.PanelSize*100))*(2) + 2) * 100
+        # offset x coordinate back into first (t1) panel
+        sx = start_x - panelnum*self.ui.config.PanelSize*100
+        ex = event.x - panelnum*self.ui.config.PanelSize*100
+        start_x_sagcor = ((sx/(self.ui.config.PanelSize*100))*(2/slicefovratio) + 2*self.ui.config.PanelSize) * 100
+        start_y_sagcor = ((start_y/(self.ui.config.PanelSize*100))*(2) + self.ui.config.PanelSize/2) * 100
+        event_x_sagcor = ((ex/(self.ui.config.PanelSize*100))*(2/slicefovratio) + 2*self.ui.config.PanelSize) * 100
+        event_y_sagcor = ((event.y/(self.ui.config.PanelSize*100))*(2) + self.ui.config.PanelSize/2) * 100
         # zoom the coronal
         self.axs['C']._set_view_from_bbox(
             (start_x_sagcor,start_y_sagcor,event_x_sagcor,event_y_sagcor),
