@@ -48,8 +48,9 @@ class BlastGui(object):
         # hard-coded for debugging
         if self.debug:
             # 00005 75,105
-            # 00002
-            self.caseframe.casename.set('00002')
+            # 00002 53,81
+            self.caseframe.n4_check_value.set(0)
+            self.caseframe.casename.set('00006')
             if self.sliceviewerframe.slicevolume_norm.get() == 0:
                 self.sliceviewerframe.currentslice.set(53)
                 self.updateslice()
@@ -58,14 +59,15 @@ class BlastGui(object):
             self.updateslice()
 
             # adjusted BLAST
-            self.roiframe.currentt2threshold.set(-0.8)
-            self.roiframe.currentt1threshold.set(-0.7)
-            self.roiframe.currentbcsize.set(1.0)
-            self.roiframe.updatebcsize()
-            self.roiframe.updatet1threshold()
-            self.roiframe.updatet2threshold()
-            self.roiframe.enhancingROI_callback()
-            self.updateslice()
+            if False:
+                self.roiframe.currentt2threshold.set(-0.8)
+                self.roiframe.currentt1threshold.set(-0.7)
+                self.roiframe.currentbcsize.set(1.0)
+                self.roiframe.updatebcsize()
+                self.roiframe.updatet1threshold()
+                self.roiframe.updatet2threshold()
+                self.roiframe.enhancingROI_callback()
+                self.updateslice()
 
             # adjusted window/level
             # self.sliceviewerframe.window=np.array([.6,1],dtype='float')

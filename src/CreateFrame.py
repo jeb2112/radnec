@@ -72,7 +72,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.canvas = FigureCanvasTkAgg(fig, master=self.frame)  
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
-        self.tbar = NavigationBar(self.canvas,self.frame,pack_toolbar=False)
+        self.tbar = NavigationBar(self.canvas,self.frame,pack_toolbar=False,axs=axs)
         self.tbar.children['!button4'].pack_forget() # get rid of configure plot
         self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
 
@@ -256,7 +256,7 @@ class CreateSliceViewerFrame(CreateFrame):
     # mouse drag for cor and sag slice
     # screen coordinates are hard-coded
     def b3motion(self,event):
-        print(event.x,event.y)
+        # print(event.x,event.y)
         if event.y < 0 or event.y > 400 or event.x < 800:
             return
         if event.y <= 200:

@@ -7,6 +7,12 @@ matplotlib.use('TkAgg')
 
 # extends to force a square zoom
 class NavigationBar(NavigationToolbar2Tk):
+
+    def __init__(self,canvas,frame,pack_toolbar=False,axs=None):
+        super().__init__(canvas,frame,pack_toolbar=pack_toolbar)
+        if axs:
+            self.axs = axs
+
     def pan(self, *args):
         super().pan(*args)
         self.canvas.get_tk_widget().config(cursor='hand2')
@@ -81,6 +87,19 @@ class NavigationBar(NavigationToolbar2Tk):
             ax._set_view_from_bbox(
                 (start_x, start_y, event.x, event.y),
                 self._zoom_info.direction, key, twinx, twiny)
+            
+        # display/data coordinate transform for sag/cor axes
+        # all hard-coded
+        start_x_sagcor = (start_x/400)*(480/155)*100+800
+        start_y_sagcor = (start_y/400)*(2)*100+200
+        event_x_sagcor = (event.x/400)*(480/155)*100+800
+        event_y_sagcor = (event.y/400)*(2)*100+200
+        self.axs['C']._set_view_from_bbox(
+            (start_x_sagcor,start_y_sagcor,event_x_sagcor,event_y_sagcor),
+            self._zoom_info.direction, None, False, False)
+        self.axs['D']._set_view_from_bbox(
+            (start_x_sagcor,start_y_sagcor-200,event_x_sagcor,event_y_sagcor-200),
+            self._zoom_info.direction, None, False, False)
 
         self.canvas.draw_idle()
         self._zoom_info = None
