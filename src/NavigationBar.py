@@ -8,10 +8,11 @@ matplotlib.use('TkAgg')
 # extends to force a square zoom
 class NavigationBar(NavigationToolbar2Tk):
 
-    def __init__(self,canvas,frame,pack_toolbar=False,axs=None):
+    def __init__(self,canvas,frame,pack_toolbar=False,ui=None,axs=None):
         super().__init__(canvas,frame,pack_toolbar=pack_toolbar)
         if axs:
             self.axs = axs
+        self.ui = ui
 
     def pan(self, *args):
         super().pan(*args)
@@ -88,17 +89,24 @@ class NavigationBar(NavigationToolbar2Tk):
                 (start_x, start_y, event.x, event.y),
                 self._zoom_info.direction, key, twinx, twiny)
             
-        # display/data coordinate transform for sag/cor axes
-        # all hard-coded
-        start_x_sagcor = (start_x/400)*(480/155)*100+800
-        start_y_sagcor = (start_y/400)*(2)*100+200
-        event_x_sagcor = (event.x/400)*(480/155)*100+800
-        event_y_sagcor = (event.y/400)*(2)*100+200
+        # display coordinate scaling for zooming the sag/cor axes. The scaling consists
+        # of the slicefovratio number of slices / inplane pixel dimension, assuming isotropic,
+        # an x offset to account for width of t1 and t2 panels,
+        # and a y offset for the sag or cor pane.
+        # dpi 100 hard-coded
+        panelnum = int(start_x/(self.ui.config.PanelSize*100))    
+        slicefovratio = self.ui.config.ImageDim[0]/self.ui.config.ImageDim[1]
+        start_x_sagcor = ((start_x/(self.ui.config.PanelSize*100))*(2/slicefovratio) + (2-panelnum)*self.ui.config.PanelSize) * 100
+        start_y_sagcor = ((start_y/(self.ui.config.PanelSize*100))*(2) + 2) * 100
+        event_x_sagcor = ((event.x/(self.ui.config.PanelSize*100))*(2/slicefovratio) + (2-panelnum)*self.ui.config.PanelSize) * 100
+        event_y_sagcor = ((event.y/(self.ui.config.PanelSize*100))*(2) + 2) * 100
+        # zoom the coronal
         self.axs['C']._set_view_from_bbox(
             (start_x_sagcor,start_y_sagcor,event_x_sagcor,event_y_sagcor),
             self._zoom_info.direction, None, False, False)
+        # zoom the sagittal
         self.axs['D']._set_view_from_bbox(
-            (start_x_sagcor,start_y_sagcor-200,event_x_sagcor,event_y_sagcor-200),
+            (start_x_sagcor,start_y_sagcor-self.ui.config.PanelSize/2*100,event_x_sagcor,event_y_sagcor-self.ui.config.PanelSize/2*100),
             self._zoom_info.direction, None, False, False)
 
         self.canvas.draw_idle()

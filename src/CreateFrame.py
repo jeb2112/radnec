@@ -33,6 +33,8 @@ class CreateFrame():
 class CreateSliceViewerFrame(CreateFrame):
     def __init__(self,parentframe,ui=None,padding='10'):
         super().__init__(parentframe,ui=ui)
+
+        # ui variables
         self.currentslice = tk.IntVar(value=75)
         self.currentsagslice = tk.IntVar(value=120)
         self.currentcorslice = tk.IntVar(value=120)
@@ -44,15 +46,20 @@ class CreateSliceViewerFrame(CreateFrame):
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3x = None # mouse drag for cor,sag slice
+        # image dimensions
+        self.dim = self.ui.config.ImageDim
 
+        self.ui = ui
 
         self.frame.grid(column=0,row=0, sticky='NEW',in_=self.parentframe)
         # self.frame.rowconfigure(0,weight=2)
         # self.frame.rowconfigure(1,weight=10)
         # slice viewer widget
+        slicefovratio = self.ui.config.ImageDim[0]/self.ui.config.ImageDim[1]
         fig,axs = plt.subplot_mosaic([['A','B','C'],['A','B','D']],
-                                     width_ratios=[2.,2.,240/155.],
-                                     figsize=((2+2+240/155)*2,4),dpi=100)
+                                     width_ratios=[self.ui.config.PanelSize,self.ui.config.PanelSize,
+                                                   self.ui.config.PanelSize / (2 * slicefovratio) ],
+                                     figsize=((2*self.ui.config.PanelSize + 2/slicefovratio),4),dpi=100)
         self.ax_img = axs['A'].imshow(np.zeros((240,240)),vmin=0,vmax=1,cmap='gray')
         self.ax2_img = axs['B'].imshow(np.zeros((240,240)),vmin=0,vmax=1,cmap='gray')
         self.ax3_img = axs['C'].imshow(np.zeros((155,240)),vmin=0,vmax=1,cmap='gray')
@@ -62,17 +69,12 @@ class CreateSliceViewerFrame(CreateFrame):
         # set up axis sharing
         axs['B']._shared_axes['x'].join(axs['B'],axs['A'])
         axs['B']._shared_axes['y'].join(axs['B'],axs['A'])
-        # for now no zoom in sag cor panes
-        # axs['C']._shared_axes['x'].join(axs['C'],axs['A'])
-        # axs['D']._shared_axes['x'].join(axs['D'],axs['A'])
-        # axs['C']._shared_axes['y'].join(axs['C'],axs['A'])
-        # axs['D']._shared_axes['y'].join(axs['D'],axs['A'])
         fig.tight_layout(pad=0)
 
         self.canvas = FigureCanvasTkAgg(fig, master=self.frame)  
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
-        self.tbar = NavigationBar(self.canvas,self.frame,pack_toolbar=False,axs=axs)
+        self.tbar = NavigationBar(self.canvas,self.frame,pack_toolbar=False,ui=self.ui,axs=axs)
         self.tbar.children['!button4'].pack_forget() # get rid of configure plot
         self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
 
@@ -475,8 +477,10 @@ class CreateCaseFrame(CreateFrame):
         t1ce = sitk.ReadImage(os.path.join(self.casedir,t1ce_file))
         # TODO: do coordinates properly for now just use flip for slice dimension
         img_arr = np.flip(sitk.GetArrayFromImage(t1ce),axis=0)
+        # dimensions of panels might have to change depending on dimension of new data loaded.
+        self.ui.sliceviewerframe.dim = np.shape(img_arr)
         # 2 channels hard-coded
-        self.ui.data['raw'] = np.zeros((2,)+np.shape(img_arr),dtype='float32')
+        self.ui.data['raw'] = np.zeros((2,)+self.ui.sliceviewerframe.dim,dtype='float32')
         self.ui.data['raw'][0] = img_arr
 
         # Create t2flair template 
