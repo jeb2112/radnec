@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
 from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube,reconstruction
+from skimage.measure import find_contours
 from scipy.spatial.distance import dice
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
@@ -163,14 +164,19 @@ class CreateROIFrame(CreateFrame):
         # TODO: check for existing instead of re-generating
         # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
         if self.layertype.get() == 'blast':
-            self.ui.data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],self.layer.get(),
+            self.ui.data['seg_raw_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],segmentation=self.ui.data['seg_raw'],
+                                                                           layer=self.layer.get(),
                                                                    overlay_intensity=self.config.OverlayIntensity)
             self.ui.data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
         # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
         # then also copied back to main ui data
         elif self.layertype.get() == 'seg':
-            data['seg_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],data['seg'],self.layer.get(),
-                                                               overlay_intensity=self.config.OverlayIntensity)
+            if True:
+                data['seg_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],contour=data['tc_contour'],layer='TC',
+                                                                overlay_intensity=self.config.OverlayIntensity)
+            else:
+                data['seg_fusion'] = OverlayPlots.generate_overlay(self.ui.data['raw'],data['seg'],self.layer.get(),
+                                                                overlay_intensity=self.config.OverlayIntensity)
             data['seg_fusion_d'] = copy.copy(data['seg_fusion'])
 
             # TODO: check mouse event, versus layer_callback called by statement
@@ -449,12 +455,19 @@ class CreateROIFrame(CreateFrame):
                     objectmask_filled = reconstruction(seed,objectmask_filled,method='erosion')
                     objectmask_final = objectmask_filled.astype('int')
                     self.ui.roi[roi].data['tc'] = objectmask_final
-                else:
+                else: # not updated
                     se2 = square(mlist[m]['dcube'])
                     objectmask_filled = binary_dilation(objectmask_closed[currentslice,:,:],se2)
                     objectmask_filled = flood_fill(objectmask_filled,(ypos,xpos),True)
                     objectmask_final[currentslice,:,:] = objectmask_filled.astype('int')     
                     self.ui.roi[roi].data['tc'] = objectmask_final.astype('uint8')
+
+                # step 3. contouring
+                if do3d:
+                    objectmask_contoured = {}
+                    for s in range(155):
+                        objectmask_contoured[s] = find_contours(objectmask_final[s,:,:])
+                    self.ui.roi[roi].data['tc_contour'] = objectmask_contoured
 
             # update WT with smoothed TC
             elif m == 'wt':
