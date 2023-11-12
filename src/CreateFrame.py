@@ -10,6 +10,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.artist import Artist
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
@@ -28,6 +29,10 @@ class CreateFrame():
         self.padding = padding
 
 
+##############
+# Slice Viewer
+##############
+
 class CreateSliceViewerFrame(CreateFrame):
     def __init__(self,parentframe,ui=None,padding='10'):
         super().__init__(parentframe,ui=ui)
@@ -36,6 +41,9 @@ class CreateSliceViewerFrame(CreateFrame):
         self.currentslice = tk.IntVar(value=75)
         self.currentsagslice = tk.IntVar(value=120)
         self.currentcorslice = tk.IntVar(value=120)
+        self.axslicelabel = None
+        self.corslicelabel = None
+        self.sagslicelabel = None
         self.sagcordisplay = tk.IntVar(value=0)
         self.slicevolume_norm = tk.IntVar(value=1)
         # window/level values for T1,T2
@@ -62,6 +70,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ax2_img = axs['B'].imshow(np.zeros((240,240)),vmin=0,vmax=1,cmap='gray')
         self.ax3_img = axs['C'].imshow(np.zeros((155,240)),vmin=0,vmax=1,cmap='gray')
         self.ax4_img = axs['D'].imshow(np.zeros((155,240)),vmin=0,vmax=1,cmap='gray')
+        self.axs = axs
         for a in axs.keys():
             axs[a].axis('off')
         # set up axis sharing
@@ -77,24 +86,10 @@ class CreateSliceViewerFrame(CreateFrame):
         self.tbar.children['!button4'].pack_forget() # get rid of configure plot
         self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
 
-        # slice selection slider
-        slidersframe = ttk.Frame(self.frame,padding='5')
-        slidersframe.grid(column=0,row=4,columnspan=3,sticky='new')
-        # slidersframe.columnconfigure(0,weight=2)
-        # slidersframe.columnconfigure(1,weight=10)
-        # slidersframe.columnconfigure(2,weight=1)
-        slicetextlabel = ttk.Label(slidersframe, text='Ax slice: ')
-        slicetextlabel.grid(column=0,row=0,sticky='w')
-        self.vsliceslider = ttk.Scale(slidersframe,from_=0,to=154,variable=self.currentslice,
-                                      length='3i',command=self.updateslice)
-        self.vsliceslider.grid(column=1,row=0,sticky='w')
-        self.vslicenumberlabel = ttk.Label(slidersframe, text='{}'.format(self.currentslice.get()))
-        self.vslicenumberlabel.grid(column=2,row=0)
-
         
         # normal slice button
         normal_frame = ttk.Frame(self.frame,padding='0')
-        normal_frame.grid(row=5,column=0,sticky='w')
+        normal_frame.grid(row=4,column=0,sticky='w')
         normalSlice = ttk.Button(normal_frame,text='normal',command=self.normalslice_callback)
         normalSlice.grid(column=0,row=0,sticky='w')
         slicevolume_slice_button = ttk.Radiobutton(normal_frame,text='slice',variable=self.slicevolume_norm,value=0)
@@ -128,6 +123,7 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ui.root.bind('<Button>',self.touchpad)
             self.ui.root.bind('<B1-Motion>',self.b1motion)
             self.ui.root.bind('<B3-Motion>',self.b3motion)
+            self.ui.root.bind('<Button-3>',self.b3motion_reset)
             self.ui.root.bind('<ButtonRelease-1>',self.b1release)
             # self.ui.root.bind('<ButtonRelease>',self.touchpad)
 
@@ -143,7 +139,10 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ax2_img.set(data=self.ui.data[self.ui.dataselection][1,slice,:,:])
         self.ax3_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,slicecor,:])
         self.ax4_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,:,slicesag])
-        self.vslicenumberlabel['text'] = '{}'.format(slice)
+        # add current slice overlay
+        self.update_slicelabel()
+
+        # self.vslicenumberlabel['text'] = '{}'.format(slice)
         if self.ui.dataselection in['seg_raw_fusion_d','seg_fusion_d']:
             self.ax_img.set(cmap='viridis')
             self.ax2_img.set(cmap='viridis')
@@ -165,14 +164,27 @@ class CreateSliceViewerFrame(CreateFrame):
                 self.ui.roiframe.layer_callback(updateslice=False,updatedata=False)
             elif self.ui.dataselection == 'raw':
                 self.clipwl_raw()
+
         self.canvas.draw()
+    
+    def update_slicelabel(self,item=None):
+        if self.axslicelabel is not None:
+            Artist.remove(self.axslicelabel)
+        self.axslicelabel = self.ax_img.axes.text(5,self.dim[1]-10,'Ax:'+str(self.currentslice.get()),color='w')
+        if self.corslicelabel is not None:
+            Artist.remove(self.corslicelabel)
+        self.corslicelabel = self.ax3_img.axes.text(5,self.dim[0]-10,'Cor:'+str(self.currentcorslice.get()),color='w')
+        if self.sagslicelabel is not None:
+            Artist.remove(self.sagslicelabel)
+        self.sagslicelabel = self.ax4_img.axes.text(5,self.dim[0]-10,'Sag:'+str(self.currentsagslice.get()),color='w')
+
 
     # special update for previewing BLAST enhancing lesion in 2d
     def updateslice_blast(self,event=None):
         slice = self.currentslice.get()
         self.ui.set_currentslice()
         self.ui.runblast(currentslice=slice)
-        self.vslicenumberlabel['text'] = '{}'.format(slice)
+        # self.vslicenumberlabel['text'] = '{}'.format(slice)
         self.canvas.draw()
 
     # update for previewing final segmentation in 2d
@@ -184,7 +196,7 @@ class CreateSliceViewerFrame(CreateFrame):
         # 2d preview of final segmentation will still require 3d connected components, 
         # need to fix this.
         self.ui.roiframe.ROIclick(do3d=True)
-        self.vslicenumberlabel['text'] = '{}'.format(slice)
+        # self.vslicenumberlabel['text'] = '{}'.format(slice)
         self.canvas.draw()
         
     # TODO: latency problem for fusions. 
@@ -237,28 +249,31 @@ class CreateSliceViewerFrame(CreateFrame):
     def b1release(self,event):
         self.b1x = self.b1y = None
 
-    # mouse drag for cor and sag slice
-    # screen coordinates are hard-coded
+    # mouse drag for slice selection
+    def b3motion_reset(self,event):
+        self.b3y=None
+
     def b3motion(self,event):
-        # print(event.x,event.y)
-        if event.y < 0 or event.y > 400 or event.x < 800:
+        if event.y < 0 or event.y > self.ui.config.PanelSize*self.ui.config.dpi:
             return
-        if event.y <= 200:
-            item = self.currentcorslice
+        if event.x < 2*self.ui.config.PanelSize*self.ui.config.dpi:
+            item = self.currentslice
+            maxslice = self.dim[0]-1
         else:
-            item = self.currentsagslice
+            if event.y <= (self.ui.config.PanelSize*self.ui.config.dpi)/2:
+                item = self.currentcorslice
+            else:
+                item = self.currentsagslice
+            maxslice = self.dim[1]-1
 
         if self.b3y is None:
             self.b3y = event.y
-            return
         newslice = item.get() + (event.y-self.b3y)
-        newslice = min(max(newslice,0),239)
-        item.set(newslice) # increment hard-coded
+        newslice = min(max(newslice,0),maxslice)
+        item.set(newslice)
         self.updateslice()
         self.b3y = event.y
         return
-
-
 
     # mouse drag event for window/level adjustment
     def b1motion(self,event):
@@ -386,6 +401,9 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ui.roiframe.updatet1threshold(currentslice=None)
 
 
+################
+# Case Selection
+################
 
 class CreateCaseFrame(CreateFrame):
     def __init__(self,parent,ui=None,load=True):

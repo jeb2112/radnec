@@ -172,16 +172,17 @@ class BlastGui(object):
         
         # in this 2d preview mode, the enhancing lesion is only being calculated slice by slice
         # nonetheless the latency is still measurable, so only want to update when button click
-        # is released
-        if currentslice:
-            self.sliceviewerframe.vsliceslider['command'] = None
-            if self.roiframe.enhancingROI_overlay_value.get() == True:
-                self.sliceviewerframe.vsliceslider.bind("<ButtonRelease-1>",self.sliceviewerframe.updateslice_blast)
-            elif self.roiframe.finalROI_overlay_value.get() == True:
-                self.sliceviewerframe.vsliceslider.bind("<ButtonRelease-1>",self.sliceviewerframe.updateslice_roi)
-        else:
-            self.sliceviewerframe.vsliceslider.unbind("<ButtonRelease-1>")
-            self.sliceviewerframe.vsliceslider['command'] = self.updateslice
+        # is released. not using 2d preview anymore
+        if False:
+            if currentslice:
+                self.sliceviewerframe.vsliceslider['command'] = None
+                if self.roiframe.enhancingROI_overlay_value.get() == True:
+                    self.sliceviewerframe.vsliceslider.bind("<ButtonRelease-1>",self.sliceviewerframe.updateslice_blast)
+                elif self.roiframe.finalROI_overlay_value.get() == True:
+                    self.sliceviewerframe.vsliceslider.bind("<ButtonRelease-1>",self.sliceviewerframe.updateslice_roi)
+            else:
+                self.sliceviewerframe.vsliceslider.unbind("<ButtonRelease-1>")
+                self.sliceviewerframe.vsliceslider['command'] = self.updateslice
         
         self.root.config(cursor='arrow')
         self.root.update_idletasks()

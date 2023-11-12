@@ -58,6 +58,7 @@ class Config(object):
 
         # image panel size
         self.PanelSize = 4 # inches at 100 dpi
+        self.dpi = 100
 
         # default size for image array
         self.ImageDim = (155,240,240)

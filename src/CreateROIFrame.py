@@ -327,6 +327,9 @@ class CreateROIFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
     
     def ROIclick(self,event=None,do3d=True):
+        if event:
+            if event.button > 1: # ROI selection on left mouse only
+                return
         self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='watch')
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
         if event:
