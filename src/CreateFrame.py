@@ -43,7 +43,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.level = np.array([0.5,0.5],dtype='float')
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
-        self.b3x = None # mouse drag for cor,sag slice
+        self.b3y = None # mouse drag for cor,sag slice
         # image dimensions
         self.dim = self.ui.config.ImageDim
 
@@ -72,6 +72,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.canvas = FigureCanvasTkAgg(fig, master=self.frame)  
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
+
         self.tbar = NavigationBar(self.canvas,self.frame,pack_toolbar=False,ui=self.ui,axs=axs)
         self.tbar.children['!button4'].pack_forget() # get rid of configure plot
         self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
@@ -91,23 +92,6 @@ class CreateSliceViewerFrame(CreateFrame):
         self.vslicenumberlabel.grid(column=2,row=0)
 
         
-
-        # will use touchpad/mouse instead of onscreen widgets
-        # self.window = tk.DoubleVar(value=1)
-        # self.level = tk.DoubleVar(value=0.5)
-        # wtext = ttk.Label(slidersframe,text='W: ')
-        # wtext.grid(row=1, column=0,sticky='w')
-        # self.wslider = ttk.Scale(slidersframe,from_=0,to=2,variable=self.window,command=self.updatewl,length='3i')
-        # self.wslider.grid(row=1,column=1,sticky='w')
-        # self.wslidernumberlabel = ttk.Label(slidersframe,text='{}'.format(self.window.get()))
-        # self.wslidernumberlabel.grid(row=1,column=2)
-        # ltext = ttk.Label(slidersframe,text='L: ')
-        # ltext.grid(row=2, column=0,sticky='w')
-        # self.lslider = ttk.Scale(slidersframe,from_=0,to=2,variable=self.level,command=self.updatewl,length='3i')
-        # self.lslider.grid(row=2,column=1,sticky='w')
-        # self.lslidernumberlabel = ttk.Label(slidersframe,text='{}'.format(self.level.get()))
-        # self.lslidernumberlabel.grid(row=2,column=2)
-
         # normal slice button
         normal_frame = ttk.Frame(self.frame,padding='0')
         normal_frame.grid(row=5,column=0,sticky='w')
@@ -264,14 +248,14 @@ class CreateSliceViewerFrame(CreateFrame):
         else:
             item = self.currentsagslice
 
-        if self.b3x is None:
-            self.b3x = event.x
+        if self.b3y is None:
+            self.b3y = event.y
             return
-        newslice = item.get() + (event.x-self.b3x)
+        newslice = item.get() + (event.y-self.b3y)
         newslice = min(max(newslice,0),239)
         item.set(newslice) # increment hard-coded
         self.updateslice()
-        self.b3x = event.x
+        self.b3y = event.y
         return
 
 
@@ -508,13 +492,13 @@ class CreateCaseFrame(CreateFrame):
 
         # supplementary labels. brats and nnunet conventions are differnt.
         if False: # nnunet
-            self.ui.data['manual_et'] = (self.ui.data['label'] == 3).astype('int') #enhancing tumor 
-            self.ui.data['manual_tc'] = (self.ui.data['label'] >= 2).astype('int') #tumour core
-            self.ui.data['manual_wt'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
+            self.ui.data['manual_ET'] = (self.ui.data['label'] == 3).astype('int') #enhancing tumor 
+            self.ui.data['manual_TC'] = (self.ui.data['label'] >= 2).astype('int') #tumour core
+            self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
         else: # brats
-            self.ui.data['manual_et'] = (self.ui.data['label'] == 4).astype('int') #enhancing tumor 
-            self.ui.data['manual_tc'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
-            self.ui.data['manual_wt'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
+            self.ui.data['manual_ET'] = (self.ui.data['label'] == 4).astype('int') #enhancing tumor 
+            self.ui.data['manual_TC'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
+            self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
 
 
     # operates on a single image channel 

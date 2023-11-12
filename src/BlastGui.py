@@ -31,7 +31,7 @@ class BlastGui(object):
         self.currentslice = None # tracks the current slice widget variable
         self.dataselection = 'raw'
 
-        self.data = {'gates':[None,None,None], 'wt':None,'et':None,'tc':None}
+        self.data = {'gates':[None,None,None], 'WT':None,'ET':None,'TC':None}
         # self.data = {}
         self.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
 
@@ -241,7 +241,7 @@ class BlastGui(object):
         self.currentslice = None
         self.dataselection = 'raw'
 
-        self.data = {'gates':[None,None,None], 'wt':None,'et':None,'tc':None}
+        self.data = {'gates':[None,None,None], 'WT':None,'ET':None,'TC':None}
         self.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
 
         self.roi = [0] # dummy value for Roi indexing 1-based
