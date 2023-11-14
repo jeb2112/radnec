@@ -35,7 +35,9 @@ class CreateROIFrame(CreateFrame):
         self.enhancingROI_overlay_value = tk.BooleanVar(value=False)
         self.currentt1threshold = tk.DoubleVar(value=self.ui.config.T1default)
         self.currentt2threshold = tk.DoubleVar(value=self.ui.config.T2default)
-        self.currentbcsize = tk.DoubleVar(value=self.ui.config.BCdefault)
+        self.currentbcsize = tk.DoubleVar(value=self.ui.config.BCdefault[0])
+        self.currentbcT1size = tk.DoubleVar(value=self.ui.config.BCdefault[0])
+        self.currentbcT2size = tk.DoubleVar(value=self.ui.config.BCdefault[1])
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layerROI = tk.StringVar(value='ET')
@@ -63,7 +65,7 @@ class CreateROIFrame(CreateFrame):
         self.layer.trace_add('write',lambda *args: self.layer.get())
         self.layermenu = ttk.OptionMenu(self.frame,self.layer,self.layerlist['blast'][0],
                                         *self.layerlist['blast'],command=self.layer_callback)
-        self.layermenu.config(width=6)
+        self.layermenu.config(width=7)
         self.layermenu.grid(row=0,column=1,sticky='w')
 
         # ROI segmentation layer choice
@@ -87,16 +89,6 @@ class CreateROIFrame(CreateFrame):
         self.roinumbermenu.config(width=2)
         self.roinumbermenu.grid(row=0,column=5,sticky='w')
         self.roinumbermenu.configure(state='disabled')
-
-        # select ROI button
-        # finalROI_frame = ttk.Frame(self.frame,padding='0')
-        # finalROI_frame.grid(column=1,row=1,sticky='w')
-        # finalROI = ttk.Button(finalROI_frame,text='select ROI',command = self.selectROI)
-        # finalROI.grid(row=0,column=0,sticky='w')
-        # finalROI_overlay = ttk.Checkbutton(finalROI_frame,text='',
-        #                                    variable=self.finalROI_overlay_value,
-        #                                    command=self.finalROI_overlay_callback)
-        # finalROI_overlay.grid(column=1,row=0,sticky='w')
 
         # save ROI button
         saveROI = ttk.Button(self.frame,text='save ROI',command = self.saveROI)
@@ -149,8 +141,8 @@ class CreateROIFrame(CreateFrame):
     # ROI methods
     ############# 
 
-    # methods for BLAST and ROI layer options menu
-    def layer_callback(self,layer=None,updateslice=True,updatedata=True):
+    # methods for BLAST layer options menu
+    def layer_callback(self,layer=None,updateslice=True,updatedata=True,overlay=True):
         self.ui.sliceviewerframe.updatewl_fusion()
 
         if layer is None:
@@ -160,16 +152,27 @@ class CreateROIFrame(CreateFrame):
         self.ui.currentlayer = layer
         roi = self.ui.get_currentroi()
 
+        # when switching layers, slider values switch but no need to run re-blast immediately. 
+        # T1 slider is not used for T2 hyper.
+        self.updatesliders()
+        if layer == 'T2 hyper':
+            self.t1slider.configure(state='disabled')
+            # self.updatebcsize(self.currentbcT2size.get(),blast=False)
+        else:
+            self.t1slider.configure(state='active')
+
         # generate a new overlay
         # TODO: check for existing instead of re-generating
         # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
-        self.ui.data['seg_raw_fusion'] = generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],layer,
-                                                                overlay_intensity=self.config.OverlayIntensity)
-        self.ui.data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
+        if overlay:
+            self.ui.data['seg_raw_fusion'] = generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],layer,
+                                                                    overlay_intensity=self.config.OverlayIntensity)
+            self.ui.data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
 
         if updateslice:
             self.ui.updateslice()
 
+    # and ROI layer options menu
     def layerROI_callback(self,layer=None,updateslice=True,updatedata=True):
         self.ui.sliceviewerframe.updatewl_fusion()
 
@@ -240,7 +243,7 @@ class CreateROIFrame(CreateFrame):
         if mode == 'write':
             self.ui.set_currentroi()    
 
-    # updates blast segmentation upon slider release only
+    # updates blast segmentation
     def updatet1threshold(self,event=None,currentslice=True):
         self.enhancingROI_overlay_value.set(True)
         # for now, this event reverts to BLAST preview mode and will not directly reprocess the final segmentation
@@ -249,13 +252,14 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_callback()
 
         # force recalc of gates
-        self.ui.data['gates'][1] = None
-        self.ui.data['gates'][2] = None
+        layer = self.layer.get()
+        self.ui.data['blast']['gates'][layer] = None
+        # self.ui.data['blast']['gates'][2] = None
         self.ui.runblast(currentslice=currentslice)
         self.t1sliderlabel['text'] = '{:.1f}'.format(self.currentt1threshold.get())
 
     # updates the text field showing the value during slider drag
-    def updatet1label(self,event):
+    def updatet1label(self,event=None):
         self.t1sliderlabel['text'] = '{:.1f}'.format(self.currentt1threshold.get())
 
     def updatet2threshold(self,event=None,currentslice=True):
@@ -264,15 +268,17 @@ class CreateROIFrame(CreateFrame):
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_callback()
         # force recalc of gates
-        self.ui.data['gates'][1] = None
-        self.ui.data['gates'][2] = None
+        layer = self.layer.get()
+        self.ui.data['blast']['gates'][layer] = None
+        # self.ui.data['blast']['gates'][2] = None
         self.ui.runblast(currentslice=currentslice)
         self.t2sliderlabel['text'] = '{:.1f}'.format(self.currentt2threshold.get())
+        # ie not using this workflow presently
         if self.finalROI_overlay_value.get() == True:
             self.ROIclick(do3d=True)
         return
     
-    def updatet2label(self,event):
+    def updatet2label(self,event=None):
         self.t2sliderlabel['text'] = '{:.1f}'.format(self.currentt2threshold.get())
 
     def updatebcsize(self,event=None):
@@ -280,13 +286,24 @@ class CreateROIFrame(CreateFrame):
         if self.finalROI_overlay_value.get() == True:
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_callback()
-        self.ui.data['gates'][0] = None
+        layer = self.layer.get()
+        self.ui.data['blast']['gates']['brain '+layer] = None
         self.ui.runblast(currentslice=True)
-        self.bcsliderlabel['text'] = '{:.1f}'.format(self.currentbcsize.get())
+        self.updatebclabel()
         return
 
-    def updatebclabel(self,event):
-        self.bcsliderlabel['text'] = '{:.1f}'.format(self.currentbcsize.get())
+    def updatebclabel(self,event=None):
+        currentbcsize = self.ui.get_currentbcsize()
+        self.bcsliderlabel['text'] = '{:.1f}'.format(currentbcsize)
+
+    def updatesliders(self):
+        layer = self.layer.get()
+        self.currentt1threshold.set(self.ui.data['blast']['params'][layer]['t1'])
+        self.updatet1label()
+        self.currentt2threshold.set(self.ui.data['blast']['params'][layer]['t2'])
+        self.updatet2label()
+        self.currentbcsize.set(self.ui.data['blast']['params'][layer]['bc'])
+        self.updatebclabel()
     
     def finalROI_overlay_callback(self,event=None):
         if self.finalROI_overlay_value.get() == False:
@@ -344,11 +361,11 @@ class CreateROIFrame(CreateFrame):
                 # same compartment, it will be updated.
                 if roi > 0:
                     if self.ui.roi[roi].data['ET'] is not None and self.ui.roi[roi].data['WT'] is not None:
-                        self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
+                        self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice(),compartment=self.layer.get())
                     else:
                         self.updateROI(event)
                 else:
-                    self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
+                    self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice(),compartment=self.layer.get())
             
         roi = self.ui.get_currentroi()
         self.closeROI(self.ui.roi[roi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
@@ -393,18 +410,39 @@ class CreateROIFrame(CreateFrame):
 
         return None
     
-    def createROI(self,x,y,slice,compartment='ET'):
-        self.ui.roi.append(ROI(x,y,slice,compartment=compartment))
+    def createROI(self,x,y,slice):
+        compartment = self.layer.get()
+        if compartment == 'T2 hyper': # difference in naming convention between BLAST and final segmentation
+            compartment = 'WT'
+        roi = ROI(x,y,slice,compartment=compartment)
+        roi['blast_params'][compartment]['t1'] = self.t1slider.get()
+        roi['blast_params'][compartment]['t2'] = self.t2slider.get()
+        roi['blast_params'][compartment]['bc'] = self.ui.get_currentbcsize()
+        self.ui.roi.append(roi)
         self.currentroi.set(self.currentroi.get() + 1)
-        # self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
         self.updateROIData()
         self.update_roinumber_options()
+
+    def updateROI(self,event):
+        compartment = self.layer.get()
+        roi = self.ui.roi[self.ui.get_currentroi()]
+        roi['blast_params'][compartment]['t1'] = self.t1slider.get()
+        roi['blast_params'][compartment]['t2'] = self.t2slider.get()
+        roi['blast_params'][compartment]['bc'] = self.ui.get_currentbcsize()
+        if compartment == 'T2 hyper':
+            compartment = 'WT'
+        roi.coords[compartment]['x'] = int(event.xdata)
+        roi.coords[compartment]['y'] = int(event.ydata)
+        roi.coords[compartment]['slice'] = self.ui.get_currentslice()
+
 
     def closeROI(self,metmaskstack,currentslice,do3d=True):
         # this method needs tidy-up
 
         # process matching ROI to selected BLAST layer
         m = self.layer.get()
+        if m == 'T2 hyper': # difference in naming convention between BLAST and final segmentation
+            m = 'WT'
         roi = self.ui.get_currentroi()
         xpos = self.ui.roi[roi].coords[m]['x']
         ypos = self.ui.roi[roi].coords[m]['y']
@@ -499,7 +537,7 @@ class CreateROIFrame(CreateFrame):
                 seed[-1,:,:] = 0
                 objectmask_filled = reconstruction(seed,objectmask_filled,method='erosion')
                 objectmask_final = objectmask_filled.astype('int')
-                self.ui.roi[roi].data['TC'] = objectmask_final
+                self.ui.roi[roi].data['TC'] = objectmask_final.astype('uint8')
             else:
                 se2 = square(mlist[m]['dcube'])
                 objectmask_filled = binary_dilation(objectmask_closed[currentslice,:,:],se2)
@@ -559,13 +597,15 @@ class CreateROIFrame(CreateFrame):
             # sitk.WriteImage(sitk.GetImageFromArray(self.ui.data[img]),fileroot+'_'+img+'.nii')
 
         sdict = {}
+        bdict = {}
         msdict = {} 
         for i,r in enumerate(self.ui.roi):
             sdict['roi'+str(i)] = r.stats
+            bdict['roi'+str(i)] = r.data
             msdict['roi'+str(i)] = {}
             mdict = msdict['roi'+str(i)]
-            mdict['greengate_count'] = r.stats['gatecount']['t2']
-            mdict['redgate_count'] = r.stats['gatecount']['t1']
+            mdict['greengate_count'] = r.data['blast_params']['gatecount']['t2']
+            mdict['redgate_count'] = r.data['blast_params']['gatecount']['t1']
             mdict['objectmask'] = r.data['ET']
             mdict['objectmask_filled'] = r.data['TC']
             mdict['manualmasket'] = r.data['manual_ET']
@@ -588,11 +628,11 @@ class CreateROIFrame(CreateFrame):
             mdict['cumulative_elapsed_time'] = r.stats['elapsed_time']
 
         with open(filename,'ab') as fp:
-            pickle.dump(sdict,fp)
+            pickle.dump((sdict,bdict),fp)
         # matlab compatible output
         filename = filename[:-3] + 'mat'
         with open(filename,'ab') as fp:
-            savemat(filename,sdict)
+            savemat(filename,sdict,bdict)
         filename = filename[:-4] + '_origvarnames.mat'
         with open(filename,'ab') as fp:
             savemat(filename,msdict)
@@ -604,26 +644,7 @@ class CreateROIFrame(CreateFrame):
         writer.SetImageIO('NiftiImageIO')
         writer.SetFileName(filename)
         writer.Execute(img)
-
-    #     filename = "t1ce_" + self.casename
-    #     outputpath = os.path.join(self.config.UIdataroot+self.casename,filename)
-    #     save(outputpath + "/" + filename + ".mat",'greengate_count','redgate_count','objectmask','objectmask_filled',
-    # 'manualmasket','manualmasktc','centreimage','specificity_et','sensitivity_et','dicecoefficient_et','specificity_tc',
-    # 'sensitivity_tc','dicecoefficient_tc','b','b2','manualmask_et_volume','manualmask_tc_volume','objectmask_filled_volume',
-    # 'cumulative_elapsed_time')
-    #     niftiwrite(objectmask,outputpath + "/" + filename + ".nii")
-    #     niftiwrite(objectmask_filled,outputpath + "/" + filename + "_filled" + ".nii")
-    #     niftiwrite(manualmasket,outputpath + "/" + filename + "_manualmask_et" + ".nii")
-    #     niftiwrite(manualmasktc,outputpath + "/" + filename + "_manualmask_tc" + ".nii")
-    #     niftiwrite(t1mprage_template,outputpath + "/" + 't1mprage_template.nii')
         return
-
-    def updateROI(self,event):
-        compartment = self.layer.get()
-        roi = self.ui.roi[self.ui.get_currentroi()]
-        roi.coords[compartment]['x'] = int(event.xdata)
-        roi.coords[compartment]['y'] = int(event.ydata)
-        roi.coords[compartment]['slice'] = self.ui.get_currentslice()
         
     # def updateROI(self):
     #     # rerun segmentation
@@ -645,6 +666,22 @@ class CreateROIFrame(CreateFrame):
                 self.ui.roi[self.ui.currentroi].data[k] = copy.deepcopy(self.ui.data[k])
             else: # reference only
                 self.ui.roi[self.ui.currentroi].data[k] = self.ui.data[k]
+
+    # calculate the combined mask from separate layers
+    def updateBLAST(self,layer=None):
+        # record slider values
+        if layer is None:
+            layer = self.layer.get()
+        self.ui.data['blast']['params'][layer]['t1'] = self.currentt1threshold.get()
+        self.ui.data['blast']['params'][layer]['t2'] = self.currentt2threshold.get()
+        self.ui.data['blast']['params'][layer]['bc'] = self.currentbcsize.get()
+
+        if all(self.ui.data['blast'][x] is not None for x in ['ET','T2 hyper']):
+            self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*2 + (self.ui.data['blast'] ['T2 hyper'].astype('int'))
+        elif self.ui.data['blast']['ET'] is not None:
+            self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*3
+        elif self.ui.data['blast']['T2 hyper'] is not None:
+            self.ui.data['seg_raw'] = self.ui.data['blast']['T2 hyper'].astype('int')
 
     def updateData(self):
         self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
@@ -679,7 +716,8 @@ class CreateROIFrame(CreateFrame):
         self.updatet1label(event=None)
         self.currentt2threshold.set(self.ui.config.T2default)
         self.updatet2label(event=None)
-        self.currentbcsize.set(self.ui.config.BCdefault)
+        self.currentbcT1size.set(self.ui.config.BCdefault[0])
+        self.currentbcT2size.set(self.ui.config.BCdefault[1])
         self.updatebclabel(event=None)
         self.update_roinumber_options()
 
@@ -722,6 +760,6 @@ class CreateROIFrame(CreateFrame):
             self.ui.roi[roi].stats['vol'][t] = len(np.where(data[t])[0])
 
         # copy gate counts
-            self.ui.roi[roi].stats['gatecount']['t1'] = self.ui.roi[roi].data['gates'][3]
-            self.ui.roi[roi].stats['gatecount']['t2'] = self.ui.roi[roi].data['gates'][4]
+            # self.ui.roi[roi].stats['gatecount']['t1'] = self.ui.roi[roi].data['blast']['gates'][3]
+            # self.ui.roi[roi].stats['gatecount']['t2'] = self.ui.roi[roi].data['blast']['gates'][4]
 

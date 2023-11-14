@@ -25,11 +25,11 @@ from src import OverlayPlots
 # BLAST algorithm
 #################
 
-def run_blast(data,t1thresh,t2thresh,clustersize,
-            currentslice=None):
+def run_blast(data,t1thresh,t2thresh,clustersize,layer,
+            currentslice=None, maxZ=4):
 
     #check if any thresholds have actually changed
-    if all(x is not None for x in data['gates'][0:3]):
+    if all(data['blast']['gates'][x] is not None for x in [layer,'brain '+layer]):
         # raise ValueError('No updates for point-in-polygon requested.')
         print('No updates for point-in-polygon requested.')
         return None
@@ -50,28 +50,26 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
     t1mpragestack = t1mprage
 
     braincluster_size = clustersize #sld4.Value
-    t1Diff = braincluster_size*data['params']['stdt1'] 
-    t2Diff = braincluster_size*data['params']['stdt2']
+    t1Diff = braincluster_size*data['blast']['params']['stdt1'] 
+    t2Diff = braincluster_size*data['blast']['params']['stdt2']
 
     # Define brain
     # h = images.roi.Ellipse(gca,'Center',[meant2 meant1],'Semiaxes',[t2Diff t1Diff],'Color','y','LineWidth',1,'LabelAlpha',0.5,'InteractionsAllowed','none')
 
     # row=y=t1 col=x=t2, but xy convention for patches.Ellipse is same as matlab
-    brain_perimeter = Ellipse((data['params']['meant2'],data['params']['meant1']),2*t2Diff,2*t1Diff)
+    brain_perimeter = Ellipse((data['blast']['params']['meant2'],data['blast']['params']['meant1']),2*t2Diff,2*t1Diff)
 
-    t2gate = data['params']['meant2']+(t2thresh)*data['params']['stdt2']
-    t2gate_count = (t2gate-data['params']['meant2'])/data['params']['stdt2']
-    t1gate = data['params']['meant1']+(t1thresh)*data['params']['stdt1']
-    t1gate_count = (t1gate-data['params']['meant1'])/data['params']['stdt1']
+    t2gate = data['blast']['params']['meant2']+(t2thresh)*data['blast']['params']['stdt2']
+    t1gate = data['blast']['params']['meant1']+(t1thresh)*data['blast']['params']['stdt1']
 
     # define ET threshold gate >= (t2gate,t1gate)
-    # upper limit 4 hard-coded here
-    yv_et = np.array([t1gate, 4, 4, t1gate])
-    xv_et = np.array([t2gate, t2gate, 4, 4]) 
-
+    if layer == 'ET':
+        yv_gate = np.array([t1gate, maxZ, maxZ, t1gate])
+        xv_gate = np.array([t2gate, t2gate, maxZ, maxZ]) 
+    elif layer == 'T2 hyper':
     # define NET threshold gate, >= t2gate
-    yv_wt = np.array([-4, 4, 4, -4])
-    xv_wt = np.array([t2gate, t2gate, 4, 4]) 
+        yv_gate = np.array([-maxZ, maxZ, maxZ, -maxZ])
+        xv_gate = np.array([t2gate, t2gate, maxZ, maxZ]) 
 
     #Creates a matrix of voxels for brain slice
     if currentslice is not None:
@@ -91,13 +89,11 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
     et_maskstack = np.zeros(stack_shape)
     wt_maskstack = np.zeros(stack_shape)
     c_maskstack = np.zeros(stack_shape)
-    brain = data['gates'][0]
-    et_gate = data['gates'][1]
-    wt_gate = data['gates'][2]
 
     # TODO: config option for Win 11 if WSL2 enabled otherwise no gpu
     # option for multi-processing if doing 3d volume slice by slice
     # also not updated for multi-channel dimension yet
+    # not updated recently
     if domulti and (endslice-startslice)>1:
     # Compute ROIs based on Gates
         fusionstack_shared = multiprocessing.Array('f',[0.0]*np.prod(stack_shape))
@@ -114,7 +110,7 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
         pool.close()
         pool.join()
 
-    # otherwise just use cuspatial gpu in 3d
+    # otherwise just use full 3d
     elif (endslice-startslice)>1:
         start = time.time()
         region_of_support = np.where(t1mpragestack>0)
@@ -122,55 +118,42 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
         t1channel = t1mpragestack[region_of_support]
         t2channel = t2flairstack[region_of_support]
         t1t2verts = np.vstack((t2channel.flatten(),t1channel.flatten())).T
-        xy_etverts = np.vstack((xv_et,yv_et)).T
-        xy_etverts = np.concatenate((xy_etverts,np.atleast_2d(xy_etverts[0,:])),axis=0) # close path
-        xy_wtverts = np.vstack((xv_wt,yv_wt)).T
-        xy_wtverts = np.concatenate((xy_wtverts,np.atleast_2d(xy_wtverts[0,:])),axis=0) # close path
+        xy_layerverts = np.vstack((xv_gate,yv_gate)).T
+        xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
         unitverts = brain_perimeter.get_path().vertices
-        xyverts = brain_perimeter.get_patch_transform().transform(unitverts)
+        xy_brainverts = brain_perimeter.get_patch_transform().transform(unitverts)
 
         if use_gpu:
             RGcoords = cudf.DataFrame({'x':t1t2verts[:,0],'y':t1t2verts[:,1]}).interleave_columns()
             RGseries = GeoSeries.from_points_xy(RGcoords)
-            xy_etcoords = cudf.DataFrame({'x':xy_etverts[:,0],'y':xy_etverts[:,1]}).interleave_columns()
-            xy_etseries = GeoSeries.from_polygons_xy(xy_etcoords,[0, np.shape(xy_etverts)[0]],
+            xy_layercoords = cudf.DataFrame({'x':xy_layerverts[:,0],'y':xy_layerverts[:,1]}).interleave_columns()
+            xy_layerseries = GeoSeries.from_polygons_xy(xy_layercoords,[0, np.shape(xy_layerverts)[0]],
                                                 [0,1],[0,1] )
-            xy_wtcoords = cudf.DataFrame({'x':xy_wtverts[:,0],'y':xy_wtverts[:,1]}).interleave_columns()
-            xy_wtseries = GeoSeries.from_polygons_xy(xy_wtcoords,[0, np.shape(xy_wtverts)[0]],
-                                                [0,1],[0,1] )
-            xycoords = cudf.DataFrame({'x':xyverts[:,0],'y':xyverts[:,1]}).interleave_columns()
-            xyseries = GeoSeries.from_polygons_xy(xycoords,[0,np.shape(xyverts)[0]],[0,1],[0,1])
+            xy_braincoords = cudf.DataFrame({'x':xy_brainverts[:,0],'y':xy_brainverts[:,1]}).interleave_columns()
+            xy_brainseries = GeoSeries.from_polygons_xy(xy_braincoords,[0,np.shape(xyverts)[0]],[0,1],[0,1])
 
             # only redo the gates if required due to change in threshold
-            if data['gates'][1] is None:
-                et_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-                gate_etpts = dotime(point_in_polygon,(RGseries,xy_etseries),txt='gate')
-                et_gate[region_of_support] = gate_etpts.values.get().astype('int').flatten()
-            if data['gates'][2] is None:
-                wt_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-                gate_wtpts = dotime(point_in_polygon,(RGseries,xy_wtseries),txt='gate')
-                wt_gate[region_of_support] = gate_wtpts.values.get().astype('int').flatten()
-            if data['gates'][0] is None:
-                brain = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-                brainpts = dotime(point_in_polygon,(RGseries,xyseries),txt='brain')
-                brain[region_of_support] = brainpts.values.get().astype('int').flatten()
+            if data['blast']['gates'][layer] is None:
+                layer_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
+                layergate_pts = dotime(point_in_polygon,(RGseries,xy_layerseries),txt='gate')
+                layer_gate[region_of_support] = layergate_pts.values.get().astype('int').flatten()
+            if data['blast']['gates']['brain '+layer] is None:
+                brain_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
+                braingate_pts = dotime(point_in_polygon,(RGseries,xy_brainseries),txt='brain')
+                brain_gate[region_of_support] = braingate_pts.values.get().astype('int').flatten()
         else:
-            path = Path(xyverts,closed=True)
-            path_et = Path(xy_etverts,closed=True)
-            path_wt = Path(xy_wtverts,closed=True)
-            if data['gates'][1] is None:
-                et_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-                et_gate[region_of_support] = path_et.contains_points(t1t2verts).flatten()
-            if data['gates'][2] is None:
-                wt_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-                wt_gate[region_of_support] = path_wt.contains_points(t1t2verts).flatten()
-            if data['gates'][0] is None:
-                brain = np.zeros(np.shape(t1mpragestack),dtype='uint8')
-                brain[region_of_support] = path.contains_points(t1t2verts).flatten()
+            brain_path = Path(xy_brainverts,closed=True)
+            layer_path = Path(xy_layerverts,closed=True)
+            if data['blast']['gates'][layer] is None:
+                layer_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
+                layer_gate[region_of_support] = layer_path.contains_points(t1t2verts).flatten()
+            if data['blast']['gates']['brain '+layer] is None:
+                brain_gate = np.zeros(np.shape(t1mpragestack),dtype='uint8')
+                brain_gate[region_of_support] = brain_path.contains_points(t1t2verts).flatten()
 
         dtime = time.time()-start
         print('polygon contains points time = {:.2f} sec'.format(dtime))
-        et_mask = np.logical_and(et_gate, np.logical_not(brain)) # 
+        layer_mask = np.logical_and(layer_gate, np.logical_not(brain_gate)) # 
         # et_mask = max(et_mask,0)
         # fusion = imfuse(et_mask,t1mprage_template[slice,:,:,slice],'blend')
 
@@ -178,16 +161,9 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
         #et_mask = imerode(et_mask,se) # erosion added to get rid of non
         #specific small non target voxels removed for ROC paper
 
-        wt_mask = np.logical_and(wt_gate, np.logical_not(brain))
+        layer_maskstack = layer_mask
 
-        c_maskstack = et_mask.astype('int')*2 + wt_mask.astype('int')
-
-        # maskstack = et_mask + wtmask
-        # fusion = dotime(OverlayPlots.generate_overlay,(data['raw'],c_maskstack),txt='overlay') 
-        # fusionstack = fusion
-        et_maskstack = et_mask
-
-    # a single 2d slice
+    # a single 2d slice. hasn't been updated recently
     else:
         for slice in range(startslice,endslice):  
 
@@ -247,20 +223,7 @@ def run_blast(data,t1thresh,t2thresh,clustersize,
             wt_maskstack[slice] = wt_mask
             c_maskstack[slice] = compound_mask
 
-            # fusionstack[:,slice,:,:] = fusion
-
-    # Calculate connected objects 
-    # CC_labeled = bwlabeln(et_maskstack[slicestart:slicend,:,:],26) # beta edit on this line
-    # CC_labeled = cc3d.connected_components(et_maskstack,connectivity=26)
-    # stats = cc3d.statistics(CC_labeled)
-    # stats = regionprops3(CC_labeled,"Volume","PrincipalAxisLength")
-    # S = regionprops3(CC_labeled,'Centroid')
-    # BB = regionprops3(CC_labeled, 'BoundingBox')
-
-    # Display Volume
-    # f1 = figure(1)
-    # s = sliceViewer(fusionstack,"ScaleFactors",[2,2,1])
-    return c_maskstack,[brain,et_gate,wt_gate,t1gate_count,t2gate_count]
+    return layer_maskstack,brain_gate,layer_gate
 
 
 #################

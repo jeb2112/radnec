@@ -54,7 +54,7 @@ class Config(object):
         # default slider values
         self.T1default = 0.
         self.T2default = 0.
-        self.BCdefault = 3.
+        self.BCdefault = (3.,0.)
 
         # image panel size
         self.PanelSize = 4 # inches at 100 dpi
@@ -62,3 +62,6 @@ class Config(object):
 
         # default size for image array
         self.ImageDim = (155,240,240)
+
+        # max/min z score in parameter space.
+        self.maxZ = 4

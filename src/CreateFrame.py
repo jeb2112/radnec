@@ -128,7 +128,7 @@ class CreateSliceViewerFrame(CreateFrame):
             # self.ui.root.bind('<ButtonRelease>',self.touchpad)
 
     # TODO: different bindings and callbacks need some organization
-    def updateslice(self,event=None,wl=False,blast=False):
+    def updateslice(self,event=None,wl=False,blast=False,layer=None):
         slice=self.currentslice.get()
         slicesag = self.currentsagslice.get()
         slicecor = self.currentcorslice.get()
@@ -161,7 +161,7 @@ class CreateSliceViewerFrame(CreateFrame):
             # possible latency problem here
             if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
                 # self.updatewl_fusion()
-                self.ui.roiframe.layer_callback(updateslice=False,updatedata=False)
+                self.ui.roiframe.layer_callback(updateslice=False,updatedata=False,layer=layer)
             elif self.ui.dataselection == 'raw':
                 self.clipwl_raw()
 
@@ -170,13 +170,13 @@ class CreateSliceViewerFrame(CreateFrame):
     def update_slicelabel(self,item=None):
         if self.axslicelabel is not None:
             Artist.remove(self.axslicelabel)
-        self.axslicelabel = self.ax_img.axes.text(5,self.dim[1]-10,'Ax:'+str(self.currentslice.get()),color='w')
+        self.axslicelabel = self.ax_img.axes.text(5,self.dim[1]-10,'SL:'+str(self.currentslice.get()),color='w')
         if self.corslicelabel is not None:
             Artist.remove(self.corslicelabel)
-        self.corslicelabel = self.ax3_img.axes.text(5,self.dim[0]-10,'Cor:'+str(self.currentcorslice.get()),color='w')
+        self.corslicelabel = self.ax3_img.axes.text(5,self.dim[0]-10,'SL:'+str(self.currentcorslice.get()),color='w')
         if self.sagslicelabel is not None:
             Artist.remove(self.sagslicelabel)
-        self.sagslicelabel = self.ax4_img.axes.text(5,self.dim[0]-10,'Sag:'+str(self.currentsagslice.get()),color='w')
+        self.sagslicelabel = self.ax4_img.axes.text(5,self.dim[0]-10,'SL:'+str(self.currentsagslice.get()),color='w')
 
 
     # special update for previewing BLAST enhancing lesion in 2d
@@ -384,10 +384,10 @@ class CreateSliceViewerFrame(CreateFrame):
             plt.show(block=False)
 
         # Calculate stats for brain cluster
-        self.ui.data['params']['stdt1'] = np.std(X[kmeans.labels_==1,1])
-        self.ui.data['params']['stdt2'] = np.std(X[kmeans.labels_==1,0])
-        self.ui.data['params']['meant1'] = np.mean(X[kmeans.labels_==1,1])
-        self.ui.data['params']['meant2'] = np.mean(X[kmeans.labels_==1,0])
+        self.ui.data['blast']['params']['stdt1'] = np.std(X[kmeans.labels_==1,1])
+        self.ui.data['blast']['params']['stdt2'] = np.std(X[kmeans.labels_==1,0])
+        self.ui.data['blast']['params']['meant1'] = np.mean(X[kmeans.labels_==1,1])
+        self.ui.data['blast']['params']['meant2'] = np.mean(X[kmeans.labels_==1,0])
 
         # activate thresholds only after normal slice stats are available
         self.ui.roiframe.bcslider['state']='normal'
@@ -397,8 +397,11 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ui.roiframe.bcslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatebcsize)
         self.ui.roiframe.t2slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet2threshold)
 
-        # automatically run the default thresholds in 3d to start things off
-        self.ui.roiframe.updatet1threshold(currentslice=None)
+        # automatically run BLAST
+        # self.ui.roiframe.updatet1threshold(currentslice=None)
+        for layer in ['ET','T2 hyper']:
+            self.ui.roiframe.layer_callback(layer=layer,updateslice=False,overlay=False)
+            self.ui.runblast(currentslice=None,layer=layer)
 
 
 ################
@@ -456,7 +459,8 @@ class CreateCaseFrame(CreateFrame):
         if self.ui.sliceviewerframe.slicevolume_norm.get() == 0:
             self.ui.dataselection = 'raw'
         else:
-            self.ui.roiframe.enhancingROI_overlay_callback()
+            self.ui.roiframe.enhancingROI_overlay_value.set(True)
+            # self.ui.roiframe.enhancingROI_overlay_callback()
         self.ui.sliceviewerframe.tbar.home()
         self.ui.updateslice()
         self.ui.starttime()

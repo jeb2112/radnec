@@ -31,9 +31,20 @@ class BlastGui(object):
         self.currentslice = None # tracks the current slice widget variable
         self.dataselection = 'raw'
 
-        self.data = {'gates':[None,None,None], 'WT':None,'ET':None,'TC':None}
-        # self.data = {}
-        self.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
+        # initialize data struct. other keys are added elsewhere
+        self.data = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
+                            'T2 hyper':None,
+                            'ET':None,
+                            'params':{'ET':{'t1':0.0,'t2':0.0,'bc':3.0},
+                               'T2 hyper':{'t1':0.0,'t2':0.0,'bc':0.0},
+                               'stdt1':1,
+                               'stdt2':1,
+                               'meant1':1,
+                               'meant2':1}
+                               }
+                    }
+
+        # self.data['blast']['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
 
         self.roi = [0] # dummy value for Roi indexing 1-based
         self.currentroi = 0 # tracks the currentroi widget variable
@@ -63,7 +74,7 @@ class BlastGui(object):
             if False:
                 self.roiframe.currentt2threshold.set(-0.8)
                 self.roiframe.currentt1threshold.set(-0.7)
-                self.roiframe.currentbcsize.set(1.0)
+                self.roiframe.currentbcT1size.set(1.0)
                 self.roiframe.updatebcsize()
                 self.roiframe.updatet1threshold()
                 self.roiframe.updatet2threshold()
@@ -116,12 +127,16 @@ class BlastGui(object):
     # BLAST method
     ##############
 
-    def runblast(self,currentslice=None):
+    def runblast(self,currentslice=None,layer=None):
         if currentslice: # 2d in a single slice
             currentslice=None # for now will run full 3d by default every update
         else: # entire volume
             self.root.config(cursor='watch')
             self.root.update_idletasks()
+
+        if layer is None:   
+            layer = self.roiframe.layer.get()
+        clustersize = self.get_currentbcsize()
 
         # if self.config.WLClip:
         #     self.sliceviewerframe.clipwl_raw()
@@ -142,10 +157,11 @@ class BlastGui(object):
             try:
                 retval = Blastbratsv3.run_blast(
                                     self.data,self.roiframe.t1slider.get(),
-                                    self.roiframe.t2slider.get(),self.roiframe.bcslider.get(),
+                                    self.roiframe.t2slider.get(),clustersize,layer,
                                     currentslice=currentslice)
                 if retval is not None:
-                    self.data['seg_raw'],self.data['gates'] = retval
+                    self.data['blast'][layer],self.data['blast']['gates']['brain '+layer],self.data['blast']['gates'][layer] = retval
+                    self.update_blast(layer=layer)
             except ValueError as e:
                 self.set_message(e)
 
@@ -157,8 +173,6 @@ class BlastGui(object):
 
         self.data['seg_raw_fusion'] = generate_overlay(self.data['raw'],self.data['seg_raw'],self.roiframe.layer.get(),overlay_intensity=self.config.OverlayIntensity)
         self.data['seg_raw_fusion_d'] = copy.copy(self.data['seg_raw_fusion'])
-        self.data['params']['t1gate_count'] = self.data['gates'][3]
-        self.data['params']['t2gate_count'] = self.data['gates'][4]
             
         if self.roiframe.finalROI_overlay_value.get() == True:
             self.dataselection = 'seg_fusion_d'
@@ -166,7 +180,7 @@ class BlastGui(object):
             self.dataselection = 'seg_raw_fusion_d'
                 
         if currentslice is None:
-            self.updateslice(wl=True)
+            self.updateslice(wl=True,layer=layer)
         else:
             self.updateslice()
         
@@ -217,8 +231,14 @@ class BlastGui(object):
     def get_currentroi(self):
         return self.currentroi
 
+    def get_currentbcsize(self):
+        return self.roiframe.currentbcsize.get()
+
     def update_roidata(self):
         self.roiframe.updateROIData()
+
+    def update_blast(self,**kwargs):
+        self.roiframe.updateBLAST(**kwargs)
 
     def starttime(self):
         self.tstart = time.time()
@@ -242,8 +262,19 @@ class BlastGui(object):
         self.currentslice = None
         self.dataselection = 'raw'
 
-        self.data = {'gates':[None,None,None], 'WT':None,'ET':None,'TC':None}
-        self.data['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
+        # self.data = {'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},'blast T2 hyper':None,'blast ET':None}
+        # self.data['blast']['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
+        self.data = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
+                            'T2 hyper':None,
+                            'ET':None,
+                            'params':{'ET':{'t1':0.0,'t2':0.0,'bc':3.0},
+                               'T2 hyper':{'t1':0.0,'t2':0.0,'bc':0.0},
+                               'stdt1':1,
+                               'stdt2':1,
+                               'meant1':1,
+                               'meant2':1}
+                               }
+                    }
 
         self.roi = [0] # dummy value for Roi indexing 1-based
         self.currentroi = 0 # tracks the currentroi widget variable
