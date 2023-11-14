@@ -10,8 +10,8 @@ class ROI():
 
         # BLAST values
         self.data['blast_params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1,
-                               'ET':{'t1':None,'t2':None,'bc':None},
-                               'T2 hyper':{'t1':None,'t2':None,'bc':None}}
+                               'ET':{'t1':0.0,'t2':0.0,'bc':3.0},
+                               'T2 hyper':{'t1':0.0,'t2':0.0,'bc':0.0}}
 
         # ROI selection coordinates
         self.coords = {'ET':{},'necrosis':{},'T2 hyper':{}}

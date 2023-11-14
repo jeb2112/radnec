@@ -122,6 +122,9 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
         xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
         unitverts = brain_perimeter.get_path().vertices
         xy_brainverts = brain_perimeter.get_patch_transform().transform(unitverts)
+        # use pre-existing result if available
+        brain_gate = data['blast']['gates']['brain '+layer]
+        layer_gate = data['blast']['gates'][layer]
 
         if use_gpu:
             RGcoords = cudf.DataFrame({'x':t1t2verts[:,0],'y':t1t2verts[:,1]}).interleave_columns()
