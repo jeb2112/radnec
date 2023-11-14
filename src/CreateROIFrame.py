@@ -332,10 +332,17 @@ class CreateROIFrame(CreateFrame):
             self.ui.dataselection = 'raw'
             self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
             self.ui.updateslice()
+            # unbind selection cursor
+            self.ui.sliceviewerframe.canvas.get_tk_widget().unbind('<Enter>')
+            self.ui.sliceviewerframe.canvas.get_tk_widget().unbind('<Leave>')
+
         else:
             self.finalROI_overlay_value.set(False)
             self.ui.dataselection = 'seg_raw_fusion_d'
             self.ui.updateslice(wl=True)
+            # rebind selection cursor
+            self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Enter>',self.selectROI)
+            self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Leave>',self.resetCursor)
 
     def enhancingROI_callback(self,event=None):
         self.finalROI_overlay_value.set(False)
@@ -355,6 +362,8 @@ class CreateROIFrame(CreateFrame):
     def ROIclick(self,event=None,do3d=True):
         if event:
             if event.button > 1: # ROI selection on left mouse only
+                return
+            if self.enhancingROI_overlay_value.get() == False: # no selection if BLAST mode not active
                 return
         self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='watch')
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
