@@ -183,6 +183,9 @@ class CreateROIFrame(CreateFrame):
     # and ROI layer options menu
     def layerROI_callback(self,layer=None,updateslice=True,updatedata=True):
 
+        roi = self.ui.get_currentroi()
+        if roi == 0:
+            return
         # if in the opposite mode, then switch
         self.enhancingROI_overlay_value.set(False)
         self.finalROI_overlay_value.set(True)
@@ -195,7 +198,6 @@ class CreateROIFrame(CreateFrame):
         else:
             self.layerROI.set(layer)
         self.ui.currentROIlayer = self.layerROI.get()
-        roi = self.ui.get_currentroi()
 
         # a convenience reference
         data = self.ui.roi[roi].data
@@ -229,12 +231,14 @@ class CreateROIFrame(CreateFrame):
 
     # methods for roi number choice menu
     def roinumber_callback(self,item=None):
+        if self.enhancingROI_overlay_value.get() == True:
+            self.enhancingROI_overlay_value.set(False)
+            self.finalROI_overlay_value.set(True)
+            self.finalROI_overlay_callback()
+
         self.ui.set_currentroi()
         # reference or copy
-        self.updateData()
-        self.layer_callback(updatedata=False)
-        # current layer doesn't necessarily match data['seg_fusion_d'] on roi switch
-        # self.layer.set(self.layerlist[self.layertype.get()][0])
+        self.layerROI_callback(updatedata=True)
         self.ui.updateslice()
         return
     
@@ -398,7 +402,8 @@ class CreateROIFrame(CreateFrame):
         self.ui.roi[roi].data['seg_fusion'] = fusionstack
         self.ui.roi[roi].data['seg_fusion_d'] = copy.copy(self.ui.roi[roi].data['seg_fusion'])
         # current roi populates data dict
-        self.updateData()
+        if False:
+            self.updateData()
 
         # if triggered by a button event
         if self.buttonpress_id:
@@ -703,7 +708,9 @@ class CreateROIFrame(CreateFrame):
             self.ui.data['seg_raw'] = self.ui.data['blast']['T2 hyper'].astype('int')
 
     def updateData(self):
-        self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
+        # self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
+        for k in ['seg_fusion_d','seg_fusion']:
+            self.ui.data[k] = copy.copy(self.ui.roi[self.ui.currentroi].data[k])
 
     # eliminate one ROI if multiple ROIs in current case
     def clearROI(self):
