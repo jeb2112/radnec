@@ -39,6 +39,7 @@ class CreateROIFrame(CreateFrame):
         self.currentbcsize = tk.DoubleVar(value=self.ui.config.BCdefault[0])
         self.currentbcT1size = tk.DoubleVar(value=self.ui.config.BCdefault[0])
         self.currentbcT2size = tk.DoubleVar(value=self.ui.config.BCdefault[1])
+        self.overlaytype = tk.IntVar(value=0)
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layerROI = tk.StringVar(value='ET')
@@ -100,13 +101,25 @@ class CreateROIFrame(CreateFrame):
         clearROI.grid(row=1,column=4,sticky='w')
         self.frame.update()
 
+        # overlay contour/mask
+        if False:
+            overlaytype_label = ttk.Label(self.frame, text='overlay type: ')
+            overlaytype_label.grid(row=2,column=0,padx=(0,0),sticky='w')
+            self.overlaytype_button = ttk.Radiobutton(self.frame,text='C',variable=self.overlaytype,value=0,
+                                                        command=self.ui.sliceviewerframe.updateslice)
+            self.overlaytype_button.grid(row=2,column=1,sticky='w')
+            self.overlaytype_button = ttk.Radiobutton(self.frame,text='M',variable=self.overlaytype,value=1,
+                                                        command=self.ui.sliceviewerframe.updateslice)
+            self.overlaytype_button.grid(row=2,column=2,sticky='w')
+
+
         ########################
         # layout for the sliders
         ########################
 
         # t1 slider
         self.t1sliderframe = ttk.Frame(self.frame,padding='0')
-        self.t1sliderframe.grid(column=0,row=2,columnspan=7,sticky='e')
+        self.t1sliderframe.grid(column=0,row=3,columnspan=7,sticky='e')
         t1label = ttk.Label(self.t1sliderframe, text='T1')
         t1label.grid(column=0,row=0,sticky='w')
         self.t1slider = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.currentt1threshold,state='disabled',
@@ -211,7 +224,7 @@ class CreateROIFrame(CreateFrame):
         # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
-        if self.config.OverlayType == 'contour':
+        if self.ui.sliceviewerframe.overlaytype.get() == 0:
             data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],contour=data['contour'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
         else:

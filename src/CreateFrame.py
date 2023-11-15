@@ -19,6 +19,16 @@ from scipy.spatial.distance import dice
 from src.NavigationBar import NavigationBar
 from src.FileDialog import FileDialog
 
+# utility class for callbacks
+class Command():
+    def __init__(self, callback, *args, **kwargs):
+        self.callback = callback
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self):
+        return self.callback(*self.args, **self.kwargs)
+
 # base for various frames
 class CreateFrame():
     def __init__(self,frame,ui=None,padding='10'):
@@ -27,7 +37,6 @@ class CreateFrame():
         self.frame = ttk.Frame(self.parentframe,padding=padding)
         self.config = self.ui.config
         self.padding = padding
-
 
 ##############
 # Slice Viewer
@@ -48,6 +57,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.windowlabel = None
         self.levellabel = None
         self.sagcordisplay = tk.IntVar(value=0)
+        self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
         # window/level values for T1,T2
         self.window = np.array([1.,1.],dtype='float')
@@ -148,6 +158,15 @@ class CreateSliceViewerFrame(CreateFrame):
                                                     command=self.updateslice)
         self.sagcordisplay_button.grid(column=6,row=0,sticky='w')
 
+        # overlay type contour mask
+        overlaytype_label = ttk.Label(normal_frame, text='overlay type: ')
+        overlaytype_label.grid(row=1,column=4,padx=(50,0),sticky='e')
+        self.overlaytype_button = ttk.Radiobutton(normal_frame,text='C',variable=self.overlaytype,value=0,
+                                                    command=Command(self.updateslice,wl=True))
+        self.overlaytype_button.grid(row=1,column=5,sticky='w')
+        self.overlaytype_button = ttk.Radiobutton(normal_frame,text='M',variable=self.overlaytype,value=1,
+                                                    command=Command(self.updateslice,wl=True))
+        self.overlaytype_button.grid(row=1,column=6,sticky='w')
 
         # messages text frame
         self.messagelabel = ttk.Label(self.frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -201,9 +220,11 @@ class CreateSliceViewerFrame(CreateFrame):
         if wl:   
             # possible latency problem here
             if self.ui.dataselection == 'seg_raw_fusion_d':
-                self.ui.roiframe.layer_callback(updateslice=False,updatedata=False,layer=layer)
+                # self.ui.roiframe.layer_callback(updateslice=False,updatedata=False,layer=layer)
+                self.ui.roiframe.layer_callback(layer=layer)
             elif self.ui.dataselection == 'seg_fusion_d':
-                self.ui.roiframe.layerROI_callback(updateslice=False,updatedata=False,layer=layer)
+                # self.ui.roiframe.layerROI_callback(updateslice=False,updatedata=False,layer=layer)
+                self.ui.roiframe.layerROI_callback(layer=layer)
             elif self.ui.dataselection == 'raw':
                 self.clipwl_raw()
 
