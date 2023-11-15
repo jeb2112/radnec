@@ -41,10 +41,8 @@ class BlastGui(object):
                                'stdt2':1,
                                'meant1':1,
                                'meant2':1}
-                               }
+                               },
                     }
-
-        # self.data['blast']['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
 
         self.roi = [0] # dummy value for Roi indexing 1-based
         self.currentroi = 0 # tracks the currentroi widget variable

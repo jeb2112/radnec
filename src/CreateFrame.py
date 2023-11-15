@@ -200,9 +200,10 @@ class CreateSliceViewerFrame(CreateFrame):
             self.updatewl(ax=3)
         if wl:   
             # possible latency problem here
-            if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
-                # self.updatewl_fusion()
+            if self.ui.dataselection == 'seg_raw_fusion_d':
                 self.ui.roiframe.layer_callback(updateslice=False,updatedata=False,layer=layer)
+            elif self.ui.dataselection == 'seg_fusion_d':
+                self.ui.roiframe.layerROI_callback(updateslice=False,updatedata=False,layer=layer)
             elif self.ui.dataselection == 'raw':
                 self.clipwl_raw()
 

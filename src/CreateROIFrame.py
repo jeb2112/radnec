@@ -144,11 +144,15 @@ class CreateROIFrame(CreateFrame):
     # methods for BLAST layer options menu
     def layer_callback(self,layer=None,updateslice=True,updatedata=True,overlay=True):
 
-        # if in the opposite mode, then switch. don't run the callback though because
+        # if in the opposite mode, then switch same as if the checkbutton was used. 
+        # but don't run the checkbutton callback because
         # don't yet have logic to check if the existing overlay is correct or
-        # needs to be redone
+        # needs to be redone.
+        # also if in ROI mode, then copy the relevant data back for BLAST mode.
+        if self.finalROI_overlay_value.get() == True:
+            self.updateData()
+            self.finalROI_overlay_value.set(False)
         self.enhancingROI_overlay_value.set(True)
-        self.finalROI_overlay_value.set(False)
         self.ui.dataselection = 'seg_raw_fusion_d'
 
         self.ui.sliceviewerframe.updatewl_fusion()
@@ -198,6 +202,8 @@ class CreateROIFrame(CreateFrame):
         else:
             self.layerROI.set(layer)
         self.ui.currentROIlayer = self.layerROI.get()
+        
+        self.updatesliders()
 
         # a convenience reference
         data = self.ui.roi[roi].data
@@ -313,7 +319,15 @@ class CreateROIFrame(CreateFrame):
         self.bcsliderlabel['text'] = '{:.1f}'.format(currentbcsize)
 
     def updatesliders(self):
-        layer = self.layer.get()
+        if self.enhancingROI_overlay_value.get() == True:
+            layer = self.layer.get()
+        elif self.finalROI_overlay_value.get() == True:
+            # ie display slider values that were used for current ROI
+            layer = self.layerROI.get()
+            if layer == 'WT':
+                layer = 'T2 hyper'
+            else:
+                layer == 'ET'
         self.currentt1threshold.set(self.ui.data['blast']['params'][layer]['t1'])
         self.updatet1label()
         self.currentt2threshold.set(self.ui.data['blast']['params'][layer]['t2'])
@@ -332,6 +346,10 @@ class CreateROIFrame(CreateFrame):
             self.ui.updateslice(wl=True)
 
     def enhancingROI_overlay_callback(self,event=None):
+        # if currently in roi mode, copy relevant data back to blast mode
+        if self.finalROI_overlay_value.get() == True:
+            self.updateData()
+
         if self.enhancingROI_overlay_value.get() == False:
             self.ui.dataselection = 'raw'
             self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
@@ -401,7 +419,7 @@ class CreateROIFrame(CreateFrame):
                                                     overlay_intensity=self.config.OverlayIntensity)
         self.ui.roi[roi].data['seg_fusion'] = fusionstack
         self.ui.roi[roi].data['seg_fusion_d'] = copy.copy(self.ui.roi[roi].data['seg_fusion'])
-        # current roi populates data dict
+        # need to update ui data here??
         if False:
             self.updateData()
 
@@ -441,9 +459,9 @@ class CreateROIFrame(CreateFrame):
     def createROI(self,x,y,slice):
         compartment = self.layer.get()
         roi = ROI(x,y,slice,compartment=compartment)
-        roi.data['blast_params'][compartment]['t1'] = self.t1slider.get()
-        roi.data['blast_params'][compartment]['t2'] = self.t2slider.get()
-        roi.data['blast_params'][compartment]['bc'] = self.ui.get_currentbcsize()
+        # roi.data['blast_params'][compartment]['t1'] = self.t1slider.get()
+        # roi.data['blast_params'][compartment]['t2'] = self.t2slider.get()
+        # roi.data['blast_params'][compartment]['bc'] = self.ui.get_currentbcsize()
         self.ui.roi.append(roi)
         self.currentroi.set(self.currentroi.get() + 1)
         self.updateROIData()
@@ -452,9 +470,9 @@ class CreateROIFrame(CreateFrame):
     def updateROI(self,event):
         compartment = self.layer.get()
         roi = self.ui.roi[self.ui.get_currentroi()]
-        roi.data['blast_params'][compartment]['t1'] = self.t1slider.get()
-        roi.data['blast_params'][compartment]['t2'] = self.t2slider.get()
-        roi.data['blast_params'][compartment]['bc'] = self.ui.get_currentbcsize()
+        # roi.data['blast_params'][compartment]['t1'] = self.t1slider.get()
+        # roi.data['blast_params'][compartment]['t2'] = self.t2slider.get()
+        # roi.data['blast_params'][compartment]['bc'] = self.ui.get_currentbcsize()
         roi.coords[compartment]['x'] = int(event.xdata)
         roi.coords[compartment]['y'] = int(event.ydata)
         roi.coords[compartment]['slice'] = self.ui.get_currentslice()
@@ -628,8 +646,8 @@ class CreateROIFrame(CreateFrame):
             bdict['roi'+str(i)] = r.data
             msdict['roi'+str(i)] = {}
             mdict = msdict['roi'+str(i)]
-            mdict['greengate_count'] = r.data['blast_params']['gatecount']['t2']
-            mdict['redgate_count'] = r.data['blast_params']['gatecount']['t1']
+            mdict['greengate_count'] = r.data['blast']['params']['ET']['t2']
+            mdict['redgate_count'] = r.data['blast']['params']['ET']['t1']
             mdict['objectmask'] = r.data['ET']
             mdict['objectmask_filled'] = r.data['TC']
             mdict['manualmasket'] = r.data['manual_ET']
@@ -708,9 +726,9 @@ class CreateROIFrame(CreateFrame):
             self.ui.data['seg_raw'] = self.ui.data['blast']['T2 hyper'].astype('int')
 
     def updateData(self):
-        # self.ui.data = copy.deepcopy(self.ui.roi[self.ui.currentroi].data)
-        for k in ['seg_fusion_d','seg_fusion']:
-            self.ui.data[k] = copy.copy(self.ui.roi[self.ui.currentroi].data[k])
+        for k in ['seg_fusion_d','seg_fusion','seg_raw_fusion','seg_raw_fusion_d','seg_raw','blast']:
+            self.ui.data[k] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[k])
+        self.updatesliders()
 
     # eliminate one ROI if multiple ROIs in current case
     def clearROI(self):
