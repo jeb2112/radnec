@@ -128,7 +128,11 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray = None, c
                         pairs = zip(contour[layerkey][s][0][:-2],contour[layerkey][s][0][1:])
                         for p1,p2 in pairs:
                             rr,cc,val = line_aa(int(p1[0]),int(p1[1]),int(p2[0]),int(p2[1]))
-                            image[int(s),rr,cc] = (val*np.reshape(overlay,(-1,1))).T
+                            if overlay_intensity == 1.0:
+                                image[int(s),rr,cc] = (val*np.reshape(overlay,(-1,1))).T
+                            else:
+                                image[int(s),rr,cc] += (val*np.reshape(overlay,(-1,1))).T
+
 
         # rescale result to [0,1]
         image = image / image.max() * 1
