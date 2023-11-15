@@ -24,7 +24,7 @@ color_cycle = (
 )
 
 # hard-coded convention
-layerdict = {'ET':[3],'TC':[2],'WT':[1],'NET':[1],'all':[1,2,3],'both':[1,3]}
+layerdict = {'ET':[3],'TC':[2],'WT':[1],'T2 hyper':[1],'all':[1,2,3],'both':[1,3]}
 
 def hex_to_rgb(hex: str):
     assert len(hex) == 6

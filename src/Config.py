@@ -15,7 +15,8 @@ class Config(object):
         self.UIPath = os.path.join(self.InstallPath, 'src')
 
         # Path for UI based resources (images, icons, etc)
-        self.UIResourcesPath = os.path.join(self.InstallPath, 'resources')
+        # use this hack for relative path for installation of a wheel distro into a virtual env
+        self.UIResourcesPath = os.path.join(os.path.dirname(__file__), '..','resources')
 
         # Path to log files
         self.logger = logging.getLogger('blast')
@@ -53,4 +54,14 @@ class Config(object):
         # default slider values
         self.T1default = 0.
         self.T2default = 0.
-        self.BCdefault = 3.
+        self.BCdefault = (3.,0.)
+
+        # image panel size
+        self.PanelSize = 4 # inches at 100 dpi
+        self.dpi = 100
+
+        # default size for image array
+        self.ImageDim = (155,240,240)
+
+        # max/min z score in parameter space.
+        self.maxZ = 4
