@@ -178,9 +178,9 @@ class CreateROIFrame(CreateFrame):
         # TODO: check for existing instead of automatically re-generating
         # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
         if overlay:
-            self.ui.data['seg_raw_fusion'] = generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],layer,
+            self.ui.data['seg_raw_fusion'] = generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],layer=layer,
                                                                     overlay_intensity=self.config.OverlayIntensity)
-            self.ui.data['seg_raw_fusion_d'] = copy.copy(self.ui.data['seg_raw_fusion'])
+            self.ui.data['seg_raw_fusion_d'] = copy.deepcopy(self.ui.data['seg_raw_fusion'])
 
         if updateslice:
             self.ui.updateslice()
@@ -211,9 +211,15 @@ class CreateROIFrame(CreateFrame):
         # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
-        data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],layer,
-                                                            overlay_intensity=self.config.OverlayIntensity)
-        data['seg_fusion_d'] = copy.copy(data['seg_fusion'])
+        if self.config.OverlayType == 'contour':
+            data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],contour=data['contour'],layer=layer,
+                                                        overlay_intensity=self.config.OverlayIntensity)
+        else:
+            data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],layer=layer,
+                                                        overlay_intensity=self.config.OverlayIntensity)
+
+        data['seg_fusion_d'] = copy.deepcopy(data['seg_fusion'])
+
         if updatedata:
             self.updateData()
 
@@ -328,7 +334,7 @@ class CreateROIFrame(CreateFrame):
             if layer == 'WT':
                 layer = 'T2 hyper'
             else:
-                layer == 'ET'
+                layer = 'ET'
         self.currentt1threshold.set(self.ui.data['blast']['params'][layer]['t1'])
         self.updatet1label()
         self.currentt2threshold.set(self.ui.data['blast']['params'][layer]['t2'])
@@ -416,10 +422,10 @@ class CreateROIFrame(CreateFrame):
         self.ROIstats()
         fusionstack = np.zeros((2,155,240,240))
         # note some duplicate calls to generate_overlay should be removed
-        fusionstack = generate_overlay(self.ui.data['raw'],self.ui.roi[roi].data['seg'],self.ui.roiframe.layer.get(),
+        fusionstack = generate_overlay(self.ui.data['raw'],self.ui.roi[roi].data['seg'],layer=self.ui.roiframe.layer.get(),
                                                     overlay_intensity=self.config.OverlayIntensity)
         self.ui.roi[roi].data['seg_fusion'] = fusionstack
-        self.ui.roi[roi].data['seg_fusion_d'] = copy.copy(self.ui.roi[roi].data['seg_fusion'])
+        self.ui.roi[roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[roi].data['seg_fusion'])
         # need to update ui data here??
         if False:
             self.updateData()
@@ -490,9 +496,9 @@ class CreateROIFrame(CreateFrame):
         ypos = self.ui.roi[roi].coords[m]['y']
         roislice = self.ui.roi[roi].coords[m]['slice']
 
-        # a quick config for ET, WT smoothing
         if m == 'T2 hyper': # difference in naming convention between BLAST and final segmentation
             m = 'WT'
+        # a quick config for ET, WT smoothing
         mlist = {'ET':{'threshold':3,'dball':10,'dcube':2},
                     'WT':{'threshold':1,'dball':10,'dcube':2}}
         mask = (metmaskstack >= mlist[m]['threshold']).astype('double')
@@ -589,6 +595,13 @@ class CreateROIFrame(CreateFrame):
                 objectmask_final[currentslice,:,:] = objectmask_filled.astype('int')     
                 self.ui.roi[roi].data['TC'] = objectmask_final.astype('uint8')
 
+            # step 3. TC contouring
+            if do3d:
+                objectmask_contoured = {}
+                for s in range(155):
+                    objectmask_contoured[s] = find_contours(objectmask_final[s,:,:])
+                self.ui.roi[roi].data['contour']['TC'] = objectmask_contoured
+ 
             # update combined seg mask
             # nnunet convention for labels
             if self.ui.roi[roi].data['WT'] is None:
@@ -613,6 +626,11 @@ class CreateROIFrame(CreateFrame):
                                                     1*self.ui.roi[roi].data['TC'] + \
                                                     1*self.ui.roi[roi].data['WT']
                 self.ui.roi[roi].status = True # ROI has both compartments selected
+            # WT contouring
+            objectmask_contoured = {}
+            for s in range(155):
+                objectmask_contoured[s] = find_contours(self.ui.roi[roi].data['WT'][s,:,:])
+            self.ui.roi[roi].data['contour']['WT'] = objectmask_contoured
 
 
         return None

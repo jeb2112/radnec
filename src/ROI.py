@@ -5,8 +5,8 @@ class ROI():
         self.casename = None
         self.status = False
 
-        # segmentation masks
-        self.data = {'WT':None,'ET':None,'TC':None}
+        # segmentation/contour masks
+        self.data = {'WT':None,'ET':None,'TC':None,'contour':{'WT':None,'ET':None}}
 
         # ROI selection coordinates
         self.coords = {'ET':{},'necrosis':{},'T2 hyper':{}}

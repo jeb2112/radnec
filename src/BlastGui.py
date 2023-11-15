@@ -169,8 +169,9 @@ class BlastGui(object):
         #     self.sliceviewerframe.level = np.array([0.5,0.5],dtype='float')
         #     self.updateslice()
 
-        self.data['seg_raw_fusion'] = generate_overlay(self.data['raw'],self.data['seg_raw'],self.roiframe.layer.get(),overlay_intensity=self.config.OverlayIntensity)
-        self.data['seg_raw_fusion_d'] = copy.copy(self.data['seg_raw_fusion'])
+        self.data['seg_raw_fusion'] = generate_overlay(self.data['raw'],self.data['seg_raw'],layer=self.roiframe.layer.get(),
+                                                       overlay_intensity=self.config.OverlayIntensity)
+        self.data['seg_raw_fusion_d'] = copy.deepcopy(self.data['seg_raw_fusion'])
             
         if self.roiframe.finalROI_overlay_value.get() == True:
             self.dataselection = 'seg_fusion_d'

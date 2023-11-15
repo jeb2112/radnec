@@ -25,6 +25,10 @@ color_cycle = (
 
 # hard-coded convention
 layerdict = {'ET':[3],'TC':[2],'WT':[1],'T2 hyper':[1],'all':[1,2,3],'both':[1,3]}
+# need both integer indexing for the mask overlay and dict keyword indexing for contour overlay
+# this is a convenience definition for reverse lookup from integer back to dict keyword, for
+# 'all' and 'both' in contour overlay, but it's awkward
+layersdict = {1:'WT',2:'TC',3:'ET'}
 
 def hex_to_rgb(hex: str):
     assert len(hex) == 6
@@ -40,6 +44,8 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray = None, c
 
     Segmentation must be label map of same shape as 2d or 3d image (w/o color channels)
 
+    Contour is a dict containing a list of order pairs for each 2d slice
+
     mapping can be label_id -> idx_in_cycle or None
 
     layer is a string in layerdict
@@ -49,11 +55,11 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray = None, c
     imagestack = np.copy(input_image)
 
     if layer in layerdict.keys():
-        layer = layerdict[layer]
+        layers = layerdict[layer]
     elif layer is not None:
         raise KeyError('layer {} is not recognized.'.format(layer))
     else:
-        layer = [1,2,3]
+        layers = [1,2,3]
 
     if len(imagestack.shape) == 4:
         if imagestack.shape[0]<5:
@@ -86,15 +92,17 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray = None, c
         image = image - image.min()
         image = image / image.max() * 255
 
-        if segmentation is not None:
+        for l in mapping.keys():
+            if l==0:
+                continue # skipping background here
 
-            for l in mapping.keys():
-                if l==0:
-                    continue # skipping background here
-                if l in layer:
+            # do mask overlay
+            if l==3 or contour is None:
+
+                if l in layers:
                     overlay = overlay_intensity * np.array(hex_to_rgb(color_cycle[mapping[l]]))
                     if overlay_intensity == 1.0:
-                        if len(layer) == 1:
+                        if len(layers) == 1:
                             image[segmentation >= l] = overlay
                         else:
                             if l == 1:
@@ -102,60 +110,38 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray = None, c
                             else:
                                 image[segmentation == l] = overlay
                     else:
-                        if len(layer) == 1:
+                        if len(layers) == 1:
                             image[segmentation >= l] += overlay
                         else:
                             image[segmentation == l] += overlay
                         
+            # do contour overlay
+            elif contour is not None:
 
-            # rescale result to [0,1]
-            image = image / image.max() * 1
-            # return image.astype(np.uint8)
-            output_image[ch] = image
-
-        elif contour is not None:
-
-            for l in mapping.keys():
-                if l==0 or l==3:
-                    continue # skipping background and ET here
-                if l in layer:
+                if l in layers:
+                    if layer in ['all','both']:
+                        layerkey = layersdict[l]
+                    else:
+                        layerkey = layer
                     overlay = overlay_intensity * np.array(hex_to_rgb(color_cycle[mapping[l]]))
-                    for s in contour.keys():
-                        pairs = zip(contour[s][:-2],contour[s][1:])
+                    for s in [s for s in contour[layerkey].keys() if len(contour[layerkey][s])>0]:
+                        pairs = zip(contour[layerkey][s][0][:-2],contour[layerkey][s][0][1:])
                         for p1,p2 in pairs:
-                            rr,cc,val = line_aa(p1[0],p1[1],p2[0],p2[1])
+                            rr,cc,val = line_aa(int(p1[0]),int(p1[1]),int(p2[0]),int(p2[1]))
+                            image[int(s),rr,cc] = (val*np.reshape(overlay,(-1,1))).T
 
-                    # if overlay_intensity == 1.0:
-                    #     if len(layer) == 1:
-                    #         image[segmentation >= l] = overlay
-                    #     else:
-                    #         if l == 1:
-                    #             image[segmentation == l] = overlay
-                    #         else:
-                    #             image[segmentation == l] = overlay
-                    # else:
-                    #     if len(layer) == 1:
-                    #         image[segmentation >= l] += overlay
-                    #     else:
-                    #         image[segmentation == l] += overlay
-                        
-
-            # rescale result to [0,1]
-            image = image / image.max() * 1
-            # return image.astype(np.uint8)
-            output_image[ch] = image
+        # rescale result to [0,1]
+        image = image / image.max() * 1
+        # return image.astype(np.uint8)
+        output_image[ch] = image
 
     output_image = np.squeeze(output_image)
     return output_image.astype(np.float32)
 
 def select_layer(segmentation,layer):
-    layersegmentation = copy.copy(segmentation)
+    layersegmentation = copy.deepcopy(segmentation)
     layersegmentation = (segmentation == layerdict[layer]).astype('int')*layerdict[layer]
     return layersegmentation
 
-
-
-
-    # overlay_pred = generate_overlay(image[selected_slice], pred[selected_slice], overlay_intensity=overlay_intensity)
  
 
