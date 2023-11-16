@@ -81,8 +81,8 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
 
     # find the gated pixels
     domulti = False 
-    stack_shape = (155,240,240)
-    fusion_stack_shape = (2,155,240,240,3)
+    stack_shape = np.shape(t1mprage)
+    fusion_stack_shape = (2,) + stack_shape + (3,)
     # TODO: should become part of data, initialized with class, so 2d slice doesn't have to be recomputed
     # during interactive use
     fusionstack = np.zeros(fusion_stack_shape)

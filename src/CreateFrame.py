@@ -11,6 +11,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.artist import Artist
+
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
@@ -19,7 +20,7 @@ from scipy.spatial.distance import dice
 from src.NavigationBar import NavigationBar
 from src.FileDialog import FileDialog
 
-# utility class for callbacks
+# utility class for callbacks with args
 class Command():
     def __init__(self, callback, *args, **kwargs):
         self.callback = callback
@@ -79,10 +80,14 @@ class CreateSliceViewerFrame(CreateFrame):
                                      width_ratios=[self.ui.config.PanelSize,self.ui.config.PanelSize,
                                                    self.ui.config.PanelSize / (2 * slicefovratio) ],
                                      figsize=((2*self.ui.config.PanelSize + 2/slicefovratio),4),dpi=100)
-        self.ax_img = self.axs['A'].imshow(np.zeros((240,240)),vmin=0,vmax=1,cmap='gray')
-        self.ax2_img = self.axs['B'].imshow(np.zeros((240,240)),vmin=0,vmax=1,cmap='gray')
-        self.ax3_img = self.axs['C'].imshow(np.zeros((155,240)),vmin=0,vmax=1,cmap='gray')
-        self.ax4_img = self.axs['D'].imshow(np.zeros((155,240)),vmin=0,vmax=1,cmap='gray')
+        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray')
+        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray')
+        self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray')
+        self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray')
+        self.ax_img.format_cursor_data = self.make_cursordata_format()
+        self.ax2_img.format_cursor_data = self.make_cursordata_format()
+        self.ax3_img.format_cursor_data = self.make_cursordata_format()
+        self.ax4_img.format_cursor_data = self.make_cursordata_format()
 
         # add dummy axes for image labels. absolute canvas coords
 
@@ -101,11 +106,13 @@ class CreateSliceViewerFrame(CreateFrame):
         self.axs['labelB'] = fig.add_subplot(2,3,5)
         self.axs['labelC'] = fig.add_subplot(2,3,3)
         self.axs['labelD'] = fig.add_subplot(2,3,6)
-        # prevent labels from panning or zooming
-        self.axs['labelA'].set_navigate(False)
-        self.axs['labelB'].set_navigate(False)
-        self.axs['labelC'].set_navigate(False)
-        self.axs['labelD'].set_navigate(False)
+        for a in ['A','B','C','D']:
+            # set axes zorder so label axis is on the bottom
+            # self.axs[a].set_zorder(1)
+            # prevent labels from panning or zooming
+            self.axs['label'+a].set_navigate(False)
+            # read mouse coords from underlying image axes on mouse over
+            self.axs['label'+a].format_coord = self.make_coord_format(self.axs['label'+a],self.axs[a])
 
         for a in self.axs.keys():
             self.axs[a].axis('off')
@@ -134,9 +141,6 @@ class CreateSliceViewerFrame(CreateFrame):
         self.tbar = NavigationBar(self.canvas,self.frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
         self.tbar.children['!button4'].pack_forget() # get rid of configure plot
         self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
-
-        # for updating image labels during pan/zoom
-        self.panzoom_id = self.canvas.callbacks.connect('button_press_event',self.update_labels)
 
         # normal slice button
         normal_frame = ttk.Frame(self.frame,padding='0')
@@ -323,6 +327,9 @@ class CreateSliceViewerFrame(CreateFrame):
     def b3motion(self,event):
         if event.y < 0 or event.y > self.ui.config.PanelSize*self.ui.config.dpi:
             return
+        # no adjustment if nav bar is activated
+        if 'zoom' in self.tbar.mode:
+            return
         if event.x < 2*self.ui.config.PanelSize*self.ui.config.dpi:
             item = self.currentslice
             maxslice = self.dim[0]-1
@@ -419,6 +426,27 @@ class CreateSliceViewerFrame(CreateFrame):
                 elif event.num == 5:
                     self.updatewl(ax=ax,lval=-.01)
 
+    # an override method to format the cursor data value.
+    def make_cursordata_format(self):
+        # current and other are axes
+        def format_cursor_data(data):
+            if np.isscalar(data):
+                return ('[{:.2f}]'.format(data))
+            else:
+                return ('[{:.2f}, {:.2f}, {:.2f}]'.format(data[0],data[1],data[2]))
+        return format_cursor_data
+
+    # an override method to get cursor coords from the bottom (image) axes.
+    def make_coord_format(self,labelax, imageax):
+        def format_coord(x, y):
+            # x, y are data coordinates
+            # convert to display coords
+            display_coord = labelax.transData.transform((x,y))
+            inv = imageax.transData.inverted()
+            # convert back to data coords with respect to ax
+            img_coord = inv.transform(display_coord)
+            return ('x={:.1f}, y={:.1f}'.format(img_coord[0],img_coord[1]))
+        return format_coord
 
     def normalslice_callback(self,event=None):
         print('normal stats')
@@ -433,7 +461,7 @@ class CreateSliceViewerFrame(CreateFrame):
             t2channel_normal = self.ui.data['raw'][1,self.normalslice][region_of_support]
         else:
             self.normalslice = None
-            region_of_support = np.where(self.ui.data['raw'][0]>=0) 
+            region_of_support = np.where(self.ui.data['raw'][0]>0) 
             t1channel_normal = self.ui.data['raw'][0][region_of_support]
             t2channel_normal = self.ui.data['raw'][1][region_of_support]
 
@@ -452,8 +480,8 @@ class CreateSliceViewerFrame(CreateFrame):
             plt.scatter(X[kmeans.labels_==0,0],X[kmeans.labels_==0,1],c='b')
             plt.scatter(X[kmeans.labels_==1,0],X[kmeans.labels_==1,1],c='r')
             ax.set_aspect('equal')
-            ax.set_xlim(left=0,right=0.6)
-            ax.set_ylim(bottom=0,top=1.0)
+            ax.set_xlim(left=-1.0,right=1.0)
+            ax.set_ylim(bottom=-1.0,top=1.0)
             plt.show(block=False)
 
         # Calculate stats for brain cluster
@@ -581,19 +609,25 @@ class CreateCaseFrame(CreateFrame):
             self.ui.sliceviewerframe.normalslice_callback()
 
         # create the label
-        label = sitk.ReadImage(os.path.join(self.casedir,self.config.UIdataroot+self.casename.get()+'_seg.nii'))
-        img_arr = sitk.GetArrayFromImage(label)
-        self.ui.data['label'] = img_arr
+        seg_file = next((f for f in files if 'seg' in f),None)
+        if seg_file:
+            # label = sitk.ReadImage(os.path.join(self.casedir,self.config.UIdataroot+self.casename.get()+'_seg.nii'))
+            label = sitk.ReadImage(os.path.join(self.casedir,seg_file))
+            img_arr = sitk.GetArrayFromImage(label)
+            self.ui.data['label'] = img_arr
+        else:
+            self.ui.data['label'] = None
 
         # supplementary labels. brats and nnunet conventions are differnt.
-        if False: # nnunet
-            self.ui.data['manual_ET'] = (self.ui.data['label'] == 3).astype('int') #enhancing tumor 
-            self.ui.data['manual_TC'] = (self.ui.data['label'] >= 2).astype('int') #tumour core
-            self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
-        else: # brats
-            self.ui.data['manual_ET'] = (self.ui.data['label'] == 4).astype('int') #enhancing tumor 
-            self.ui.data['manual_TC'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
-            self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
+        if self.ui.data['label'] is not None:
+            if False: # nnunet
+                self.ui.data['manual_ET'] = (self.ui.data['label'] == 3).astype('int') #enhancing tumor 
+                self.ui.data['manual_TC'] = (self.ui.data['label'] >= 2).astype('int') #tumour core
+                self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
+            else: # brats
+                self.ui.data['manual_ET'] = (self.ui.data['label'] == 4).astype('int') #enhancing tumor 
+                self.ui.data['manual_TC'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
+                self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
 
 
     # operates on a single image channel 

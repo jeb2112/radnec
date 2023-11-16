@@ -1,11 +1,15 @@
 from tkinter import *
 import tkinter as tk
 import numpy as np
+from collections import namedtuple
 from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
+from matplotlib.backend_bases import _Mode
+from enum import Enum
 import matplotlib
 matplotlib.use('TkAgg')
 
 # extends to force a square zoom
+
 class NavigationBar(NavigationToolbar2Tk):
 
     def __init__(self,canvas,frame,pack_toolbar=False,ui=None,axs=None):
@@ -14,13 +18,92 @@ class NavigationBar(NavigationToolbar2Tk):
             self.axs = axs
         self.ui = ui
 
+    # def pan(self, *args):
+    #     """
+    #     Toggle the pan/zoom tool.
+
+    #     Pan with left button, zoom with right.
+    #     """
+    #     if not self.canvas.widgetlock.available(self):
+    #         self.set_message("pan unavailable")
+    #         self.mode = _Mode.NONE
+    #         return
+    #     if self.mode == _Mode.PAN:
+    #         self.mode = _Mode.NONE
+    #         self.canvas.widgetlock.release(self)
+    #     else:
+    #         self.mode = _Mode.PAN
+    #         self.canvas.widgetlock(self)
+    #     for a in self.canvas.figure.get_axes():
+    #         a.set_navigate_mode(self.mode._navigate_mode)
+    #     self.canvas.get_tk_widget().config(cursor='hand2')
+
+    # _PanInfo = namedtuple("_PanInfo", "button axes cid")
+
     def pan(self, *args):
         super().pan(*args)
         self.canvas.get_tk_widget().config(cursor='hand2')
 
+    # def zoom(self, *args):
+    #     if not self.canvas.widgetlock.available(self):
+    #         self.set_message("zoom unavailable")
+    #         self.mode = _Mode.NONE
+    #         return
+    #     """Toggle zoom to rect mode."""
+    #     if self.mode == _Mode.ZOOM:
+    #         self.mode = _Mode.NONE
+    #         self.canvas.widgetlock.release(self)
+    #     else:
+    #         self.mode = _Mode.ZOOM
+    #         self.canvas.widgetlock(self)
+    #     for a in self.canvas.figure.get_axes():
+    #         a.set_navigate_mode(self.mode._navigate_mode)
+    #     self.canvas.get_tk_widget().config(cursor='tcross')
+
+    # _ZoomInfo = namedtuple("_ZoomInfo", "direction start_xy axes cid cbar")
+
     def zoom(self, *args):
         super().zoom(*args)
         self.canvas.get_tk_widget().config(cursor='tcross')
+
+    def select_artist(self,event):
+        pdim = self.ui.config.PanelSize*self.ui.config.dpi
+        if event.x <= pdim:
+            a = self.axs['A'].images[0]
+        elif event.x <= 2*pdim:
+            a = self.axs['B'].images[0]
+        elif event.y >= pdim/2:
+            a = self.axs['C'].images[0]
+        elif event.y <= pdim/2:
+            a = self.axs['D'].images[0]
+        else:
+            a = None
+        return a
+                
+    # override this method to not check for get_navigate() and find the image artist
+    def _mouse_event_to_message(self,event):
+        # if event.inaxes and event.inaxes.get_navigate():
+        if event.inaxes:
+            try:
+                s = event.inaxes.format_coord(event.xdata, event.ydata)
+            except (ValueError, OverflowError):
+                pass
+            else:
+                s = s.rstrip()
+                a = self.select_artist(event)
+                # artists = [a for a in event.inaxes._mouseover_set
+                #            if a.contains(event)[0] and a.get_visible()]
+                if a:
+                    # a = cbook._topmost_artist(artists)
+                    # a = NavigationBar._bottommost_artist(artists)
+                    if a is not event.inaxes.patch:
+                        data = a.get_cursor_data(event)
+                        if data is not None:
+                            data_str = a.format_cursor_data(data).rstrip()
+                            if data_str:
+                                s = s + '\n' + data_str
+                return s
+        return ""
 
     # re-calculate zoom coords to force square ROI
     def zoom_coords(self,start_xy,event):

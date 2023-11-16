@@ -1,4 +1,5 @@
 import os,sys
+import re
 import numpy as np
 import pickle
 import copy
@@ -8,6 +9,8 @@ import tkinter as tk
 from tkinter import ttk
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.backend_bases import _Mode
+from enum import Enum
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
 from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube,reconstruction
@@ -395,6 +398,13 @@ class CreateROIFrame(CreateFrame):
         if self.enhancingROI_overlay_value.get(): # only activate cursor in BLAST mode
             self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.ROIclick)
             self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
+            # lock pan and zoom
+            # self.ui.sliceviewerframe.canvas.widgetlock(self.ui.sliceviewerframe)
+            # also if zoom or pan currently active, turn off
+            # if self.ui.sliceviewerframe.tbar.mode == _Mode.PAN or self.ui.sliceviewerframe.tbar.mode == _Mode.ZOOM:
+            #     self.ui.sliceviewerframe.tbar.mode = _Mode.NONE
+                # self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
+
         return None
     
     def resetCursor(self,event=None):
@@ -407,13 +417,21 @@ class CreateROIFrame(CreateFrame):
                 return
             if self.enhancingROI_overlay_value.get() == False: # no selection if BLAST mode not active
                 return
+            
+        # self.ui.sliceviewerframe.canvas.widgetlock.release(self.ui.sliceviewerframe)
         self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='watch')
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
         if event:
             # print(event.xdata,event.ydata)
             # need check for inbounds
+            # convert coords from dummy label axis
+            s = event.inaxes.format_coord(event.xdata,event.ydata)
+            event.xdata,event.ydata = map(float,re.findall(r"(?:\d*\.\d+)",s))
             if event.xdata < 0 or event.ydata < 0:
                 return None
+            # elif self.ui.data['raw'][0,self.ui.get_currentslice(),int(event.x),int(event.y)] == 0:
+            #     print('Clicked in background')
+            #     return
             else:
                 roi = self.ui.get_currentroi()
                 # if current roi has segmentations for both compartments, start a new ROI
@@ -611,7 +629,7 @@ class CreateROIFrame(CreateFrame):
             # step 3. TC contouring
             if do3d:
                 objectmask_contoured = {}
-                for s in range(155):
+                for s in range(self.config.ImageDim[0]):
                     objectmask_contoured[s] = find_contours(objectmask_final[s,:,:])
                 self.ui.roi[roi].data['contour']['TC'] = objectmask_contoured
  
@@ -641,7 +659,7 @@ class CreateROIFrame(CreateFrame):
                 self.ui.roi[roi].status = True # ROI has both compartments selected
             # WT contouring
             objectmask_contoured = {}
-            for s in range(155):
+            for s in range(self.config.ImageDim[0]):
                 objectmask_contoured[s] = find_contours(self.ui.roi[roi].data['WT'][s,:,:])
             self.ui.roi[roi].data['contour']['WT'] = objectmask_contoured
 
@@ -665,10 +683,10 @@ class CreateROIFrame(CreateFrame):
                 outputfilename = fileroot + '_blast_' + img + roisuffix + '.nii'
                 self.WriteImage(self.ui.roi[int(roi)].data[img],outputfilename)
         # manual outputs. for now these have only one roi
-        for img in ['manual_ET','manual_TC','manual_WT']:
-            outputfilename = fileroot + '_' + img + '.nii'
-            self.WriteImage(self.ui.data[img],outputfilename)
-            # sitk.WriteImage(sitk.GetImageFromArray(self.ui.data[img]),fileroot+'_'+img+'.nii')
+        if self.ui.data['label'] is not None:
+            for img in ['manual_ET','manual_TC','manual_WT']:
+                outputfilename = fileroot + '_' + img + '.nii'
+                self.WriteImage(self.ui.data[img],outputfilename)
 
         sdict = {}
         bdict = {}
@@ -808,34 +826,27 @@ class CreateROIFrame(CreateFrame):
         
         roi = self.ui.get_currentroi()
         data = self.ui.roi[roi].data
-        # if roi > len(self.ui.roi):
-        #     self.append_roi(self.ui.stats)
         for t in ['ET','TC','WT']:
             # check for a complete segmentation
             if t not in data.keys():
-                return
+                continue
             elif data[t] is None:
-                return
-            sums = data['manual_'+t] + data[t]
-            subs = data['manual_'+t] - data[t]
-                    
-            TP = len(np.where(sums == 2)[0])
-            FP = len(np.where(subs == -1)[0])
-            TN = len(np.where(sums == 0)[0])
-            FN = len(np.where(subs == 1)[0])
-
-            # self.ui.stats['spec'][t][roi] = TN/(TN+FP)
-            # self.ui.stats['sens'][t][roi] = TP/(TP+FN)
-            # self.ui.stats['dice'][t][roi] = dice(data['manual_'+t].flatten(),data[t].flatten()) 
-            self.ui.roi[roi].stats['spec'][t] = TN/(TN+FP)
-            self.ui.roi[roi].stats['sens'][t] = TP/(TP+FN)
-            self.ui.roi[roi].stats['dsc'][t] = 1-dice(data['manual_'+t].flatten(),data[t].flatten()) 
-
-        # Calculate volumes
-            self.ui.roi[roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
+                continue
             self.ui.roi[roi].stats['vol'][t] = len(np.where(data[t])[0])
 
-        # copy gate counts
-            # self.ui.roi[roi].stats['gatecount']['t1'] = self.ui.roi[roi].data['blast']['gates'][3]
-            # self.ui.roi[roi].stats['gatecount']['t2'] = self.ui.roi[roi].data['blast']['gates'][4]
+            if self.ui.data['label'] is not None:
+                sums = data['manual_'+t] + data[t]
+                subs = data['manual_'+t] - data[t]
+                        
+                TP = len(np.where(sums == 2)[0])
+                FP = len(np.where(subs == -1)[0])
+                TN = len(np.where(sums == 0)[0])
+                FN = len(np.where(subs == 1)[0])
+
+                self.ui.roi[roi].stats['spec'][t] = TN/(TN+FP)
+                self.ui.roi[roi].stats['sens'][t] = TP/(TP+FN)
+                self.ui.roi[roi].stats['dsc'][t] = 1-dice(data['manual_'+t].flatten(),data[t].flatten()) 
+
+                # Calculate volumes
+                self.ui.roi[roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
 
