@@ -692,7 +692,7 @@ class CreateROIFrame(CreateFrame):
         sdict = {}
         bdict = {}
         msdict = {} 
-        for i,r in enumerate(self.ui.roi):
+        for i,r in enumerate(self.ui.roi[1:]): # skip dummy 
             sdict['roi'+str(i)] = r.stats
             bdict['roi'+str(i)] = r.data
             msdict['roi'+str(i)] = {}
@@ -701,8 +701,6 @@ class CreateROIFrame(CreateFrame):
             mdict['redgate_count'] = r.data['blast']['params']['ET']['t1']
             mdict['objectmask'] = r.data['ET']
             mdict['objectmask_filled'] = r.data['TC']
-            mdict['manualmasket'] = r.data['manual_ET']
-            mdict['manualmasktc'] = r.data['manual_TC']
             mdict['centreimage'] = 0
             mdict['specificity_et'] = r.stats['spec']['ET']
             mdict['sensitivity_et'] = r.stats['sens']['ET']
@@ -713,12 +711,15 @@ class CreateROIFrame(CreateFrame):
             mdict['specificity_wt'] = r.stats['spec']['WT']
             mdict['sensitivity_wt'] = r.stats['sens']['WT']
             mdict['dicecoefficient_wt'] = r.stats['dsc']['WT']
-            mdict['b'] = 0
-            mdict['b2'] = 0
-            mdict['manualmask_et_volume'] = r.stats['vol']['manual_ET']
-            mdict['manualmask_tc_volume'] = r.stats['vol']['manual_TC']
             mdict['objectmask_filled_volume'] = r.stats['vol']['TC']
             mdict['cumulative_elapsed_time'] = r.stats['elapsed_time']
+            mdict['b'] = 0
+            mdict['b2'] = 0
+            if self.ui.data['label'] is not None:
+                mdict['manualmasket'] = r.data['manual_ET']
+                mdict['manualmasktc'] = r.data['manual_TC']
+                mdict['manualmask_et_volume'] = r.stats['vol']['manual_ET']
+                mdict['manualmask_tc_volume'] = r.stats['vol']['manual_TC']
 
         with open(filename,'ab') as fp:
             pickle.dump((sdict,bdict),fp)

@@ -627,9 +627,9 @@ class CreateCaseFrame(CreateFrame):
         if self.ui.sliceviewerframe.slicevolume_norm.get() == 1:
             self.ui.sliceviewerframe.normalslice_callback()
 
-        # create the label
+        # create the label. 'seg' picks up the BraTS convention but may need to be more specific
         seg_file = next((f for f in files if 'seg' in f),None)
-        if seg_file:
+        if seg_file is not None and 'blast' not in seg_file:
             # label = sitk.ReadImage(os.path.join(self.casedir,self.config.UIdataroot+self.casename.get()+'_seg.nii'))
             label = sitk.ReadImage(os.path.join(self.casedir,seg_file))
             img_arr = sitk.GetArrayFromImage(label)
