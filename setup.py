@@ -18,5 +18,6 @@ setup(name='blast',
             "matplotlib",
             "connected-components-3d",
             "twisted",
-            "versioneer"      ])
+            "versioneer",
+            "nibabel"      ])
  
