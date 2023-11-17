@@ -127,13 +127,13 @@ class CreateSliceViewerFrame(CreateFrame):
         figtrans={}
         for a in ['A','B','C','D']:
             figtrans[a] = self.axs[a].transData + self.axs[a].transAxes.inverted()
-        self.xyfig['Im_A']= figtrans['A'].transform((5,15))
-        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),self.dim[1]-10))
-        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),self.dim[1]-10))
-        self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),self.dim[1]-10))
-        self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),self.dim[1]-10))
-        self.xyfig['Im_C'] = figtrans['C'].transform((5,15))
-        self.xyfig['Im_D'] = figtrans['D'].transform((5,15))
+        self.xyfig['Im_A']= figtrans['A'].transform((5,self.dim[1]-25))
+        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),10))
+        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),10))
+        self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),10))
+        self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),10))
+        self.xyfig['Im_C'] = figtrans['C'].transform((5,self.dim[0]-15))
+        self.xyfig['Im_D'] = figtrans['D'].transform((5,self.dim[0]-15))
 
         self.canvas = FigureCanvasTkAgg(fig, master=self.frame)  
         self.canvas.draw()
