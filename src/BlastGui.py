@@ -116,7 +116,9 @@ class BlastGui(object):
         self.roiframe = CreateROIFrame(self.sliceviewerframe.frame,ui=self,padding='0')
 
         # create case frame
-        self.caseframe = CreateCaseFrame(self.sliceviewerframe.frame,ui=self,load=self.config.AutoLoad)
+        self.caseframe = CreateCaseFrame(self.sliceviewerframe.frame,ui=self)
+        # initialize default directory.
+        self.caseframe.datadirentry_callback()
 
         self.mainframe.update()
 

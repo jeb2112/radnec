@@ -116,6 +116,11 @@ class CreateROIFrame(CreateFrame):
                                                         command=self.ui.sliceviewerframe.updateslice)
             self.overlaytype_button.grid(row=2,column=2,sticky='w')
 
+        # bind ROI select callbacks
+        self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Enter>',self.selectROI)
+        self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Leave>',self.resetCursor)
+
+
 
         ########################
         # layout for the sliders
@@ -149,10 +154,6 @@ class CreateROIFrame(CreateFrame):
         self.bcslider.grid(column=1,row=2,sticky='e')
         self.bcsliderlabel = ttk.Label(self.t1sliderframe,text='{:.1f}'.format(self.currentbcsize.get()))
         self.bcsliderlabel.grid(row=2,column=2,sticky='e')
-
-        # bind ROI select callbacks
-        self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Enter>',self.selectROI)
-        self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Leave>',self.resetCursor)
 
 
     #############

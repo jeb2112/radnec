@@ -69,14 +69,92 @@ class CreateSliceViewerFrame(CreateFrame):
         self.b3y = None # mouse drag for cor,sag slice
         # image dimensions
         self.dim = self.ui.config.ImageDim
+        self.canvas = None
+        self.blankcanvas = None
 
         self.ui = ui
 
         self.frame.grid(column=0,row=0, sticky='NEW',in_=self.parentframe)
         # self.frame.rowconfigure(0,weight=2)
         # self.frame.rowconfigure(1,weight=10)
-        # slice viewer widget
-        slicefovratio = self.ui.config.ImageDim[0]/self.ui.config.ImageDim[1]
+
+        # slice viewer canvas widget
+        self.create_canvas()
+        # self.canvas = copy.deepcopy(self.blankcanvas)
+
+        # normal slice button
+        normal_frame = ttk.Frame(self.frame,padding='0')
+        normal_frame.grid(row=4,column=0,sticky='w')
+        normalSlice = ttk.Button(normal_frame,text='normal',command=self.normalslice_callback)
+        normalSlice.grid(column=0,row=0,sticky='w')
+        slicevolume_slice_button = ttk.Radiobutton(normal_frame,text='slice',variable=self.slicevolume_norm,value=0)
+        slicevolume_slice_button.grid(row=0,column=1,sticky='w')
+        slicevolume_volume_button = ttk.Radiobutton(normal_frame,text='vol.',variable=self.slicevolume_norm,value=1)
+        slicevolume_volume_button.grid(row=0,column=2,sticky='w')
+
+        # t1/t2 selection for sag/cor panes
+        sagcordisplay_label = ttk.Label(normal_frame, text='Sag/Cor: ')
+        sagcordisplay_label.grid(row=0,column=4,padx=(50,0),sticky='e')
+        self.sagcordisplay_button = ttk.Radiobutton(normal_frame,text='T1',variable=self.sagcordisplay,value=0,
+                                                    command=self.updateslice)
+        self.sagcordisplay_button.grid(column=5,row=0,sticky='w')
+        self.sagcordisplay_button = ttk.Radiobutton(normal_frame,text='T2',variable=self.sagcordisplay,value=1,
+                                                    command=self.updateslice)
+        self.sagcordisplay_button.grid(column=6,row=0,sticky='w')
+
+        # overlay type contour mask
+        overlaytype_label = ttk.Label(normal_frame, text='overlay type: ')
+        overlaytype_label.grid(row=1,column=4,padx=(50,0),sticky='e')
+        self.overlaytype_button = ttk.Radiobutton(normal_frame,text='C',variable=self.overlaytype,value=0,
+                                                    command=Command(self.updateslice,wl=True))
+        self.overlaytype_button.grid(row=1,column=5,sticky='w')
+        self.overlaytype_button = ttk.Radiobutton(normal_frame,text='M',variable=self.overlaytype,value=1,
+                                                    command=Command(self.updateslice,wl=True))
+        self.overlaytype_button.grid(row=1,column=6,sticky='w')
+
+        # messages text frame
+        self.messagelabel = ttk.Label(self.frame,text=self.ui.message.get(),padding='5',borderwidth=0)
+        self.messagelabel.grid(row=6,column=0,columnspan=3,sticky='ew')
+
+        if self.ui.OS in ('win32','darwin'):
+            self.ui.root.bind('<Button>',self.touchpad)
+            self.ui.root.bind('<B1-Motion>',self.b1motion)
+            self.ui.root.bind('<B3-Motion>',self.b3motion)
+            self.ui.root.bind('<ButtonRelease-1>',self.b1release)
+        if self.ui.OS == 'linux':
+            self.ui.root.bind('<Button>',self.touchpad)
+            self.ui.root.bind('<B1-Motion>',self.b1motion)
+            self.ui.root.bind('<B3-Motion>',self.b3motion)
+            self.ui.root.bind('<Button-3>',self.b3motion_reset)
+            self.ui.root.bind('<ButtonRelease-1>',self.b1release)
+
+    def create_blank_canvas(self):
+        # if self.canvas is not None:
+        #     self.frame.children['!canvas'].destroy()
+        slicefovratio = self.dim[0]/self.dim[1]
+        fig,axs = plt.figure(figsize=((2*self.ui.config.PanelSize + 2/slicefovratio),4),dpi=100)
+        axs.axis('off')
+        fig.tight_layout(pad=0)
+        fig.patch.set_facecolor('k')
+        blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
+        blankcanvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
+        blankcanvas.draw()
+        return blankcanvas
+
+    def adjust_canvas(self,h=None,w=None):
+        if h is None:
+            h = self.ui.config.PanelSize
+        if w is None:
+            slicefovratio = self.ui.sliceviewerframe.dim[0]/self.ui.sliceviewerframe.dim[1]
+            w = 2*self.ui.config.PanelSize + 2/slicefovratio
+        self.canvas.figure.set_figheight(h)
+        self.canvas.figure.set_figwidth(w)
+        return
+    
+    def create_canvas(self):
+        # if self.canvas is not None:
+        #     self.canvas.get_tk_widget().delete('all')
+        slicefovratio = self.dim[0]/self.dim[1]
         fig,self.axs = plt.subplot_mosaic([['A','B','C'],['A','B','D']],
                                      width_ratios=[self.ui.config.PanelSize,self.ui.config.PanelSize,
                                                    self.ui.config.PanelSize / (2 * slicefovratio) ],
@@ -121,6 +199,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.axs['B']._shared_axes['x'].join(self.axs['B'],self.axs['A'])
         self.axs['B']._shared_axes['y'].join(self.axs['B'],self.axs['A'])
         fig.tight_layout(pad=0)
+        fig.patch.set_facecolor('k')
 
         # record the data to figure coords of each label for each axis
         self.xyfig={}
@@ -143,54 +222,6 @@ class CreateSliceViewerFrame(CreateFrame):
         self.tbar.children['!button4'].pack_forget() # get rid of configure plot
         self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
 
-        # normal slice button
-        normal_frame = ttk.Frame(self.frame,padding='0')
-        normal_frame.grid(row=4,column=0,sticky='w')
-        normalSlice = ttk.Button(normal_frame,text='normal',command=self.normalslice_callback)
-        normalSlice.grid(column=0,row=0,sticky='w')
-        slicevolume_slice_button = ttk.Radiobutton(normal_frame,text='slice',variable=self.slicevolume_norm,value=0)
-        slicevolume_slice_button.grid(row=0,column=1,sticky='w')
-        slicevolume_volume_button = ttk.Radiobutton(normal_frame,text='vol.',variable=self.slicevolume_norm,value=1)
-        slicevolume_volume_button.grid(row=0,column=2,sticky='w')
-
-        # t1/t2 selection for sag/cor panes
-        sagcordisplay_label = ttk.Label(normal_frame, text='Sag/Cor: ')
-        sagcordisplay_label.grid(row=0,column=4,padx=(50,0),sticky='e')
-        self.sagcordisplay_button = ttk.Radiobutton(normal_frame,text='T1',variable=self.sagcordisplay,value=0,
-                                                    command=self.updateslice)
-        self.sagcordisplay_button.grid(column=5,row=0,sticky='w')
-        self.sagcordisplay_button = ttk.Radiobutton(normal_frame,text='T2',variable=self.sagcordisplay,value=1,
-                                                    command=self.updateslice)
-        self.sagcordisplay_button.grid(column=6,row=0,sticky='w')
-
-        # overlay type contour mask
-        overlaytype_label = ttk.Label(normal_frame, text='overlay type: ')
-        overlaytype_label.grid(row=1,column=4,padx=(50,0),sticky='e')
-        self.overlaytype_button = ttk.Radiobutton(normal_frame,text='C',variable=self.overlaytype,value=0,
-                                                    command=Command(self.updateslice,wl=True))
-        self.overlaytype_button.grid(row=1,column=5,sticky='w')
-        self.overlaytype_button = ttk.Radiobutton(normal_frame,text='M',variable=self.overlaytype,value=1,
-                                                    command=Command(self.updateslice,wl=True))
-        self.overlaytype_button.grid(row=1,column=6,sticky='w')
-
-        # messages text frame
-        self.messagelabel = ttk.Label(self.frame,text=self.ui.message.get(),padding='5',borderwidth=0)
-        self.messagelabel.grid(row=6,column=0,columnspan=3,sticky='ew')
-
-        if self.ui.OS in ('win32','darwin'):
-            # self.frame.bind('<MouseWheel>', self.updatew2())
-            # self.frame.bind('<Shift-MouseWheel>', self.updatel2())
-            self.ui.root.bind('<Button>',self.touchpad)
-            self.ui.root.bind('<B1-Motion>',self.b1motion)
-            self.ui.root.bind('<B3-Motion>',self.b3motion)
-            self.ui.root.bind('<ButtonRelease-1>',self.b1release)
-        if self.ui.OS == 'linux':
-            self.ui.root.bind('<Button>',self.touchpad)
-            self.ui.root.bind('<B1-Motion>',self.b1motion)
-            self.ui.root.bind('<B3-Motion>',self.b3motion)
-            self.ui.root.bind('<Button-3>',self.b3motion_reset)
-            self.ui.root.bind('<ButtonRelease-1>',self.b1release)
-            # self.ui.root.bind('<ButtonRelease>',self.touchpad)
 
     # TODO: different bindings and callbacks need some organization
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
@@ -511,7 +542,7 @@ class CreateSliceViewerFrame(CreateFrame):
 ################
 
 class CreateCaseFrame(CreateFrame):
-    def __init__(self,parent,ui=None,load=True):
+    def __init__(self,parent,ui=None):
         super().__init__(parent,ui=ui)
 
         self.fd = FileDialog(initdir=self.config.UIdatadir)
@@ -532,18 +563,17 @@ class CreateCaseFrame(CreateFrame):
         self.fdbutton.grid(row=0,column=2)
         self.datadirentry = ttk.Entry(caseframe,width=40,textvariable=self.datadir)
         # event currently a dummy arg since not being used in datadirentry_callback
-        self.datadirentry.bind('<Return>',lambda event=None,load=load:self.datadirentry_callback(event=event,load=load))
+        self.datadirentry.bind('<Return>',lambda event=None:self.datadirentry_callback(event=event))
         self.datadirentry.grid(column=3,row=0,columnspan=5)
         caselabel = ttk.Label(caseframe, text='Case: ')
         caselabel.grid(column=0,row=0,sticky='we')
-        self.casename.trace_add('write',self.case_callback)
+        # self.casename.trace_add('write',self.case_callback)
         self.w = ttk.Combobox(caseframe,width=6,textvariable=self.casename,values=self.caselist)
         self.w.grid(column=1,row=0)
+        self.w.bind("<<ComboboxSelected>>",self.case_callback)
         self.n4_check = ttk.Checkbutton(caseframe,text='N4',variable=self.n4_check_value)
         self.n4_check.grid(row=0,column=8,sticky='w')
 
-        # initialize default directory. not a tkinter event so no event arg explicitly needed.
-        self.datadirentry_callback(load=load)
 
     # callback for file dialog 
     def select_dir(self):
@@ -583,8 +613,6 @@ class CreateCaseFrame(CreateFrame):
         if True:
             img_nb = nb.load(os.path.join(self.casedir,t1ce_file))
             self.ui.nb_header = img_nb.header.copy()
-            # self.ui.origin = img_nb.header.get_best_affine()[:3,3]
-            # self.ui.direction = img_nb.header.get_best_affine()[:3,:3].flatten()
             # nibabel convention will be transposed to sitk convention
             img_arr = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
 
@@ -600,8 +628,13 @@ class CreateCaseFrame(CreateFrame):
             self.ui.direction = img_sitk.GetDirection()
             img_arr = sitk.GetArrayFromImage(img_sitk)
 
-        # dimensions of panels might have to change depending on dimension of new data loaded.
+        # dimensions of canvas panel might have to change depending on dimension of new data loaded.
         self.ui.sliceviewerframe.dim = np.shape(img_arr)
+        if self.ui.sliceviewerframe.canvas is None:
+            self.ui.sliceviewerframe.create_canvas()
+        else:
+            self.ui.sliceviewerframe.adjust_canvas()
+
         # 2 channels hard-coded
         self.ui.data['raw'] = np.zeros((2,)+self.ui.sliceviewerframe.dim,dtype='float32')
         self.ui.data['raw'][0] = img_arr
@@ -630,7 +663,6 @@ class CreateCaseFrame(CreateFrame):
         # create the label. 'seg' picks up the BraTS convention but may need to be more specific
         seg_file = next((f for f in files if 'seg' in f),None)
         if seg_file is not None and 'blast' not in seg_file:
-            # label = sitk.ReadImage(os.path.join(self.casedir,self.config.UIdataroot+self.casename.get()+'_seg.nii'))
             label = sitk.ReadImage(os.path.join(self.casedir,seg_file))
             img_arr = sitk.GetArrayFromImage(label)
             self.ui.data['label'] = img_arr
@@ -684,7 +716,7 @@ class CreateCaseFrame(CreateFrame):
         return
 
     # main callback for selecting dir either by file dialog or text entry
-    def datadirentry_callback(self,event=None,load=True):
+    def datadirentry_callback(self,event=None):
         dir = self.datadir.get().strip()
         if os.path.exists(dir):
             self.w.config(state='normal')            
@@ -693,13 +725,15 @@ class CreateCaseFrame(CreateFrame):
             casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
             self.ui.set_message('')
             if len(casefiles):
+                self.config.UIdataroot = self.casefile_prefix
                 # TODO: will need a better sort here
                 self.caselist = sorted(casefiles)
                 self.w['values'] = self.caselist
+                self.w.current(0)
                 # autoload first case
-                if load:
+                if self.config.AutoLoad:
                     self.casename.set(self.caselist[0])
-                    # self.ui.set_casename()
+                    self.case_callback()
             else:
                 print('No cases found in directory {}'.format(dir))
                 self.ui.set_message('No cases found in directory {}'.format(dir))
