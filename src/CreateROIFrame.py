@@ -13,6 +13,7 @@ from matplotlib.backend_bases import _Mode
 from enum import Enum
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
+import nibabel as nb
 from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube,reconstruction
 from skimage.measure import find_contours
 from scipy.spatial.distance import dice
@@ -731,11 +732,22 @@ class CreateROIFrame(CreateFrame):
 
     # for now output only segmentations so uint8
     def WriteImage(self,img_arr,filename):
-        img = sitk.GetImageFromArray(img_arr.astype('uint8'))
-        writer = sitk.ImageFileWriter()
-        writer.SetImageIO('NiftiImageIO')
-        writer.SetFileName(filename)
-        writer.Execute(img)
+        # using nibabel nifti coordinates
+        if True:
+            img_nb = nb.Nifti1Image(np.transpose(img_arr.astype('uint8'),(2,1,0)),None,header=self.ui.nb_header)
+            nb.save(img_nb,filename)
+        # couldn't get sitk nifti coordinates to work in mricron viewer
+        else:
+            img = sitk.GetImageFromArray(img_arr.astype('uint8'))
+            # this fails to copy origin, so do it manually
+            # img.CopyInformation(self.ui.t1ce)
+            img.SetDirection(self.ui.direction)
+            img.SetSpacing(self.ui.spacing)
+            img.SetOrigin(self.ui.origin)
+            writer = sitk.ImageFileWriter()
+            writer.SetImageIO('NiftiImageIO')
+            writer.SetFileName(filename)
+            writer.Execute(img)
         return
         
     # def updateROI(self):

@@ -5,6 +5,7 @@ import copy
 import re
 import logging
 import tkinter as tk
+import nibabel as nb
 from tkinter import ttk,StringVar,DoubleVar,PhotoImage
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -80,10 +81,10 @@ class CreateSliceViewerFrame(CreateFrame):
                                      width_ratios=[self.ui.config.PanelSize,self.ui.config.PanelSize,
                                                    self.ui.config.PanelSize / (2 * slicefovratio) ],
                                      figsize=((2*self.ui.config.PanelSize + 2/slicefovratio),4),dpi=100)
-        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray')
-        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray')
-        self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray')
-        self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray')
+        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower')
+        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower')
+        self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower')
+        self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower')
         self.ax_img.format_cursor_data = self.make_cursordata_format()
         self.ax2_img.format_cursor_data = self.make_cursordata_format()
         self.ax3_img.format_cursor_data = self.make_cursordata_format()
@@ -577,11 +578,28 @@ class CreateCaseFrame(CreateFrame):
             self.ui.set_casename()
         self.casedir = os.path.join(self.datadir.get(),self.config.UIdataroot+self.casename.get())
         files = os.listdir(self.casedir)
-        # create t1mprage template
         t1ce_file = next((f for f in files if 't1ce' in f),None)
-        t1ce = sitk.ReadImage(os.path.join(self.casedir,t1ce_file))
-        # TODO: do coordinates properly for now just use flip for slice dimension
-        img_arr = np.flip(sitk.GetArrayFromImage(t1ce),axis=0)
+        # using nibabel for input image coordinates
+        if True:
+            img_nb = nb.load(os.path.join(self.casedir,t1ce_file))
+            self.ui.nb_header = img_nb.header.copy()
+            # self.ui.origin = img_nb.header.get_best_affine()[:3,3]
+            # self.ui.direction = img_nb.header.get_best_affine()[:3,:3].flatten()
+            # nibabel convention will be transposed to sitk convention
+            img_arr = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
+
+        # sitk is not reading the nifti image origin for some reason. 
+        else:
+            reader = sitk.ImageFileReader()
+            reader.SetImageIO('NiftiImageIO')
+            reader.SetFileName(os.path.join(self.casedir,t1ce_file))
+            reader.ReadImageInformation()
+            img_sitk = reader.Execute()
+            self.ui.origin = img_sitk.GetOrigin()
+            self.ui.spacing = img_sitk.GetSpacing()
+            self.ui.direction = img_sitk.GetDirection()
+            img_arr = sitk.GetArrayFromImage(img_sitk)
+
         # dimensions of panels might have to change depending on dimension of new data loaded.
         self.ui.sliceviewerframe.dim = np.shape(img_arr)
         # 2 channels hard-coded
@@ -591,7 +609,8 @@ class CreateCaseFrame(CreateFrame):
         # Create t2flair template 
         t2flair_file = next((f for f in files if 'flair' in f),None)
         t2flair = sitk.ReadImage(os.path.join(self.casedir,t2flair_file))
-        img_arr = np.flip(sitk.GetArrayFromImage(t2flair),axis=0)
+        # img_arr = np.flip(sitk.GetArrayFromImage(t2flair),axis=0)
+        img_arr = sitk.GetArrayFromImage(t2flair)
         self.ui.data['raw'][1] = img_arr
 
         # bias correction. by convention, any pre-corrected files should have 'bias' in the filename
