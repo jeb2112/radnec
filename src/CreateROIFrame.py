@@ -117,8 +117,8 @@ class CreateROIFrame(CreateFrame):
             self.overlaytype_button.grid(row=2,column=2,sticky='w')
 
         # bind ROI select callbacks
-        self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Enter>',self.selectROI)
-        self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Leave>',self.resetCursor)
+        # self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Enter>',self.selectROI)
+        # self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Leave>',self.resetCursor)
 
 
 

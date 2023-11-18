@@ -6,9 +6,10 @@ import re
 import logging
 import tkinter as tk
 import nibabel as nb
+from nibabel.processing import resample_from_to
 from tkinter import ttk,StringVar,DoubleVar,PhotoImage
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg,NavigationToolbar2Tk
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.artist import Artist
@@ -74,13 +75,13 @@ class CreateSliceViewerFrame(CreateFrame):
 
         self.ui = ui
 
-        self.frame.grid(column=0,row=0, sticky='NEW',in_=self.parentframe)
+        # self.frame.grid(column=0,row=0, sticky='NEW',in_=self.parentframe)
+        self.frame.grid(column=0,row=1, sticky='NEW',in_=self.parentframe)
         # self.frame.rowconfigure(0,weight=2)
         # self.frame.rowconfigure(1,weight=10)
 
         # slice viewer canvas widget
-        self.create_canvas()
-        # self.canvas = copy.deepcopy(self.blankcanvas)
+        self.create_blank_canvas()
 
         # normal slice button
         normal_frame = ttk.Frame(self.frame,padding='0')
@@ -128,39 +129,30 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ui.root.bind('<Button-3>',self.b3motion_reset)
             self.ui.root.bind('<ButtonRelease-1>',self.b1release)
 
+    # place holder until a dataset is loaded
     def create_blank_canvas(self):
-        # if self.canvas is not None:
-        #     self.frame.children['!canvas'].destroy()
-        slicefovratio = self.dim[0]/self.dim[1]
-        fig,axs = plt.figure(figsize=((2*self.ui.config.PanelSize + 2/slicefovratio),4),dpi=100)
+        slicefovratio = self.config.ImageDim[0]/self.config.ImageDim[1]
+        fig = plt.figure(figsize=((2*self.ui.config.PanelSize + 2/slicefovratio),4),dpi=100)
+        axs = plt.subplot(111)
         axs.axis('off')
         fig.tight_layout(pad=0)
         fig.patch.set_facecolor('k')
         blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
         blankcanvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
         blankcanvas.draw()
+        tbar = NavigationToolbar2Tk(blankcanvas,self.frame,pack_toolbar=False)
+        tbar.children['!button4'].pack_forget() # get rid of configure plot
+        tbar.grid(column=0,row=3,columnspan=3,sticky='w')
         return blankcanvas
-
-    def adjust_canvas(self,h=None,w=None):
-        if h is None:
-            h = self.ui.config.PanelSize
-        if w is None:
-            slicefovratio = self.ui.sliceviewerframe.dim[0]/self.ui.sliceviewerframe.dim[1]
-            w = 2*self.ui.config.PanelSize + 2/slicefovratio
-        self.canvas.figure.set_figheight(h)
-        self.canvas.figure.set_figwidth(w)
-        return
     
     def create_canvas(self):
-        # if self.canvas is not None:
-        #     self.canvas.get_tk_widget().delete('all')
         slicefovratio = self.dim[0]/self.dim[1]
         fig,self.axs = plt.subplot_mosaic([['A','B','C'],['A','B','D']],
                                      width_ratios=[self.ui.config.PanelSize,self.ui.config.PanelSize,
                                                    self.ui.config.PanelSize / (2 * slicefovratio) ],
                                      figsize=((2*self.ui.config.PanelSize + 2/slicefovratio),4),dpi=100)
-        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower')
-        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower')
+        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper')
+        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper')
         self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower')
         self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower')
         self.ax_img.format_cursor_data = self.make_cursordata_format()
@@ -206,22 +198,30 @@ class CreateSliceViewerFrame(CreateFrame):
         figtrans={}
         for a in ['A','B','C','D']:
             figtrans[a] = self.axs[a].transData + self.axs[a].transAxes.inverted()
-        self.xyfig['Im_A']= figtrans['A'].transform((5,self.dim[1]-25))
-        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),10))
-        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),10))
-        self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),10))
-        self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),10))
+        self.xyfig['Im_A']= figtrans['A'].transform((5,25))
+        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),self.dim[1]-10))
+        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),self.dim[1]-10))
+        self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),self.dim[1]-10))
+        self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),self.dim[1]-10))
         self.xyfig['Im_C'] = figtrans['C'].transform((5,self.dim[0]-15))
         self.xyfig['Im_D'] = figtrans['D'].transform((5,self.dim[0]-15))
 
-        self.canvas = FigureCanvasTkAgg(fig, master=self.frame)  
-        self.canvas.draw()
-        self.canvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
+        newcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
+        newcanvas.get_tk_widget().configure(bg='black')
+        newcanvas.draw()
+        newcanvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
 
-        self.tbar = NavigationBar(self.canvas,self.frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
+        self.tbar = NavigationBar(newcanvas,self.frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
         self.tbar.children['!button4'].pack_forget() # get rid of configure plot
         self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
 
+        # bind ROI select callbacks
+        newcanvas.get_tk_widget().bind('<Enter>',self.ui.roiframe.selectROI)
+        newcanvas.get_tk_widget().bind('<Leave>',self.ui.roiframe.resetCursor)
+
+        if self.canvas is not None:
+            self.canvas.get_tk_widget().delete('all')
+        self.canvas = newcanvas
 
     # TODO: different bindings and callbacks need some organization
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
@@ -233,8 +233,8 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ui.runblast(currentslice=slice)
         self.ax_img.set(data=self.ui.data[self.ui.dataselection][0,slice,:,:])
         self.ax2_img.set(data=self.ui.data[self.ui.dataselection][1,slice,:,:])
-        self.ax3_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,slicecor,:])
-        self.ax4_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,:,slicesag])
+        self.ax3_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,:,slicesag])
+        self.ax4_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,slicecor,:])
         # add current slice overlay
         self.update_labels()
 
@@ -535,6 +535,9 @@ class CreateSliceViewerFrame(CreateFrame):
         for layer in ['ET','T2 hyper']:
             self.ui.roiframe.layer_callback(layer=layer,updateslice=False,overlay=False)
             self.ui.runblast(currentslice=None,layer=layer)
+        # bind ROI select callbacks
+        self.canvas.get_tk_widget().bind('<Enter>',self.ui.roiframe.selectROI)
+        self.canvas.get_tk_widget().bind('<Leave>',self.ui.roiframe.resetCursor)
 
 
 ################
@@ -630,10 +633,11 @@ class CreateCaseFrame(CreateFrame):
 
         # dimensions of canvas panel might have to change depending on dimension of new data loaded.
         self.ui.sliceviewerframe.dim = np.shape(img_arr)
-        if self.ui.sliceviewerframe.canvas is None:
-            self.ui.sliceviewerframe.create_canvas()
-        else:
-            self.ui.sliceviewerframe.adjust_canvas()
+        # if self.ui.sliceviewerframe.canvas is None:
+        self.ui.sliceviewerframe.create_canvas()
+        # else:
+        #     self.ui.sliceviewerframe.adjust_canvas()
+        #     self.ui.sliceviewerframe.create_canvas()
 
         # 2 channels hard-coded
         self.ui.data['raw'] = np.zeros((2,)+self.ui.sliceviewerframe.dim,dtype='float32')

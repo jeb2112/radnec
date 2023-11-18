@@ -109,14 +109,15 @@ class BlastGui(object):
         self.mainframe.columnconfigure(0,weight=1)
         # self.mainframe.columnconfigure(1,weight=1)
 
+        # create case frame
+        self.caseframe = CreateCaseFrame(self.mainframe,ui=self)
+
         # slice viewer frame
         self.sliceviewerframe = CreateSliceViewerFrame(self.mainframe,ui=self,padding='10')        
 
         # roi functions
         self.roiframe = CreateROIFrame(self.sliceviewerframe.frame,ui=self,padding='0')
 
-        # create case frame
-        self.caseframe = CreateCaseFrame(self.sliceviewerframe.frame,ui=self)
         # initialize default directory.
         self.caseframe.datadirentry_callback()
 
