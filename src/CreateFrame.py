@@ -725,8 +725,13 @@ class CreateCaseFrame(CreateFrame):
         if os.path.exists(dir):
             self.w.config(state='normal')            
             files = os.listdir(dir)
-            self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
-            casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
+            try:
+                self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
+                casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
+            except AttributeError as e:
+                print('No cases found in directory {}'.format(dir))
+                self.ui.set_message('No cases found in directory {}'.format(dir))
+                return
             self.ui.set_message('')
             if len(casefiles):
                 self.config.UIdataroot = self.casefile_prefix
