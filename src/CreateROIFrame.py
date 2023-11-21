@@ -55,7 +55,7 @@ class CreateROIFrame(CreateFrame):
         # layout for the buttons
         ########################
 
-        self.frame.grid(column=2,row=3,rowspan=5,sticky='e')
+        self.frame.grid(row=2,column=5,rowspan=5,sticky='e')
 
         # ROI buttons
         enhancingROI_label = ttk.Label(self.frame,text='overlay on/off')

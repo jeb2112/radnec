@@ -25,6 +25,10 @@ class BlastGui(object):
 
         self.root.title(self.titletext)
         self.config = config
+        self.config.dpi = self.root.winfo_fpixels('1i')
+        self.config.swi = self.root.winfo_screenwidth()/self.config.dpi
+        self.config.shi = self.root.winfo_screenheight()/self.config.dpi
+
         self.logoImg = os.path.join(self.config.UIResourcesPath,'sunnybrook.png')
         self.blastImage = PhotoImage(file=self.logoImg)
         self.normalslice = None
@@ -61,6 +65,7 @@ class BlastGui(object):
             # 00002 53,81
             self.caseframe.n4_check_value.set(0)
             self.caseframe.casename.set('00006')
+            self.caseframe.case_callback()
             if self.sliceviewerframe.slicevolume_norm.get() == 0:
                 self.sliceviewerframe.currentslice.set(53)
                 self.updateslice()
@@ -105,24 +110,27 @@ class BlastGui(object):
     def createGeneralLayout(self):
         # create the main holder frame
         self.mainframe = ttk.Frame(self.root, padding='10')
-        self.mainframe.grid(column=0, row=0, sticky='NEW')
-        self.mainframe.columnconfigure(0,weight=1)
-        # self.mainframe.columnconfigure(1,weight=1)
+        self.mainframe.grid(column=0, row=0, sticky='NS')
 
         # create case frame
         self.caseframe = CreateCaseFrame(self.mainframe,ui=self)
 
         # slice viewer frame
-        self.sliceviewerframe = CreateSliceViewerFrame(self.mainframe,ui=self,padding='10')        
+        self.sliceviewerframe = CreateSliceViewerFrame(self.mainframe,ui=self,padding='10')
 
         # roi functions
-        self.roiframe = CreateROIFrame(self.sliceviewerframe.frame,ui=self,padding='0')
+        self.roiframe = CreateROIFrame(self.mainframe,ui=self,padding='0')
 
         # initialize default directory.
         self.caseframe.datadirentry_callback()
 
+        for row_num in range(self.mainframe.grid_size()[1]):
+            if row_num == 1:
+                self.mainframe.rowconfigure(row_num,weight=1)
+            else:
+                self.mainframe.rowconfigure(row_num,weight=0)
+        self.sliceviewerframe.frame.bind('<Configure>',self.sliceviewerframe.resizer)
         self.mainframe.update()
-
 
     ##############
     # BLAST method

@@ -71,20 +71,18 @@ class CreateSliceViewerFrame(CreateFrame):
         # image dimensions
         self.dim = self.ui.config.ImageDim
         self.canvas = None
+        self.cw = None
         self.blankcanvas = None
+        self.fig = None
 
         self.ui = ui
 
-        # self.frame.grid(column=0,row=0, sticky='NEW',in_=self.parentframe)
-        self.frame.grid(column=0,row=1, sticky='NEW',in_=self.parentframe)
-        # self.frame.rowconfigure(0,weight=2)
-        # self.frame.rowconfigure(1,weight=10)
-
+        self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NS')
         # slice viewer canvas widget
         self.create_blank_canvas()
 
         # normal slice button
-        normal_frame = ttk.Frame(self.frame,padding='0')
+        normal_frame = ttk.Frame(self.parentframe,padding='0')
         normal_frame.grid(row=4,column=0,sticky='w')
         normalSlice = ttk.Button(normal_frame,text='normal',command=self.normalslice_callback)
         normalSlice.grid(column=0,row=0,sticky='w')
@@ -114,8 +112,8 @@ class CreateSliceViewerFrame(CreateFrame):
         self.overlaytype_button.grid(row=1,column=6,sticky='w')
 
         # messages text frame
-        self.messagelabel = ttk.Label(self.frame,text=self.ui.message.get(),padding='5',borderwidth=0)
-        self.messagelabel.grid(row=6,column=0,columnspan=3,sticky='ew')
+        self.messagelabel = ttk.Label(normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
+        self.messagelabel.grid(row=2,column=0,columnspan=3,sticky='ew')
 
         if self.ui.OS in ('win32','darwin'):
             self.ui.root.bind('<Button>',self.touchpad)
@@ -124,37 +122,59 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ui.root.bind('<ButtonRelease-1>',self.b1release)
         if self.ui.OS == 'linux':
             self.ui.root.bind('<Button>',self.touchpad)
-            self.ui.root.bind('<B1-Motion>',self.b1motion)
+            # self.ui.root.bind('<B1-Motion>',self.b1motion)
             self.ui.root.bind('<B3-Motion>',self.b3motion)
             self.ui.root.bind('<Button-3>',self.b3motion_reset)
             self.ui.root.bind('<ButtonRelease-1>',self.b1release)
 
-    # place holder until a dataset is loaded
+    def resizer(self,event):
+        # wdow = plt.get_current_fig_manager().window
+        print('event = {:d},{:d}'.format(event.x,event.y))
+        if self.cw is None:
+            return
+        # height will constrain the width
+        slicefovratio = self.dim[0]/self.dim[1]
+        self.hi = event.height/self.config.dpi
+        self.wi = 2*self.hi+2/slicefovratio
+        # print('{:d},{:d},{:.2f},{:.2f},{:.2f}'.format(event.width,event.height,self.wi,self.hi,self.wi/self.hi))
+        self.cw.configure(width=int(self.wi*self.fig.dpi),height=int(self.hi*self.fig.dpi))
+        self.fig.set_size_inches((self.wi,self.hi),forward=True)
+        self.updateslice()
+        return
+
+    # place holder until a dataset is loadedrowconfigure
     def create_blank_canvas(self):
         slicefovratio = self.config.ImageDim[0]/self.config.ImageDim[1]
-        fig = plt.figure(figsize=((2*self.ui.config.PanelSize + 2/slicefovratio),4),dpi=100)
+        self.fig = plt.figure(figsize=((2*self.ui.config.PanelSize + 2/slicefovratio),4),dpi=100)
         axs = plt.subplot(111)
         axs.axis('off')
-        fig.tight_layout(pad=0)
-        fig.patch.set_facecolor('k')
-        blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
-        blankcanvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
-        blankcanvas.draw()
-        tbar = NavigationToolbar2Tk(blankcanvas,self.frame,pack_toolbar=False)
+        self.fig.tight_layout(pad=0)
+        self.fig.patch.set_facecolor('k')
+        self.blankcanvas = FigureCanvasTkAgg(self.fig, master=self.frame)  
+        self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
+        self.blankcanvas.draw()
+        tbar = NavigationToolbar2Tk(self.blankcanvas,self.frame,pack_toolbar=False)
         tbar.children['!button4'].pack_forget() # get rid of configure plot
-        tbar.grid(column=0,row=3,columnspan=3,sticky='w')
-        return blankcanvas
+        # tbar.grid(column=0,row=3,columnspan=3,sticky='w')
     
-    def create_canvas(self):
+    def create_canvas(self,figsize=None):
+        if self.blankcanvas is not None:
+            self.blankcanvas.get_tk_widget().delete('all')
+            self.blankcanvas = None
         slicefovratio = self.dim[0]/self.dim[1]
-        fig,self.axs = plt.subplot_mosaic([['A','B','C'],['A','B','D']],
+        if figsize is None:
+            figsize = ((2*self.ui.config.PanelSize + 2/slicefovratio),self.ui.config.PanelSize)
+        if self.fig is not None:
+            plt.close(self.fig)
+
+        self.fig,self.axs = plt.subplot_mosaic([['A','B','C'],['A','B','D']],
                                      width_ratios=[self.ui.config.PanelSize,self.ui.config.PanelSize,
                                                    self.ui.config.PanelSize / (2 * slicefovratio) ],
-                                     figsize=((2*self.ui.config.PanelSize + 2/slicefovratio),4),dpi=100)
-        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper')
-        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper')
-        self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower')
-        self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower')
+                                     figsize=figsize,dpi=self.config.dpi)
+        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
+        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
+        self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
+        self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
         self.ax_img.format_cursor_data = self.make_cursordata_format()
         self.ax2_img.format_cursor_data = self.make_cursordata_format()
         self.ax3_img.format_cursor_data = self.make_cursordata_format()
@@ -172,11 +192,11 @@ class CreateSliceViewerFrame(CreateFrame):
         # 3. this dummy axis covers the bottom half of subplot mosaic 'A' in range (0,1), which preserves the aspect
         # ratio and transform, and with a simple offset of +1 in y also gets to the top half of 'A'
         # in figure coordinates.
-        self.axs['labelA'] = fig.add_subplot(2,3,4)
+        self.axs['labelA'] = self.fig.add_subplot(2,3,4)
 
-        self.axs['labelB'] = fig.add_subplot(2,3,5)
-        self.axs['labelC'] = fig.add_subplot(2,3,3)
-        self.axs['labelD'] = fig.add_subplot(2,3,6)
+        self.axs['labelB'] = self.fig.add_subplot(2,3,5)
+        self.axs['labelC'] = self.fig.add_subplot(2,3,3)
+        self.axs['labelD'] = self.fig.add_subplot(2,3,6)
         for a in ['A','B','C','D']:
             # set axes zorder so label axis is on the bottom
             # self.axs[a].set_zorder(1)
@@ -190,9 +210,8 @@ class CreateSliceViewerFrame(CreateFrame):
         # set up axis sharing
         self.axs['B']._shared_axes['x'].join(self.axs['B'],self.axs['A'])
         self.axs['B']._shared_axes['y'].join(self.axs['B'],self.axs['A'])
-        fig.tight_layout(pad=0)
-        fig.patch.set_facecolor('k')
-
+        self.fig.tight_layout(pad=0)
+        self.fig.patch.set_facecolor('w')
         # record the data to figure coords of each label for each axis
         self.xyfig={}
         figtrans={}
@@ -206,22 +225,22 @@ class CreateSliceViewerFrame(CreateFrame):
         self.xyfig['Im_C'] = figtrans['C'].transform((5,self.dim[0]-15))
         self.xyfig['Im_D'] = figtrans['D'].transform((5,self.dim[0]-15))
 
-        newcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
+        newcanvas = FigureCanvasTkAgg(self.fig, master=self.frame)  
         newcanvas.get_tk_widget().configure(bg='black')
-        newcanvas.draw()
-        newcanvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
+        newcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3, sticky='')
 
         self.tbar = NavigationBar(newcanvas,self.frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
         self.tbar.children['!button4'].pack_forget() # get rid of configure plot
-        self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
+        # self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
 
         # bind ROI select callbacks
         newcanvas.get_tk_widget().bind('<Enter>',self.ui.roiframe.selectROI)
         newcanvas.get_tk_widget().bind('<Leave>',self.ui.roiframe.resetCursor)
 
         if self.canvas is not None:
-            self.canvas.get_tk_widget().delete('all')
+            self.cw.delete('all')
         self.canvas = newcanvas
+        self.cw = self.canvas.get_tk_widget()
 
     # TODO: different bindings and callbacks need some organization
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
@@ -558,6 +577,7 @@ class CreateCaseFrame(CreateFrame):
 
         # case selection
         caseframe = ttk.Frame(parent,padding='5')
+        # caseframe.grid(row=0,column=0,columnspan=3,sticky='ew')
         caseframe.grid(row=0,column=0,columnspan=3,sticky='ew')
         # datadir
         self.fdbicon = PhotoImage(file=os.path.join(self.config.UIResourcesPath,'folder_icon_16.png'))

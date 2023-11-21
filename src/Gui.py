@@ -14,8 +14,8 @@ class Gui():
         try:
             self.config = Config.Config()
             self.root = Tk()
-            self.root.rowconfigure(0,minsize=600,weight=1)
-            self.root.columnconfigure(0,minsize=600,weight=1)
+            self.root.rowconfigure(0,minsize=200,weight=1)
+            self.root.columnconfigure(0,minsize=550,weight=1)
             self.root.protocol("WM_DELETE_WINDOW", self.windowCloseHandler)
             if (sys.platform.startswith('win')):
                 iconfile = os.path.join(self.config.UIResourcesPath,'sunnybrook.ico')
