@@ -34,20 +34,21 @@ class Command():
 
 # base for various frames
 class CreateFrame():
-    def __init__(self,frame,ui=None,padding='10'):
+    def __init__(self,frame,ui=None,padding='10',style=None):
         self.ui = ui
         self.parentframe = frame # parent
-        self.frame = ttk.Frame(self.parentframe,padding=padding)
+        self.frame = ttk.Frame(self.parentframe,padding=padding,style=style)
         self.config = self.ui.config
         self.padding = padding
+        self.fstyle = ttk.Style()
 
 ##############
 # Slice Viewer
 ##############
 
 class CreateSliceViewerFrame(CreateFrame):
-    def __init__(self,parentframe,ui=None,padding='10'):
-        super().__init__(parentframe,ui=ui)
+    def __init__(self,parentframe,ui=None,padding='10',style=None):
+        super().__init__(parentframe,ui=ui,padding=padding,style=style)
 
         # ui variables
         self.currentslice = tk.IntVar(value=75)
@@ -79,6 +80,8 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ui = ui
 
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='N')
+        self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
+        self.frame.configure(style='sliceviewerframe.TFrame')
         # slice viewer canvas widget
         self.create_blank_canvas()
 
@@ -135,14 +138,17 @@ class CreateSliceViewerFrame(CreateFrame):
         # quick hack to improve the latency skip every other Configure event
         if self.resizer_count > 0:
             return
+        print(event)
         slicefovratio = self.dim[0]/self.dim[1]
-        self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.normal_frame_minsize)/self.config.dpi
+        # self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.normal_frame_minsize)/self.ui.dpi
+        self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.ui.roiframe.frame.winfo_height())/self.ui.dpi
         self.wi = self.hi*2 + self.hi / (2*slicefovratio)
-        if self.wi > event.width/self.config.dpi:
-            self.wi = event.width/self.config.dpi
+        if self.wi > event.width/self.ui.dpi:
+            self.wi = (event.width-2*int(self.ui.mainframe_padding))/self.ui.dpi
             self.hi = self.wi/(2+1/(2*slicefovratio))
-
+        self.ui.current_panelsize = self.hi
         # print('{:d},{:d},{:.2f},{:.2f},{:.2f}'.format(event.width,event.height,self.wi,self.hi,self.wi/self.hi))
+        # self.cw.grid_propagate(0)
         self.cw.configure(width=int(self.wi*self.fig.dpi),height=int(self.hi*self.fig.dpi))
         self.fig.set_size_inches((self.wi,self.hi),forward=True)
         return
@@ -150,7 +156,7 @@ class CreateSliceViewerFrame(CreateFrame):
     # place holder until a dataset is loadedrowconfigure
     def create_blank_canvas(self):
         slicefovratio = self.config.ImageDim[0]/self.config.ImageDim[1]
-        self.fig = plt.figure(figsize=((2*self.ui.config.PanelSize + 2/slicefovratio),4),dpi=100)
+        self.fig = plt.figure(figsize=(self.ui.current_panelsize*(2 + 1/(2*slicefovratio)),self.ui.current_panelsize),dpi=self.ui.dpi)
         axs = plt.subplot(111)
         axs.axis('off')
         self.fig.tight_layout(pad=0)
@@ -163,19 +169,16 @@ class CreateSliceViewerFrame(CreateFrame):
         tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
     
     def create_canvas(self,figsize=None):
-        if self.blankcanvas is not None:
-            self.blankcanvas.get_tk_widget().delete('all')
-            self.blankcanvas = None
         slicefovratio = self.dim[0]/self.dim[1]
         if figsize is None:
-            figsize = ((2*self.ui.config.PanelSize + 2/slicefovratio),self.ui.config.PanelSize)
+            figsize = (self.ui.current_panelsize*(2 + 1/(2*slicefovratio)),self.ui.current_panelsize)
         if self.fig is not None:
             plt.close(self.fig)
 
         self.fig,self.axs = plt.subplot_mosaic([['A','B','C'],['A','B','D']],
-                                     width_ratios=[self.ui.config.PanelSize,self.ui.config.PanelSize,
-                                                   self.ui.config.PanelSize / (2 * slicefovratio) ],
-                                     figsize=figsize,dpi=self.config.dpi)
+                                     width_ratios=[self.ui.current_panelsize,self.ui.current_panelsize,
+                                                   self.ui.current_panelsize / (2 * slicefovratio) ],
+                                     figsize=figsize,dpi=self.ui.dpi)
         self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
         self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
         self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
@@ -232,7 +235,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
         newcanvas = FigureCanvasTkAgg(self.fig, master=self.frame)  
         newcanvas.get_tk_widget().configure(bg='black')
-        newcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3, sticky='')
+        newcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3, sticky='NW')
 
         self.tbar = NavigationBar(newcanvas,self.parentframe,pack_toolbar=False,ui=self.ui,axs=self.axs)
         self.tbar.children['!button4'].pack_forget() # get rid of configure plot
@@ -246,6 +249,10 @@ class CreateSliceViewerFrame(CreateFrame):
             self.cw.delete('all')
         self.canvas = newcanvas
         self.cw = self.canvas.get_tk_widget()
+
+        if self.blankcanvas is not None:
+            self.blankcanvas.get_tk_widget().delete('all')
+            self.blankcanvas = None
 
     # TODO: different bindings and callbacks need some organization
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
@@ -381,16 +388,16 @@ class CreateSliceViewerFrame(CreateFrame):
         self.b3y=None
 
     def b3motion(self,event):
-        if event.y < 0 or event.y > self.ui.config.PanelSize*self.ui.config.dpi:
+        if event.y < 0 or event.y > self.ui.current_panelsize*self.ui.dpi:
             return
         # no adjustment if nav bar is activated
         if 'zoom' in self.tbar.mode:
             return
-        if event.x < 2*self.ui.config.PanelSize*self.ui.config.dpi:
+        if event.x < 2*self.ui.current_panelsize*self.ui.dpi:
             item = self.currentslice
             maxslice = self.dim[0]-1
         else:
-            if event.y <= (self.ui.config.PanelSize*self.ui.config.dpi)/2:
+            if event.y <= (self.ui.current_panelsize*self.ui.dpi)/2:
                 item = self.currentcorslice
             else:
                 item = self.currentsagslice
@@ -416,9 +423,9 @@ class CreateSliceViewerFrame(CreateFrame):
         if 'zoom' in self.tbar.mode:
             return
         # no adjustment from outside the pane
-        if event.y < 0 or event.y > self.config.PanelSize*self.config.dpi:
+        if event.y < 0 or event.y > self.ui.current_panelsize*self.ui.dpi:
             return
-        if event.x <=self.config.PanelSize*self.config.dpi:
+        if event.x <=self.ui.current_panelsize*self.ui.dpi:
             ax = [0,2,3]
         else:
             ax = [1]
@@ -581,25 +588,26 @@ class CreateCaseFrame(CreateFrame):
         self.n4_check_value = tk.BooleanVar(value=True)
 
         # case selection
-        caseframe = ttk.Frame(parent,padding='5')
+        # caseframe = ttk.Frame(parent,padding='5')
         # caseframe.grid(row=0,column=0,columnspan=3,sticky='ew')
-        caseframe.grid(row=0,column=0,columnspan=3,sticky='ew')
+        # caseframe.grid(row=0,column=0,columnspan=3,sticky='ew')
+        self.frame.grid(row=0,column=0,columnspan=3,sticky='ew')
         # datadir
         self.fdbicon = PhotoImage(file=os.path.join(self.config.UIResourcesPath,'folder_icon_16.png'))
         # select a parent dir for a group of case sub-dirs
-        self.fdbutton = ttk.Button(caseframe,image=self.fdbicon, command=self.select_dir)
+        self.fdbutton = ttk.Button(self.frame,image=self.fdbicon, command=self.select_dir)
         self.fdbutton.grid(row=0,column=2)
-        self.datadirentry = ttk.Entry(caseframe,width=40,textvariable=self.datadir)
+        self.datadirentry = ttk.Entry(self.frame,width=40,textvariable=self.datadir)
         # event currently a dummy arg since not being used in datadirentry_callback
         self.datadirentry.bind('<Return>',lambda event=None:self.datadirentry_callback(event=event))
         self.datadirentry.grid(column=3,row=0,columnspan=5)
-        caselabel = ttk.Label(caseframe, text='Case: ')
+        caselabel = ttk.Label(self.frame, text='Case: ')
         caselabel.grid(column=0,row=0,sticky='we')
         # self.casename.trace_add('write',self.case_callback)
-        self.w = ttk.Combobox(caseframe,width=6,textvariable=self.casename,values=self.caselist)
+        self.w = ttk.Combobox(self.frame,width=6,textvariable=self.casename,values=self.caselist)
         self.w.grid(column=1,row=0)
         self.w.bind("<<ComboboxSelected>>",self.case_callback)
-        self.n4_check = ttk.Checkbutton(caseframe,text='N4',variable=self.n4_check_value)
+        self.n4_check = ttk.Checkbutton(self.frame,text='N4',variable=self.n4_check_value)
         self.n4_check.grid(row=0,column=8,sticky='w')
 
 
