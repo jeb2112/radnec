@@ -153,23 +153,12 @@ class CreateSliceViewerFrame(CreateFrame):
         return
 
     # place holder until a dataset is loaded
-    # in order to get the dummy toolbar, need to create a dummy figure but not all resizing behaviour is working yet
-    # without the dummy toolbar can just rely on the frame background style.
+    # could create a dummy figure with toolbar, but the background colour during resizing was inconsistent at times
+    # with just frame background style resizing behaviour seems correct.
     def create_blank_canvas(self):
         slicefovratio = self.config.ImageDim[0]/self.config.ImageDim[1]
         w = self.ui.current_panelsize*(2 + 1/(2*slicefovratio)) * self.ui.dpi
         h = self.ui.current_panelsize * self.ui.dpi
-        if False:
-            fig = plt.figure(figsize=(w/self.ui.dpi,h/self.ui.dpi),dpi=self.ui.dpi)
-            axs = fig.add_subplot(111)
-            axs.axis('off')
-            fig.tight_layout(pad=0)
-            fig.patch.set_facecolor('k')
-            self.blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
-            self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
-            tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
-            tbar.children['!button4'].pack_forget() # get rid of configure plot
-            tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
         self.frame.configure(width=w,height=h)
      
     # main canvas created when data are loaded
@@ -255,9 +244,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.canvas = newcanvas
         self.cw = self.canvas.get_tk_widget()
 
-        if self.blankcanvas is not None:
-            self.blankcanvas.get_tk_widget().delete('all')
-            self.blankcanvas = None
+        self.frame.update()
 
     # TODO: different bindings and callbacks need some organization
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
