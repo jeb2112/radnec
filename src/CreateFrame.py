@@ -76,13 +76,12 @@ class CreateSliceViewerFrame(CreateFrame):
         self.blankcanvas = None
         self.fig = None
         self.resizer_count = 1
-
         self.ui = ui
 
-        self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='N')
+        # self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='N')
+        self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
         self.frame.configure(style='sliceviewerframe.TFrame')
-        # slice viewer canvas widget
         self.create_blank_canvas()
 
         # normal slice button
@@ -153,21 +152,27 @@ class CreateSliceViewerFrame(CreateFrame):
         self.fig.set_size_inches((self.wi,self.hi),forward=True)
         return
 
-    # place holder until a dataset is loadedrowconfigure
+    # place holder until a dataset is loaded
+    # in order to get the dummy toolbar, need to create a dummy figure but not all resizing behaviour is working yet
+    # without the dummy toolbar can just rely on the frame background style.
     def create_blank_canvas(self):
         slicefovratio = self.config.ImageDim[0]/self.config.ImageDim[1]
-        self.fig = plt.figure(figsize=(self.ui.current_panelsize*(2 + 1/(2*slicefovratio)),self.ui.current_panelsize),dpi=self.ui.dpi)
-        axs = plt.subplot(111)
-        axs.axis('off')
-        self.fig.tight_layout(pad=0)
-        self.fig.patch.set_facecolor('k')
-        self.blankcanvas = FigureCanvasTkAgg(self.fig, master=self.frame)  
-        self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
-        self.blankcanvas.draw()
-        tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
-        tbar.children['!button4'].pack_forget() # get rid of configure plot
-        tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
-    
+        w = self.ui.current_panelsize*(2 + 1/(2*slicefovratio)) * self.ui.dpi
+        h = self.ui.current_panelsize * self.ui.dpi
+        if False:
+            fig = plt.figure(figsize=(w/self.ui.dpi,h/self.ui.dpi),dpi=self.ui.dpi)
+            axs = fig.add_subplot(111)
+            axs.axis('off')
+            fig.tight_layout(pad=0)
+            fig.patch.set_facecolor('k')
+            self.blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
+            self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
+            tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
+            tbar.children['!button4'].pack_forget() # get rid of configure plot
+            tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
+        self.frame.configure(width=w,height=h)
+     
+    # main canvas created when data are loaded
     def create_canvas(self,figsize=None):
         slicefovratio = self.dim[0]/self.dim[1]
         if figsize is None:
