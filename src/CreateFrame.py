@@ -74,45 +74,46 @@ class CreateSliceViewerFrame(CreateFrame):
         self.cw = None
         self.blankcanvas = None
         self.fig = None
+        self.resizer_count = 1
 
         self.ui = ui
 
-        self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NS')
+        self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='N')
         # slice viewer canvas widget
         self.create_blank_canvas()
 
         # normal slice button
-        normal_frame = ttk.Frame(self.parentframe,padding='0')
-        normal_frame.grid(row=4,column=0,sticky='w')
-        normalSlice = ttk.Button(normal_frame,text='normal',command=self.normalslice_callback)
+        self.normal_frame = ttk.Frame(self.parentframe,padding='0')
+        self.normal_frame.grid(row=3,column=0,sticky='NW')
+        normalSlice = ttk.Button(self.normal_frame,text='normal',command=self.normalslice_callback)
         normalSlice.grid(column=0,row=0,sticky='w')
-        slicevolume_slice_button = ttk.Radiobutton(normal_frame,text='slice',variable=self.slicevolume_norm,value=0)
+        slicevolume_slice_button = ttk.Radiobutton(self.normal_frame,text='slice',variable=self.slicevolume_norm,value=0)
         slicevolume_slice_button.grid(row=0,column=1,sticky='w')
-        slicevolume_volume_button = ttk.Radiobutton(normal_frame,text='vol.',variable=self.slicevolume_norm,value=1)
+        slicevolume_volume_button = ttk.Radiobutton(self.normal_frame,text='vol.',variable=self.slicevolume_norm,value=1)
         slicevolume_volume_button.grid(row=0,column=2,sticky='w')
 
         # t1/t2 selection for sag/cor panes
-        sagcordisplay_label = ttk.Label(normal_frame, text='Sag/Cor: ')
+        sagcordisplay_label = ttk.Label(self.normal_frame, text='Sag/Cor: ')
         sagcordisplay_label.grid(row=0,column=4,padx=(50,0),sticky='e')
-        self.sagcordisplay_button = ttk.Radiobutton(normal_frame,text='T1',variable=self.sagcordisplay,value=0,
+        self.sagcordisplay_button = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.sagcordisplay,value=0,
                                                     command=self.updateslice)
         self.sagcordisplay_button.grid(column=5,row=0,sticky='w')
-        self.sagcordisplay_button = ttk.Radiobutton(normal_frame,text='T2',variable=self.sagcordisplay,value=1,
+        self.sagcordisplay_button = ttk.Radiobutton(self.normal_frame,text='T2',variable=self.sagcordisplay,value=1,
                                                     command=self.updateslice)
         self.sagcordisplay_button.grid(column=6,row=0,sticky='w')
 
         # overlay type contour mask
-        overlaytype_label = ttk.Label(normal_frame, text='overlay type: ')
+        overlaytype_label = ttk.Label(self.normal_frame, text='overlay type: ')
         overlaytype_label.grid(row=1,column=4,padx=(50,0),sticky='e')
-        self.overlaytype_button = ttk.Radiobutton(normal_frame,text='C',variable=self.overlaytype,value=0,
+        self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='C',variable=self.overlaytype,value=0,
                                                     command=Command(self.updateslice,wl=True))
         self.overlaytype_button.grid(row=1,column=5,sticky='w')
-        self.overlaytype_button = ttk.Radiobutton(normal_frame,text='M',variable=self.overlaytype,value=1,
+        self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='M',variable=self.overlaytype,value=1,
                                                     command=Command(self.updateslice,wl=True))
         self.overlaytype_button.grid(row=1,column=6,sticky='w')
 
         # messages text frame
-        self.messagelabel = ttk.Label(normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
+        self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
         self.messagelabel.grid(row=2,column=0,columnspan=3,sticky='ew')
 
         if self.ui.OS in ('win32','darwin'):
@@ -122,24 +123,28 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ui.root.bind('<ButtonRelease-1>',self.b1release)
         if self.ui.OS == 'linux':
             self.ui.root.bind('<Button>',self.touchpad)
-            # self.ui.root.bind('<B1-Motion>',self.b1motion)
+            self.ui.root.bind('<B1-Motion>',self.b1motion)
             self.ui.root.bind('<B3-Motion>',self.b3motion)
             self.ui.root.bind('<Button-3>',self.b3motion_reset)
             self.ui.root.bind('<ButtonRelease-1>',self.b1release)
 
     def resizer(self,event):
-        # wdow = plt.get_current_fig_manager().window
-        print('event = {:d},{:d}'.format(event.x,event.y))
         if self.cw is None:
             return
-        # height will constrain the width
+        self.resizer_count *= -1
+        # quick hack to improve the latency skip every other Configure event
+        if self.resizer_count > 0:
+            return
         slicefovratio = self.dim[0]/self.dim[1]
-        self.hi = event.height/self.config.dpi
-        self.wi = 2*self.hi+2/slicefovratio
+        self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.normal_frame_minsize)/self.config.dpi
+        self.wi = self.hi*2 + self.hi / (2*slicefovratio)
+        if self.wi > event.width/self.config.dpi:
+            self.wi = event.width/self.config.dpi
+            self.hi = self.wi/(2+1/(2*slicefovratio))
+
         # print('{:d},{:d},{:.2f},{:.2f},{:.2f}'.format(event.width,event.height,self.wi,self.hi,self.wi/self.hi))
         self.cw.configure(width=int(self.wi*self.fig.dpi),height=int(self.hi*self.fig.dpi))
         self.fig.set_size_inches((self.wi,self.hi),forward=True)
-        self.updateslice()
         return
 
     # place holder until a dataset is loadedrowconfigure
@@ -153,9 +158,9 @@ class CreateSliceViewerFrame(CreateFrame):
         self.blankcanvas = FigureCanvasTkAgg(self.fig, master=self.frame)  
         self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
         self.blankcanvas.draw()
-        tbar = NavigationToolbar2Tk(self.blankcanvas,self.frame,pack_toolbar=False)
+        tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
         tbar.children['!button4'].pack_forget() # get rid of configure plot
-        # tbar.grid(column=0,row=3,columnspan=3,sticky='w')
+        tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
     
     def create_canvas(self,figsize=None):
         if self.blankcanvas is not None:
@@ -211,7 +216,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.axs['B']._shared_axes['x'].join(self.axs['B'],self.axs['A'])
         self.axs['B']._shared_axes['y'].join(self.axs['B'],self.axs['A'])
         self.fig.tight_layout(pad=0)
-        self.fig.patch.set_facecolor('w')
+        self.fig.patch.set_facecolor('k')
         # record the data to figure coords of each label for each axis
         self.xyfig={}
         figtrans={}
@@ -229,9 +234,9 @@ class CreateSliceViewerFrame(CreateFrame):
         newcanvas.get_tk_widget().configure(bg='black')
         newcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3, sticky='')
 
-        self.tbar = NavigationBar(newcanvas,self.frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
+        self.tbar = NavigationBar(newcanvas,self.parentframe,pack_toolbar=False,ui=self.ui,axs=self.axs)
         self.tbar.children['!button4'].pack_forget() # get rid of configure plot
-        # self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
+        self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
 
         # bind ROI select callbacks
         newcanvas.get_tk_widget().bind('<Enter>',self.ui.roiframe.selectROI)

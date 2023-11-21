@@ -110,7 +110,7 @@ class BlastGui(object):
     def createGeneralLayout(self):
         # create the main holder frame
         self.mainframe = ttk.Frame(self.root, padding='10')
-        self.mainframe.grid(column=0, row=0, sticky='NS')
+        self.mainframe.grid(column=0, row=0, sticky='NSEW')
 
         # create case frame
         self.caseframe = CreateCaseFrame(self.mainframe,ui=self)
@@ -129,8 +129,12 @@ class BlastGui(object):
                 self.mainframe.rowconfigure(row_num,weight=1)
             else:
                 self.mainframe.rowconfigure(row_num,weight=0)
-        self.sliceviewerframe.frame.bind('<Configure>',self.sliceviewerframe.resizer)
+        # self.sliceviewerframe.frame.bind('<Configure>',self.sliceviewerframe.resizer)
+        self.mainframe.bind('<Configure>',self.sliceviewerframe.resizer)
         self.mainframe.update()
+        self.sliceviewerframe.normal_frame_minsize = self.sliceviewerframe.normal_frame.winfo_height()
+        self.mainframe.rowconfigure(2,minsize=self.sliceviewerframe.normal_frame_minsize)
+
 
     ##############
     # BLAST method
