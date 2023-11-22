@@ -61,6 +61,7 @@ class BlastGui(object):
             # 00002 53,81
             self.caseframe.n4_check_value.set(0)
             self.caseframe.casename.set('00006')
+            self.caseframe.case_callback()
             if self.sliceviewerframe.slicevolume_norm.get() == 0:
                 self.sliceviewerframe.currentslice.set(53)
                 self.updateslice()

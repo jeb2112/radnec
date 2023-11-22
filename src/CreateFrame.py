@@ -119,12 +119,11 @@ class CreateSliceViewerFrame(CreateFrame):
 
         if self.ui.OS in ('win32','darwin'):
             self.ui.root.bind('<Button>',self.touchpad)
-            self.ui.root.bind('<B1-Motion>',self.b1motion)
             self.ui.root.bind('<B3-Motion>',self.b3motion)
+            self.ui.root.bind('<Button-3>',self.b3motion_reset)
             self.ui.root.bind('<ButtonRelease-1>',self.b1release)
         if self.ui.OS == 'linux':
             self.ui.root.bind('<Button>',self.touchpad)
-            self.ui.root.bind('<B1-Motion>',self.b1motion)
             self.ui.root.bind('<B3-Motion>',self.b3motion)
             self.ui.root.bind('<Button-3>',self.b3motion_reset)
             self.ui.root.bind('<ButtonRelease-1>',self.b1release)
@@ -141,7 +140,6 @@ class CreateSliceViewerFrame(CreateFrame):
         blankcanvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
         blankcanvas.draw()
         tbar = NavigationToolbar2Tk(blankcanvas,self.frame,pack_toolbar=False)
-        tbar.children['!button4'].pack_forget() # get rid of configure plot
         tbar.grid(column=0,row=3,columnspan=3,sticky='w')
         return blankcanvas
     
@@ -212,7 +210,7 @@ class CreateSliceViewerFrame(CreateFrame):
         newcanvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
 
         self.tbar = NavigationBar(newcanvas,self.frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
-        self.tbar.children['!button4'].pack_forget() # get rid of configure plot
+        # self.tbar.children['!button4'].pack_forget() # get rid of configure plot
         self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
 
         # bind ROI select callbacks
@@ -327,7 +325,7 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ax3_img.set_clim(vmin=vmin,vmax=vmax)
         elif ax==3:
             self.ax4_img.set_clim(vmin=vmin,vmax=vmax)
-        self.canvas.draw()
+        # self.canvas.draw()
 
     # color window/level scaling needs to be done separately for latency
     # for now, just tack it onto the fusion toggle button
@@ -386,6 +384,7 @@ class CreateSliceViewerFrame(CreateFrame):
     def b1motion(self,event):
         # print(event.num,event.state,event.type)
         # only allow adjustment in raw data view. overlays have latency to scale in 3d.
+        self.canvas.get_tk_widget().config(cursor='circle')
         if self.ui.dataselection != 'raw':
             return
         # no adjustment if nav bar is activated
@@ -419,6 +418,9 @@ class CreateSliceViewerFrame(CreateFrame):
         self.b1x,self.b1y = event.x,event.y
         self.update_labels()
 
+        # repeating this here because there are some automatic tk backend events which 
+        # can reset it during a sequence of multiple window/level drags
+        self.canvas.get_tk_widget().config(cursor='circle')
 
     # touchpad event for window/level adjustment. 
     # not updated lately
