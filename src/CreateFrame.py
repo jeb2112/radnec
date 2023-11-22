@@ -59,6 +59,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.sagslicelabel = None
         self.windowlabel = None
         self.levellabel = None
+        self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
         self.sagcordisplay = tk.IntVar(value=0)
         self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
@@ -214,6 +215,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),self.dim[1]-10))
         self.xyfig['Im_C'] = figtrans['C'].transform((5,self.dim[0]-15))
         self.xyfig['Im_D'] = figtrans['D'].transform((5,self.dim[0]-15))
+        self.figtrans = figtrans
 
         newcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
         newcanvas.get_tk_widget().configure(bg='black')
@@ -395,11 +397,48 @@ class CreateSliceViewerFrame(CreateFrame):
         self.update_labels()
         return
 
+    # mouse drag event for 3d crosshair overlay
+    def b1motion_crosshair(self,event):
+        self.canvas.get_tk_widget().config(cursor='tcross')
+        # no adjustment from outside the pane
+        if event.y < 0 or event.y > self.config.PanelSize*self.config.dpi:
+            return
+        self.draw_crosshair(event)
+        # adjust orthogonal slice planes
+        a = self.tbar.select_artist(event)
+        ax=a.axes._label
+        x,y = self.axs[ax].transData.inverted().transform((event.x,event.y))
+        y = int(self.dim[1] - y)
+        x = int(x)
+        self.currentcorslice.set(y)
+        self.currentsagslice.set(x)
+        self.updateslice()
+
+        # repeating this here because there are some automatic tk backend events which 
+        # can reset it during a sequence of multiple drags
+        self.canvas.get_tk_widget().config(cursor='tcross')
+
+    def draw_crosshair(self,event):
+        for k in self.lines.keys():
+            if self.lines[k]:
+                for hv in ['h','v']:
+                    if self.lines[k][hv]:
+                        try:
+                            Artist.remove(self.lines[k][hv])
+                        except ValueError as e:
+                            print(e)
+        for ax in ['A']:
+            x,y = self.axs[ax].transData.inverted().transform((event.x,event.y))
+            y = self.dim[1] - y
+            # print(event,x,y)
+            self.lines[ax]['h'] = self.axs[ax].axhline(y=y,clip_on=True)
+            self.lines[ax]['v'] = self.axs[ax].axvline(x=x,clip_on=True)
+        self.canvas.draw()
+
     # mouse drag event for window/level adjustment
     def b1motion(self,event):
         # print(event.num,event.state,event.type)
         # only allow adjustment in raw data view. overlays have latency to scale in 3d.
-        self.canvas.get_tk_widget().config(cursor='circle')
         if self.ui.dataselection != 'raw':
             return
         # no adjustment if nav bar is activated

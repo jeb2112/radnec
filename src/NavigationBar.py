@@ -27,6 +27,7 @@ class MyCursors(enum.IntEnum):  # Must subclass int for the macOS backend.
     RESIZE_HORIZONTAL = enum.auto()
     RESIZE_VERTICAL = enum.auto()
     WL = enum.auto()
+    CROSSHAIR = enum.auto()
 cursors = MyCursors  # Backcompat.
 
 # this global does not override the global in backend, so can't use it.
@@ -38,15 +39,17 @@ cursord = {
     cursors.WAIT: "watch",
     cursors.RESIZE_HORIZONTAL: "sb_h_double_arrow",
     cursors.RESIZE_VERTICAL: "sb_v_double_arrow",
-    cursors.WL: "circle"
+    cursors.WL: "circle",
+    cursors.CROSSHAIR: "tcross"
 }
 
 # overriden to add a WL mode
 class _Mode(str, enum.Enum):
     NONE = ""
     PAN = "pan/zoom"
-    ZOOM = "zoom rect"
+    ZOOM = "zoom square"
     WL = "window/level"
+    CROSSHAIR = "crosshair"
 
     def __str__(self):
         return self.value
@@ -57,6 +60,7 @@ class _Mode(str, enum.Enum):
 
 # extends NavigationToolbar2Tk to change zoom rect to zoom square.
 # then further extended to implement a window/level button
+# and a crosshair overlay button
 class NavigationBar(NavigationToolbar2Tk):
 
     def __init__(self,canvas,frame,pack_toolbar=False,ui=None,axs=None):
@@ -79,6 +83,7 @@ class NavigationBar(NavigationToolbar2Tk):
             ('Save', 'Save the figure', 'filesave', 'save_figure'),
         )
         super().__init__(canvas,frame,pack_toolbar=pack_toolbar)
+
         # add the window/level button
         path = os.path.join(self.ui.config.UIResourcesPath,'contrast_icon.png')
         self._buttons['WL'] = button = self._Button('WL',path,toggle=True,command=getattr(self,'windowlevel'))
@@ -87,7 +92,41 @@ class NavigationBar(NavigationToolbar2Tk):
         self._buttons['WL'].pack(after=self._buttons['Pan'])
         ToolTip.createToolTip(button, 'Adjust window and level')
 
+        # add the crosshairs button
+        path = os.path.join(self.ui.config.UIResourcesPath,'crosshair_icon.png')
+        self._buttons['crosshair'] = button = self._Button('crosshair',path,toggle=True,command=getattr(self,'crosshair'))
+        # position it alongside the Pan button
+        self._buttons['crosshair'].pack_forget
+        self._buttons['crosshair'].pack(after=self._buttons['WL'])
+        ToolTip.createToolTip(button, 'Display 3d crosshair cursor')
+
         self.update()
+
+    def crosshair(self,*args):
+        """
+        Toggle the 3d crosshair overlay.
+
+        Move cursor with left mouse, overlay follows. 
+        """
+        if not self.canvas.widgetlock.available(self):
+            self.set_message("window/level unavailable")
+            return
+        if self.mode == _Mode.CROSSHAIR:
+            self.mode = _Mode.NONE
+            self.canvas.widgetlock.release(self)
+        else:
+            self.mode = _Mode.CROSSHAIR
+            self.canvas.widgetlock(self)
+        for a in self.canvas.figure.get_axes():
+            a.set_navigate_mode(self.mode._navigate_mode)
+
+        if self.mode == _Mode.CROSSHAIR:
+            self.canvas.get_tk_widget().config(cursor='tcross')
+            self.ui.root.bind('<B1-Motion>',self.ui.sliceviewerframe.b1motion_crosshair)
+        else:
+            self.canvas.get_tk_widget().config(cursor='arrow')
+            self.ui.root.unbind('<B1-Motion>')
+        self._update_buttons_checked()
 
     # callback for the WL button
     def windowlevel(self,*args):
@@ -137,6 +176,11 @@ class NavigationBar(NavigationToolbar2Tk):
                 # self.canvas.set_cursor(MyCursors.WL)
                 self.canvas.get_tk_widget().config(cursor="circle")
                 self._last_cursor = MyCursors.WL
+            elif (self.mode == _Mode.CROSSHAIR
+                  and self._last_cursor != MyCursors.CROSSHAIR):
+                # self.canvas.set_cursor(MyCursors.WL)
+                self.canvas.get_tk_widget().config(cursor="tcross")
+                self._last_cursor = MyCursors.CROSSHAIR
         elif self._last_cursor != backend_tools.Cursors.POINTER:
             self.canvas.set_cursor(backend_tools.Cursors.POINTER)
             self._last_cursor = backend_tools.Cursors.POINTER
@@ -162,6 +206,8 @@ class NavigationBar(NavigationToolbar2Tk):
             finally:
                 if self._last_cursor == MyCursors.WL:
                     self.canvas.get_tk_widget().config(cursor="circle")
+                elif self._last_cursor == MyCursors.CROSSHAIR:
+                    self.canvas.get_tk_widget().config(cursor="tcross")
                 else:
                     self.canvas.set_cursor(self._last_cursor)
         else:
@@ -202,6 +248,13 @@ class NavigationBar(NavigationToolbar2Tk):
         else:
             a = None
         return a
+                
+
+    # override this method to provide for 3d crosshair overlay
+    def mouse_move(self, event):
+        self._update_cursor(event)
+        self.set_message(self._mouse_event_to_message(event))
+        # if self._Mode
                 
     # override this method to not check for get_navigate() because the labelling axes 
     # are set to be non-navigable. 
