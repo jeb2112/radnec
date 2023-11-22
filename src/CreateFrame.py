@@ -128,6 +128,17 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ui.root.bind('<Button-3>',self.b3motion_reset)
             self.ui.root.bind('<ButtonRelease-1>',self.b1release)
 
+        # slider bars
+        self.axsliceslider = ttk.Scale(self.frame,from_=0,to=self.dim[0]-1,variable=self.currentslice,
+                                      orient=tk.VERTICAL, length='3i',command=self.updateslice)
+        self.axsliceslider.grid(column=0,row=1,sticky='w')
+        self.sagsliceslider = ttk.Scale(self.frame,from_=0,to=self.dim[1]-1,variable=self.currentsagslice,
+                                      orient=tk.VERTICAL, length='1.5i',command=self.updateslice)
+        self.sagsliceslider.grid(column=2,row=1,sticky='ne')
+        self.corsliceslider = ttk.Scale(self.frame,from_=0,to=self.dim[1]-1,variable=self.currentcorslice,
+                                      orient=tk.VERTICAL, length='1.5i',command=self.updateslice)
+        self.corsliceslider.grid(column=2,row=1,sticky='se')
+
     # place holder until a dataset is loaded
     def create_blank_canvas(self):
         slicefovratio = self.config.ImageDim[0]/self.config.ImageDim[1]
@@ -210,7 +221,6 @@ class CreateSliceViewerFrame(CreateFrame):
         newcanvas.get_tk_widget().grid(column=0, row=1, columnspan=3, rowspan=2)
 
         self.tbar = NavigationBar(newcanvas,self.frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
-        # self.tbar.children['!button4'].pack_forget() # get rid of configure plot
         self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
 
         # bind ROI select callbacks
@@ -220,6 +230,11 @@ class CreateSliceViewerFrame(CreateFrame):
         if self.canvas is not None:
             self.canvas.get_tk_widget().delete('all')
         self.canvas = newcanvas
+
+        # reraise the slider bar
+        self.axsliceslider.lift()
+        self.sagsliceslider.lift()
+        self.corsliceslider.lift()
 
     # TODO: different bindings and callbacks need some organization
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
@@ -277,8 +292,8 @@ class CreateSliceViewerFrame(CreateFrame):
         self.labels['L_A'] = self.axs['labelA'].text(self.xyfig['L_A'][0],self.xyfig['L_A'][1],'L = '+'{:d}'.format(int(self.level[0]*255)),color='w')
         self.labels['W_B'] = self.axs['labelB'].text(self.xyfig['W_B'][0],self.xyfig['W_B'][1],'W = '+'{:d}'.format(int(self.window[1]*255)),color='w')
         self.labels['L_B'] = self.axs['labelB'].text(self.xyfig['L_B'][0],self.xyfig['L_B'][1],'L = '+'{:d}'.format(int(self.level[1]*255)),color='w')
-        self.labels['Im_C'] = self.axs['labelC'].text(self.xyfig['Im_C'][0],self.xyfig['Im_C'][1],'Im:'+str(self.currentcorslice.get()),color='w')
-        self.labels['Im_D'] = self.axs['labelD'].text(self.xyfig['Im_D'][0],self.xyfig['Im_D'][1],'Im:'+str(self.currentsagslice.get()),color='w')
+        self.labels['Im_C'] = self.axs['labelC'].text(self.xyfig['Im_C'][0],self.xyfig['Im_C'][1],'Im:'+str(self.currentsagslice.get()),color='w')
+        self.labels['Im_D'] = self.axs['labelD'].text(self.xyfig['Im_D'][0],self.xyfig['Im_D'][1],'Im:'+str(self.currentcorslice.get()),color='w')
 
     # special update for previewing BLAST enhancing lesion in 2d
     def updateslice_blast(self,event=None):
