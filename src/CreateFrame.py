@@ -232,6 +232,7 @@ class CreateSliceViewerFrame(CreateFrame):
         if self.canvas is not None:
             self.canvas.get_tk_widget().delete('all')
         self.canvas = newcanvas
+        self.fig = fig
 
         # reraise the slider bar
         self.axsliceslider.lift()
@@ -403,36 +404,63 @@ class CreateSliceViewerFrame(CreateFrame):
         # no adjustment from outside the pane
         if event.y < 0 or event.y > self.config.PanelSize*self.config.dpi:
             return
-        self.draw_crosshair(event)
-        # adjust orthogonal slice planes
+        # which artist axes was clicked
         a = self.tbar.select_artist(event)
-        ax=a.axes._label
-        x,y = self.axs[ax].transData.inverted().transform((event.x,event.y))
-        y = int(self.dim[1] - y)
-        x = int(x)
-        self.currentcorslice.set(y)
-        self.currentsagslice.set(x)
+        aax = a.axes._label
+        # calculate data coords for all axes relative to clicked axes
+        # TODO: matrix transforms for sag/cor/ax
+        # mouse event returns display coords but which are still flipped in y compared to matplotlib display coords.
+        # because there are two axes stacked for sag/cor, the correction for this flip involves +/- 1*self.dim[0]
+        x,y = self.axs[aax].transData.inverted().transform((event.x,event.y))
+        if aax in ['A','B']:
+            y = self.dim[1]-y
+            y1 = self.currentslice.get()
+            self.draw_crosshair('A',x,y)
+            self.draw_crosshair('B',x,y)
+            self.draw_crosshair('C',y,y1)
+            self.draw_crosshair('D',x,y1)
+            self.currentsagslice.set(int(x))
+            self.currentcorslice.set(int(y))
+        elif aax == 'C':
+            y = -y
+            y1 = self.currentsagslice.get()
+            self.draw_crosshair('A',y1,x)
+            self.draw_crosshair('B',y1,x)
+            self.draw_crosshair('C',x,y)
+            self.draw_crosshair('D',y1,y)
+            self.currentslice.set(int(x))
+            self.currentcorslice.set(int(y))
+        elif aax == 'D':
+            y = -y + 2*self.dim[0]
+            y1 = self.currentcorslice.get()
+            self.draw_crosshair('A',x,y1)
+            self.draw_crosshair('B',x,y1)
+            self.draw_crosshair('C',x,y1)
+            self.draw_crosshair('D',x,y)
+            self.currentslice.set(int(y))
+            self.currentsagslice.set(int(x))
+
         self.updateslice()
 
         # repeating this here because there are some automatic tk backend events which 
         # can reset it during a sequence of multiple drags
         self.canvas.get_tk_widget().config(cursor='tcross')
 
-    def draw_crosshair(self,event):
-        for k in self.lines.keys():
-            if self.lines[k]:
-                for hv in ['h','v']:
-                    if self.lines[k][hv]:
-                        try:
-                            Artist.remove(self.lines[k][hv])
-                        except ValueError as e:
-                            print(e)
-        for ax in ['A']:
-            x,y = self.axs[ax].transData.inverted().transform((event.x,event.y))
-            y = self.dim[1] - y
-            # print(event,x,y)
-            self.lines[ax]['h'] = self.axs[ax].axhline(y=y,clip_on=True)
-            self.lines[ax]['v'] = self.axs[ax].axvline(x=x,clip_on=True)
+    def draw_crosshair(self,ax,x,y):
+        for hv in ['h','v']:
+            if self.lines[ax][hv]:
+                try:
+                    Artist.remove(self.lines[ax][hv])
+                except ValueError as e:
+                    print(e)
+        self.lines[ax]['h'] = self.axs[ax].axhline(y=y,clip_on=True)
+        self.lines[ax]['v'] = self.axs[ax].axvline(x=x,clip_on=True)
+        # self.canvas.draw()
+
+    def clear_crosshair(self):
+        for ax in self.lines.keys():
+            for hv in ['h','v']:
+                Artist.remove(self.lines[ax][hv])
         self.canvas.draw()
 
     # mouse drag event for window/level adjustment
