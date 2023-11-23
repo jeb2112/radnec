@@ -31,6 +31,15 @@ class Command():
 
     def __call__(self):
         return self.callback(*self.args, **self.kwargs)
+    
+class EventCallback():
+    def __init__(self, callback, *args, **kwargs):
+        self.callback = callback
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self,event):
+        return self.callback(event,*self.args, **self.kwargs)
 
 # base for various frames
 class CreateFrame():
@@ -68,7 +77,9 @@ class CreateSliceViewerFrame(CreateFrame):
         self.level = np.array([0.5,0.5],dtype='float')
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
-        self.b3y = None # mouse drag for cor,sag slice
+        self.b3y = None # mouse drag for cor,sag slices\
+        self.sliceinc = 0
+        self.prevtime = 0
         # image dimensions
         self.dim = self.ui.config.ImageDim
         self.canvas = None
@@ -97,6 +108,7 @@ class CreateSliceViewerFrame(CreateFrame):
         # t1/t2 selection for sag/cor panes
         sagcordisplay_label = ttk.Label(normal_frame, text='Sag/Cor: ')
         sagcordisplay_label.grid(row=0,column=4,padx=(50,0),sticky='e')
+
         self.sagcordisplay_button = ttk.Radiobutton(normal_frame,text='T1',variable=self.sagcordisplay,value=0,
                                                     command=self.updateslice)
         self.sagcordisplay_button.grid(column=5,row=0,sticky='w')
@@ -119,15 +131,11 @@ class CreateSliceViewerFrame(CreateFrame):
         self.messagelabel.grid(row=6,column=0,columnspan=3,sticky='ew')
 
         if self.ui.OS in ('win32','darwin'):
-            self.ui.root.bind('<Button>',self.touchpad)
-            self.ui.root.bind('<B3-Motion>',self.b3motion)
-            self.ui.root.bind('<Button-3>',self.b3motion_reset)
-            self.ui.root.bind('<ButtonRelease-1>',self.b1release)
+            self.ui.root.bind('<MouseWheel>',self.mousewheel)
+
         if self.ui.OS == 'linux':
-            self.ui.root.bind('<Button>',self.touchpad)
-            self.ui.root.bind('<B3-Motion>',self.b3motion)
-            self.ui.root.bind('<Button-3>',self.b3motion_reset)
-            self.ui.root.bind('<ButtonRelease-1>',self.b1release)
+            self.ui.root.bind('<Button-4>',self.mousewheel)
+            self.ui.root.bind('<Button-5>',self.mousewheel)
 
         # slider bars
         self.axsliceslider = ttk.Scale(self.frame,from_=0,to=self.dim[0]-1,variable=self.currentslice,
@@ -238,6 +246,11 @@ class CreateSliceViewerFrame(CreateFrame):
         self.axsliceslider.lift()
         self.sagsliceslider.lift()
         self.corsliceslider.lift()
+
+        # 
+        if self.ui.OS == 'linux':
+            self.canvas.get_tk_widget().bind('<<MyMouseWheel>>',EventCallback(self.mousewheel,key='Key'))
+
 
     # TODO: different bindings and callbacks need some organization
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
@@ -374,11 +387,55 @@ class CreateSliceViewerFrame(CreateFrame):
     def b1release(self,event):
         self.b1x = self.b1y = None
 
+    # mouse wheel for slice selection
+    def mousewheel(self,event,key=None):
+        # print(event,event.time,event.widget,event.delta,key)
+        if event.y < 0 or event.y > self.ui.config.PanelSize*self.ui.config.dpi:
+            return
+        # queue mousewheel events for latency
+        if key is None:
+            if abs(event.time-self.prevtime) < 100:
+                if event.num == 4:
+                    self.sliceinc += 1
+                elif event.num == 5:
+                    self.sliceinc -= 1
+                self.prevtime = event.time
+                if abs(self.sliceinc) == 5:
+                    self.canvas.get_tk_widget().event_generate('<<MyMouseWheel>>',when="tail",x=event.x,y=event.y)
+                return
+            else:
+                self.prevtime = event.time
+                if event.num == 4:
+                    self.sliceinc = 1
+                elif event.num == 5:
+                    self.sliceinc = -1
+
+        if event.x < 2*self.ui.config.PanelSize*self.ui.config.dpi:
+            item = self.currentslice
+            maxslice = self.dim[0]-1
+        else:
+            if event.y <= (self.ui.config.PanelSize*self.ui.config.dpi)/2:
+                item = self.currentcorslice
+            else:
+                item = self.currentsagslice
+            maxslice = self.dim[1]-1
+        newslice = item.get() + self.sliceinc
+        newslice = min(max(newslice,0),maxslice)
+
+        item.set(newslice)
+        self.updateslice()
+        self.update_labels()
+        if key == 'Key':
+            self.prevtime = 0
+            self.sliceinc = 0
+            # self.canvas.get_tk_widget().unbind('<ButtonPress>')
+
     # mouse drag for slice selection
     def b3motion_reset(self,event):
         self.b3y=None
 
     def b3motion(self,event):
+        print(event)
         if event.y < 0 or event.y > self.ui.config.PanelSize*self.ui.config.dpi:
             return
         # no adjustment if nav bar is activated

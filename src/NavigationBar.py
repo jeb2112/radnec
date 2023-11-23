@@ -155,6 +155,7 @@ class NavigationBar(NavigationToolbar2Tk):
         else:
             self.canvas.get_tk_widget().config(cursor='arrow')
             self.ui.root.unbind('<B1-Motion>')
+            self.ui.sliceviewerframe.b1release()
         self._update_buttons_checked()
             
     # overriding some tk backend functions to implement window/level
