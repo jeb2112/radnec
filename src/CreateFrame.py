@@ -323,6 +323,7 @@ class CreateSliceViewerFrame(CreateFrame):
     def updatewl(self,ax=0,lval=None,wval=None):
 
         self.wlflag = True
+        # only process on main panels
         if ax < 2:
             if lval:
                 self.level[ax] += lval
@@ -331,19 +332,24 @@ class CreateSliceViewerFrame(CreateFrame):
 
             vmin = self.level[ax] - self.window[ax]/2
             vmax = self.level[ax] + self.window[ax]/2
-        else: # currently hard-coded for T1
-            vmin = self.level[0] - self.window[0]/2
-            vmax = self.level[0] + self.window[0]/2
+
+        vmin0 = self.level[0] - self.window[0]/2
+        vmax0 = self.level[0] + self.window[0]/2
+        vmin1 = self.level[1] - self.window[1]/2
+        vmax1 = self.level[1] + self.window[1]/2
 
         if ax==0:
             self.ax_img.set_clim(vmin=vmin,vmax=vmax)
         elif ax==1:
             self.ax2_img.set_clim(vmin=vmin,vmax=vmax)
-        elif ax==2:
-            self.ax3_img.set_clim(vmin=vmin,vmax=vmax)
-        elif ax==3:
-            self.ax4_img.set_clim(vmin=vmin,vmax=vmax)
-        # self.canvas.draw()
+        if self.sagcordisplay.get() == 0:
+            self.ax3_img.set_clim(vmin=vmin0,vmax=vmax0)
+            self.ax4_img.set_clim(vmin=vmin0,vmax=vmax0)
+        elif self.sagcordisplay.get() == 1:
+            self.ax3_img.set_clim(vmin=vmin1,vmax=vmax1)
+            self.ax4_img.set_clim(vmin=vmin1,vmax=vmax1)
+
+        self.canvas.draw()
 
     # color window/level scaling needs to be done separately for latency
     # for now, just tack it onto the fusion toggle button
@@ -475,29 +481,28 @@ class CreateSliceViewerFrame(CreateFrame):
         # no adjustment from outside the pane
         if event.y < 0 or event.y > self.config.PanelSize*self.config.dpi:
             return
+        # process only in two main panels
         if event.x <=self.config.PanelSize*self.config.dpi:
-            ax = [0,2,3]
+            ax = 0
+        elif event.x <= 2*self.config.PanelSize*self.config.dpi:
+            ax = 1
         else:
-            ax = [1]
+            return
         if self.b1x is None:
-            self.b1x,self.b1y = event.x,event.y
+            self.b1x,self.b1y = copy.copy((event.x,event.y))
             return
         if np.abs(event.x-self.b1x) > np.abs(event.y-self.b1y):
             if event.x-self.b1x > 0:
-                for a in ax:
-                    self.updatewl(ax=a,wval=.02)
+                self.updatewl(ax=ax,wval=.02)
             else:
-                for a in ax:
-                    self.updatewl(ax=a,wval=-.02)
+                self.updatewl(ax=ax,wval=-.02)
         else:
             if event.y - self.b1y > 0:
-                for a in ax:
-                    self.updatewl(ax=a,lval=.02)
+                self.updatewl(ax=ax,lval=.02)
             else:
-                for a in ax:
-                    self.updatewl(ax=a,lval=-.02)
+                self.updatewl(ax=ax,lval=-.02)
 
-        self.b1x,self.b1y = event.x,event.y
+        self.b1x,self.b1y = copy.copy((event.x,event.y))
         self.update_labels()
 
         # repeating this here because there are some automatic tk backend events which 
