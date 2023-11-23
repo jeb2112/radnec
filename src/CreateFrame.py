@@ -415,9 +415,9 @@ class CreateSliceViewerFrame(CreateFrame):
             maxslice = self.dim[0]-1
         else:
             if event.y <= (self.ui.config.PanelSize*self.ui.config.dpi)/2:
-                item = self.currentcorslice
-            else:
                 item = self.currentsagslice
+            else:
+                item = self.currentcorslice
             maxslice = self.dim[1]-1
         newslice = item.get() + self.sliceinc
         newslice = min(max(newslice,0),maxslice)
