@@ -92,11 +92,16 @@ class CreateSliceViewerFrame(CreateFrame):
         self.resizer_count = 1
         self.ui = ui
 
-        # self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='N')
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
         self.frame.configure(style='sliceviewerframe.TFrame')
         self.create_blank_canvas()
+
+        # dummy frame to hold canvas and slider bars
+        self.fstyle.configure('canvasframe.TFrame',background='#000000')
+        self.canvasframe = ttk.Frame(self.frame)
+        self.canvasframe.configure(style='canvasframe.TFrame')
+        self.canvasframe.grid(row=1,column=0,columnspan=3,sticky='NW')
 
         # normal slice button
         self.normal_frame = ttk.Frame(self.parentframe,padding='0')
@@ -139,17 +144,6 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ui.root.bind('<Button-4>',self.mousewheel)
             self.ui.root.bind('<Button-5>',self.mousewheel)
 
-        # slider bars
-        self.axsliceslider = ttk.Scale(self.frame,from_=0,to=self.dim[0]-1,variable=self.currentslice,
-                                      orient=tk.VERTICAL, length='3i',command=self.updateslice)
-        self.axsliceslider.grid(column=0,row=1,sticky='w')
-        self.sagsliceslider = ttk.Scale(self.frame,from_=0,to=self.dim[1]-1,variable=self.currentsagslice,
-                                      orient=tk.VERTICAL, length='1.5i',command=self.updateslice)
-        self.sagsliceslider.grid(column=2,row=1,sticky='ne')
-        self.corsliceslider = ttk.Scale(self.frame,from_=0,to=self.dim[1]-1,variable=self.currentcorslice,
-                                      orient=tk.VERTICAL, length='1.5i',command=self.updateslice)
-        self.corsliceslider.grid(column=2,row=1,sticky='se')
-
     def resizer(self,event):
         if self.cw is None:
             return
@@ -184,7 +178,7 @@ class CreateSliceViewerFrame(CreateFrame):
             axs = fig.add_subplot(111)
             axs.axis('off')
             fig.tight_layout(pad=0)
-            fig.patch.set_facecolor('k')
+            # fig.patch.set_facecolor('white')
             self.blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
             self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
             tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
@@ -259,22 +253,30 @@ class CreateSliceViewerFrame(CreateFrame):
         self.xyfig['Im_D'] = figtrans['D'].transform((5,self.dim[0]-15))
         self.figtrans = figtrans
 
-        newcanvas = FigureCanvasTkAgg(self.fig, master=self.frame)  
+        # figure canvas
+        newcanvas = FigureCanvasTkAgg(self.fig, master=self.canvasframe)  
         newcanvas.get_tk_widget().configure(bg='black')
-        newcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3, sticky='NW')
+        newcanvas.get_tk_widget().configure(width=figsize[0]*self.ui.dpi,height=figsize[1]*self.ui.dpi)
+        newcanvas.get_tk_widget().grid(row=0, column=0, sticky='')
 
         self.tbar = NavigationBar(newcanvas,self.parentframe,pack_toolbar=False,ui=self.ui,axs=self.axs)
-        self.tbar.children['!button4'].pack_forget() # get rid of configure plot
         self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
 
         if self.canvas is not None:
             self.cw.delete('all')
         self.canvas = newcanvas
 
-        # reraise the slider bar
-        self.axsliceslider.lift()
-        self.sagsliceslider.lift()
-        self.corsliceslider.lift()
+        # slider bars
+        if True:
+            self.axsliceslider = ttk.Scale(self.canvasframe,from_=0,to=self.dim[0]-1,variable=self.currentslice,
+                                        orient=tk.VERTICAL, length='3i',command=self.updateslice)
+            self.axsliceslider.grid(column=0,row=0,sticky='w')
+            self.sagsliceslider = ttk.Scale(self.canvasframe,from_=0,to=self.dim[1]-1,variable=self.currentsagslice,
+                                        orient=tk.VERTICAL, length='1.5i',command=self.updateslice)
+            self.sagsliceslider.grid(column=0,row=0,sticky='ne')
+            self.corsliceslider = ttk.Scale(self.canvasframe,from_=0,to=self.dim[1]-1,variable=self.currentcorslice,
+                                        orient=tk.VERTICAL, length='1.5i',command=self.updateslice)
+            self.corsliceslider.grid(column=0,row=0,sticky='se')
 
         # various bindings
         if self.ui.OS == 'linux':
