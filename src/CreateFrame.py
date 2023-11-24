@@ -133,7 +133,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.messagelabel.grid(row=2,column=0,columnspan=3,sticky='ew')
 
         if self.ui.OS in ('win32','darwin'):
-            self.ui.root.bind('<MouseWheel>',self.mousewheel)
+            self.ui.root.bind('<MouseWheel>',self.mousewheel_win32)
 
         if self.ui.OS == 'linux':
             self.ui.root.bind('<Button-4>',self.mousewheel)
@@ -407,7 +407,7 @@ class CreateSliceViewerFrame(CreateFrame):
     def restorewl_raw(self):
         self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
 
-    def b1release(self,event):
+    def b1release(self,event=None):
         self.b1x = self.b1y = None
 
     def focus(self,event):
@@ -449,6 +449,26 @@ class CreateSliceViewerFrame(CreateFrame):
         else:
             self.updateslice()
 
+    # mouse wheel for slice selection
+    def mousewheel_win32(self,event):
+        print(event,event.widget,event.delta)
+        if event.y < 0 or event.y > self.ui.config.PanelSize*self.ui.config.dpi:
+            return
+        if event.x < 2*self.ui.config.PanelSize*self.ui.config.dpi:
+            item = self.currentslice
+            maxslice = self.dim[0]-1
+        else:
+            if event.y <= (self.ui.config.PanelSize*self.ui.config.dpi)/2:
+                item = self.currentsagslice
+            else:
+                item = self.currentcorslice
+            maxslice = self.dim[1]-1
+        newslice = item.get() + event.delta/120
+        newslice = min(max(newslice,0),maxslice)
+        item.set(newslice)
+        self.updateslice()
+
+        return
 
     # mouse wheel for slice selection
     def mousewheel(self,event,key=None):
