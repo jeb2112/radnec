@@ -13,6 +13,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg,NavigationToolba
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.artist import Artist
+from cProfile import Profile
+from pstats import SortKey,Stats
 
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
@@ -233,10 +235,6 @@ class CreateSliceViewerFrame(CreateFrame):
         self.tbar = NavigationBar(newcanvas,self.frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
         self.tbar.grid(column=0,row=3,columnspan=3,sticky='w')
 
-        # bind ROI select callbacks
-        newcanvas.get_tk_widget().bind('<Enter>',self.ui.roiframe.selectROI)
-        newcanvas.get_tk_widget().bind('<Leave>',self.ui.roiframe.resetCursor)
-
         if self.canvas is not None:
             self.canvas.get_tk_widget().delete('all')
         self.canvas = newcanvas
@@ -247,10 +245,13 @@ class CreateSliceViewerFrame(CreateFrame):
         self.sagsliceslider.lift()
         self.corsliceslider.lift()
 
-        # 
+        # various bindings
         if self.ui.OS == 'linux':
             self.canvas.get_tk_widget().bind('<<MyMouseWheel>>',EventCallback(self.mousewheel,key='Key'))
-
+        self.canvas.get_tk_widget().bind('<Up>',self.keyboard_slice)
+        self.canvas.get_tk_widget().bind('<Down>',self.keyboard_slice)
+        # self.canvas.get_tk_widget().bind('<Enter>',self.focus)
+        self.canvas.get_tk_widget().bind_all('<Enter>',self.focus)
 
     # TODO: different bindings and callbacks need some organization
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
@@ -383,9 +384,48 @@ class CreateSliceViewerFrame(CreateFrame):
     def restorewl_raw(self):
         self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
 
-            
     def b1release(self,event):
         self.b1x = self.b1y = None
+
+    def focus(self,event):
+        self.canvas.get_tk_widget().focus_set()
+
+    # keyboard for slice selection
+    def keyboard_slice(self,event):
+        # print(event,event.widget)
+        if event.y < 0 or event.y > self.ui.config.PanelSize*self.ui.config.dpi:
+            return
+        a = self.tbar.select_artist(event)
+        if a is None:
+            return
+        aax = a.axes._label
+        if aax in ['A','B']:
+            item = self.currentslice
+        elif aax == 'C':
+            item = self.currentsagslice
+        elif aax == 'D':
+            item = self.currentcorslice
+        s = item.get()
+
+        if event.keysym == 'Up':
+            s += 1
+        elif event.keysym == 'Down':
+            s -= 1
+
+        item.set(s)
+
+        if False:
+            with Profile() as profile:
+                self.updateslice()
+                (
+                    Stats(profile)
+                    .strip_dirs()
+                    .sort_stats(SortKey.CUMULATIVE)
+                    .print_stats(15)
+                )
+        else:
+            self.updateslice()
+
 
     # mouse wheel for slice selection
     def mousewheel(self,event,key=None):
@@ -424,7 +464,6 @@ class CreateSliceViewerFrame(CreateFrame):
 
         item.set(newslice)
         self.updateslice()
-        self.update_labels()
         if key == 'Key':
             self.prevtime = 0
             self.sliceinc = 0
@@ -469,6 +508,8 @@ class CreateSliceViewerFrame(CreateFrame):
             return
         # which artist axes was clicked
         a = self.tbar.select_artist(event)
+        if a is None:
+            return
         aax = a.axes._label
         # calculate data coords for all axes relative to clicked axes
         # TODO: matrix transforms for sag/cor/ax
