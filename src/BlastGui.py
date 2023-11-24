@@ -2,6 +2,7 @@ import os,sys
 import copy
 import time
 import subprocess
+import screeninfo
 from tkinter import messagebox,ttk,PhotoImage
 import tkinter as tk
 from cProfile import Profile
@@ -18,6 +19,11 @@ from src.OverlayPlots import *
 class BlastGui(object):
     def __init__(self, root, toolsFlag, config, debug=False):
         self.root = root
+        self.dpi = self.root.winfo_fpixels('1i')
+        current_screen = self.get_monitor_from_coord(self.root.winfo_x(), self.root.winfo_y())
+        self.default_panelsize = current_screen.height/self.dpi * 0.5
+        self.current_panelsize = self.default_panelsize
+
         self.toolsFlag = toolsFlag
         self.version = None
         self.version = metadata.version('blast')
@@ -25,6 +31,10 @@ class BlastGui(object):
 
         self.root.title(self.titletext)
         self.config = config
+        self.config.dpi = self.root.winfo_fpixels('1i')
+        self.config.swi = self.root.winfo_screenwidth()/self.config.dpi
+        self.config.shi = self.root.winfo_screenheight()/self.config.dpi
+
         self.logoImg = os.path.join(self.config.UIResourcesPath,'sunnybrook.png')
         self.blastImage = PhotoImage(file=self.logoImg)
         self.normalslice = None
@@ -105,23 +115,29 @@ class BlastGui(object):
 
     def createGeneralLayout(self):
         # create the main holder frame
-        self.mainframe = ttk.Frame(self.root, padding='10')
-        self.mainframe.grid(column=0, row=0, sticky='NEW')
-        self.mainframe.columnconfigure(0,weight=1)
-        # self.mainframe.columnconfigure(1,weight=1)
+        self.mainframe_padding = '10'
+        self.mainframe = ttk.Frame(self.root, padding=self.mainframe_padding)
+        self.mainframe.grid(column=0, row=0, sticky='NSEW')
 
         # create case frame
         self.caseframe = CreateCaseFrame(self.mainframe,ui=self)
 
         # slice viewer frame
-        self.sliceviewerframe = CreateSliceViewerFrame(self.mainframe,ui=self,padding='10')        
+        self.sliceviewerframe = CreateSliceViewerFrame(self.mainframe,ui=self,padding='0')
 
         # roi functions
-        self.roiframe = CreateROIFrame(self.sliceviewerframe.frame,ui=self,padding='0')
+        self.roiframe = CreateROIFrame(self.mainframe,ui=self,padding='0')
 
         # initialize default directory.
         self.caseframe.datadirentry_callback()
 
+        for row_num in range(self.mainframe.grid_size()[1]):
+            if row_num == 1:
+                self.mainframe.rowconfigure(row_num,weight=1)
+            else:
+                self.mainframe.rowconfigure(row_num,weight=0)
+        self.mainframe.columnconfigure(0,minsize=self.caseframe.frame.winfo_width(),weight=1)
+        self.mainframe.bind('<Configure>',self.sliceviewerframe.resizer)
         self.mainframe.update()
 
 
@@ -284,3 +300,10 @@ class BlastGui(object):
         self.currentlayer = 0
         self.tstart = time.time()
         self.message = tk.StringVar(value='')
+
+    def get_monitor_from_coord(self,x, y):
+        monitors = screeninfo.get_monitors()
+        for m in reversed(monitors):
+            if m.x <= x <= m.width + m.x and m.y <= y <= m.height + m.y:
+                return m
+        return monitors[0]

@@ -18,7 +18,8 @@ dependencies = [
             "twisted",
             "versioneer",
             "build",
-            "nibabel"      ]
+            "nibabel",
+            "screeninfo"      ]
 [project.urls]
 "Source" = "https://github.com/jeb2112/blast"
 
