@@ -179,6 +179,17 @@ class CreateSliceViewerFrame(CreateFrame):
         slicefovratio = self.config.ImageDim[0]/self.config.ImageDim[1]
         w = self.ui.current_panelsize*(2 + 1/(2*slicefovratio)) * self.ui.dpi
         h = self.ui.current_panelsize * self.ui.dpi
+        if True:
+            fig = plt.figure(figsize=(w/self.ui.dpi,h/self.ui.dpi),dpi=self.ui.dpi)
+            axs = fig.add_subplot(111)
+            axs.axis('off')
+            fig.tight_layout(pad=0)
+            fig.patch.set_facecolor('k')
+            self.blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
+            self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
+            tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
+            tbar.children['!button4'].pack_forget() # get rid of configure plot
+            tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
         self.frame.configure(width=w,height=h)
      
     # main canvas created when data are loaded
@@ -493,11 +504,11 @@ class CreateSliceViewerFrame(CreateFrame):
                 elif event.num == 5:
                     self.sliceinc = -1
 
-        if event.x < 2*self.ui.config.PanelSize*self.ui.config.dpi:
+        if event.x < 2*self.ui.current_panelsize*self.ui.dpi:
             item = self.currentslice
             maxslice = self.dim[0]-1
         else:
-            if event.y <= (self.ui.config.PanelSize*self.ui.config.dpi)/2:
+            if event.y <= (self.ui.current_panelsize*self.ui.dpi)/2:
                 item = self.currentsagslice
             else:
                 item = self.currentcorslice
