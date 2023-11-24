@@ -488,7 +488,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
         if self.slicevolume_norm.get() == 0:
             self.normalslice=self.ui.get_currentslice()
-            region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]>=0) 
+            region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]>0) 
             t1channel_normal = self.ui.data['raw'][0,self.normalslice][region_of_support]
             t2channel_normal = self.ui.data['raw'][1,self.normalslice][region_of_support]
         else:
@@ -505,22 +505,24 @@ class CreateSliceViewerFrame(CreateFrame):
         np.random.seed(1)
         # [idx,C] = KMeans(n_clusters=2).fit(X)
         kmeans = KMeans(n_clusters=2,n_init='auto').fit(X)
-
-        if False:
-            plt.figure(2)
-            ax = plt.subplot(1,1,1)
-            plt.scatter(X[kmeans.labels_==0,0],X[kmeans.labels_==0,1],c='b')
-            plt.scatter(X[kmeans.labels_==1,0],X[kmeans.labels_==1,1],c='r')
-            ax.set_aspect('equal')
-            ax.set_xlim(left=-1.0,right=1.0)
-            ax.set_ylim(bottom=-1.0,top=1.0)
-            plt.show(block=False)
+        background_cluster = np.argmin(kmeans.cluster_centers_[:,0])
 
         # Calculate stats for brain cluster
-        self.ui.data['blast']['params']['stdt1'] = np.std(X[kmeans.labels_==1,1])
-        self.ui.data['blast']['params']['stdt2'] = np.std(X[kmeans.labels_==1,0])
-        self.ui.data['blast']['params']['meant1'] = np.mean(X[kmeans.labels_==1,1])
-        self.ui.data['blast']['params']['meant2'] = np.mean(X[kmeans.labels_==1,0])
+        self.ui.data['blast']['params']['stdt1'] = np.std(X[kmeans.labels_==background_cluster,1])
+        self.ui.data['blast']['params']['stdt2'] = np.std(X[kmeans.labels_==background_cluster,0])
+        self.ui.data['blast']['params']['meant1'] = np.mean(X[kmeans.labels_==background_cluster,1])
+        self.ui.data['blast']['params']['meant2'] = np.mean(X[kmeans.labels_==background_cluster,0])
+
+        if False:
+            plt.figure(7)
+            ax = plt.subplot(1,1,1)
+            plt.scatter(X[kmeans.labels_==1-background_cluster,0],X[kmeans.labels_==1-background_cluster,1],c='b')
+            plt.scatter(X[kmeans.labels_==background_cluster,0],X[kmeans.labels_==background_cluster,1],c='r')
+            ax.set_aspect('equal')
+            ax.set_xlim(left=0,right=1.0)
+            ax.set_ylim(bottom=0,top=1.0)
+            plt.text(0,1.02,'{:.3f},{:.3f}'.format(self.ui.data['blast']['params']['meant1'],self.ui.data['blast']['params']['stdt1']))
+            plt.show(block=False)
 
         # activate thresholds only after normal slice stats are available
         self.ui.roiframe.bcslider['state']='normal'
