@@ -451,7 +451,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
     # mouse wheel for slice selection
     def mousewheel_win32(self,event):
-        print(event,event.widget,event.delta)
+        # print(event,event.widget,event.delta)
         if event.y < 0 or event.y > self.ui.config.PanelSize*self.ui.config.dpi:
             return
         if event.x < 2*self.ui.config.PanelSize*self.ui.config.dpi:
