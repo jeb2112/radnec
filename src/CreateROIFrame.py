@@ -96,13 +96,17 @@ class CreateROIFrame(CreateFrame):
         self.roinumbermenu.grid(row=0,column=5,sticky='w')
         self.roinumbermenu.configure(state='disabled')
 
+        # select ROI button
+        selectROI = ttk.Button(self.frame,text='select ROI',command = self.selectROI)
+        selectROI.grid(row=1,column=4,sticky='w')
+
         # save ROI button
         saveROI = ttk.Button(self.frame,text='save ROI',command = self.saveROI)
-        saveROI.grid(row=1,column=5,sticky='w')
+        saveROI.grid(row=1,column=6,sticky='w')
 
         # clear ROI button
         clearROI = ttk.Button(self.frame,text='clear ROI',command = self.clearROI)
-        clearROI.grid(row=1,column=4,sticky='w')
+        clearROI.grid(row=1,column=5,sticky='w')
         self.frame.update()
 
         # overlay contour/mask
@@ -115,11 +119,6 @@ class CreateROIFrame(CreateFrame):
             self.overlaytype_button = ttk.Radiobutton(self.frame,text='M',variable=self.overlaytype,value=1,
                                                         command=self.ui.sliceviewerframe.updateslice)
             self.overlaytype_button.grid(row=2,column=2,sticky='w')
-
-        # bind ROI select callbacks
-        # self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Enter>',self.selectROI)
-        # self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Leave>',self.resetCursor)
-
 
 
         ########################
@@ -379,17 +378,11 @@ class CreateROIFrame(CreateFrame):
             self.ui.dataselection = 'raw'
             self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
             self.ui.updateslice()
-            # unbind selection cursor
-            self.ui.sliceviewerframe.canvas.get_tk_widget().unbind('<Enter>')
-            self.ui.sliceviewerframe.canvas.get_tk_widget().unbind('<Leave>')
 
         else:
             self.finalROI_overlay_value.set(False)
             self.ui.dataselection = 'seg_raw_fusion_d'
             self.ui.updateslice(wl=True)
-            # rebind selection cursor
-            self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Enter>',self.selectROI)
-            self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Leave>',self.resetCursor)
 
     def enhancingROI_callback(self,event=None):
         self.finalROI_overlay_value.set(False)
@@ -478,9 +471,6 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_value.set(False)
             self.ui.dataselection = 'seg_fusion_d'
             self.layerROI_callback(layer='ET')
-            # unbind selection cursor
-            self.ui.sliceviewerframe.canvas.get_tk_widget().unbind('<Enter>')
-            self.ui.sliceviewerframe.canvas.get_tk_widget().unbind('<Leave>')
         else:
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_value.set(True)
@@ -490,9 +480,6 @@ class CreateROIFrame(CreateFrame):
                 self.layer_callback(layer='T2 hyper')
             else:
                 self.layer_callback(layer='ET')
-            # rebind selection cursor
-            self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Enter>',self.selectROI)
-            self.ui.sliceviewerframe.canvas.get_tk_widget().bind('<Leave>',self.resetCursor)
 
         return None
     

@@ -722,9 +722,6 @@ class CreateSliceViewerFrame(CreateFrame):
         for layer in ['ET','T2 hyper']:
             self.ui.roiframe.layer_callback(layer=layer,updateslice=False,overlay=False)
             self.ui.runblast(currentslice=None,layer=layer)
-        # bind ROI select callbacks
-        self.canvas.get_tk_widget().bind('<Enter>',self.ui.roiframe.selectROI)
-        self.canvas.get_tk_widget().bind('<Leave>',self.ui.roiframe.resetCursor)
 
 
 ################
