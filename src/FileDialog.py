@@ -6,6 +6,7 @@ class FileDialog():
     def __init__(self,initdir):
        self.initdir = initdir
        self.dir = self.initdir
+       self.filename = None
 
     def create_dialog(self):
         self.root = tk.Tk()
@@ -28,8 +29,9 @@ class FileDialog():
     def select_file(self):
         self.create_dialog()
         filetypes = (
-            ('nifti files', '*.nii'),
-            ('all files', '*.*')
+            ('all files', '*.*'),
+            ('nifti files', '*.nii*'),
+            ('dicom files', '*.dcm')
         )
 
         self.filename = fd.askopenfilename(

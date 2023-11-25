@@ -551,6 +551,7 @@ class CreateCaseFrame(CreateFrame):
         self.fd = FileDialog(initdir=self.config.UIdatadir)
         self.datadir = StringVar()
         self.datadir.set(self.fd.dir)
+        self.filename = None
         self.casename = StringVar()
         self.casefile_prefix = None
         self.caselist = []
@@ -562,7 +563,8 @@ class CreateCaseFrame(CreateFrame):
         # datadir
         self.fdbicon = PhotoImage(file=os.path.join(self.config.UIResourcesPath,'folder_icon_16.png'))
         # select a parent dir for a group of case sub-dirs
-        self.fdbutton = ttk.Button(caseframe,image=self.fdbicon, command=self.select_dir)
+        # self.fdbutton = ttk.Button(caseframe,image=self.fdbicon, command=self.select_dir)
+        self.fdbutton = ttk.Button(caseframe,image=self.fdbicon, command=self.select_file)
         self.fdbutton.grid(row=0,column=2)
         self.datadirentry = ttk.Entry(caseframe,width=40,textvariable=self.datadir)
         # event currently a dummy arg since not being used in datadirentry_callback
@@ -584,6 +586,14 @@ class CreateCaseFrame(CreateFrame):
         self.datadir.set(self.fd.dir)
         self.datadirentry.update()
         self.datadirentry_callback()
+
+    def select_file(self):
+        self.filename = None
+        self.fd.select_file()
+        self.datadir.set(os.path.split(self.fd.filename)[0])
+        self.filename = os.path.split(self.fd.filename)[1]
+        self.datadirentry_callback()
+        return
 
     def case_callback(self,casevar=None,val=None,event=None):
         case = self.casename.get()
@@ -725,57 +735,49 @@ class CreateCaseFrame(CreateFrame):
         if os.path.exists(dir):
             self.w.config(state='normal')            
             files = os.listdir(dir)
-            # check for an individual case directory of arbitrary name containing image files
-            try: 
-                if False:
-                    dir = os.path.join(dir,files[0])
-                    files = os.listdir(dir)
-                if len(files):
-                    imagefiles = [re.match('(^.*\.(nii|nii\.gz|dcm)$)',f) for f in files]
-                    imagefiles = list(filter(lambda item: item is not None,imagefiles))
-                if len(imagefiles):
-                    imagefiles = [i.group(1) for i in imagefiles]
-                # currently the assumption is that 't1ce' and 'flair' are in the filename string as in BraTS
-                # this may need to become more general
-                if any([f in i for i in imagefiles for f in ['t1ce','flair']]):
-                    self.casefile_prefix = ''
-                    casefiles = os.path.split(dir)[1]
+            # check for an individual case file
+            if self.filename is not None:
+                if self.filename in files:
+                    if any([f in self.filename for f in ['t1','flair']]):
+                        # currently the assumption is that 't1' and 'flair' are in the filename string as in BraTS
+                        # this may need to become more general
+                        self.casefile_prefix = ''
+                        casefiles = os.path.split(dir)[1]
+                        self.config.UIdataroot = self.casefile_prefix
+                        self.caselist = casefiles
+                        self.w['values'] = self.caselist
+                        self.w.current(0)
+                        self.w.config(width=min(20,len(self.caselist)))
+                        self.casename.set(self.caselist)
+                        self.datadir.set(os.path.split(dir)[0])
+                        self.case_callback()
+                        return
+
+            else:
+
+                # check for case subdirs in the parent dir having a certain naming convention as in BraTS
+                try:
+                    self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
+                    casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
+                except AttributeError as e:
+                    print('No cases found in directory {}'.format(dir))
+                    self.ui.set_message('No cases found in directory {}'.format(dir))
+                    return
+                self.ui.set_message('')
+                if len(casefiles):
                     self.config.UIdataroot = self.casefile_prefix
-                    self.caselist = casefiles
+                    # TODO: will need a better sort here
+                    self.caselist = sorted(casefiles)
                     self.w['values'] = self.caselist
                     self.w.current(0)
-                    self.w.config(width=min(20,len(self.caselist)))
-                    self.casename.set(self.caselist)
-                    self.datadir.set(os.path.split(dir)[0])
-                    self.case_callback()
-                    return
-
-            except AttributeError as e:
-                pass
-
-            # check for case subdirs in the parent dir having a certain naming convention as in BraTS
-            try:
-                self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
-                casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
-            except AttributeError as e:
-                print('No cases found in directory {}'.format(dir))
-                self.ui.set_message('No cases found in directory {}'.format(dir))
-                return
-            self.ui.set_message('')
-            if len(casefiles):
-                self.config.UIdataroot = self.casefile_prefix
-                # TODO: will need a better sort here
-                self.caselist = sorted(casefiles)
-                self.w['values'] = self.caselist
-                self.w.current(0)
-                self.w.config(width=6)
-                # autoload first case
-                if self.config.AutoLoad:
-                    self.casename.set(self.caselist[0])
-                    self.case_callback()
-            else:
-                print('No cases found in directory {}'.format(dir))
-                self.ui.set_message('No cases found in directory {}'.format(dir))
+                    self.w.config(width=6)
+                    # autoload first case
+                    if self.config.AutoLoad:
+                        self.casename.set(self.caselist[0])
+                        self.case_callback()
+                else:
+                    print('No cases found in directory {}'.format(dir))
+                    self.ui.set_message('No cases found in directory {}'.format(dir))
         else:
             print('Directory {} not found.'.format(dir))
             self.ui.set_message('Directory {} not found.'.format(dir))
