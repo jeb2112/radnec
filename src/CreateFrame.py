@@ -968,6 +968,35 @@ class CreateCaseFrame(CreateFrame):
         if os.path.exists(dir):
             self.w.config(state='normal')            
             files = os.listdir(dir)
+            # check for an individual case directory of arbitrary name containing image files
+            try: 
+                if False:
+                    dir = os.path.join(dir,files[0])
+                    files = os.listdir(dir)
+                if len(files):
+                    imagefiles = [re.match('(^.*\.(nii|nii\.gz|dcm)$)',f) for f in files]
+                    imagefiles = list(filter(lambda item: item is not None,imagefiles))
+                if len(imagefiles):
+                    imagefiles = [i.group(1) for i in imagefiles]
+                # currently the assumption is that 't1ce' and 'flair' are in the filename string as in BraTS
+                # this may need to become more general
+                if any([f in i for i in imagefiles for f in ['t1ce','flair']]):
+                    self.casefile_prefix = ''
+                    casefiles = os.path.split(dir)[1]
+                    self.config.UIdataroot = self.casefile_prefix
+                    self.caselist = casefiles
+                    self.w['values'] = self.caselist
+                    self.w.current(0)
+                    self.w.config(width=min(20,len(self.caselist)))
+                    self.casename.set(self.caselist)
+                    self.datadir.set(os.path.split(dir)[0])
+                    self.case_callback()
+                    return
+
+            except AttributeError as e:
+                pass
+
+            # check for case subdirs in the parent dir having a certain naming convention as in BraTS
             try:
                 self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
                 casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
@@ -982,6 +1011,7 @@ class CreateCaseFrame(CreateFrame):
                 self.caselist = sorted(casefiles)
                 self.w['values'] = self.caselist
                 self.w.current(0)
+                self.w.config(width=6)
                 # autoload first case
                 if self.config.AutoLoad:
                     self.casename.set(self.caselist[0])
