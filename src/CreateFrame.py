@@ -283,8 +283,10 @@ class CreateSliceViewerFrame(CreateFrame):
             self.canvas.get_tk_widget().bind('<<MyMouseWheel>>',EventCallback(self.mousewheel,key='Key'))
         self.canvas.get_tk_widget().bind('<Up>',self.keyboard_slice)
         self.canvas.get_tk_widget().bind('<Down>',self.keyboard_slice)
-        # self.canvas.get_tk_widget().bind('<Enter>',self.focus)
-        self.canvas.get_tk_widget().bind_all('<Enter>',self.focus)
+        if self.ui.OS == 'nt':
+            self.canvas.get_tk_widget().bind('<Enter>',self.focus)
+        elif self.ui.OS == 'linux':
+            self.canvas.get_tk_widget().bind_all('<Enter>',self.focus)
         self.cw = self.canvas.get_tk_widget()
 
         self.frame.update()
@@ -879,7 +881,7 @@ class CreateCaseFrame(CreateFrame):
             if len(t1_files) > 1:
                 t1ce_file = next((f for f in t1_files if re.search('(ce|gad|gd)',f.lower())),t1_files[0])
             else:
-                t1ce_file = t1_files
+                t1ce_file = t1_files[0]
             t2flair_file = next((f for f in files if 'flair' in f),None)
 
         # using nibabel for input image coordinates
