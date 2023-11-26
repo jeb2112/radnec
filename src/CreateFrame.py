@@ -589,8 +589,8 @@ class CreateSliceViewerFrame(CreateFrame):
             self.draw_crosshair('B',y1,x)
             self.draw_crosshair('C',x,y)
             self.draw_crosshair('D',y1,y)
-            self.currentslice.set(int(x))
-            self.currentcorslice.set(int(y))
+            self.currentslice.set(int(y))
+            self.currentcorslice.set(int(x))
         elif aax == 'D':
             y = -y + 2*self.dim[0]
             y1 = self.currentcorslice.get()
