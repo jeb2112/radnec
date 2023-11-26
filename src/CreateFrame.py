@@ -818,7 +818,7 @@ class CreateCaseFrame(CreateFrame):
         caselabel = ttk.Label(self.frame, text='Case: ')
         caselabel.grid(column=0,row=0,sticky='we')
         # self.casename.trace_add('write',self.case_callback)
-        self.w = ttk.Combobox(self.frame,width=6,textvariable=self.casename,values=self.caselist)
+        self.w = ttk.Combobox(self.frame,width=8,textvariable=self.casename,values=self.caselist)
         self.w.grid(column=1,row=0)
         self.w.bind("<<ComboboxSelected>>",self.case_callback)
         self.n4_check = ttk.Checkbutton(self.frame,text='N4',variable=self.n4_check_value)
@@ -1016,7 +1016,7 @@ class CreateCaseFrame(CreateFrame):
                     self.caselist = sorted(casefiles)
                     self.w['values'] = self.caselist
                     self.w.current(0)
-                    self.w.config(width=6)
+                    self.w.config(width=8)
                     # autoload first case
                     if self.config.AutoLoad:
                         self.casename.set(self.caselist[0])
