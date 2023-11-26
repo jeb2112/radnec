@@ -300,6 +300,7 @@ class BlastGui(object):
         self.currentlayer = 0
         self.tstart = time.time()
         self.message = tk.StringVar(value='')
+        self.roiframe.resetROI()
 
     def get_monitor_from_coord(self,x, y):
         monitors = screeninfo.get_monitors()

@@ -792,7 +792,7 @@ class CreateCaseFrame(CreateFrame):
         self.fd = FileDialog(initdir=self.config.UIdatadir)
         self.datadir = StringVar()
         self.datadir.set(self.fd.dir)
-        self.filename = None
+        self.filenames = None
         self.casename = StringVar()
         self.casefile_prefix = None
         self.caselist = []
@@ -827,25 +827,30 @@ class CreateCaseFrame(CreateFrame):
 
     # callback for file dialog 
     def select_dir(self):
-        self.filename = None
+        self.resetCase()
         self.fd.select_dir()
         self.datadir.set(self.fd.dir)
         self.datadirentry.update()
         self.datadirentry_callback()
 
     def select_file(self):
-        self.filename = None
+        self.resetCase()
         self.fd.select_file()
-        self.datadir.set(os.path.split(self.fd.filename)[0])
-        self.filename = os.path.split(self.fd.filename)[1]
-        self.datadirentry_callback()
+        if len(self.fd.filenames) != 2:
+            self.ui.set_message('Two files must be selected')
+            return
+        self.ui.set_message('')
+        self.datadir.set(os.path.split(self.fd.filenames[0])[0])
+        self.filenames = os.path.split(self.fd.filenames[0])[1],os.path.split(self.fd.filenames[1])[1]
+        self.filenames = sorted(self.filenames,key=lambda x:x.find('t1'),reverse=True)
+        self.datafileentry_callback()
         return
 
-    def case_callback(self,casevar=None,val=None,event=None):
+    def case_callback(self,casevar=None,val=None,event=None,files=None):
         case = self.casename.get()
         self.ui.set_casename(val=case)
         print('Loading case {}'.format(case))
-        self.loadCase()
+        self.loadCase(files=files)
         # if normal stats is 3d then seg runs automatically, can show 'seg_raw' directly
         if self.ui.sliceviewerframe.slicevolume_norm.get() == 0:
             self.ui.dataselection = 'raw'
@@ -856,18 +861,27 @@ class CreateCaseFrame(CreateFrame):
         self.ui.updateslice()
         self.ui.starttime()
 
-    def loadCase(self,case=None):
+    def loadCase(self,case=None,files=None):
 
         # reset and reinitialize
         self.ui.resetUI()
-        self.ui.roiframe.resetROI()
-
         if case is not None:
             self.casename.set(case)
             self.ui.set_casename()
         self.casedir = os.path.join(self.datadir.get(),self.config.UIdataroot+self.casename.get())
-        files = os.listdir(self.casedir)
-        t1ce_file = next((f for f in files if 't1ce' in f),None)
+
+        if files is not None:
+            t1ce_file,t2flair_file = self.filenames
+
+        else:
+            files = os.listdir(self.casedir)
+            t1_files = [f for f in files if 't1' in f.lower()]
+            if len(t1_files) > 1:
+                t1ce_file = next((f for f in t1_files if re.search('(ce|gad|gd)',f.lower())),t1_files[0])
+            else:
+                t1ce_file = t1_files
+            t2flair_file = next((f for f in files if 'flair' in f),None)
+
         # using nibabel for input image coordinates
         if True:
             img_nb = nb.load(os.path.join(self.casedir,t1ce_file))
@@ -899,8 +913,7 @@ class CreateCaseFrame(CreateFrame):
         self.ui.data['raw'] = np.zeros((2,)+self.ui.sliceviewerframe.dim,dtype='float32')
         self.ui.data['raw'][0] = img_arr
 
-        # Create t2flair template 
-        t2flair_file = next((f for f in files if 'flair' in f),None)
+        # Create t2flair template. assuming there is only 1 flair image file
         t2flair = sitk.ReadImage(os.path.join(self.casedir,t2flair_file))
         # img_arr = np.flip(sitk.GetArrayFromImage(t2flair),axis=0)
         img_arr = sitk.GetArrayFromImage(t2flair)
@@ -975,58 +988,82 @@ class CreateCaseFrame(CreateFrame):
             self.ui.data['raw'][ch] = corrected_img_arr
         return
 
+    # callback for loading by individual files
+    def datafileentry_callback(self):
+        dir = self.datadir.get().strip()
+        if len(self.filenames) == 2:
+            self.casefile_prefix = ''
+            casefiles = os.path.split(dir)[1]
+            self.config.UIdataroot = self.casefile_prefix
+            self.caselist = casefiles
+            self.w['values'] = self.caselist
+            self.w.current(0)
+            self.w.config(width=min(20,len(self.caselist)))
+            self.casename.set(self.caselist)
+            self.datadir.set(os.path.split(dir)[0])
+            self.case_callback(files=self.filenames)
+            return
+
     # main callback for selecting dir either by file dialog or text entry
     def datadirentry_callback(self,event=None):
         dir = self.datadir.get().strip()
         if os.path.exists(dir):
             self.w.config(state='normal')            
             files = os.listdir(dir)
-            # check for an individual case file
-            if self.filename is not None:
-                if self.filename in files:
-                    if any([f in self.filename for f in ['t1','flair']]):
-                        # currently the assumption is that 't1' and 'flair' are in the filename string as in BraTS
-                        # this may need to become more general
-                        self.casefile_prefix = ''
-                        casefiles = os.path.split(dir)[1]
-                        self.config.UIdataroot = self.casefile_prefix
-                        self.caselist = casefiles
-                        self.w['values'] = self.caselist
-                        self.w.current(0)
-                        self.w.config(width=min(20,len(self.caselist)))
-                        self.casename.set(self.caselist)
-                        self.datadir.set(os.path.split(dir)[0])
-                        self.case_callback()
-                        return
+            if len(files):
 
-            else:
+                # check for case of a single case data dir
+                # currently the assumption is that 't1' and 'flair' are in the filename strings
+                # imagefiles = [re.search('(t1|flair)',f.lower()) for f in files]
+                imagefiles = [re.match('(^.*(t1|flair).*\.(nii|nii\.gz|dcm)$)',f.lower()) for f in files]
+                imagefiles = list(filter(lambda item: item is not None,imagefiles))
+                if len(imagefiles) > 1:
+                    imagefiles = [i.group(1) for i in imagefiles]
+                    self.casefile_prefix = ''
+                    casefiles = [os.path.split(dir)[1]]
+                    self.ui.set_message('')
+                    self.w.config(width=min(20,len(casefiles[0])))
+                    self.datadir.set(os.path.split(dir)[0])
+                    doload = True
 
-                # check for case subdirs in the parent dir having a certain naming convention as in BraTS
-                try:
-                    self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
-                    casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
-                except AttributeError as e:
-                    print('No cases found in directory {}'.format(dir))
-                    self.ui.set_message('No cases found in directory {}'.format(dir))
-                    return
-                self.ui.set_message('')
-                if len(casefiles):
-                    self.config.UIdataroot = self.casefile_prefix
-                    # TODO: will need a better sort here
-                    self.caselist = sorted(casefiles)
-                    self.w['values'] = self.caselist
-                    self.w.current(0)
-                    self.w.config(width=8)
-                    # autoload first case
-                    if self.config.AutoLoad:
-                        self.casename.set(self.caselist[0])
-                        self.case_callback()
                 else:
-                    print('No cases found in directory {}'.format(dir))
-                    self.ui.set_message('No cases found in directory {}'.format(dir))
+
+                    # check for multiple case subdirs in the parent datadir having a certain naming convention as in BraTS
+                    try:
+                        self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
+                        casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
+                        self.w.config(width=6)
+                        doload = self.config.AutoLoad
+                    except AttributeError as e:
+                        print('No cases found in directory {}'.format(dir))
+                        self.ui.set_message('No cases found in directory {}'.format(dir))
+                        return
+                    self.ui.set_message('')
+
+            if len(casefiles):
+                self.config.UIdataroot = self.casefile_prefix
+                # TODO: will need a better sort here
+                self.caselist = sorted(casefiles)
+                self.w['values'] = self.caselist
+                self.w.current(0)
+                # current(0) should do this too, but sometimes it does not
+                self.casename.set(self.caselist[0])
+                # autoload first case
+                if doload:
+                    # self.casename.set(self.caselist[0])
+                    self.case_callback()
+            else:
+                print('No cases found in directory {}'.format(dir))
+                self.ui.set_message('No cases found in directory {}'.format(dir))
         else:
             print('Directory {} not found.'.format(dir))
             self.ui.set_message('Directory {} not found.'.format(dir))
             self.w.config(state='disable')
             self.datadirentry.update()
         return
+
+    def resetCase(self):
+        self.filenames = None
+        self.casename = StringVar()
+        self.casefile_prefix = None
+        self.caselist = []
