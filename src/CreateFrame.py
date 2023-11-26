@@ -1032,7 +1032,7 @@ class CreateCaseFrame(CreateFrame):
                     try:
                         self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
                         casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
-                        self.w.config(width=6)
+                        self.w.config(width=8)
                         doload = self.config.AutoLoad
                     except AttributeError as e:
                         print('No cases found in directory {}'.format(dir))

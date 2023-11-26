@@ -84,7 +84,7 @@ class CreateROIFrame(CreateFrame):
         self.layerROI.trace_add('write',lambda *args: self.layerROI.get())
         self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['blast'][0],
                                            *self.layerlist['seg'],command=self.layerROI_callback)
-        self.layerROImenu.config(width=6)
+        self.layerROImenu.config(width=8)
         self.layerROImenu.grid(row=0,column=3,sticky='w')
 
         # n'th roi number choice
