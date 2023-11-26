@@ -560,16 +560,21 @@ class CreateCaseFrame(CreateFrame):
         # case selection
         caseframe = ttk.Frame(parent,padding='5')
         caseframe.grid(row=0,column=0,columnspan=3,sticky='ew')
-        # datadir
+
+        # select directory
         self.fdbicon = PhotoImage(file=os.path.join(self.config.UIResourcesPath,'folder_icon_16.png'))
         # select a parent dir for a group of case sub-dirs
-        # self.fdbutton = ttk.Button(caseframe,image=self.fdbicon, command=self.select_dir)
-        self.fdbutton = ttk.Button(caseframe,image=self.fdbicon, command=self.select_file)
+        self.fdbutton = ttk.Button(caseframe,image=self.fdbicon, command=self.select_dir)
         self.fdbutton.grid(row=0,column=2)
+        # select file
+        self.fdbicon_file = PhotoImage(file=os.path.join(self.config.UIResourcesPath,'file_icon_16.png'))
+        self.fdbutton_file = ttk.Button(caseframe,image=self.fdbicon_file,command = self.select_file)
+        self.fdbutton_file.grid(row=0,column=3)
+
         self.datadirentry = ttk.Entry(caseframe,width=40,textvariable=self.datadir)
         # event currently a dummy arg since not being used in datadirentry_callback
         self.datadirentry.bind('<Return>',lambda event=None:self.datadirentry_callback(event=event))
-        self.datadirentry.grid(column=3,row=0,columnspan=5)
+        self.datadirentry.grid(row=0,column=4,columnspan=5)
         caselabel = ttk.Label(caseframe, text='Case: ')
         caselabel.grid(column=0,row=0,sticky='we')
         # self.casename.trace_add('write',self.case_callback)
@@ -577,11 +582,12 @@ class CreateCaseFrame(CreateFrame):
         self.w.grid(column=1,row=0)
         self.w.bind("<<ComboboxSelected>>",self.case_callback)
         self.n4_check = ttk.Checkbutton(caseframe,text='N4',variable=self.n4_check_value)
-        self.n4_check.grid(row=0,column=8,sticky='w')
+        self.n4_check.grid(row=0,column=9,sticky='w')
 
 
     # callback for file dialog 
     def select_dir(self):
+        self.filename = None
         self.fd.select_dir()
         self.datadir.set(self.fd.dir)
         self.datadirentry.update()
