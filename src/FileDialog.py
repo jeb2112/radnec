@@ -6,7 +6,7 @@ class FileDialog():
     def __init__(self,initdir):
        self.initdir = initdir
        self.dir = self.initdir
-       self.filename = None
+       self.filenames = None
 
     def create_dialog(self):
         self.root = tk.Tk()
@@ -20,7 +20,7 @@ class FileDialog():
     def select_dir(self):
         self.create_dialog()
         self.dir = fd.askdirectory(
-            title='Select a dir',
+            title='Select data directory',
             initialdir=self.dir
         )
         self.remove_dialog()
@@ -34,8 +34,8 @@ class FileDialog():
             ('dicom files', '*.dcm')
         )
 
-        self.filename = fd.askopenfilename(
-            title='Open a file',
+        self.filenames = fd.askopenfilenames(
+            title='Select T1 and FLAIR images',
             initialdir=self.dir,
             filetypes=filetypes)
         return
