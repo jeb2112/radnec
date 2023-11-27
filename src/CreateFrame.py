@@ -283,10 +283,7 @@ class CreateSliceViewerFrame(CreateFrame):
             self.canvas.get_tk_widget().bind('<<MyMouseWheel>>',EventCallback(self.mousewheel,key='Key'))
         self.canvas.get_tk_widget().bind('<Up>',self.keyboard_slice)
         self.canvas.get_tk_widget().bind('<Down>',self.keyboard_slice)
-        if self.ui.OS == 'nt':
-            self.canvas.get_tk_widget().bind('<Enter>',self.focus)
-        elif self.ui.OS == 'linux':
-            self.canvas.get_tk_widget().bind_all('<Enter>',self.focus)
+        self.canvas.get_tk_widget().bind('<Enter>',self.focus)
         self.cw = self.canvas.get_tk_widget()
 
         self.frame.update()

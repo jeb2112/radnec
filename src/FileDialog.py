@@ -1,6 +1,7 @@
 # class for file dialog. To be used for selecting a case directory. actual case files loaded separately.
 import tkinter as tk
 from tkinter import filedialog as fd
+import copy
 
 class FileDialog():
     def __init__(self,initdir):
@@ -18,22 +19,18 @@ class FileDialog():
         self.root.destroy()
  
     def select_dir(self):
-        self.create_dialog()
         self.dir = fd.askdirectory(
             title='Select data directory',
             initialdir=self.dir
         )
-        self.remove_dialog()
         return
 
     def select_file(self):
-        self.create_dialog()
         filetypes = (
             ('all files', '*.*'),
             ('nifti files', '*.nii*'),
             ('dicom files', '*.dcm')
         )
-
         self.filenames = fd.askopenfilenames(
             title='Select T1 and FLAIR images',
             initialdir=self.dir,
