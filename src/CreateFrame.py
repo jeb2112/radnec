@@ -665,24 +665,24 @@ class CreateCaseFrame(CreateFrame):
                     if 'pre' in metadata.SeriesDescription:
                         continue
                     img_arr_t1 = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                    t1_affine = self.get_affine(metadata)
                     img_arr_t1[0,:,:] = metadata.pixel_array
                     for i,f in enumerate(files[1:]):
                         data = pd.dcmread(os.path.join(dpath,f))
                         img_arr_t1[i+1,:,:] = data.pixel_array
                 elif any([f in metadata.SeriesDescription for f in ['flair','fluid']]):
                     img_arr_t2 = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                    t2_affine = self.get_affine(metadata)
                     img_arr_t2[0,:,:] = metadata.pixel_array
                     for i,f in enumerate(files[1:]):
                         data = pd.dcmread(os.path.join(dpath,f))
                         img_arr_t2[i+1,:,:] = data.pixel_array
 
-            a=1
-
         # dimensions of canvas panel might have to change depending on dimension of new data loaded.
         if np.shape(img_arr_t1) != np.shape(img_arr_t2):
             self.ui.set_message('Image matrices do not match. Resampling...')
             print('Image matrices do not match. Resampling...')
-            self.resamplet2()
+            img_arr_t2 = self.resamplet2(img_arr_t1,img_arr_t2,t1_affine,t2_affine)
         
         self.ui.sliceviewerframe.dim = np.shape(img_arr_t1)
         self.ui.sliceviewerframe.create_canvas()
@@ -697,8 +697,8 @@ class CreateCaseFrame(CreateFrame):
         # img_arr = sitk.GetArrayFromImage(t2flair)
         self.ui.data['raw'][1] = img_arr_t2
 
-        # bias correction. by convention, any pre-corrected files should have 'bias' in the filename
-        if self.n4_check_value.get() and 'bias' not in t1ce_file:  
+        # bias correction.
+        if self.n4_check_value.get():  
             self.n4()
         # rescale the data
         for ch in range(np.shape(self.ui.data['raw'])[0]):
@@ -731,10 +731,35 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.data['manual_TC'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
                 self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
 
-    # if T2 matrix is different resample it to t1
-    def resamplet2():
+    # create nb affine from dicom 
+    def get_affine(self,metadata):
+        dircos = np.array(list(map(float,metadata.ImageOrientationPatient)))
+        affine = np.zeros((4,4))
+        if False:
+            affine[0,:3] = dircos[0:3]*float(metadata.PixelSpacing[0])
+            affine[1,:3] = dircos[3:]*float(metadata.PixelSpacing[1])
+            d3 = np.cross(dircos[:3],dircos[3:])
+            # d3 = np.cross(dircos[3:],dircos[:3])
+            affine[2,:3] = d3*float(metadata.SliceThickness)
+        else:
+            affine[:3,0] = dircos[0:3]*float(metadata.PixelSpacing[0])
+            affine[:3,1] = dircos[3:]*float(metadata.PixelSpacing[1])
+            d3 = np.cross(dircos[:3],dircos[3:])
+            # d3 = np.cross(dircos[3:],dircos[:3])
+            affine[:3,2] = d3*float(metadata.SliceThickness)
+        affine[:3,3] = metadata.ImagePositionPatient
+        affine[3,3] = 1
+        print(affine)
+        return affine
 
-        return
+
+    # if T2 matrix is different resample it to t1
+    def resamplet2(self,img_arr_t1,img_arr_t2,a1,a2):
+        img_t1 = nb.Nifti1Image(np.transpose(img_arr_t1,axes=(2,1,0)),affine=a1)
+        img_t2 = nb.Nifti1Image(np.transpose(img_arr_t2,axes=(2,1,0)),affine=a2)
+        img_t2_res = resample_from_to(img_t2,(img_t1.shape[:3],img_t1.affine))
+        img_arr_t2 = np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0))
+        return img_arr_t2
 
     def loadData(self,t1ce_file,t2flair_file,type=None):
         img_arr_t1 = img_arr_t2 = None
