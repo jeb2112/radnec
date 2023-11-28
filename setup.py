@@ -19,5 +19,6 @@ setup(name='blast',
             "connected-components-3d",
             "twisted",
             "versioneer",
-            "nibabel"      ])
+            "nibabel",
+            "pydicom"      ])
  

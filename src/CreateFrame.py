@@ -7,6 +7,8 @@ import logging
 import tkinter as tk
 import nibabel as nb
 from nibabel.processing import resample_from_to
+import pydicom as pd
+from pydicom.fileset import FileSet
 from tkinter import ttk,StringVar,DoubleVar,PhotoImage
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg,NavigationToolbar2Tk
@@ -630,54 +632,70 @@ class CreateCaseFrame(CreateFrame):
             self.ui.set_casename()
         self.casedir = os.path.join(self.datadir.get(),self.config.UIdataroot+self.casename.get())
 
+        # if two image files are given load them directly
         if files is not None:
+            if len(files) != 2:
+                self.ui.set_message('Select only two image files')
+                return
             t1ce_file,t2flair_file = self.filenames
+            img_arr_t1,img_arr_t2 = self.loadData(t1ce_file,t2flair_file)
 
-        else:
+        # check for nifti image files with matching filenames
+        elif self.casetype <= 1:
             files = os.listdir(self.casedir)
             t1_files = [f for f in files if 't1' in f.lower()]
-            if len(t1_files) > 1:
-                t1ce_file = next((f for f in t1_files if re.search('(ce|gad|gd)',f.lower())),t1_files[0])
-            else:
-                t1ce_file = t1_files
-            t2flair_file = next((f for f in files if 'flair' in f),None)
+            if len(t1_files) > 0:
+                if len(t1_files) > 1:
+                    t1ce_file = next((f for f in t1_files if re.search('(ce|gad|gd|post)',f.lower())),t1_files[0])
+                elif len(t1_files) == 1:
+                    t1ce_file = t1_files
+                t2flair_file = next((f for f in files if 'flair' in f),None)
+            img_arr_t1,img_arr_t2 = self.loadData(t1ce_file,t2flair_file)
 
-        # using nibabel for input image coordinates
-        if True:
-            img_nb = nb.load(os.path.join(self.casedir,t1ce_file))
-            self.ui.nb_header = img_nb.header.copy()
-            # nibabel convention will be transposed to sitk convention
-            img_arr = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
-
-        # sitk is not reading the nifti image origin for some reason. 
+        # dicom directories each containing one image series
+        # for now it will assumed not be multi-frame format
         else:
-            reader = sitk.ImageFileReader()
-            reader.SetImageIO('NiftiImageIO')
-            reader.SetFileName(os.path.join(self.casedir,t1ce_file))
-            reader.ReadImageInformation()
-            img_sitk = reader.Execute()
-            self.ui.origin = img_sitk.GetOrigin()
-            self.ui.spacing = img_sitk.GetSpacing()
-            self.ui.direction = img_sitk.GetDirection()
-            img_arr = sitk.GetArrayFromImage(img_sitk)
+            dcmdirs = os.listdir(self.casedir)
+            for d in dcmdirs:
+                dpath = os.path.join(self.casedir,d)
+                files = sorted(os.listdir(dpath))
+                metadata = pd.dcmread(os.path.join(dpath,files[0]))
+                print(metadata.SeriesDescription)
+                if 't1' in metadata.SeriesDescription:
+                    if 'pre' in metadata.SeriesDescription:
+                        continue
+                    img_arr_t1 = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                    img_arr_t1[0,:,:] = metadata.pixel_array
+                    for i,f in enumerate(files[1:]):
+                        data = pd.dcmread(os.path.join(dpath,f))
+                        img_arr_t1[i+1,:,:] = data.pixel_array
+                elif any([f in metadata.SeriesDescription for f in ['flair','fluid']]):
+                    img_arr_t2 = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                    img_arr_t2[0,:,:] = metadata.pixel_array
+                    for i,f in enumerate(files[1:]):
+                        data = pd.dcmread(os.path.join(dpath,f))
+                        img_arr_t2[i+1,:,:] = data.pixel_array
+
+            a=1
 
         # dimensions of canvas panel might have to change depending on dimension of new data loaded.
-        self.ui.sliceviewerframe.dim = np.shape(img_arr)
-        # if self.ui.sliceviewerframe.canvas is None:
+        if np.shape(img_arr_t1) != np.shape(img_arr_t2):
+            self.ui.set_message('Image matrices do not match. Resampling...')
+            print('Image matrices do not match. Resampling...')
+            self.resamplet2()
+        
+        self.ui.sliceviewerframe.dim = np.shape(img_arr_t1)
         self.ui.sliceviewerframe.create_canvas()
-        # else:
-        #     self.ui.sliceviewerframe.adjust_canvas()
-        #     self.ui.sliceviewerframe.create_canvas()
 
         # 2 channels hard-coded
         self.ui.data['raw'] = np.zeros((2,)+self.ui.sliceviewerframe.dim,dtype='float32')
-        self.ui.data['raw'][0] = img_arr
+        self.ui.data['raw'][0] = img_arr_t1
 
         # Create t2flair template. assuming there is only 1 flair image file
-        t2flair = sitk.ReadImage(os.path.join(self.casedir,t2flair_file))
-        # img_arr = np.flip(sitk.GetArrayFromImage(t2flair),axis=0)
-        img_arr = sitk.GetArrayFromImage(t2flair)
-        self.ui.data['raw'][1] = img_arr
+        # t2flair = sitk.ReadImage(os.path.join(self.casedir,t2flair_file))
+        # # img_arr = np.flip(sitk.GetArrayFromImage(t2flair),axis=0)
+        # img_arr = sitk.GetArrayFromImage(t2flair)
+        self.ui.data['raw'][1] = img_arr_t2
 
         # bias correction. by convention, any pre-corrected files should have 'bias' in the filename
         if self.n4_check_value.get() and 'bias' not in t1ce_file:  
@@ -712,6 +730,34 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.data['manual_ET'] = (self.ui.data['label'] == 4).astype('int') #enhancing tumor 
                 self.ui.data['manual_TC'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
                 self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
+
+    # if T2 matrix is different resample it to t1
+    def resamplet2():
+
+        return
+
+    def loadData(self,t1ce_file,t2flair_file,type=None):
+        img_arr_t1 = img_arr_t2 = None
+        if 'nii' in t1ce_file:
+            try:
+                img_nb_t1 = nb.load(os.path.join(self.casedir,t1ce_file))
+                img_nb_t2 = nb.load(os.path.join(self.casedir,t2flair_file))
+            except IOError as e:
+                self.ui.set_message('Can\'t import {} or {}'.format(t1ce_file,t2flair_file))
+            self.ui.nb_header = img_nb_t1.header.copy()
+            # nibabel convention will be transposed to sitk convention
+            img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
+            img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
+        elif 'dcm' in t1ce_file:
+            try:
+                img_dcm_t1 = pd.dcmread(os.path.join(self.casedir,t1ce_file))
+                img_dcm_t2 = pd.dcmread(os.path.join(self.casedir,t2flair_file))
+            except IOError as e:
+                self.ui.set_message('Can\'t import {} or {}'.format(t1ce_file,t2flair_file))
+            self.ui.dcm_header = None
+            img_arr_t1 = np.transpose(np.array(img_dcm_t1.dataobj),axes=(2,1,0))
+            img_arr_t2 = np.transpose(np.array(img_dcm_t2.dataobj),axes=(2,1,0))
+        return img_arr_t1,img_arr_t2
 
 
     # operates on a single image channel 
@@ -764,19 +810,20 @@ class CreateCaseFrame(CreateFrame):
             self.case_callback(files=self.filenames)
             return
 
-    # main callback for selecting dir either by file dialog or text entry
+    # main callback for selecting a data directory either by file dialog or text entry
+    # find the list of cases in the current directory, set the combobox, and optionally load a case
     def datadirentry_callback(self,event=None):
         dir = self.datadir.get().strip()
         if os.path.exists(dir):
             self.w.config(state='normal')            
             files = os.listdir(dir)
+            casefiles = []
             if len(files):
 
-                # check for case of a single case data dir
-                # currently the assumption is that 't1' and 'flair' are in the filename strings
-                # imagefiles = [re.search('(t1|flair)',f.lower()) for f in files]
-                imagefiles = [re.match('(^.*(t1|flair).*\.(nii|nii\.gz|dcm)$)',f.lower()) for f in files]
-                imagefiles = list(filter(lambda item: item is not None,imagefiles))
+                imagefiles = self.get_imagefiles(files)
+                niftidirs,dcmdirs = self.get_imagedirs(files)
+
+                # single case directory with image files
                 if len(imagefiles) > 1:
                     imagefiles = [i.group(1) for i in imagefiles]
                     self.casefile_prefix = ''
@@ -784,21 +831,33 @@ class CreateCaseFrame(CreateFrame):
                     self.ui.set_message('')
                     self.w.config(width=min(20,len(casefiles[0])))
                     self.datadir.set(os.path.split(dir)[0])
+                    self.casetype = 0
                     doload = True
 
+                # one or more case subdirectories
                 else:
+                    if len(niftidirs):
 
-                    # check for multiple case subdirs in the parent datadir having a certain naming convention as in BraTS
-                    try:
-                        self.casefile_prefix = re.match('(^.*)0[0-9]{4}',files[0]).group(1)
-                        casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
-                        self.w.config(width=6)
-                        doload = self.config.AutoLoad
-                    except AttributeError as e:
-                        print('No cases found in directory {}'.format(dir))
-                        self.ui.set_message('No cases found in directory {}'.format(dir))
-                        return
-                    self.ui.set_message('')
+                        # check for BraTS format first
+                        brats = re.match('(^.*)0[0-9]{4}',niftidirs[0])
+                        if brats:
+                            self.casefile_prefix = brats.group(1)
+                            casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
+                            self.w.config(width=6)
+                        else:
+                            self.casefile_prefix = ''
+                            casefiles = niftidirs
+                            self.w.config(width=max(20,len(casefiles[0])))
+                        self.casetype = 1
+
+                    # currently only a single dicom case directory is handled
+                    elif len(dcmdirs):
+                        self.casefile_prefix = ''
+                        self.datadir.set(os.path.split(dir)[0])
+                        casefiles = [os.path.split(dir)[1]]
+                        self.w.config(width=max(20,len(casefiles[0])))
+                        self.casetype = 2
+                    doload = self.config.AutoLoad
 
             if len(casefiles):
                 self.config.UIdataroot = self.casefile_prefix
@@ -810,7 +869,6 @@ class CreateCaseFrame(CreateFrame):
                 self.casename.set(self.caselist[0])
                 # autoload first case
                 if doload:
-                    # self.casename.set(self.caselist[0])
                     self.case_callback()
             else:
                 print('No cases found in directory {}'.format(dir))
@@ -821,6 +879,33 @@ class CreateCaseFrame(CreateFrame):
             self.w.config(state='disable')
             self.datadirentry.update()
         return
+
+    def get_imagefiles(self,files):
+        imagefiles = [re.match('(^.*(t1|flair).*\.(nii|nii\.gz|dcm)$)',f.lower()) for f in files]
+        imagefiles = list(filter(lambda item: item is not None,imagefiles))
+        if len(imagefiles):
+            self.ui.set_message('')
+        return imagefiles
+    
+    # currently the assumption is there will only be niftidirs or dicomdirs, but not both
+    def get_imagedirs(self,files):
+        dir = self.datadir.get()
+        dcmdirs = []
+        niftidirs = []
+        for f in files:
+            fpath = os.path.join(dir,f)
+            if os.path.isdir(fpath):
+                flist = os.listdir(fpath)
+                dcmfiles = [f for f in flist if re.match('.*\.dcm',f.lower())]
+                niftifiles = [f for f in flist if re.match('.*\.(nii|nii\.gz)',f.lower())]
+                if len(dcmfiles):
+                    dcmdirs.append(f)
+                if len(niftifiles):
+                    niftidirs.append(f)
+        if len(niftidirs+dcmdirs):
+            self.ui.set_message('')
+                    
+        return niftidirs,dcmdirs
 
     def resetCase(self):
         self.filenames = None

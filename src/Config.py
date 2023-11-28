@@ -39,7 +39,7 @@ class Config(object):
             self.UIdatadir = os.path.join('C:\\','Users','chint','Data')
         elif os.name == 'posix':
             # self.UIdatadir = '/media/jbishop/WD4/brainmets/raw/BraTS2021'
-            self.UIdatadir = '/home/jbishop/Data/BraTS2021'
+            self.UIdatadir = '/home/jbishop/Data/blast'
         self.UIdataroot = 'BraTS2021_'
 
         # automatically load first case in directory
