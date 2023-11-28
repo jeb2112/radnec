@@ -662,7 +662,8 @@ class CreateCaseFrame(CreateFrame):
                 metadata = pd.dcmread(os.path.join(dpath,files[0]))
                 print(metadata.SeriesDescription)
                 if 't1' in metadata.SeriesDescription:
-                    if 'pre' in metadata.SeriesDescription:
+                    # using 'post' only for debugging one sunnybrook case
+                    if 'post' in metadata.SeriesDescription:
                         continue
                     img_arr_t1 = np.zeros((len(files),metadata.Rows,metadata.Columns))
                     t1_affine = self.get_affine(metadata)
@@ -683,7 +684,24 @@ class CreateCaseFrame(CreateFrame):
             self.ui.set_message('Image matrices do not match. Resampling...')
             print('Image matrices do not match. Resampling...')
             img_arr_t2 = self.resamplet2(img_arr_t1,img_arr_t2,t1_affine,t2_affine)
-        
+
+        # registration
+        doregister = True
+        if doregister:
+            fixed_image = sitk.GetImageFromArray(img_arr_t1)
+            moving_image = sitk.GetImageFromArray(img_arr_t2)
+            initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
+                                                      moving_image, 
+                                                      sitk.AffineTransform(),             
+                                                      sitk.CenteredTransformInitializerFilter.GEOMETRY)
+            final_transform,_ = self.multires_registration(fixed_image, moving_image, initial_transform)      
+            moving_image_reg = sitk.Resample(moving_image,
+                                             fixed_image,
+                                             final_transform,
+                                             sitk.sitkBSplineResamplerOrder3,
+                                             fixed_image.GetPixelID()) 
+            img_arr_t2 = sitk.GetArrayFromImage(moving_image_reg)
+
         self.ui.sliceviewerframe.dim = np.shape(img_arr_t1)
         self.ui.sliceviewerframe.create_canvas()
 
@@ -730,6 +748,27 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.data['manual_ET'] = (self.ui.data['label'] == 4).astype('int') #enhancing tumor 
                 self.ui.data['manual_TC'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
                 self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
+
+
+    # This is the registration configuration which we use in all cases. The only parameter that we vary 
+    # is the initial_transform. 
+    def multires_registration(self,fixed_image, moving_image, initial_transform):
+        registration_method = sitk.ImageRegistrationMethod()
+        registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=50)
+        registration_method.SetMetricSamplingStrategy(registration_method.RANDOM)
+        registration_method.SetMetricSamplingPercentage(0.01)
+        registration_method.SetInterpolator(sitk.sitkLinear)
+        registration_method.SetOptimizerAsGradientDescent(learningRate=1.0, numberOfIterations=100, estimateLearningRate=registration_method.Once)
+        registration_method.SetOptimizerScalesFromPhysicalShift() 
+        registration_method.SetInitialTransform(initial_transform, inPlace=False)
+        registration_method.SetShrinkFactorsPerLevel(shrinkFactors = [4,2,1])
+        registration_method.SetSmoothingSigmasPerLevel(smoothingSigmas = [2,1,0])
+        registration_method.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+
+        final_transform = registration_method.Execute(fixed_image, moving_image)
+        print('Final metric value: {0}'.format(registration_method.GetMetricValue()))
+        print('Optimizer\'s stopping condition, {0}'.format(registration_method.GetOptimizerStopConditionDescription()))
+        return (final_transform, registration_method.GetMetricValue())
 
     # create nb affine from dicom 
     def get_affine(self,metadata):
