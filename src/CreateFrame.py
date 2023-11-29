@@ -558,6 +558,10 @@ class CreateCaseFrame(CreateFrame):
         self.casefile_prefix = None
         self.caselist = []
         self.n4_check_value = tk.BooleanVar(value=True)
+        self.register_check_value = tk.BooleanVar(value=True)
+        self.skullstrip_check_value = tk.BooleanVar(value=True)
+        self.segnormal_check_value = tk.BooleanVar(value=True)
+        self.processed = False
 
         # case selection
         caseframe = ttk.Frame(parent,padding='5')
@@ -583,8 +587,16 @@ class CreateCaseFrame(CreateFrame):
         self.w = ttk.Combobox(caseframe,width=6,textvariable=self.casename,values=self.caselist)
         self.w.grid(column=1,row=0)
         self.w.bind("<<ComboboxSelected>>",self.case_callback)
+
+        #processing options
+        self.register_check = ttk.Checkbutton(caseframe,text='register',variable=self.register_check_value)
+        self.register_check.grid(row=0,column=9,sticky='w')
+        self.skullstrip_check = ttk.Checkbutton(caseframe,text='extract',variable=self.skullstrip_check_value)
+        self.skullstrip_check.grid(row=0,column=10,sticky='w')
         self.n4_check = ttk.Checkbutton(caseframe,text='N4',variable=self.n4_check_value)
-        self.n4_check.grid(row=0,column=9,sticky='w')
+        self.n4_check.grid(row=0,column=11,sticky='w')
+        self.segnormal_check = ttk.Checkbutton(caseframe,text='segment',variable=self.segnormal_check_value)
+        self.segnormal_check.grid(row=0,column=12,sticky='w')
 
 
     # callback for file dialog 
@@ -638,31 +650,48 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.set_message('Select only two image files')
                 return
             t1ce_file,t2flair_file = self.filenames
+            if 'processed' in all(self.filenames):
+                self.processed = True
             img_arr_t1,img_arr_t2 = self.loadData(t1ce_file,t2flair_file)
 
         # check for nifti image files with matching filenames
+        # 'processed' refers to earlier output and is loaded preferentially.
         elif self.casetype <= 1:
             files = os.listdir(self.casedir)
             t1_files = [f for f in files if 't1' in f.lower()]
             if len(t1_files) > 0:
                 if len(t1_files) > 1:
-                    t1ce_file = next((f for f in t1_files if re.search('(ce|gad|gd|post)',f.lower())),t1_files[0])
+                    t1ce_file = next((f for f in t1_files if re.search('(processed)',f.lower())),None)
+                    self.processed = True
+                    if t1ce_file is None:
+                        t1ce_file = next((f for f in t1_files if re.search('(ce|gad|gd|post)',f.lower())),t1_files[0])
+                        self.processed = False
                 elif len(t1_files) == 1:
-                    t1ce_file = t1_files
-                t2flair_file = next((f for f in files if 'flair' in f),None)
+                    t1ce_file = t1_files[0]
+            t2_files = [f for f in files if 'flair' in f.lower()]
+            if len(t2_files) > 0:
+                if len(t2_files) > 1:
+                    t2flair_file = next((f for f in t2_files if re.search('(processed)',f.lower())),None)
+                    self.processed = True
+                    if t2flair_file is None:
+                        t2flair_file = next((f for f in t2_files if re.search('(ce|gad|gd|post)',f.lower())),t2_files[0])
+                        self.processed = False
+                elif len(t2_files) == 1:
+                    t2flair_file = t2_files[0]
             img_arr_t1,img_arr_t2 = self.loadData(t1ce_file,t2flair_file)
 
         # dicom directories each containing one image series
         # for now it will assumed not be multi-frame format
         else:
+            self.processed = False
             dcmdirs = os.listdir(self.casedir)
             for d in dcmdirs:
                 dpath = os.path.join(self.casedir,d)
                 files = sorted(os.listdir(dpath))
                 metadata = pd.dcmread(os.path.join(dpath,files[0]))
-                print(metadata.SeriesDescription)
+                # print(metadata.SeriesDescription)
                 if 't1' in metadata.SeriesDescription:
-                    # using 'post' only for debugging one sunnybrook case
+                    # using 'pre' only for debugging one sunnybrook case
                     if 'post' in metadata.SeriesDescription:
                         continue
                     img_arr_t1 = np.zeros((len(files),metadata.Rows,metadata.Columns))
@@ -681,36 +710,41 @@ class CreateCaseFrame(CreateFrame):
 
         # dimensions of canvas panel might have to change depending on dimension of new data loaded.
         if np.shape(img_arr_t1) != np.shape(img_arr_t2):
-            self.ui.set_message('Image matrices do not match. Resampling...')
-            print('Image matrices do not match. Resampling...')
+            self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
+            print('Image matrices do not match. Resampling T2flair into T1 space...')
             img_arr_t2 = self.resamplet2(img_arr_t1,img_arr_t2,t1_affine,t2_affine)
 
-        # registration
-        doregister = True
-        if doregister:
+        # registration. for now assuming automatoically needed on input dicoms
+        # but not on any nift with 'processed' in the filename
+        if self.casetype == 2 or self.register_check_value.get() and self.processed is False:
+            print('register T1 T2flair')
             fixed_image = sitk.GetImageFromArray(img_arr_t1)
             moving_image = sitk.GetImageFromArray(img_arr_t2)
             initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
-                                                      moving_image, 
-                                                      sitk.AffineTransform(3),             
-                                                      sitk.CenteredTransformInitializerFilter.GEOMETRY)
+                                                    moving_image, 
+                                                    sitk.AffineTransform(3),             
+                                                    sitk.CenteredTransformInitializerFilter.GEOMETRY)
             final_transform,_ = self.multires_registration(fixed_image, moving_image, initial_transform)      
             moving_image_reg = sitk.Resample(moving_image,
-                                             fixed_image,
-                                             final_transform,
-                                             sitk.sitkBSplineResamplerOrder3,
-                                             fixed_image.GetPixelID()) 
+                                            fixed_image,
+                                            final_transform,
+                                            sitk.sitkBSplineResamplerOrder3,
+                                            fixed_image.GetPixelID()) 
             img_arr_t2 = sitk.GetArrayFromImage(moving_image_reg)
 
-        # skull strip
-        doskullstrip = True
-        if doskullstrip:
+        # skull strip. for now assuming only needed on input dicoms
+        if self.casetype == 2 or self.skullstrip_check_value.get() and self.processed is False:
             img_arr_t1,img_arr_t2 = self.skullstrip(img_arr_t1,img_arr_t2)
 
-        # seg normal tissue
-        dosegnormal = True
-        if dosegnormal:
+        # seg normal tissue. assuming only for input dicoms
+        img_arr_prob_GM = img_arr_prob_WM = None
+        if self.casetype == 2 or self.segnormal_check_value.get() and self.processed is False:
             img_arr_prob_GM,img_arr_prob_WM = self.segnormal(img_arr_t1)
+
+        # save nifti files for future use
+        if self.casetype == 2:
+            self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_processed.nii.gz'),type='float')
+            self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2flair_processed.nii.gz'),type='float')
 
         self.ui.sliceviewerframe.dim = np.shape(img_arr_t1)
         self.ui.sliceviewerframe.create_canvas()
@@ -725,11 +759,20 @@ class CreateCaseFrame(CreateFrame):
         # img_arr = sitk.GetArrayFromImage(t2flair)
         self.ui.data['raw'][1] = img_arr_t2
 
-        self.ui.data['probGM'] = img_arr_prob_GM
-        self.ui.data['probWM'] = img_arr_prob_WM
+        if img_arr_prob_GM is None:
+            try:
+                d = nb.load(os.path.join(self.casedir,'brain_probabilities_GM.nii.gz'))
+                self.ui.data['probGM'] = np.transpose(np.array(d.dataobj),axes=(2,1,0))
+                d = nb.load(os.path.join(self.casedir,'brain_probabilities_WM.nii.gz'))
+                self.ui.data['probWM'] = np.transpose(np.array(d.dataobj),axes=(2,1,0))
+            except FileNotFoundError as e:
+                pass
+        else:
+            self.ui.data['probGM'] = img_arr_prob_GM
+            self.ui.data['probWM'] = img_arr_prob_WM
 
         # bias correction.
-        if self.n4_check_value.get():  
+        if self.n4_check_value.get() and self.processed is False:  
             self.n4()
         # rescale the data
         for ch in range(np.shape(self.ui.data['raw'])[0]):
@@ -792,16 +835,16 @@ class CreateCaseFrame(CreateFrame):
         affine[:3,2] = d3*float(metadata.SliceThickness)
         affine[:3,3] = metadata.ImagePositionPatient
         affine[3,3] = 1
-        print(affine)
+        # print(affine)
         return affine
 
     def skullstrip(self,img_arr_t1,img_arr_t2):
-        print('skull strip')
+        print('brain extract')
         img_arr_t1 = self.brainmage_clip(img_arr_t1)
         img_arr_t2 = self.brainmage_clip(img_arr_t2)
         self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_temp.nii'),norm=False,type='float')
-        self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_temp.nii'),norm=False,type='float')
-        for t in ['T1','T2']:
+        self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2flair_temp.nii'),norm=False,type='float')
+        for t in ['T1','T2flair']:
             tfile = 'img_' + t + '_temp.nii'
             ofile = 'img_' + t + '_brain.nii'
             command = 'conda run -n brainmage brain_mage_single_run '
@@ -810,11 +853,11 @@ class CreateCaseFrame(CreateFrame):
             command += ' -m ' + os.path.join(self.casedir,ofile) + ' -dev 0'
             res = os.system(command)
             # print(res)
-        # os.remove(os.path.join(self.casedir,'img_T1_temp.nii'))
-        # os.remove(os.path.join(self.casedir,'img_T2_temp.nii'))
+        os.remove(os.path.join(self.casedir,'img_T1_temp.nii'))
+        os.remove(os.path.join(self.casedir,'img_T2flair_temp.nii'))
         img_nb_t1 = nb.load(os.path.join(self.casedir,'img_T1_brain.nii'))
         img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
-        img_nb_t2 = nb.load(os.path.join(self.casedir,'img_T2_brain.nii'))
+        img_nb_t2 = nb.load(os.path.join(self.casedir,'img_T2flair_brain.nii'))
         img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
         return img_arr_t1,img_arr_t2
     
@@ -828,7 +871,7 @@ class CreateCaseFrame(CreateFrame):
 
 
     def segnormal(self,img_arr_t1):
-        print('normal seg')
+        print('segment normal tissue')
         self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_temp.nii'))
         command = 'conda run -n deepmrseg deepmrseg_apply --task tissueseg '
         command += ' --inImg ' + os.path.join(self.casedir,'img_T1_brain.nii')
@@ -836,11 +879,18 @@ class CreateCaseFrame(CreateFrame):
         command += ' --probs'
         res = os.system(command)
         print(res)
+        # rename and tidy up the probability outputs
+        for t in [0,10,50]:
+            os.remove(os.path.join(self.casedir,'img_T1_brain__probabilities_'+str(t)+'.nii.gz'))
+        os.rename(os.path.join(self.casedir,'img_T1_brain__probabilities_150.nii.gz'),
+                      os.path.join(self.casedir,'brain_probabilities_GM.nii.gz'))
+        os.rename(os.path.join(self.casedir,'img_T1_brain__probabilities_250.nii.gz'),
+                      os.path.join(self.casedir,'brain_probabilities_WM.nii.gz'))
         img_nb_t1 = nb.load(os.path.join(self.casedir,'img_T1_brain_seg.nii'))
         img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
-        img_nb_prob_GM = nb.load(os.path.join(self.casedir,'img_T1_brain__probabilities_150.nii.gz'))
+        img_nb_prob_GM = nb.load(os.path.join(self.casedir,'brain_probabilities_GM.nii.gz'))
         img_arr_prob_GM = np.transpose(np.array(img_nb_prob_GM.dataobj),axes=(2,1,0))
-        img_nb_prob_WM = nb.load(os.path.join(self.casedir,'img_T1_brain__probabilities_250.nii.gz'))
+        img_nb_prob_WM = nb.load(os.path.join(self.casedir,'brain_probabilities_WM.nii.gz'))
         img_arr_prob_WM = np.transpose(np.array(img_nb_prob_WM.dataobj),axes=(2,1,0))
         return img_arr_prob_GM,img_arr_prob_WM
                 
@@ -952,6 +1002,8 @@ class CreateCaseFrame(CreateFrame):
 
                 # one or more case subdirectories
                 else:
+                    # niftidirs option is intended for processing cases from a parent directory. such as BraTS.
+                    # imagefiles and dcmdirs intended for processing at the level of the individual case directory.
                     if len(niftidirs):
 
                         # check for BraTS format first
@@ -1003,7 +1055,6 @@ class CreateCaseFrame(CreateFrame):
             self.ui.set_message('')
         return imagefiles
     
-    # currently the assumption is there will only be niftidirs or dicomdirs, but not both
     def get_imagedirs(self,files):
         dir = self.datadir.get()
         dcmdirs = []
