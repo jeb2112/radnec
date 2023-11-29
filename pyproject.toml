@@ -19,7 +19,8 @@ dependencies = [
             "versioneer",
             "build",
             "nibabel",
-            "screeninfo"      ]
+            "screeninfo",
+            "pydicom"      ]
 [project.urls]
 "Source" = "https://github.com/jeb2112/blast"
 

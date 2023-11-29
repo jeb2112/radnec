@@ -720,10 +720,12 @@ class CreateROIFrame(CreateFrame):
             savemat(filename,msdict)
 
     # for now output only segmentations so uint8
-    def WriteImage(self,img_arr,filename):
+    def WriteImage(self,img_arr,filename,header=None,norm=False,type='uint8'):
+        if norm:
+            img_arr = (img_arr -np.min(img_arr)) / (np.max(img_arr)-np.min(img_arr)) * norm
         # using nibabel nifti coordinates
         if True:
-            img_nb = nb.Nifti1Image(np.transpose(img_arr.astype('uint8'),(2,1,0)),None,header=self.ui.nb_header)
+            img_nb = nb.Nifti1Image(np.transpose(img_arr.astype(type),(2,1,0)),None,header=header)
             nb.save(img_nb,filename)
         # couldn't get sitk nifti coordinates to work in mricron viewer
         else:

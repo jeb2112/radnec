@@ -20,5 +20,6 @@ setup(name='blast',
             "twisted",
             "versioneer",
             "nibabel",
-            "screeninfo"      ])
+            "screeninfo",
+            "pydicom"      ])
  
