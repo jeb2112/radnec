@@ -692,7 +692,7 @@ class CreateCaseFrame(CreateFrame):
             moving_image = sitk.GetImageFromArray(img_arr_t2)
             initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
                                                       moving_image, 
-                                                      sitk.AffineTransform(),             
+                                                      sitk.AffineTransform(3),             
                                                       sitk.CenteredTransformInitializerFilter.GEOMETRY)
             final_transform,_ = self.multires_registration(fixed_image, moving_image, initial_transform)      
             moving_image_reg = sitk.Resample(moving_image,
@@ -701,6 +701,16 @@ class CreateCaseFrame(CreateFrame):
                                              sitk.sitkBSplineResamplerOrder3,
                                              fixed_image.GetPixelID()) 
             img_arr_t2 = sitk.GetArrayFromImage(moving_image_reg)
+
+        # skull strip
+        doskullstrip = True
+        if doskullstrip:
+            img_arr_t1,img_arr_t2 = self.skullstrip(img_arr_t1,img_arr_t2)
+
+        # seg normal tissue
+        dosegnormal = True
+        if dosegnormal:
+            img_arr_prob_GM,img_arr_prob_WM = self.segnormal(img_arr_t1)
 
         self.ui.sliceviewerframe.dim = np.shape(img_arr_t1)
         self.ui.sliceviewerframe.create_canvas()
@@ -714,6 +724,9 @@ class CreateCaseFrame(CreateFrame):
         # # img_arr = np.flip(sitk.GetArrayFromImage(t2flair),axis=0)
         # img_arr = sitk.GetArrayFromImage(t2flair)
         self.ui.data['raw'][1] = img_arr_t2
+
+        self.ui.data['probGM'] = img_arr_prob_GM
+        self.ui.data['probWM'] = img_arr_prob_WM
 
         # bias correction.
         if self.n4_check_value.get():  
@@ -750,8 +763,7 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
 
 
-    # This is the registration configuration which we use in all cases. The only parameter that we vary 
-    # is the initial_transform. 
+    # sitk registration 
     def multires_registration(self,fixed_image, moving_image, initial_transform):
         registration_method = sitk.ImageRegistrationMethod()
         registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=50)
@@ -774,24 +786,64 @@ class CreateCaseFrame(CreateFrame):
     def get_affine(self,metadata):
         dircos = np.array(list(map(float,metadata.ImageOrientationPatient)))
         affine = np.zeros((4,4))
-        if False:
-            affine[0,:3] = dircos[0:3]*float(metadata.PixelSpacing[0])
-            affine[1,:3] = dircos[3:]*float(metadata.PixelSpacing[1])
-            d3 = np.cross(dircos[:3],dircos[3:])
-            # d3 = np.cross(dircos[3:],dircos[:3])
-            affine[2,:3] = d3*float(metadata.SliceThickness)
-        else:
-            affine[:3,0] = dircos[0:3]*float(metadata.PixelSpacing[0])
-            affine[:3,1] = dircos[3:]*float(metadata.PixelSpacing[1])
-            d3 = np.cross(dircos[:3],dircos[3:])
-            # d3 = np.cross(dircos[3:],dircos[:3])
-            affine[:3,2] = d3*float(metadata.SliceThickness)
+        affine[:3,0] = dircos[0:3]*float(metadata.PixelSpacing[0])
+        affine[:3,1] = dircos[3:]*float(metadata.PixelSpacing[1])
+        d3 = np.cross(dircos[:3],dircos[3:])
+        affine[:3,2] = d3*float(metadata.SliceThickness)
         affine[:3,3] = metadata.ImagePositionPatient
         affine[3,3] = 1
         print(affine)
         return affine
 
+    def skullstrip(self,img_arr_t1,img_arr_t2):
+        print('skull strip')
+        img_arr_t1 = self.brainmage_clip(img_arr_t1)
+        img_arr_t2 = self.brainmage_clip(img_arr_t2)
+        self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_temp.nii'),norm=False,type='float')
+        self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_temp.nii'),norm=False,type='float')
+        for t in ['T1','T2']:
+            tfile = 'img_' + t + '_temp.nii'
+            ofile = 'img_' + t + '_brain.nii'
+            command = 'conda run -n brainmage brain_mage_single_run '
+            command += ' -i ' + os.path.join(self.casedir,tfile)
+            command += ' -o ' + os.path.join('/tmp/foo')
+            command += ' -m ' + os.path.join(self.casedir,ofile) + ' -dev 0'
+            res = os.system(command)
+            # print(res)
+        # os.remove(os.path.join(self.casedir,'img_T1_temp.nii'))
+        # os.remove(os.path.join(self.casedir,'img_T2_temp.nii'))
+        img_nb_t1 = nb.load(os.path.join(self.casedir,'img_T1_brain.nii'))
+        img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
+        img_nb_t2 = nb.load(os.path.join(self.casedir,'img_T2_brain.nii'))
+        img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
+        return img_arr_t1,img_arr_t2
+    
+    def brainmage_clip(self,img):
+        img_temp = img[img >= img.mean()]
+        p1 = np.percentile(img_temp, 2)
+        p2 = np.percentile(img_temp, 95)
+        img[img > p2] = p2
+        img = (img - p1) / p2
+        return img.astype(np.float32)
 
+
+    def segnormal(self,img_arr_t1):
+        print('normal seg')
+        self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_temp.nii'))
+        command = 'conda run -n deepmrseg deepmrseg_apply --task tissueseg '
+        command += ' --inImg ' + os.path.join(self.casedir,'img_T1_brain.nii')
+        command += ' --outImg ' + os.path.join(self.casedir,'img_T1_brain_seg.nii')
+        command += ' --probs'
+        res = os.system(command)
+        print(res)
+        img_nb_t1 = nb.load(os.path.join(self.casedir,'img_T1_brain_seg.nii'))
+        img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
+        img_nb_prob_GM = nb.load(os.path.join(self.casedir,'img_T1_brain__probabilities_150.nii.gz'))
+        img_arr_prob_GM = np.transpose(np.array(img_nb_prob_GM.dataobj),axes=(2,1,0))
+        img_nb_prob_WM = nb.load(os.path.join(self.casedir,'img_T1_brain__probabilities_250.nii.gz'))
+        img_arr_prob_WM = np.transpose(np.array(img_nb_prob_WM.dataobj),axes=(2,1,0))
+        return img_arr_prob_GM,img_arr_prob_WM
+                
     # if T2 matrix is different resample it to t1
     def resamplet2(self,img_arr_t1,img_arr_t2,a1,a2):
         img_t1 = nb.Nifti1Image(np.transpose(img_arr_t1,axes=(2,1,0)),affine=a1)
