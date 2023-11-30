@@ -889,7 +889,7 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.set_message('Select only two image files')
                 return
             t1ce_file,t2flair_file = self.filenames
-            if 'processed' in all(self.filenames):
+            if all(['processed' in f for f in self.filenames]):
                 self.processed = True
             img_arr_t1,img_arr_t2 = self.loadData(t1ce_file,t2flair_file)
 
@@ -928,20 +928,19 @@ class CreateCaseFrame(CreateFrame):
                 dpath = os.path.join(self.casedir,d)
                 files = sorted(os.listdir(dpath))
                 metadata = pd.dcmread(os.path.join(dpath,files[0]))
-                # print(metadata.SeriesDescription)
-                if 't1' in metadata.SeriesDescription:
-                    # using 'pre' only for debugging one sunnybrook case
-                    if 'post' in metadata.SeriesDescription:
+                print(metadata.SeriesDescription)
+                if 't1' in metadata.SeriesDescription.lower():
+                    if 'pre' in metadata.SeriesDescription.lower():
                         continue
                     img_arr_t1 = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                    t1_affine = self.get_affine(metadata)
+                    affine_t1 = self.get_affine(metadata)
                     img_arr_t1[0,:,:] = metadata.pixel_array
                     for i,f in enumerate(files[1:]):
                         data = pd.dcmread(os.path.join(dpath,f))
                         img_arr_t1[i+1,:,:] = data.pixel_array
-                elif any([f in metadata.SeriesDescription for f in ['flair','fluid']]):
+                elif any([f in metadata.SeriesDescription.lower() for f in ['flair','fluid']]):
                     img_arr_t2 = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                    t2_affine = self.get_affine(metadata)
+                    affine_t2 = self.get_affine(metadata)
                     img_arr_t2[0,:,:] = metadata.pixel_array
                     for i,f in enumerate(files[1:]):
                         data = pd.dcmread(os.path.join(dpath,f))
@@ -951,11 +950,11 @@ class CreateCaseFrame(CreateFrame):
         if np.shape(img_arr_t1) != np.shape(img_arr_t2):
             self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
             print('Image matrices do not match. Resampling T2flair into T1 space...')
-            img_arr_t2 = self.resamplet2(img_arr_t1,img_arr_t2,t1_affine,t2_affine)
+            img_arr_t2 = self.resamplet2(img_arr_t1,img_arr_t2,affine_t1,affine_t2)
 
         # registration. for now assuming automatoically needed on input dicoms
         # but not on any nift with 'processed' in the filename
-        if self.casetype == 2 or self.register_check_value.get() and self.processed is False:
+        if self.register_check_value.get() and self.processed is False:
             print('register T1 T2flair')
             fixed_image = sitk.GetImageFromArray(img_arr_t1)
             moving_image = sitk.GetImageFromArray(img_arr_t2)
@@ -972,13 +971,13 @@ class CreateCaseFrame(CreateFrame):
             img_arr_t2 = sitk.GetArrayFromImage(moving_image_reg)
 
         # skull strip. for now assuming only needed on input dicoms
-        if self.casetype == 2 or self.skullstrip_check_value.get() and self.processed is False:
+        if self.skullstrip_check_value.get() and self.processed is False:
             img_arr_t1,img_arr_t2 = self.skullstrip(img_arr_t1,img_arr_t2)
 
         # seg normal tissue. assuming only for input dicoms
         img_arr_prob_GM = img_arr_prob_WM = None
-        if self.casetype == 2 or self.segnormal_check_value.get() and self.processed is False:
-            img_arr_prob_GM,img_arr_prob_WM = self.segnormal(img_arr_t1)
+        if self.segnormal_check_value.get() and self.processed is False:
+            img_arr_prob_GM,img_arr_prob_WM = self.segnormal(img_arr_t1,affine_t1)
 
         # save nifti files for future use
         if self.casetype == 2:
@@ -1005,7 +1004,8 @@ class CreateCaseFrame(CreateFrame):
                 d = nb.load(os.path.join(self.casedir,'brain_probabilities_WM.nii.gz'))
                 self.ui.data['probWM'] = np.transpose(np.array(d.dataobj),axes=(2,1,0))
             except FileNotFoundError as e:
-                pass
+                self.ui.data['probGM'] = img_arr_prob_GM
+                self.ui.data['probWM'] = img_arr_prob_WM
         else:
             self.ui.data['probGM'] = img_arr_prob_GM
             self.ui.data['probWM'] = img_arr_prob_WM
@@ -1013,9 +1013,11 @@ class CreateCaseFrame(CreateFrame):
         # bias correction.
         if self.n4_check_value.get() and self.processed is False:  
             self.n4()
+            
         # rescale the data
-        for ch in range(np.shape(self.ui.data['raw'])[0]):
-            self.ui.data['raw'][ch] = self.rescale(self.ui.data['raw'][ch])
+        if self.processed is False:
+            for ch in range(np.shape(self.ui.data['raw'])[0]):
+                self.ui.data['raw'][ch] = self.rescale(self.ui.data['raw'][ch])
 
         # save copy of the raw data
         self.ui.data['raw_copy'] = copy.deepcopy(self.ui.data['raw'])
@@ -1045,7 +1047,7 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
 
 
-    # sitk registration 
+    # sitk registration with some starter parameters
     def multires_registration(self,fixed_image, moving_image, initial_transform):
         registration_method = sitk.ImageRegistrationMethod()
         registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=50)
@@ -1079,8 +1081,9 @@ class CreateCaseFrame(CreateFrame):
 
     def skullstrip(self,img_arr_t1,img_arr_t2):
         print('brain extract')
-        img_arr_t1 = self.brainmage_clip(img_arr_t1)
-        img_arr_t2 = self.brainmage_clip(img_arr_t2)
+        if False:
+            img_arr_t1 = self.brainmage_clip(img_arr_t1)
+            img_arr_t2 = self.brainmage_clip(img_arr_t2)
         self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_temp.nii'),norm=False,type='float')
         self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2flair_temp.nii'),norm=False,type='float')
         for t in ['T1','T2flair']:
@@ -1109,9 +1112,9 @@ class CreateCaseFrame(CreateFrame):
         return img.astype(np.float32)
 
 
-    def segnormal(self,img_arr_t1):
+    def segnormal(self,img_arr_t1,affine):
         print('segment normal tissue')
-        self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_temp.nii'))
+        self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_brain.nii'),affine=affine)
         command = 'conda run -n deepmrseg deepmrseg_apply --task tissueseg '
         command += ' --inImg ' + os.path.join(self.casedir,'img_T1_brain.nii')
         command += ' --outImg ' + os.path.join(self.casedir,'img_T1_brain_seg.nii')
@@ -1212,6 +1215,7 @@ class CreateCaseFrame(CreateFrame):
             self.w.config(width=min(20,len(self.caselist)))
             self.casename.set(self.caselist)
             self.datadir.set(os.path.split(dir)[0])
+            self.casetype = 0
             self.case_callback(files=self.filenames)
             return
 

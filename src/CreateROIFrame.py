@@ -43,6 +43,8 @@ class CreateROIFrame(CreateFrame):
         self.currentbcsize = tk.DoubleVar(value=self.ui.config.BCdefault[0])
         self.currentbcT1size = tk.DoubleVar(value=self.ui.config.BCdefault[0])
         self.currentbcT2size = tk.DoubleVar(value=self.ui.config.BCdefault[1])
+        self.gmthreshold = tk.DoubleVar(value=self.ui.config.GMdefault)
+        self.wmthreshold = tk.DoubleVar(value=self.ui.config.WMdefault)
         self.overlaytype = tk.IntVar(value=0)
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
@@ -153,6 +155,24 @@ class CreateROIFrame(CreateFrame):
         self.bcslider.grid(column=1,row=2,sticky='e')
         self.bcsliderlabel = ttk.Label(self.t1sliderframe,text='{:.1f}'.format(self.currentbcsize.get()))
         self.bcsliderlabel.grid(row=2,column=2,sticky='e')
+
+        # GM probability slider
+        gmlabel = ttk.Label(self.t1sliderframe,text='GM prob.')
+        gmlabel.grid(row=3,column=0,sticky='w')
+        self.gmslider = ttk.Scale(self.t1sliderframe,from_=0.0,to=1,variable=self.gmthreshold,state='disabled',
+                                  length='3i',command=self.updategmlabel,orient='horizontal')
+        self.gmslider.grid(row=3,column=1,sticky='e')
+        self.gmsliderlabel = ttk.Label(self.t1sliderframe,text='{:.1f}'.format(self.gmthreshold.get()))
+        self.gmsliderlabel.grid(row=3,column=2,sticky='e')
+
+        # WM probability slider
+        wmlabel = ttk.Label(self.t1sliderframe,text='WM prob.')
+        wmlabel.grid(row=4,column=0,sticky='w')
+        self.wmslider = ttk.Scale(self.t1sliderframe,from_=0.0,to=1,variable=self.wmthreshold,state='disabled',
+                                  length='3i',command=self.updatewmlabel,orient='horizontal')
+        self.wmslider.grid(row=4,column=1,sticky='e')
+        self.wmsliderlabel = ttk.Label(self.t1sliderframe,text='{:.1f}'.format(self.wmthreshold.get()))
+        self.wmsliderlabel.grid(row=4,column=2,sticky='e')
 
 
     #############
@@ -342,6 +362,34 @@ class CreateROIFrame(CreateFrame):
         currentbcsize = self.ui.get_currentbcsize()
         self.bcsliderlabel['text'] = '{:.1f}'.format(currentbcsize)
 
+    def updategmthreshold(self,event=None):
+        self.enhancingROI_overlay_value.set(True)
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+            self.enhancingROI_overlay_callback()
+        layer = self.layer.get()
+        self.ui.data['blast']['gates']['brain '+layer] = None
+        self.ui.runblast(currentslice=True)
+        self.updategmlabel()
+        return
+
+    def updategmlabel(self,event=None):
+        self.gmsliderlabel['text'] = '{:.1f}'.format(self.gmthreshold.get())
+
+    def updatewmthreshold(self,event=None):
+        self.enhancingROI_overlay_value.set(True)
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+            self.enhancingROI_overlay_callback()
+        layer = self.layer.get()
+        self.ui.data['blast']['gates']['brain '+layer] = None
+        self.ui.runblast(currentslice=True)
+        self.updatewmlabel()
+        return
+
+    def updatewmlabel(self,event=None):
+        self.wmsliderlabel['text'] = '{:.1f}'.format(self.wmthreshold.get())
+
     def updatesliders(self):
         if self.enhancingROI_overlay_value.get() == True:
             layer = self.layer.get()
@@ -358,6 +406,11 @@ class CreateROIFrame(CreateFrame):
         self.updatet2label()
         self.currentbcsize.set(self.ui.data['blast']['params'][layer]['bc'])
         self.updatebclabel()
+        self.gmthreshold.set(self.ui.data['blast']['params'][layer]['gm'])
+        self.updategmlabel()
+        self.gmthreshold.set(self.ui.data['blast']['params'][layer]['wm'])
+        self.updatewmlabel()
+       
     
     def finalROI_overlay_callback(self,event=None):
         if self.finalROI_overlay_value.get() == False:
@@ -720,12 +773,12 @@ class CreateROIFrame(CreateFrame):
             savemat(filename,msdict)
 
     # for now output only segmentations so uint8
-    def WriteImage(self,img_arr,filename,header=None,norm=False,type='uint8'):
+    def WriteImage(self,img_arr,filename,header=None,norm=False,type='uint8',affine=None):
         if norm:
             img_arr = (img_arr -np.min(img_arr)) / (np.max(img_arr)-np.min(img_arr)) * norm
         # using nibabel nifti coordinates
         if True:
-            img_nb = nb.Nifti1Image(np.transpose(img_arr.astype(type),(2,1,0)),None,header=header)
+            img_nb = nb.Nifti1Image(np.transpose(img_arr.astype(type),(2,1,0)),affine,header=header)
             nb.save(img_nb,filename)
         # couldn't get sitk nifti coordinates to work in mricron viewer
         else:

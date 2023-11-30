@@ -26,7 +26,7 @@ from src import OverlayPlots
 #################
 
 def run_blast(data,t1thresh,t2thresh,clustersize,layer,
-            currentslice=None, maxZ=4):
+            currentslice=None, maxZ=4,gmthresh=None,wmthresh=None):
 
     #check if any thresholds have actually changed
     if all(data['blast']['gates'][x] is not None for x in [layer,'brain '+layer]):
@@ -89,6 +89,7 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
     et_maskstack = np.zeros(stack_shape)
     wt_maskstack = np.zeros(stack_shape)
     c_maskstack = np.zeros(stack_shape)
+    normal_mask = np.ones(stack_shape)
 
     # TODO: config option for Win 11 if WSL2 enabled otherwise no gpu
     # option for multi-processing if doing 3d volume slice by slice
@@ -159,6 +160,17 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
         layer_mask = np.logical_and(layer_gate, np.logical_not(brain_gate)) # 
         # et_mask = max(et_mask,0)
         # fusion = imfuse(et_mask,t1mprage_template[slice,:,:,slice],'blend')
+
+        # apply normal tissue mask
+        normal_mask = np.zeros(stack_shape)
+        if data['probGM'] is not None:
+            normal_mask[data['probGM'] > gmthresh] = 1
+            normal_mask[data['probWM'] > wmthresh] = 1
+        else:
+            normal_mask = np.ones(stack_shape)
+
+        if False:
+            layer_mask = np.logical_and(layer_mask,normal_mask)
 
         #se = strel('line',2,0) 
         #et_mask = imerode(et_mask,se) # erosion added to get rid of non

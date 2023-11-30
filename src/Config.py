@@ -55,6 +55,8 @@ class Config(object):
         self.T1default = 0.
         self.T2default = 0.
         self.BCdefault = (3.,0.)
+        self.GMdefault = 0.5
+        self.WMdefault = 0.5
 
         # image panel size
         self.PanelSize = 4 # inches at 100 dpi

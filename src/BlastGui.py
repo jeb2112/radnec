@@ -45,8 +45,8 @@ class BlastGui(object):
         self.data = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
                             'T2 hyper':None,
                             'ET':None,
-                            'params':{'ET':{'t1':0.0,'t2':0.0,'bc':3.0},
-                               'T2 hyper':{'t1':0.0,'t2':0.0,'bc':0.0},
+                            'params':{'ET':{'t1':0.0,'t2':0.0,'bc':3.0,'gm':0.5,'wm':0.5},
+                               'T2 hyper':{'t1':0.0,'t2':0.0,'bc':0.0,'gm':0.5,'wm':0.5},
                                'stdt1':1,
                                'stdt2':1,
                                'meant1':1,
@@ -176,7 +176,8 @@ class BlastGui(object):
                 retval = Blastbratsv3.run_blast(
                                     self.data,self.roiframe.t1slider.get(),
                                     self.roiframe.t2slider.get(),clustersize,layer,
-                                    currentslice=currentslice)
+                                    currentslice=currentslice,
+                                    gmthresh=self.roiframe.gmslider.get(),wmthresh=self.roiframe.wmslider.get())
                 if retval is not None:
                     self.data['blast'][layer],self.data['blast']['gates']['brain '+layer],self.data['blast']['gates'][layer] = retval
                     self.update_blast(layer=layer)
@@ -286,8 +287,8 @@ class BlastGui(object):
         self.data = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
                             'T2 hyper':None,
                             'ET':None,
-                            'params':{'ET':{'t1':0.0,'t2':0.0,'bc':3.0},
-                               'T2 hyper':{'t1':0.0,'t2':0.0,'bc':0.0},
+                            'params':{'ET':{'t1':0.0,'t2':0.0,'bc':3.0,'gm':0.5,'wm':0.5},
+                               'T2 hyper':{'t1':0.0,'t2':0.0,'bc':0.0,'gm':0.5,'wm':0.5},
                                'stdt1':1,
                                'stdt2':1,
                                'meant1':1,
