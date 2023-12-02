@@ -731,12 +731,12 @@ class CreateSliceViewerFrame(CreateFrame):
 
         if self.slicevolume_norm.get() == 0:
             self.normalslice=self.ui.get_currentslice()
-            region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]>0) 
+            region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]*self.ui.data['raw'][0,self.normalslice]>0) 
             t1channel_normal = self.ui.data['raw'][0,self.normalslice][region_of_support]
             t2channel_normal = self.ui.data['raw'][1,self.normalslice][region_of_support]
         else:
             self.normalslice = None
-            region_of_support = np.where(self.ui.data['raw'][0]>0) 
+            region_of_support = np.where(self.ui.data['raw'][0]*self.ui.data['raw'][1] >0)
             t1channel_normal = self.ui.data['raw'][0][region_of_support]
             t2channel_normal = self.ui.data['raw'][1][region_of_support]
 
@@ -756,24 +756,34 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ui.data['blast']['params']['meant1'] = np.mean(X[kmeans.labels_==background_cluster,1])
         self.ui.data['blast']['params']['meant2'] = np.mean(X[kmeans.labels_==background_cluster,0])
 
-        if False:
+        if True:
             plt.figure(7)
-            ax = plt.subplot(1,1,1)
-            plt.scatter(X[kmeans.labels_==1-background_cluster,0],X[kmeans.labels_==1-background_cluster,1],c='b')
-            plt.scatter(X[kmeans.labels_==background_cluster,0],X[kmeans.labels_==background_cluster,1],c='r')
+            ax = plt.subplot(1,3,1)
+            plt.scatter(X[kmeans.labels_==1-background_cluster,0],X[kmeans.labels_==1-background_cluster,1],c='b',s=1)
+            plt.scatter(X[kmeans.labels_==background_cluster,0],X[kmeans.labels_==background_cluster,1],c='r',s=1)
             ax.set_aspect('equal')
             ax.set_xlim(left=0,right=1.0)
             ax.set_ylim(bottom=0,top=1.0)
-            plt.text(0,1.02,'{:.3f},{:.3f}'.format(self.ui.data['blast']['params']['meant1'],self.ui.data['blast']['params']['stdt1']))
-            plt.show(block=False)
+            plt.text(0,1.02,'{:.3f},{:.3f}'.format(self.ui.data['blast']['params']['meant2'],self.ui.data['blast']['params']['stdt2']))
+            plt.subplot(1,3,2)
+            plt.imshow(self.ui.data['raw'][0][80])
+            plt.subplot(1,3,3)
+            plt.imshow(self.ui.data['raw'][1][80])
+            plt.savefig('/home/jbishop/Pictures/scatterplot_normal.png')
+            plt.clf()
+            # plt.show(block=False)
 
         # activate thresholds only after normal slice stats are available
         self.ui.roiframe.bcslider['state']='normal'
         self.ui.roiframe.t2slider['state']='normal'
         self.ui.roiframe.t1slider['state']='normal'
+        self.ui.roiframe.gmslider['state']='normal'
+        self.ui.roiframe.wmslider['state']='normal'
         self.ui.roiframe.t1slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet1threshold)
         self.ui.roiframe.bcslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatebcsize)
         self.ui.roiframe.t2slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet2threshold)
+        self.ui.roiframe.gmslider.bind("<ButtonRelease-1>",self.ui.roiframe.updategmthreshold)
+        self.ui.roiframe.wmslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatewmthreshold)
 
         # automatically run BLAST
         # self.ui.roiframe.updatet1threshold(currentslice=None)
@@ -950,7 +960,13 @@ class CreateCaseFrame(CreateFrame):
         if np.shape(img_arr_t1) != np.shape(img_arr_t2):
             self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
             print('Image matrices do not match. Resampling T2flair into T1 space...')
-            img_arr_t2 = self.resamplet2(img_arr_t1,img_arr_t2,affine_t1,affine_t2)
+            img_arr_t2,affine_t2 = self.resamplet2(img_arr_t1,img_arr_t2,affine_t1,affine_t2)
+            if True:
+                self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_resampled.nii.gz'),
+                                            type='float',affine=affine_t1)
+                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_resampled.nii.gz'),
+                                            type='float',affine=affine_t2)
+
 
         # registration. for now assuming automatoically needed on input dicoms
         # but not on any nift with 'processed' in the filename
@@ -969,20 +985,50 @@ class CreateCaseFrame(CreateFrame):
                                             sitk.sitkBSplineResamplerOrder3,
                                             fixed_image.GetPixelID()) 
             img_arr_t2 = sitk.GetArrayFromImage(moving_image_reg)
+            # affine_t2 = moving_image_reg.GetOrigin() + moving_image_reg.GetDirection()
+            # affine_t2[:3,:3] = moving_image_reg.GetDirection()
+            # affine_t2[:3,3] = moving_image_reg.
+            if True:
+                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_registered.nii.gz'),
+                                            type='float',affine=affine_t2)
 
         # skull strip. for now assuming only needed on input dicoms
         if self.skullstrip_check_value.get() and self.processed is False:
             img_arr_t1,img_arr_t2 = self.skullstrip(img_arr_t1,img_arr_t2)
+            if True:
+                self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_extracted.nii.gz'),
+                                            type='float',affine=affine_t1)
+                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_extracted.nii.gz'),
+                                            type='float',affine=affine_t2)
+
 
         # seg normal tissue. assuming only for input dicoms
         img_arr_prob_GM = img_arr_prob_WM = None
-        if self.segnormal_check_value.get() and self.processed is False:
-            img_arr_prob_GM,img_arr_prob_WM = self.segnormal(img_arr_t1,affine_t1)
+        if False:
+            if self.segnormal_check_value.get() and self.processed is False:
+                img_arr_prob_GM,img_arr_prob_WM = self.segnormal(img_arr_t1,affine_t1)
+
+        # bias correction.
+        if self.n4_check_value.get() and self.processed is False:  
+            img_arr_t1,img_arr_t2 = self.n4(img_arr_t1,img_arr_t2)
+
+        # rescale the data
+        if self.processed is False:
+        # if True:
+            # if necessary clip any negative values introduced by the processing
+            if np.min(img_arr_t1) < 0:
+                img_arr_t1[img_arr_t1 < 0] = 0
+            if np.min(img_arr_t2) < 0:
+                img_arr_t2[img_arr_t2 < 0] = 0
+            img_arr_t1 = self.rescale(img_arr_t1)
+            img_arr_t2 = self.rescale(img_arr_t2)
 
         # save nifti files for future use
         if self.casetype == 2:
-            self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_processed.nii.gz'),type='float')
-            self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2flair_processed.nii.gz'),type='float')
+            # self.brainmage_clip(img_arr_t1)
+            # self.brainmage_clip(img_arr_t2)
+            self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_processed.nii.gz'),type='float',affine=affine_t1)
+            self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2flair_processed.nii.gz'),type='float',affine=affine_t2)
 
         self.ui.sliceviewerframe.dim = np.shape(img_arr_t1)
         self.ui.sliceviewerframe.create_canvas()
@@ -1009,16 +1055,7 @@ class CreateCaseFrame(CreateFrame):
         else:
             self.ui.data['probGM'] = img_arr_prob_GM
             self.ui.data['probWM'] = img_arr_prob_WM
-
-        # bias correction.
-        if self.n4_check_value.get() and self.processed is False:  
-            self.n4()
             
-        # rescale the data
-        if self.processed is False:
-            for ch in range(np.shape(self.ui.data['raw'])[0]):
-                self.ui.data['raw'][ch] = self.rescale(self.ui.data['raw'][ch])
-
         # save copy of the raw data
         self.ui.data['raw_copy'] = copy.deepcopy(self.ui.data['raw'])
 
@@ -1073,7 +1110,11 @@ class CreateCaseFrame(CreateFrame):
         affine[:3,0] = dircos[0:3]*float(metadata.PixelSpacing[0])
         affine[:3,1] = dircos[3:]*float(metadata.PixelSpacing[1])
         d3 = np.cross(dircos[:3],dircos[3:])
-        affine[:3,2] = d3*float(metadata.SliceThickness)
+        slthick = float(metadata.SliceThickness)
+        # if hasattr(metadata,'SpacingBetweenSlices'):
+        #     # a philips tag
+        #     slthick += float(metadata.SpacingBetweenSlices)
+        affine[:3,2] = d3*slthick
         affine[:3,3] = metadata.ImagePositionPatient
         affine[3,3] = 1
         # print(affine)
@@ -1081,7 +1122,7 @@ class CreateCaseFrame(CreateFrame):
 
     def skullstrip(self,img_arr_t1,img_arr_t2):
         print('brain extract')
-        if False:
+        if True:
             img_arr_t1 = self.brainmage_clip(img_arr_t1)
             img_arr_t2 = self.brainmage_clip(img_arr_t2)
         self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_temp.nii'),norm=False,type='float')
@@ -1103,10 +1144,12 @@ class CreateCaseFrame(CreateFrame):
         img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
         return img_arr_t1,img_arr_t2
     
+    # clip outliers as in brainmage code
     def brainmage_clip(self,img):
-        img_temp = img[img >= img.mean()]
-        p1 = np.percentile(img_temp, 2)
-        p2 = np.percentile(img_temp, 95)
+        img_temp = img[np.where(img>0)]
+        img_temp = img[img >= img_temp.mean()]
+        p1 = np.percentile(img_temp, 1)
+        p2 = np.percentile(img_temp, 99)
         img[img > p2] = p2
         img = (img - p1) / p2
         return img.astype(np.float32)
@@ -1114,13 +1157,13 @@ class CreateCaseFrame(CreateFrame):
 
     def segnormal(self,img_arr_t1,affine):
         print('segment normal tissue')
-        self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_brain.nii'),affine=affine)
+        self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_brain.nii'),type='float',affine=affine)
         command = 'conda run -n deepmrseg deepmrseg_apply --task tissueseg '
         command += ' --inImg ' + os.path.join(self.casedir,'img_T1_brain.nii')
         command += ' --outImg ' + os.path.join(self.casedir,'img_T1_brain_seg.nii')
         command += ' --probs'
         res = os.system(command)
-        print(res)
+        # print(res)
         # rename and tidy up the probability outputs
         for t in [0,10,50]:
             os.remove(os.path.join(self.casedir,'img_T1_brain__probabilities_'+str(t)+'.nii.gz'))
@@ -1142,7 +1185,7 @@ class CreateCaseFrame(CreateFrame):
         img_t2 = nb.Nifti1Image(np.transpose(img_arr_t2,axes=(2,1,0)),affine=a2)
         img_t2_res = resample_from_to(img_t2,(img_t1.shape[:3],img_t1.affine))
         img_arr_t2 = np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0))
-        return img_arr_t2
+        return img_arr_t2,img_t2_res.affine
 
     def loadData(self,t1ce_file,t2flair_file,type=None):
         img_arr_t1 = img_arr_t2 = None
@@ -1184,11 +1227,12 @@ class CreateCaseFrame(CreateFrame):
         scaled_arr = np.clip(scaled_arr,a_min=0,a_max=1)
         return scaled_arr
     
-    def n4(self,shrinkFactor=4,nFittingLevels=4):
+    def n4(self,a1,a2,shrinkFactor=4,nFittingLevels=4):
         # self.ui.set_message('Performing N4 bias correction')
+        img_arr = np.stack((a1,a2),axis=0)
         print('N4 bias correction')
-        for ch in range(np.shape(self.ui.data['raw'])[0]):
-            data = self.ui.data['raw'][ch]
+        for ch in range(2):
+            data = copy.deepcopy(img_arr[ch])
             dataImage = sitk.Cast(sitk.GetImageFromArray(data),sitk.sitkFloat32)
             sdataImage = sitk.Shrink(dataImage,[shrinkFactor]*dataImage.GetDimension())
             maskImage = sitk.Cast(sitk.GetImageFromArray(np.where(data,True,False).astype('uint8')),sitk.sitkUInt8)
@@ -1199,8 +1243,8 @@ class CreateCaseFrame(CreateFrame):
             log_bias_field_arr = sitk.GetArrayFromImage(log_bias_field)
             corrected_img = dataImage / sitk.Exp(log_bias_field)
             corrected_img_arr = sitk.GetArrayFromImage(corrected_img)
-            self.ui.data['raw'][ch] = corrected_img_arr
-        return
+            img_arr[ch] = copy.deepcopy(corrected_img_arr)
+        return img_arr[0],img_arr[1]
 
     # callback for loading by individual files
     def datafileentry_callback(self):

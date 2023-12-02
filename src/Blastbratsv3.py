@@ -114,8 +114,8 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
     # otherwise just use full 3d
     elif (endslice-startslice)>1:
         start = time.time()
-        region_of_support = np.where(t1mpragestack>0)
-        background_mask = np.where(t1mpragestack == 0)
+        region_of_support = np.where(t1mpragestack*t2flairstack>0)
+        background_mask = np.where(t1mpragestack*t2flairstack == 0)
         t1channel = t1mpragestack[region_of_support]
         t2channel = t2flairstack[region_of_support]
         t1t2verts = np.vstack((t2channel.flatten(),t1channel.flatten())).T
@@ -124,8 +124,26 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
         unitverts = brain_perimeter.get_path().vertices
         xy_brainverts = brain_perimeter.get_patch_transform().transform(unitverts)
         # use pre-existing result if available
-        brain_gate = data['blast']['gates']['brain '+layer]
-        layer_gate = data['blast']['gates'][layer]
+        if True:
+            brain_gate = data['blast']['gates']['brain '+layer]
+            layer_gate = data['blast']['gates'][layer]
+
+        if True:
+            plt.figure(7)
+            ax = plt.subplot(1,1,1)
+            plt.scatter(t1t2verts[:,0],t1t2verts[:,1],c='b',s=1)
+            plt.scatter(xy_layerverts[:,0],xy_layerverts[:,1],c='r',s=10)
+            ax.set_aspect('equal')
+            ax.set_xlim(left=0,right=1.0)
+            ax.set_ylim(bottom=0,top=1.0)
+            plt.text(0,1.02,'{:.3f},{:.3f}'.format(np.mean(t2channel),np.std(t2channel)))
+            # plt.subplot(1,3,2)
+            # plt.imshow(self.ui.data['raw'][0][80])
+            # plt.subplot(1,3,3)
+            # plt.imshow(self.ui.data['raw'][1][80])
+            plt.savefig('/home/jbishop/Pictures/scatterplot.png')
+            plt.clf()
+            # plt.show(block=False)
 
         if use_gpu:
             RGcoords = cudf.DataFrame({'x':t1t2verts[:,0],'y':t1t2verts[:,1]}).interleave_columns()
@@ -163,14 +181,17 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
 
         # apply normal tissue mask
         normal_mask = np.zeros(stack_shape)
+        gm_mask = np.zeros(stack_shape)
+        wm_mask = np.zeros(stack_shape)
         if data['probGM'] is not None:
-            normal_mask[data['probGM'] > gmthresh] = 1
-            normal_mask[data['probWM'] > wmthresh] = 1
+            gm_mask[data['probGM'] > gmthresh] = 1
+            wm_mask[data['probGM'] > wmthresh] = 1
+            # normal_mask[data['probWM'] > wmthresh] = 1
         else:
             normal_mask = np.ones(stack_shape)
 
-        if False:
-            layer_mask = np.logical_and(layer_mask,normal_mask)
+        if True:
+            layer_mask = np.where(np.logical_and(layer_mask,gm_mask),False,layer_mask)
 
         #se = strel('line',2,0) 
         #et_mask = imerode(et_mask,se) # erosion added to get rid of non
