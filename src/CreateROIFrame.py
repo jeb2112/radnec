@@ -824,7 +824,7 @@ class CreateROIFrame(CreateFrame):
         self.ui.data['blast']['params'][layer]['t2'] = self.currentt2threshold.get()
         self.ui.data['blast']['params'][layer]['bc'] = self.currentbcsize.get()
         self.ui.data['blast']['params'][layer]['gm'] = self.gmthreshold.get()
-        self.ui.data['blast']['params'][layer]['bc'] = self.wmthreshold.get()
+        self.ui.data['blast']['params'][layer]['wm'] = self.wmthreshold.get()
 
         if all(self.ui.data['blast'][x] is not None for x in ['ET','T2 hyper']):
             self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*2 + (self.ui.data['blast'] ['T2 hyper'].astype('int'))

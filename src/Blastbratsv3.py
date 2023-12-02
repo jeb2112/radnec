@@ -83,13 +83,12 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
     domulti = False 
     stack_shape = np.shape(t1mprage)
     fusion_stack_shape = (2,) + stack_shape + (3,)
-    # TODO: should become part of data, initialized with class, so 2d slice doesn't have to be recomputed
-    # during interactive use
     fusionstack = np.zeros(fusion_stack_shape)
     et_maskstack = np.zeros(stack_shape)
     wt_maskstack = np.zeros(stack_shape)
     c_maskstack = np.zeros(stack_shape)
-    normal_mask = np.ones(stack_shape)
+    gm_mask = np.zeros(stack_shape)
+    wm_mask = np.zeros(stack_shape)
 
     # TODO: config option for Win 11 if WSL2 enabled otherwise no gpu
     # option for multi-processing if doing 3d volume slice by slice
@@ -124,11 +123,10 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
         unitverts = brain_perimeter.get_path().vertices
         xy_brainverts = brain_perimeter.get_patch_transform().transform(unitverts)
         # use pre-existing result if available
-        if True:
-            brain_gate = data['blast']['gates']['brain '+layer]
-            layer_gate = data['blast']['gates'][layer]
+        brain_gate = data['blast']['gates']['brain '+layer]
+        layer_gate = data['blast']['gates'][layer]
 
-        if True:
+        if False:
             plt.figure(7)
             ax = plt.subplot(1,1,1)
             plt.scatter(t1t2verts[:,0],t1t2verts[:,1],c='b',s=1)
@@ -137,10 +135,6 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
             ax.set_xlim(left=0,right=1.0)
             ax.set_ylim(bottom=0,top=1.0)
             plt.text(0,1.02,'{:.3f},{:.3f}'.format(np.mean(t2channel),np.std(t2channel)))
-            # plt.subplot(1,3,2)
-            # plt.imshow(self.ui.data['raw'][0][80])
-            # plt.subplot(1,3,3)
-            # plt.imshow(self.ui.data['raw'][1][80])
             plt.savefig('/home/jbishop/Pictures/scatterplot.png')
             plt.clf()
             # plt.show(block=False)
@@ -180,18 +174,14 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
         # fusion = imfuse(et_mask,t1mprage_template[slice,:,:,slice],'blend')
 
         # apply normal tissue mask
-        normal_mask = np.zeros(stack_shape)
-        gm_mask = np.zeros(stack_shape)
-        wm_mask = np.zeros(stack_shape)
         if data['probGM'] is not None:
             gm_mask[data['probGM'] > gmthresh] = 1
-            wm_mask[data['probGM'] > wmthresh] = 1
-            # normal_mask[data['probWM'] > wmthresh] = 1
-        else:
-            normal_mask = np.ones(stack_shape)
+        if data['probWM'] is not None:
+            wm_mask[data['probWM'] > wmthresh] = 1
 
         if True:
             layer_mask = np.where(np.logical_and(layer_mask,gm_mask),False,layer_mask)
+            layer_mask = np.where(np.logical_and(layer_mask,wm_mask),False,layer_mask)
 
         #se = strel('line',2,0) 
         #et_mask = imerode(et_mask,se) # erosion added to get rid of non

@@ -756,7 +756,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ui.data['blast']['params']['meant1'] = np.mean(X[kmeans.labels_==background_cluster,1])
         self.ui.data['blast']['params']['meant2'] = np.mean(X[kmeans.labels_==background_cluster,0])
 
-        if True:
+        if False:
             plt.figure(7)
             ax = plt.subplot(1,3,1)
             plt.scatter(X[kmeans.labels_==1-background_cluster,0],X[kmeans.labels_==1-background_cluster,1],c='b',s=1)
@@ -1004,7 +1004,7 @@ class CreateCaseFrame(CreateFrame):
 
         # seg normal tissue. assuming only for input dicoms
         img_arr_prob_GM = img_arr_prob_WM = None
-        if False:
+        if True:
             if self.segnormal_check_value.get() and self.processed is False:
                 img_arr_prob_GM,img_arr_prob_WM = self.segnormal(img_arr_t1,affine_t1)
 
@@ -1171,8 +1171,8 @@ class CreateCaseFrame(CreateFrame):
                       os.path.join(self.casedir,'brain_probabilities_GM.nii.gz'))
         os.rename(os.path.join(self.casedir,'img_T1_brain__probabilities_250.nii.gz'),
                       os.path.join(self.casedir,'brain_probabilities_WM.nii.gz'))
-        img_nb_t1 = nb.load(os.path.join(self.casedir,'img_T1_brain_seg.nii'))
-        img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
+        # img_nb_t1 = nb.load(os.path.join(self.casedir,'img_T1_brain_seg.nii'))
+        # img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
         img_nb_prob_GM = nb.load(os.path.join(self.casedir,'brain_probabilities_GM.nii.gz'))
         img_arr_prob_GM = np.transpose(np.array(img_nb_prob_GM.dataobj),axes=(2,1,0))
         img_nb_prob_WM = nb.load(os.path.join(self.casedir,'brain_probabilities_WM.nii.gz'))
