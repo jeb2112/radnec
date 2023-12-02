@@ -972,7 +972,7 @@ class CreateCaseFrame(CreateFrame):
         # but not on any nift with 'processed' in the filename
         if self.register_check_value.get() and self.processed is False:
             print('register T1 T2flair')
-            fixed_image = sitk.GetImageFromArray(img_arr_t1)
+            fixed_image = sitk.GetImageFromArray(img_arr_t1)            
             moving_image = sitk.GetImageFromArray(img_arr_t2)
             initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
                                                     moving_image, 
@@ -985,12 +985,8 @@ class CreateCaseFrame(CreateFrame):
                                             sitk.sitkBSplineResamplerOrder3,
                                             fixed_image.GetPixelID()) 
             img_arr_t2 = sitk.GetArrayFromImage(moving_image_reg)
-            # affine_t2 = moving_image_reg.GetOrigin() + moving_image_reg.GetDirection()
-            # affine_t2[:3,:3] = moving_image_reg.GetDirection()
-            # affine_t2[:3,3] = moving_image_reg.
-            if True:
-                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_registered.nii.gz'),
-                                            type='float',affine=affine_t2)
+            self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_registered.nii.gz'),
+                                        type='float',affine=affine_t1)
 
         # skull strip. for now assuming only needed on input dicoms
         if self.skullstrip_check_value.get() and self.processed is False:
