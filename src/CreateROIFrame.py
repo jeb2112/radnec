@@ -158,21 +158,21 @@ class CreateROIFrame(CreateFrame):
 
         # GM probability slider
         gmlabel = ttk.Label(self.t1sliderframe,text='GM prob.')
-        gmlabel.grid(row=3,column=0,sticky='w')
+        # gmlabel.grid(row=3,column=0,sticky='w')
         self.gmslider = ttk.Scale(self.t1sliderframe,from_=0.0,to=1,variable=self.gmthreshold,state='disabled',
                                   length='3i',command=self.updategmlabel,orient='horizontal')
-        self.gmslider.grid(row=3,column=1,sticky='e')
+        # self.gmslider.grid(row=3,column=1,sticky='e')
         self.gmsliderlabel = ttk.Label(self.t1sliderframe,text='{:.1f}'.format(self.gmthreshold.get()))
-        self.gmsliderlabel.grid(row=3,column=2,sticky='e')
+        # self.gmsliderlabel.grid(row=3,column=2,sticky='e')
 
         # WM probability slider
         wmlabel = ttk.Label(self.t1sliderframe,text='WM prob.')
-        wmlabel.grid(row=4,column=0,sticky='w')
+        # wmlabel.grid(row=4,column=0,sticky='w')
         self.wmslider = ttk.Scale(self.t1sliderframe,from_=0.0,to=1,variable=self.wmthreshold,state='disabled',
                                   length='3i',command=self.updatewmlabel,orient='horizontal')
-        self.wmslider.grid(row=4,column=1,sticky='e')
+        # self.wmslider.grid(row=4,column=1,sticky='e')
         self.wmsliderlabel = ttk.Label(self.t1sliderframe,text='{:.1f}'.format(self.wmthreshold.get()))
-        self.wmsliderlabel.grid(row=4,column=2,sticky='e')
+        # self.wmsliderlabel.grid(row=4,column=2,sticky='e')
 
 
     #############
@@ -406,10 +406,10 @@ class CreateROIFrame(CreateFrame):
         self.updatet2label()
         self.currentbcsize.set(self.ui.data['blast']['params'][layer]['bc'])
         self.updatebclabel()
-        self.gmthreshold.set(self.ui.data['blast']['params'][layer]['gm'])
-        self.updategmlabel()
-        self.wmthreshold.set(self.ui.data['blast']['params'][layer]['wm'])
-        self.updatewmlabel()
+        # self.gmthreshold.set(self.ui.data['blast']['params'][layer]['gm'])
+        # self.updategmlabel()
+        # self.wmthreshold.set(self.ui.data['blast']['params'][layer]['wm'])
+        # self.updatewmlabel()
        
     
     def finalROI_overlay_callback(self,event=None):
@@ -823,8 +823,8 @@ class CreateROIFrame(CreateFrame):
         self.ui.data['blast']['params'][layer]['t1'] = self.currentt1threshold.get()
         self.ui.data['blast']['params'][layer]['t2'] = self.currentt2threshold.get()
         self.ui.data['blast']['params'][layer]['bc'] = self.currentbcsize.get()
-        self.ui.data['blast']['params'][layer]['gm'] = self.gmthreshold.get()
-        self.ui.data['blast']['params'][layer]['wm'] = self.wmthreshold.get()
+        # self.ui.data['blast']['params'][layer]['gm'] = self.gmthreshold.get()
+        # self.ui.data['blast']['params'][layer]['wm'] = self.wmthreshold.get()
 
         if all(self.ui.data['blast'][x] is not None for x in ['ET','T2 hyper']):
             self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*2 + (self.ui.data['blast'] ['T2 hyper'].astype('int'))

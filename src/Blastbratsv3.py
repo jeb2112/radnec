@@ -87,8 +87,8 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
     et_maskstack = np.zeros(stack_shape)
     wt_maskstack = np.zeros(stack_shape)
     c_maskstack = np.zeros(stack_shape)
-    gm_mask = np.zeros(stack_shape)
-    wm_mask = np.zeros(stack_shape)
+    # gm_mask = np.zeros(stack_shape)
+    # wm_mask = np.zeros(stack_shape)
 
     # TODO: config option for Win 11 if WSL2 enabled otherwise no gpu
     # option for multi-processing if doing 3d volume slice by slice
@@ -174,12 +174,11 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
         # fusion = imfuse(et_mask,t1mprage_template[slice,:,:,slice],'blend')
 
         # apply normal tissue mask
-        if data['probGM'] is not None:
-            gm_mask[data['probGM'] > gmthresh] = 1
-        if data['probWM'] is not None:
-            wm_mask[data['probWM'] > wmthresh] = 1
-
-        if True:
+        if False:
+            if data['probGM'] is not None:
+                gm_mask[data['probGM'] > gmthresh] = 1
+            if data['probWM'] is not None:
+                wm_mask[data['probWM'] > wmthresh] = 1
             layer_mask = np.where(np.logical_and(layer_mask,gm_mask),False,layer_mask)
             layer_mask = np.where(np.logical_and(layer_mask,wm_mask),False,layer_mask)
 

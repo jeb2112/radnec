@@ -778,13 +778,13 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ui.roiframe.bcslider['state']='normal'
         self.ui.roiframe.t2slider['state']='normal'
         self.ui.roiframe.t1slider['state']='normal'
-        self.ui.roiframe.gmslider['state']='normal'
-        self.ui.roiframe.wmslider['state']='normal'
+        # self.ui.roiframe.gmslider['state']='normal'
+        # self.ui.roiframe.wmslider['state']='normal'
         self.ui.roiframe.t1slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet1threshold)
         self.ui.roiframe.bcslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatebcsize)
         self.ui.roiframe.t2slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet2threshold)
-        self.ui.roiframe.gmslider.bind("<ButtonRelease-1>",self.ui.roiframe.updategmthreshold)
-        self.ui.roiframe.wmslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatewmthreshold)
+        # self.ui.roiframe.gmslider.bind("<ButtonRelease-1>",self.ui.roiframe.updategmthreshold)
+        # self.ui.roiframe.wmslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatewmthreshold)
 
         # automatically run BLAST
         # self.ui.roiframe.updatet1threshold(currentslice=None)
@@ -906,6 +906,7 @@ class CreateCaseFrame(CreateFrame):
 
         # check for nifti image files with matching filenames
         # 'processed' refers to earlier output and is loaded preferentially.
+        # for now assuming files are either all or none processed
         elif self.casetype <= 1:
             files = os.listdir(self.casedir)
             t1_files = [f for f in files if 't1' in f.lower()]
@@ -918,6 +919,7 @@ class CreateCaseFrame(CreateFrame):
                         self.processed = False
                 elif len(t1_files) == 1:
                     t1ce_file = t1_files[0]
+                    self.processed = 'processed' in t1ce_file
             t2_files = [f for f in files if 'flair' in f.lower()]
             if len(t2_files) > 0:
                 if len(t2_files) > 1:
@@ -928,6 +930,7 @@ class CreateCaseFrame(CreateFrame):
                         self.processed = False
                 elif len(t2_files) == 1:
                     t2flair_file = t2_files[0]
+                    self.processed = 'processed' in t2flair_file
             img_arr_t1,img_arr_t2 = self.loadData(t1ce_file,t2flair_file)
 
         # dicom directories each containing one image series
@@ -959,7 +962,7 @@ class CreateCaseFrame(CreateFrame):
 
         # dimensions of canvas panel might have to change depending on dimension of new data loaded.
         if np.shape(img_arr_t1) != np.shape(img_arr_t2):
-            self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
+            # self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
             print('Image matrices do not match. Resampling T2flair into T1 space...')
             img_arr_t2,affine_t2 = self.resamplet2(img_arr_t1,img_arr_t2,affine_t1,affine_t2)
             img_arr_t2 = np.clip(img_arr_t2,0,None)
@@ -970,33 +973,36 @@ class CreateCaseFrame(CreateFrame):
                                             type='float',affine=affine_t2)
 
         # registration
-        if self.register_check_value.get() and self.processed is False and True:
+        if self.register_check_value.get() and self.processed is False:
             print('register T1 T2flair')
             if True:
                 d = nb.load(os.path.join(self.casedir,'img_T1_resampled.nii.gz'))
                 img_arr_t1 = np.transpose(np.array(d.dataobj),axes=(2,1,0))
                 d = nb.load(os.path.join(self.casedir,'img_T2_resampled.nii.gz'))
                 img_arr_t2 = np.transpose(np.array(d.dataobj),axes=(2,1,0))
+                os.remove(os.path.join(self.casedir,'img_T1_resampled.nii.gz'))
+                os.remove(os.path.join(self.casedir,'img_T2_resampled.nii.gz'))
             fixed_image = itk.GetImageFromArray(img_arr_t1)
             moving_image = itk.GetImageFromArray(img_arr_t2)
             moving_image_res = self.elastix_affine(fixed_image,moving_image)
             img_arr_t2 = itk.GetArrayFromImage(moving_image_res)
-            self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_registered.nii.gz'),
+            if False:
+                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_registered.nii.gz'),
                                         type='float',affine=affine_t1)
 
         # skull strip. for now assuming only needed on input dicoms
         if self.skullstrip_check_value.get() and self.processed is False:
             img_arr_t1,img_arr_t2 = self.skullstrip(img_arr_t1,img_arr_t2)
-            if True:
+            if False:
                 self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_extracted.nii.gz'),
                                             type='float',affine=affine_t1)
                 self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_extracted.nii.gz'),
                                             type='float',affine=affine_t2)
 
 
-        # seg normal tissue. assuming only for input dicoms
+        # seg normal tissue. not using for now.
         img_arr_prob_GM = img_arr_prob_WM = None
-        if True:
+        if False:
             if self.segnormal_check_value.get() and self.processed is False:
                 img_arr_prob_GM,img_arr_prob_WM = self.segnormal(img_arr_t1,affine_t1)
 
@@ -1006,7 +1012,6 @@ class CreateCaseFrame(CreateFrame):
 
         # rescale the data
         if self.processed is False:
-        # if True:
             # if necessary clip any negative values introduced by the processing
             if np.min(img_arr_t1) < 0:
                 img_arr_t1[img_arr_t1 < 0] = 0
@@ -1035,18 +1040,19 @@ class CreateCaseFrame(CreateFrame):
         # img_arr = sitk.GetArrayFromImage(t2flair)
         self.ui.data['raw'][1] = img_arr_t2
 
-        if img_arr_prob_GM is None:
-            try:
-                d = nb.load(os.path.join(self.casedir,'brain_probabilities_GM.nii.gz'))
-                self.ui.data['probGM'] = np.transpose(np.array(d.dataobj),axes=(2,1,0))
-                d = nb.load(os.path.join(self.casedir,'brain_probabilities_WM.nii.gz'))
-                self.ui.data['probWM'] = np.transpose(np.array(d.dataobj),axes=(2,1,0))
-            except FileNotFoundError as e:
+        if False:
+            if img_arr_prob_GM is None:
+                try:
+                    d = nb.load(os.path.join(self.casedir,'brain_probabilities_GM.nii.gz'))
+                    self.ui.data['probGM'] = np.transpose(np.array(d.dataobj),axes=(2,1,0))
+                    d = nb.load(os.path.join(self.casedir,'brain_probabilities_WM.nii.gz'))
+                    self.ui.data['probWM'] = np.transpose(np.array(d.dataobj),axes=(2,1,0))
+                except FileNotFoundError as e:
+                    self.ui.data['probGM'] = img_arr_prob_GM
+                    self.ui.data['probWM'] = img_arr_prob_WM
+            else:
                 self.ui.data['probGM'] = img_arr_prob_GM
                 self.ui.data['probWM'] = img_arr_prob_WM
-        else:
-            self.ui.data['probGM'] = img_arr_prob_GM
-            self.ui.data['probWM'] = img_arr_prob_WM
             
         # save copy of the raw data
         self.ui.data['raw_copy'] = copy.deepcopy(self.ui.data['raw'])
@@ -1129,13 +1135,7 @@ class CreateCaseFrame(CreateFrame):
         parameter_object = itk.ParameterObject.New()
         default_rigid_parameter_map = parameter_object.GetDefaultParameterMap('affine')
         parameter_object.AddParameterMap(default_rigid_parameter_map)        
-        # parameter_object.SetParameter('UseDirectionCosines','false')
-        # parameter_object.SetParameter('FixedInternalImagePixelType','float')
-        # parameter_object.SetParameter('MovingInternalImagePixelType','float')
-        # parameter_object.SetParameter('FixedImageDimension','3')
-        # parameter_object.SetParameter('MovingImageDimension','3')
         image_reg, params = itk.elastix_registration_method(image, template,parameter_object=parameter_object)
-        print(params)
         return image_reg
 
     def itksnap_rigid(self,img_arr_t1,img_arr_t2):
@@ -1187,12 +1187,13 @@ class CreateCaseFrame(CreateFrame):
             command += ' -m ' + os.path.join(self.casedir,ofile) + ' -dev 0'
             res = os.system(command)
             # print(res)
-        os.remove(os.path.join(self.casedir,'img_T1_temp.nii'))
-        os.remove(os.path.join(self.casedir,'img_T2flair_temp.nii'))
         img_nb_t1 = nb.load(os.path.join(self.casedir,'img_T1_brain.nii'))
         img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
         img_nb_t2 = nb.load(os.path.join(self.casedir,'img_T2flair_brain.nii'))
         img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
+        for t in ['T1','T2flair']:
+            os.remove(os.path.join(self.casedir,'img_' + t + '_brain.nii'))
+            os.remove(os.path.join(self.casedir,'img_' + t + '_temp.nii'))
         return img_arr_t1,img_arr_t2
     
     # clip outliers as in brainmage code
