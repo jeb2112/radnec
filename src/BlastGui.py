@@ -54,6 +54,7 @@ class BlastGui(object):
                                },
                     }
 
+        self.affine = None
         self.roi = [0] # dummy value for Roi indexing 1-based
         self.currentroi = 0 # tracks the currentroi widget variable
         self.currentlayer = 0

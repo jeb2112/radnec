@@ -902,7 +902,8 @@ class CreateCaseFrame(CreateFrame):
             t1ce_file,t2flair_file = self.filenames
             if all(['processed' in f for f in self.filenames]):
                 self.processed = True
-            img_arr_t1,img_arr_t2 = self.loadData(t1ce_file,t2flair_file)
+            img_arr_t1,img_arr_t2,affine = self.loadData(t1ce_file,t2flair_file)
+            self.ui.affine = affine
 
         # check for nifti image files with matching filenames
         # 'processed' refers to earlier output and is loaded preferentially.
@@ -931,7 +932,8 @@ class CreateCaseFrame(CreateFrame):
                 elif len(t2_files) == 1:
                     t2flair_file = t2_files[0]
                     self.processed = 'processed' in t2flair_file
-            img_arr_t1,img_arr_t2 = self.loadData(t1ce_file,t2flair_file)
+            img_arr_t1,img_arr_t2,affine = self.loadData(t1ce_file,t2flair_file)
+            self.ui.affine = affine
 
         # dicom directories each containing one image series
         # for now it will assumed not be multi-frame format
@@ -1251,6 +1253,7 @@ class CreateCaseFrame(CreateFrame):
             # nibabel convention will be transposed to sitk convention
             img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
             img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
+            affine = img_nb_t1.affine
         elif 'dcm' in t1ce_file:
             try:
                 img_dcm_t1 = pd.dcmread(os.path.join(self.casedir,t1ce_file))
@@ -1260,7 +1263,8 @@ class CreateCaseFrame(CreateFrame):
             self.ui.dcm_header = None
             img_arr_t1 = np.transpose(np.array(img_dcm_t1.dataobj),axes=(2,1,0))
             img_arr_t2 = np.transpose(np.array(img_dcm_t2.dataobj),axes=(2,1,0))
-        return img_arr_t1,img_arr_t2
+            affine = None # not implemented yet
+        return img_arr_t1,img_arr_t2,affine
 
 
     # operates on a single image channel 
