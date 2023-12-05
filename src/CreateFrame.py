@@ -20,6 +20,7 @@ from pstats import SortKey,Stats
 
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
+import itk
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice
 
@@ -961,30 +962,25 @@ class CreateCaseFrame(CreateFrame):
             self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
             print('Image matrices do not match. Resampling T2flair into T1 space...')
             img_arr_t2,affine_t2 = self.resamplet2(img_arr_t1,img_arr_t2,affine_t1,affine_t2)
+            img_arr_t2 = np.clip(img_arr_t2,0,None)
             if True:
                 self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_resampled.nii.gz'),
                                             type='float',affine=affine_t1)
                 self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_resampled.nii.gz'),
                                             type='float',affine=affine_t2)
 
-
-        # registration. for now assuming automatoically needed on input dicoms
-        # but not on any nift with 'processed' in the filename
-        if self.register_check_value.get() and self.processed is False:
+        # registration
+        if self.register_check_value.get() and self.processed is False and True:
             print('register T1 T2flair')
-            fixed_image = sitk.GetImageFromArray(img_arr_t1)            
-            moving_image = sitk.GetImageFromArray(img_arr_t2)
-            initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
-                                                    moving_image, 
-                                                    sitk.AffineTransform(3),             
-                                                    sitk.CenteredTransformInitializerFilter.GEOMETRY)
-            final_transform,_ = self.multires_registration(fixed_image, moving_image, initial_transform)      
-            moving_image_reg = sitk.Resample(moving_image,
-                                            fixed_image,
-                                            final_transform,
-                                            sitk.sitkBSplineResamplerOrder3,
-                                            fixed_image.GetPixelID()) 
-            img_arr_t2 = sitk.GetArrayFromImage(moving_image_reg)
+            if True:
+                d = nb.load(os.path.join(self.casedir,'img_T1_resampled.nii.gz'))
+                img_arr_t1 = np.transpose(np.array(d.dataobj),axes=(2,1,0))
+                d = nb.load(os.path.join(self.casedir,'img_T2_resampled.nii.gz'))
+                img_arr_t2 = np.transpose(np.array(d.dataobj),axes=(2,1,0))
+            fixed_image = itk.GetImageFromArray(img_arr_t1)
+            moving_image = itk.GetImageFromArray(img_arr_t2)
+            moving_image_res = self.elastix_affine(fixed_image,moving_image)
+            img_arr_t2 = itk.GetArrayFromImage(moving_image_res)
             self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_registered.nii.gz'),
                                         type='float',affine=affine_t1)
 
@@ -1080,24 +1076,83 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
 
 
-    # sitk registration with some starter parameters
-    def multires_registration(self,fixed_image, moving_image, initial_transform):
+
+    def multires_registration(self, fixed_image, moving_image):
+        initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
+                                                            moving_image, 
+                                                            sitk.Euler3DTransform(), 
+                                                            sitk.CenteredTransformInitializerFilter.GEOMETRY)
+
         registration_method = sitk.ImageRegistrationMethod()
         registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=50)
         registration_method.SetMetricSamplingStrategy(registration_method.RANDOM)
         registration_method.SetMetricSamplingPercentage(0.01)
+
         registration_method.SetInterpolator(sitk.sitkLinear)
-        registration_method.SetOptimizerAsGradientDescent(learningRate=1.0, numberOfIterations=100, estimateLearningRate=registration_method.Once)
-        registration_method.SetOptimizerScalesFromPhysicalShift() 
-        registration_method.SetInitialTransform(initial_transform, inPlace=False)
+
+        # Optimizer settings.
+        registration_method.SetOptimizerAsGradientDescent(learningRate=1.0, numberOfIterations=1000, convergenceMinimumValue=1e-6, convergenceWindowSize=10)
+        registration_method.SetOptimizerScalesFromPhysicalShift()
+
+        # Setup for the multi-resolution framework.            
         registration_method.SetShrinkFactorsPerLevel(shrinkFactors = [4,2,1])
-        registration_method.SetSmoothingSigmasPerLevel(smoothingSigmas = [2,1,0])
+        registration_method.SetSmoothingSigmasPerLevel(smoothingSigmas=[2,1,0])
         registration_method.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
 
-        final_transform = registration_method.Execute(fixed_image, moving_image)
+        # Don't optimize in-place, we would possibly like to run this cell multiple times.
+        registration_method.SetInitialTransform(initial_transform, inPlace=False)
+
+        final_transform = registration_method.Execute(sitk.Cast(fixed_image, sitk.sitkFloat32), 
+                                                    sitk.Cast(moving_image, sitk.sitkFloat32))
         print('Final metric value: {0}'.format(registration_method.GetMetricValue()))
-        print('Optimizer\'s stopping condition, {0}'.format(registration_method.GetOptimizerStopConditionDescription()))
-        return (final_transform, registration_method.GetMetricValue())
+        print('Optimizer\'s stopping condition, {0}'.format(registration_method.GetOptimizerStopConditionDescription()))        
+        moving_resampled = sitk.Resample(moving_image, fixed_image, final_transform, sitk.sitkLinear, 0.0, moving_image.GetPixelID())         
+        return moving_resampled
+
+    def simple_elastix_affine(self, image, template):  
+        elastixImageFilter = sitk.ElastixImageFilter()  
+        elastixImageFilter.SetFixedImage(image)  
+        elastixImageFilter.SetMovingImage(template)  
+        elastixImageFilter.SetParameterMap(sitk.GetDefaultParameterMap("affine"))  
+        elastixImageFilter.PrintParameterMap(sitk.GetDefaultParameterMap('affine'))
+        elastixImageFilter.Execute()  
+        sitk.WriteImage(elastixImageFilter.GetResultImage(), 'reg.tif')  
+        # load image with SimpleITK  
+        sitk_image = sitk.ReadImage('reg.tif')  
+        # convert to NumPy array  
+        registered_img = sitk.GetArrayFromImage(sitk_image)  
+        # delete the tif file  
+        os.remove('reg.tif')  
+        return sitk_image
+    
+    def elastix_affine(self,image,template):
+        parameter_object = itk.ParameterObject.New()
+        default_rigid_parameter_map = parameter_object.GetDefaultParameterMap('affine')
+        parameter_object.AddParameterMap(default_rigid_parameter_map)        
+        # parameter_object.SetParameter('UseDirectionCosines','false')
+        # parameter_object.SetParameter('FixedInternalImagePixelType','float')
+        # parameter_object.SetParameter('MovingInternalImagePixelType','float')
+        # parameter_object.SetParameter('FixedImageDimension','3')
+        # parameter_object.SetParameter('MovingImageDimension','3')
+        image_reg, params = itk.elastix_registration_method(image, template,parameter_object=parameter_object)
+        print(params)
+        return image_reg
+
+    def itksnap_rigid(self,img_arr_t1,img_arr_t2):
+        fixed_fname = '/tmp/img_fixed.nii.gz'
+        moving_fname = '/tmp/img_moving.nii.gz'
+        self.ui.roiframe.WriteImage(img_arr_t1,fixed_fname,
+                                    type='float')
+        self.ui.roiframe.WriteImage(img_arr_t2,moving_fname,
+                                    type='float')
+        command = 'greedy -d 3 -dof 6 -a -i '
+        command += moving_fname + ' ' + fixed_fname + ' '
+        command += '-o /tmp/affine.mat -ia-image-centers -n 100x50x10'
+        res = os.system(command)
+        with open('/tmp/affine.mat') as fp:
+            lines = fp.read().split(' ')
+            print(lines)
+        return
 
     # create nb affine from dicom 
     def get_affine(self,metadata):
