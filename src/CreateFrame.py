@@ -431,7 +431,7 @@ class CreateSliceViewerFrame(CreateFrame):
     # keyboard for slice selection
     def keyboard_slice(self,event):
         # print(event,event.widget)
-        if event.y < 0 or event.y > self.ui.config.PanelSize*self.ui.config.dpi:
+        if event.y < 0 or event.y > self.ui.ui.current_panelsize*self.ui.config.dpi:
             return
         a = self.tbar.select_artist(event)
         if a is None:
@@ -467,13 +467,13 @@ class CreateSliceViewerFrame(CreateFrame):
     # mouse wheel for slice selection
     def mousewheel_win32(self,event):
         # print(event,event.widget,event.delta)
-        if event.y < 0 or event.y > self.ui.config.PanelSize*self.ui.config.dpi:
+        if event.y < 0 or event.y > self.ui.ui.current_panelsize*self.ui.config.dpi:
             return
-        if event.x < 2*self.ui.config.PanelSize*self.ui.config.dpi:
+        if event.x < 2*self.ui.ui.current_panelsize*self.ui.config.dpi:
             item = self.currentslice
             maxslice = self.dim[0]-1
         else:
-            if event.y <= (self.ui.config.PanelSize*self.ui.config.dpi)/2:
+            if event.y <= (self.ui.ui.current_panelsize*self.ui.config.dpi)/2:
                 item = self.currentsagslice
             else:
                 item = self.currentcorslice
@@ -488,7 +488,7 @@ class CreateSliceViewerFrame(CreateFrame):
     # mouse wheel for slice selection
     def mousewheel(self,event,key=None):
         # print(event,event.time,event.widget,event.delta,key)
-        if event.y < 0 or event.y > self.ui.config.PanelSize*self.ui.config.dpi:
+        if event.y < 0 or event.y > self.ui.ui.current_panelsize*self.ui.config.dpi:
             return
         # queue mousewheel events for latency
         if key is None:
@@ -561,7 +561,7 @@ class CreateSliceViewerFrame(CreateFrame):
     def b1motion_crosshair(self,event):
         self.canvas.get_tk_widget().config(cursor='tcross')
         # no adjustment from outside the pane
-        if event.y < 0 or event.y > self.config.PanelSize*self.config.dpi:
+        if event.y < 0 or event.y > self.ui.current_panelsize*self.config.dpi:
             return
         # which artist axes was clicked
         a = self.tbar.select_artist(event)
@@ -596,7 +596,7 @@ class CreateSliceViewerFrame(CreateFrame):
             y1 = self.currentcorslice.get()
             self.draw_crosshair('A',x,y1)
             self.draw_crosshair('B',x,y1)
-            self.draw_crosshair('C',x,y1)
+            self.draw_crosshair('C',y1,y)
             self.draw_crosshair('D',x,y)
             self.currentslice.set(int(y))
             self.currentsagslice.set(int(x))
