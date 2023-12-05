@@ -21,5 +21,6 @@ setup(name='blast',
             "versioneer",
             "nibabel",
             "screeninfo",
-            "pydicom"      ])
+            "pydicom",
+            "itk-elastix"])
  

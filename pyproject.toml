@@ -20,7 +20,8 @@ dependencies = [
             "build",
             "nibabel",
             "screeninfo",
-            "pydicom"      ]
+            "pydicom",
+            "itk-elastix"      ]
 [project.urls]
 "Source" = "https://github.com/jeb2112/blast"
 
