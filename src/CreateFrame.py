@@ -734,12 +734,14 @@ class CreateSliceViewerFrame(CreateFrame):
             self.normalslice=self.ui.get_currentslice()
             region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]*self.ui.data['raw'][0,self.normalslice]>0) 
             t1channel_normal = self.ui.data['raw'][0,self.normalslice][region_of_support]
+            flairchannel_normal = self.ui.data['raw'][1,self.normalslice][region_of_support]
             t2channel_normal = self.ui.data['raw'][1,self.normalslice][region_of_support]
         else:
             self.normalslice = None
-            region_of_support = np.where(self.ui.data['raw'][0]*self.ui.data['raw'][1] >0)
+            region_of_support = np.where(self.ui.data['raw'][0]*self.ui.data['raw'][1]*self.ui.data['raw'][2] >0)
             t1channel_normal = self.ui.data['raw'][0][region_of_support]
-            t2channel_normal = self.ui.data['raw'][1][region_of_support]
+            flairchannel_normal = self.ui.data['raw'][1][region_of_support]
+            t2channel_normal = self.ui.data['raw'][2][region_of_support]
 
         # kmeans to calculate statistics for brain voxels
         t2 = np.ravel(t2channel_normal)
@@ -896,13 +898,13 @@ class CreateCaseFrame(CreateFrame):
 
         # if two image files are given load them directly
         if files is not None:
-            if len(files) != 2:
-                self.ui.set_message('Select only two image files')
+            if len(files) != 3:
+                self.ui.set_message('Select three image files')
                 return
-            t1ce_file,t2flair_file = self.filenames
+            t1ce_file,t2_file,flair_file = self.filenames
             if all(['processed' in f for f in self.filenames]):
                 self.processed = True
-            img_arr_t1,img_arr_t2,affine = self.loadData(t1ce_file,t2flair_file)
+            img_arr_t1,img_arr_t2,img_arr_flair,affine = self.loadData(t1ce_file,t2_file,flair_file)
             self.ui.affine = affine
 
         # check for nifti image files with matching filenames
@@ -921,18 +923,29 @@ class CreateCaseFrame(CreateFrame):
                 elif len(t1_files) == 1:
                     t1ce_file = t1_files[0]
                     self.processed = 'processed' in t1ce_file
-            t2_files = [f for f in files if 'flair' in f.lower()]
+            flair_files = [f for f in files if 'flair' in f.lower()]
+            if len(flair_files) > 0:
+                if len(flair_files) > 1:
+                    flair_file = next((f for f in flair_files if re.search('(processed)',f.lower())),None)
+                    self.processed = True
+                    if flair_file is None:
+                        flair_file = next((f for f in flair_files if re.search('(ce|gad|gd|post)',f.lower())),flair_files[0])
+                        self.processed = False
+                elif len(flair_files) == 1:
+                    flair_file = flair_files[0]
+                    self.processed = 'processed' in flair_file
+            t2_files = [f for f in files if 't2' in f.lower()]
             if len(t2_files) > 0:
                 if len(t2_files) > 1:
-                    t2flair_file = next((f for f in t2_files if re.search('(processed)',f.lower())),None)
+                    t2_file = next((f for f in t2_files if re.search('(processed)',f.lower())),None)
                     self.processed = True
-                    if t2flair_file is None:
-                        t2flair_file = next((f for f in t2_files if re.search('(ce|gad|gd|post)',f.lower())),t2_files[0])
+                    if t2_file is None:
+                        t2_file = next((f for f in t2_files if re.search('(ce|gad|gd|post)',f.lower())),t2_files[0])
                         self.processed = False
                 elif len(t2_files) == 1:
-                    t2flair_file = t2_files[0]
-                    self.processed = 'processed' in t2flair_file
-            img_arr_t1,img_arr_t2,affine = self.loadData(t1ce_file,t2flair_file)
+                    t2_file = t2_files[0]
+                    self.processed = 'processed' in t2_file
+            img_arr_t1,img_arr_t2,img_arr_flair,affine = self.loadData(t1ce_file,t2_file,flair_file)
             self.ui.affine = affine
 
         # dicom directories each containing one image series
@@ -955,6 +968,13 @@ class CreateCaseFrame(CreateFrame):
                         data = pd.dcmread(os.path.join(dpath,f))
                         img_arr_t1[i+1,:,:] = data.pixel_array
                 elif any([f in metadata.SeriesDescription.lower() for f in ['flair','fluid']]):
+                    img_arr_flair = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                    affine_flair = self.get_affine(metadata)
+                    img_arr_flair[0,:,:] = metadata.pixel_array
+                    for i,f in enumerate(files[1:]):
+                        data = pd.dcmread(os.path.join(dpath,f))
+                        img_arr_flair[i+1,:,:] = data.pixel_array
+                elif 't2' in metadata.SeriesDescription.lower():
                     img_arr_t2 = np.zeros((len(files),metadata.Rows,metadata.Columns))
                     affine_t2 = self.get_affine(metadata)
                     img_arr_t2[0,:,:] = metadata.pixel_array
@@ -965,25 +985,32 @@ class CreateCaseFrame(CreateFrame):
         # dimensions of canvas panel might have to change depending on dimension of new data loaded.
         if np.shape(img_arr_t1) != np.shape(img_arr_t2):
             # self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
-            print('Image matrices do not match. Resampling T2flair into T1 space...')
+            print('Image matrices do not match. Resampling T2, flair into T1 space...')
             img_arr_t2,affine_t2 = self.resamplet2(img_arr_t1,img_arr_t2,affine_t1,affine_t2)
             img_arr_t2 = np.clip(img_arr_t2,0,None)
+            img_arr_flair,affine_flair = self.resamplet2(img_arr_t1,img_arr_t2,affine_t1,affine_t2)
+            img_arr_flair = np.clip(img_arr_flair,0,None)
             if True:
                 self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_resampled.nii.gz'),
                                             type='float',affine=affine_t1)
                 self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_resampled.nii.gz'),
                                             type='float',affine=affine_t2)
+                self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_resampled.nii.gz'),
+                                            type='float',affine=affine_flair)
 
         # registration
         if self.register_check_value.get() and self.processed is False:
-            print('register T1 T2flair')
+            print('register T2, flair')
             if True:
                 d = nb.load(os.path.join(self.casedir,'img_T1_resampled.nii.gz'))
                 img_arr_t1 = np.transpose(np.array(d.dataobj),axes=(2,1,0))
                 d = nb.load(os.path.join(self.casedir,'img_T2_resampled.nii.gz'))
                 img_arr_t2 = np.transpose(np.array(d.dataobj),axes=(2,1,0))
+                d = nb.load(os.path.join(self.casedir,'img_flair_resampled.nii.gz'))
+                img_arr_flair = np.transpose(np.array(d.dataobj),axes=(2,1,0))
                 os.remove(os.path.join(self.casedir,'img_T1_resampled.nii.gz'))
                 os.remove(os.path.join(self.casedir,'img_T2_resampled.nii.gz'))
+                os.remove(os.path.join(self.casedir,'img_flair_resampled.nii.gz'))
             fixed_image = itk.GetImageFromArray(img_arr_t1)
             moving_image = itk.GetImageFromArray(img_arr_t2)
             moving_image_res = self.elastix_affine(fixed_image,moving_image)
@@ -994,7 +1021,7 @@ class CreateCaseFrame(CreateFrame):
 
         # skull strip. for now assuming only needed on input dicoms
         if self.skullstrip_check_value.get() and self.processed is False:
-            img_arr_t1,img_arr_t2 = self.skullstrip(img_arr_t1,img_arr_t2)
+            img_arr_t1,img_arr_t2,img_arr_flair = self.skullstrip(img_arr_t1,img_arr_t2,img_arr_flair)
             if False:
                 self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_extracted.nii.gz'),
                                             type='float',affine=affine_t1)
@@ -1010,7 +1037,7 @@ class CreateCaseFrame(CreateFrame):
 
         # bias correction.
         if self.n4_check_value.get() and self.processed is False:  
-            img_arr_t1,img_arr_t2 = self.n4(img_arr_t1,img_arr_t2)
+            img_arr_t1,img_arr_t2,img_arr_flair = self.n4(img_arr_t1,img_arr_t2,img_arr_flair)
 
         # rescale the data
         if self.processed is False:
@@ -1019,28 +1046,33 @@ class CreateCaseFrame(CreateFrame):
                 img_arr_t1[img_arr_t1 < 0] = 0
             if np.min(img_arr_t2) < 0:
                 img_arr_t2[img_arr_t2 < 0] = 0
+            if np.min(img_arr_flair) < 0:
+                img_arr_t2[img_arr_flair < 0] = 0
             img_arr_t1 = self.rescale(img_arr_t1)
             img_arr_t2 = self.rescale(img_arr_t2)
+            img_arr_flair = self.rescale(img_arr_flair)
 
         # save nifti files for future use
         if self.casetype == 2:
             # self.brainmage_clip(img_arr_t1)
             # self.brainmage_clip(img_arr_t2)
             self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_processed.nii.gz'),type='float',affine=affine_t1)
-            self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2flair_processed.nii.gz'),type='float',affine=affine_t2)
+            self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_processed.nii.gz'),type='float',affine=affine_t2)
+            self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_processed.nii.gz'),type='float',affine=affine_t2)
 
         self.ui.sliceviewerframe.dim = np.shape(img_arr_t1)
         self.ui.sliceviewerframe.create_canvas()
 
         # 2 channels hard-coded
-        self.ui.data['raw'] = np.zeros((2,)+self.ui.sliceviewerframe.dim,dtype='float32')
+        self.ui.data['raw'] = np.zeros((3,)+self.ui.sliceviewerframe.dim,dtype='float32')
         self.ui.data['raw'][0] = img_arr_t1
 
         # Create t2flair template. assuming there is only 1 flair image file
         # t2flair = sitk.ReadImage(os.path.join(self.casedir,t2flair_file))
         # # img_arr = np.flip(sitk.GetArrayFromImage(t2flair),axis=0)
         # img_arr = sitk.GetArrayFromImage(t2flair)
-        self.ui.data['raw'][1] = img_arr_t2
+        self.ui.data['raw'][1] = img_arr_flair
+        self.ui.data['raw'][2] = img_arr_t2
 
         if False:
             if img_arr_prob_GM is None:
@@ -1140,22 +1172,6 @@ class CreateCaseFrame(CreateFrame):
         image_reg, params = itk.elastix_registration_method(image, template,parameter_object=parameter_object)
         return image_reg
 
-    def itksnap_rigid(self,img_arr_t1,img_arr_t2):
-        fixed_fname = '/tmp/img_fixed.nii.gz'
-        moving_fname = '/tmp/img_moving.nii.gz'
-        self.ui.roiframe.WriteImage(img_arr_t1,fixed_fname,
-                                    type='float')
-        self.ui.roiframe.WriteImage(img_arr_t2,moving_fname,
-                                    type='float')
-        command = 'greedy -d 3 -dof 6 -a -i '
-        command += moving_fname + ' ' + fixed_fname + ' '
-        command += '-o /tmp/affine.mat -ia-image-centers -n 100x50x10'
-        res = os.system(command)
-        with open('/tmp/affine.mat') as fp:
-            lines = fp.read().split(' ')
-            print(lines)
-        return
-
     # create nb affine from dicom 
     def get_affine(self,metadata):
         dircos = np.array(list(map(float,metadata.ImageOrientationPatient)))
@@ -1173,14 +1189,16 @@ class CreateCaseFrame(CreateFrame):
         # print(affine)
         return affine
 
-    def skullstrip(self,img_arr_t1,img_arr_t2):
+    def skullstrip(self,img_arr_t1,img_arr_t2,img_arr_flair):
         print('brain extract')
         if True:
             img_arr_t1 = self.brainmage_clip(img_arr_t1)
             img_arr_t2 = self.brainmage_clip(img_arr_t2)
+            img_arr_flair = self.brainmage_clip(img_arr_flair)
         self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_temp.nii'),norm=False,type='float')
-        self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2flair_temp.nii'),norm=False,type='float')
-        for t in ['T1','T2flair']:
+        self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_temp.nii'),norm=False,type='float')
+        self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_temp.nii'),norm=False,type='float')
+        for t in ['T1','T2','flair']:
             tfile = 'img_' + t + '_temp.nii'
             ofile = 'img_' + t + '_brain.nii'
             command = 'conda run -n brainmage brain_mage_single_run '
@@ -1191,12 +1209,14 @@ class CreateCaseFrame(CreateFrame):
             # print(res)
         img_nb_t1 = nb.load(os.path.join(self.casedir,'img_T1_brain.nii'))
         img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
-        img_nb_t2 = nb.load(os.path.join(self.casedir,'img_T2flair_brain.nii'))
+        img_nb_t2 = nb.load(os.path.join(self.casedir,'img_T2_brain.nii'))
         img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
-        for t in ['T1','T2flair']:
+        img_nb_flair = nb.load(os.path.join(self.casedir,'img_flair_brain.nii'))
+        img_arr_flair = np.transpose(np.array(img_nb_flair.dataobj),axes=(2,1,0))
+        for t in ['T1','T2','flair']:
             os.remove(os.path.join(self.casedir,'img_' + t + '_brain.nii'))
             os.remove(os.path.join(self.casedir,'img_' + t + '_temp.nii'))
-        return img_arr_t1,img_arr_t2
+        return img_arr_t1,img_arr_t2,img_arr_flair
     
     # clip outliers as in brainmage code
     def brainmage_clip(self,img):
@@ -1241,20 +1261,22 @@ class CreateCaseFrame(CreateFrame):
         img_arr_t2 = np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0))
         return img_arr_t2,img_t2_res.affine
 
-    def loadData(self,t1ce_file,t2flair_file,type=None):
-        img_arr_t1 = img_arr_t2 = None
+    def loadData(self,t1ce_file,flair_file,t2_file,type=None):
+        img_arr_t1 = img_arr_t2 = img_arr_flair = None
         if 'nii' in t1ce_file:
             try:
                 img_nb_t1 = nb.load(os.path.join(self.casedir,t1ce_file))
-                img_nb_t2 = nb.load(os.path.join(self.casedir,t2flair_file))
+                img_nb_t2 = nb.load(os.path.join(self.casedir,t2_file))
+                img_nb_flair = nb.load(os.path.join(self.casedir,flair_file))
             except IOError as e:
-                self.ui.set_message('Can\'t import {} or {}'.format(t1ce_file,t2flair_file))
+                self.ui.set_message('Can\'t import {} or {}'.format(t1ce_file,t2_file,flair_file))
             self.ui.nb_header = img_nb_t1.header.copy()
             # nibabel convention will be transposed to sitk convention
             img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
             img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
+            img_arr_flair = np.transpose(np.array(img_nb_flair.dataobj),axes=(2,1,0))
             affine = img_nb_t1.affine
-        elif 'dcm' in t1ce_file:
+        elif 'dcm' in t1ce_file: # not finished yet
             try:
                 img_dcm_t1 = pd.dcmread(os.path.join(self.casedir,t1ce_file))
                 img_dcm_t2 = pd.dcmread(os.path.join(self.casedir,t2flair_file))
@@ -1263,8 +1285,8 @@ class CreateCaseFrame(CreateFrame):
             self.ui.dcm_header = None
             img_arr_t1 = np.transpose(np.array(img_dcm_t1.dataobj),axes=(2,1,0))
             img_arr_t2 = np.transpose(np.array(img_dcm_t2.dataobj),axes=(2,1,0))
-            affine = None # not implemented yet
-        return img_arr_t1,img_arr_t2,affine
+            affine = None
+        return img_arr_t1,img_arr_t2,img_arr_flair,affine
 
 
     # operates on a single image channel 
