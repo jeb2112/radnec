@@ -40,7 +40,7 @@ class Command():
         self.args = args
         self.kwargs = kwargs
 
-    def __call__(self):
+    def __call__(self,event):
         return self.callback(*self.args, **self.kwargs)
     
 class EventCallback():
@@ -742,13 +742,13 @@ class CreateSliceViewerFrame(CreateFrame):
         if self.slicevolume_norm.get() == 0:
             self.normalslice=self.ui.get_currentslice()
             region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]*self.ui.data['raw'][1,self.normalslice]>0) 
-            vset = np.zeros((3,len(region_of_support)))
+            vset = np.zeros_like(region_of_support,dtype='float')
             for i in range(3):
                 vset[i] = np.ravel(self.ui.data['raw'][i,self.normalslice][region_of_support])
         else:
             self.normalslice = None
             region_of_support = np.where(self.ui.data['raw'][0]*self.ui.data['raw'][1]*self.ui.data['raw'][2] >0)
-            vset = np.zeros((3,len(region_of_support)))
+            vset = np.zeros_like(region_of_support,dtype='float')
             for i in range(3):
                 vset[i] = np.ravel(self.ui.data['raw'][i][region_of_support])
             # t1channel_normal = self.ui.data['raw'][0][region_of_support]
@@ -791,12 +791,12 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ui.roiframe.layer_callback(layer=layer,updateslice=False,overlay=False)
             self.ui.runblast(currentslice=None,layer=layer)
 
-        # activate thresholds only after normal slice stats are available
-        for s in ['t1','t2','flairt1','flairt2','bct1','bct2']:
-            self.ui.roiframe.sliders[s]['state']='normal'
-            self.ui.roiframe.sliders[s].bind("<ButtonRelease-1>",self.ui.roiframe.updateslider[s])
+            # activate thresholds only after normal slice stats are available
+            for s in ['t12','flair','bc']:
+                self.ui.roiframe.sliders[layer][s]['state']='normal'
+                self.ui.roiframe.sliders[layer][s].bind("<ButtonRelease-1>",Command(self.ui.roiframe.updateslider,layer,s))
         # since we finish the on the T2 hyper layer, have this slider disabled to begin with
-        self.ui.roiframe.sliders['t1']['state']='disabled'
+        self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
 
 
 ################

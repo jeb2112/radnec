@@ -25,8 +25,8 @@ from src import OverlayPlots
 # BLAST algorithm
 #################
 
-def run_blast(data,t1thresh,t2thresh,flairthresh,clustersize,layer,
-            currentslice=None, maxZ=4,minZ=-4,gmthresh=None,wmthresh=None):
+def run_blast(data,t12thresh,flairthresh,clustersize,layer,
+            currentslice=None, maxZ=4):
 
     #check if any thresholds have actually changed
     if all(data['blast']['gates'][x] is not None for x in [layer,'brain '+layer]):
@@ -50,31 +50,32 @@ def run_blast(data,t1thresh,t2thresh,flairthresh,clustersize,layer,
     # t1stack = rescale(t1)
     flairstack = flair
     t1stack = t1
-    t2stack = t1
+    t2stack = t2
 
     braincluster_size = clustersize #sld4.Value
-    t1Diff = braincluster_size*data['blast']['params']['stdt1'] 
-    t2Diff = braincluster_size*data['blast']['params']['stdt2']
-    flairDiff = braincluster_size*data['blast']['params']['stdflair']
+    t12Diff = braincluster_size*data['blast']['params'][layer]['stdt12'] 
+    # t2Diff = braincluster_size*data['blast']['params']['stdt2']
+    flairDiff = braincluster_size*data['blast']['params'][layer]['stdflair']
 
     # Define brain
     # h = images.roi.Ellipse(gca,'Center',[meant2 meant1],'Semiaxes',[t2Diff t1Diff],'Color','y','LineWidth',1,'LabelAlpha',0.5,'InteractionsAllowed','none')
 
     # row=y=t1 col=x=t2, but xy convention for patches.Ellipse is same as matlab
-    brain_perimeter = Ellipse((data['blast']['params']['meant2'],data['blast']['params']['meant1']),2*t2Diff,2*t1Diff)
+    brain_perimeter = Ellipse((data['blast']['params'][layer]['meant12'],
+                               data['blast']['params'][layer]['meant12']),2*flairDiff,2*t12Diff)
 
-    t2gate = data['blast']['params']['meant2']+(t2thresh)*data['blast']['params']['stdt2']
-    t1gate = data['blast']['params']['meant1']+(t1thresh)*data['blast']['params']['stdt1']
+    flairgate = data['blast']['params'][layer]['meanflair']+(flairthresh)*data['blast']['params'][layer]['stdflair']
+    t12gate = data['blast']['params'][layer]['meant12']+(t12thresh)*data['blast']['params'][layer]['stdt12']
 
     # define ET threshold gate >= (t2gate,t1gate). upper right quadrant
     if layer == 'ET':
-        flairgate = data['blast']['params']['meant1flair']+(flairthresh)*data['blast']['params']['stdt1flair']
-        yv_gate = np.array([t1gate, maxZ, maxZ, t1gate])
+        # flairgate = data['blast']['params']['meant1flair']+(flairthresh)*data['blast']['params']['stdt1flair']
+        yv_gate = np.array([t12gate, maxZ, maxZ, t12gate])
         xv_gate = np.array([flairgate, flairgate, maxZ, maxZ]) 
     elif layer == 'T2 hyper':
     # define NET threshold gate, >= ,flairgate,>= t2gate. upper right quadrant
-        flairgate = data['blast']['params']['meant2flair']+(flairthresh)*data['blast']['params']['stdt2flair']
-        yv_gate = np.array([t2gate, maxZ, maxZ, t2gate])
+        # flairgate = data['blast']['params']['meant2flair']+(flairthresh)*data['blast']['params']['stdt2flair']
+        yv_gate = np.array([t12gate, maxZ, maxZ, t12gate])
         xv_gate = np.array([flairgate, flairgate, maxZ, maxZ]) 
 
     #Creates a matrix of voxels for brain slice
@@ -136,15 +137,15 @@ def run_blast(data,t1thresh,t2thresh,flairthresh,clustersize,layer,
         brain_gate = data['blast']['gates']['brain '+layer]
         layer_gate = data['blast']['gates'][layer]
 
-        if False:
+        if True:
             plt.figure(7)
             ax = plt.subplot(1,1,1)
             plt.scatter(t1t2verts[:,0],t1t2verts[:,1],c='b',s=1)
-            plt.scatter(xy_layerverts[:,0],xy_layerverts[:,1],c='r',s=10)
+            plt.scatter(xy_layerverts[:,0],xy_layerverts[:,1],c='r',s=20)
             ax.set_aspect('equal')
             ax.set_xlim(left=0,right=1.0)
             ax.set_ylim(bottom=0,top=1.0)
-            plt.text(0,1.02,'{:.3f},{:.3f}'.format(np.mean(t2channel),np.std(t2channel)))
+            plt.text(0,1.02,'{:.3f},{:.3f}'.format(np.mean(flairchannel),np.std(flairchannel)))
             plt.savefig('/home/jbishop/Pictures/scatterplot.png')
             plt.clf()
             # plt.show(block=False)

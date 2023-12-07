@@ -47,7 +47,7 @@ class BlastGui(object):
                             'ET':None,
                             # t12,flair are slider setting for y-axis t1/t2 depending on layer, and flair common x-axis
                             # std,mean are the cluster stats. 
-                            'params':{'ET':{'t12':0.0,'bc':3.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
+                            'params':{'ET':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
                                'T2 hyper':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
                                },
                     },
@@ -154,7 +154,9 @@ class BlastGui(object):
 
         if layer is None:   
             layer = self.roiframe.layer.get()
-        clustersize = self.get_bcsize()
+        clustersize = self.get_bcsize(layer=layer)
+        t12_threshold = self.roiframe.sliders[layer]['t12'].get()
+        flair_threshold = self.roiframe.sliders[layer]['flair'].get()
 
         # if self.config.WLClip:
         #     self.sliceviewerframe.clipwl_raw()
@@ -174,11 +176,12 @@ class BlastGui(object):
         else:
             try:
                 retval = Blastbratsv3.run_blast(
-                                    self.data,self.roiframe.t1slider.get(),
-                                    self.roiframe.t2slider.get(),self.roiframe.flairslider.get(),
+                                    self.data,
+                                    t12_threshold,
+                                    flair_threshold,
                                     clustersize,layer,
-                                    currentslice=currentslice,
-                                    gmthresh=None,wmthresh=None)
+                                    currentslice=currentslice
+                                    )
                 if retval is not None:
                     self.data['blast'][layer],self.data['blast']['gates']['brain '+layer],self.data['blast']['gates'][layer] = retval
                     self.update_blast(layer=layer)
@@ -252,11 +255,11 @@ class BlastGui(object):
     def get_currentroi(self):
         return self.currentroi
 
-    def get_bct1size(self):
-        return self.roiframe.bct1size.get()
-    def get_bct2size(self):
-        return self.roiframe.bct2size.get()
-
+    def get_bcsize(self,layer=None):
+        if layer is None:
+            layer = self.roiframe.layer.get()
+        return self.roiframe.thresholds[layer]['bc'].get()
+    
     def update_roidata(self):
         self.roiframe.updateROIData()
 
@@ -288,7 +291,7 @@ class BlastGui(object):
         self.data = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
                             'T2 hyper':None,
                             'ET':None,
-                            'params':{'ET':{'t12':0.0,'bc':3.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
+                            'params':{'ET':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
                                'T2 hyper':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
                                },
                     },

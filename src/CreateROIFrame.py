@@ -37,17 +37,16 @@ class CreateROIFrame(CreateFrame):
         self.buttonpress_id = None # temp var for keeping track of button press event
         self.finalROI_overlay_value = tk.BooleanVar(value=False)
         self.enhancingROI_overlay_value = tk.BooleanVar(value=False)
-        self.thresholds = {}
-        self.thresholds['t1'] = tk.DoubleVar(value=self.ui.config.T1default)
-        self.thresholds['t2'] = tk.DoubleVar(value=self.ui.config.T2default)
-        self.thresholds['flairt1'] = tk.DoubleVar(value=self.ui.config.T2default)
-        self.thresholds['flairt2'] = tk.DoubleVar(value=self.ui.config.T2default)
-        # self.t1threshold = tk.DoubleVar(value=self.ui.config.T1default)
-        # self.t2threshold = tk.DoubleVar(value=self.ui.config.T2default)
-        # self.flairt1threshold = tk.DoubleVar(value=self.ui.config.T2default)
-        # self.flairt2threshold = tk.DoubleVar(value=self.ui.config.T2default)
-        self.thresholds['bct1'] = tk.DoubleVar(value=self.ui.config.BCdefault[0])
-        self.thresholds['bct2'] = tk.DoubleVar(value=self.ui.config.BCdefault[1])
+        roidict = {'ET':{'t12':None,'flair':None,'bc':None},'T2 hyper':{'t12':None,'flair':None,'bc':None}}
+        self.thresholds = copy.deepcopy(roidict)
+        self.sliders = copy.deepcopy(roidict)
+        self.sliderlabels = copy.deepcopy(roidict)
+        self.thresholds['ET']['t12'] = tk.DoubleVar(value=self.ui.config.T1default)
+        self.thresholds['T2 hyper']['t12'] = tk.DoubleVar(value=self.ui.config.T2default)
+        self.thresholds['ET']['flair'] = tk.DoubleVar(value=self.ui.config.T2default)
+        self.thresholds['T2 hyper']['flair'] = tk.DoubleVar(value=self.ui.config.T2default)
+        self.thresholds['ET']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[0])
+        self.thresholds['T2 hyper']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[1])
         self.overlaytype = tk.IntVar(value=0)
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
@@ -130,69 +129,69 @@ class CreateROIFrame(CreateFrame):
         # layout for the sliders
         ########################
 
-        self.sliderlabels = {}
-        self.sliders = {}
+        # self.sliderlabels = {}
+        # self.sliders = {}
         self.t1sliderframe = ttk.Frame(self.frame,padding='0')
         self.t1sliderframe.grid(column=0,row=3,columnspan=7,sticky='e')
 
         # t1 slider
-        t1label = ttk.Label(self.t1sliderframe, text='T1')
+        t1label = ttk.Label(self.t1sliderframe, text='T1/T2')
         t1label.grid(column=0,row=0,sticky='w')
         # self.t1slider = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.t1threshold,state='disabled',
         #                           length='3i',command=self.updatet1label,orient='horizontal')
         # self.t1slider.grid(column=1,row=0,sticky='e')
         # self.t1sliderlabel = ttk.Label(self.t1sliderframe,text=self.t1threshold.get())
         # self.t1sliderlabel.grid(column=2,row=0,sticky='e')
-        self.sliders['t1'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['t1'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'t1'),orient='horizontal')
-        self.sliders['t1'].grid(row=0,column=1,sticky='e')
-        self.sliderlabels['t1'] = ttk.Label(self.t1sliderframe,text=self.thresholds['t1'].get())
-        self.sliderlabels['t1'].grid(row=0,column=2,sticky='e')
+        self.sliders['ET']['t12'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['ET']['t12'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'ET','t12'),orient='horizontal')
+        self.sliders['ET']['t12'].grid(row=0,column=1,sticky='e')
+        self.sliderlabels['ET']['t12'] = ttk.Label(self.t1sliderframe,text=self.thresholds['ET']['t12'].get())
+        self.sliderlabels['ET']['t12'].grid(row=0,column=2,sticky='e')
 
         # t2 slider
-        t2label = ttk.Label(self.t1sliderframe, text='T2')
-        t2label.grid(row=1,column=0,sticky='w')
-        self.sliders['t2'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['t2'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'t2'),orient='horizontal')
-        self.sliders['t2'].grid(row=1,column=1,sticky='e')
-        self.sliderlabels['t2'] = ttk.Label(self.t1sliderframe,text=self.thresholds['t2'].get())
-        self.sliderlabels['t2'].grid(row=1,column=2,sticky='e')
+        t2label = ttk.Label(self.t1sliderframe, text='T1/T2')
+        t2label.grid(row=0,column=0,sticky='w')
+        self.sliders['T2 hyper']['t12'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['T2 hyper']['t12'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'T2 hyper','t12'),orient='horizontal')
+        self.sliders['T2 hyper']['t12'].grid(row=0,column=1,sticky='e')
+        self.sliderlabels['T2 hyper']['t12'] = ttk.Label(self.t1sliderframe,text=self.thresholds['T2 hyper']['t12'].get())
+        self.sliderlabels['T2 hyper']['t12'].grid(row=0,column=2,sticky='e')
 
         #flairt1 slider
         flairt1label = ttk.Label(self.t1sliderframe, text='flair')
-        flairt1label.grid(row=2,column=0,sticky='w')
-        self.sliders['flairt1'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['flairt1'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'flairt1'),orient='horizontal')
-        self.sliders['flairt1'].grid(row=2,column=1,sticky='e')
-        self.sliderlabels['flairt1'] = ttk.Label(self.t1sliderframe,text=self.thresholds['flairt1'].get())
-        self.sliderlabels['flairt1'].grid(row=2,column=2,sticky='e')
+        flairt1label.grid(row=1,column=0,sticky='w')
+        self.sliders['ET']['flair'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['ET']['flair'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'ET','flair'),orient='horizontal')
+        self.sliders['ET']['flair'].grid(row=1,column=1,sticky='e')
+        self.sliderlabels['ET']['flair'] = ttk.Label(self.t1sliderframe,text=self.thresholds['ET']['flair'].get())
+        self.sliderlabels['ET']['flair'].grid(row=1,column=2,sticky='e')
 
         #flairt2 slider
         flairt2label = ttk.Label(self.t1sliderframe, text='flair')
-        flairt2label.grid(row=2,column=0,sticky='w')
-        self.sliders['flairt2'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['flairt2'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'flairt2'),orient='horizontal')
-        self.sliders['flairt2'].grid(row=2,column=1,sticky='e')
-        self.sliderlabels['flairt2'] = ttk.Label(self.t1sliderframe,text=self.thresholds['flairt2'].get())
-        self.sliderlabels['flairt2'].grid(row=2,column=2,sticky='e')
+        flairt2label.grid(row=1,column=0,sticky='w')
+        self.sliders['T2 hyper']['flair'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['T2 hyper']['flair'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'T2 hyper','flair'),orient='horizontal')
+        self.sliders['T2 hyper']['flair'].grid(row=1,column=1,sticky='e')
+        self.sliderlabels['T2 hyper']['flair'] = ttk.Label(self.t1sliderframe,text=self.thresholds['T2 hyper']['flair'].get())
+        self.sliderlabels['T2 hyper']['flair'].grid(row=1,column=2,sticky='e')
 
         #braint1 cluster slider
-        bct1label = ttk.Label(self.t1sliderframe,text='b.c.')
-        bct1label.grid(row=3,column=0,sticky='w')
-        self.sliders['bct1'] = ttk.Scale(self.t1sliderframe,from_=0,to=4,variable=self.thresholds['bct1'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'bct1'),orient='horizontal')
-        self.sliders['bct1'].grid(row=3,column=1,sticky='e')
-        self.sliderlabels['bct1'] = ttk.Label(self.t1sliderframe,text=self.thresholds['bct1'].get())
-        self.sliderlabels['bct1'].grid(row=3,column=2,sticky='e')
+        bclabel = ttk.Label(self.t1sliderframe,text='b.c.')
+        bclabel.grid(row=2,column=0,sticky='w')
+        self.sliders['ET']['bc'] = ttk.Scale(self.t1sliderframe,from_=0,to=4,variable=self.thresholds['ET']['bc'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'ET','bc'),orient='horizontal')
+        self.sliders['ET']['bc'].grid(row=2,column=1,sticky='e')
+        self.sliderlabels['ET']['bc'] = ttk.Label(self.t1sliderframe,text=self.thresholds['ET']['bc'].get())
+        self.sliderlabels['ET']['bc'].grid(row=2,column=2,sticky='e')
  
         #braint2 cluster slider
-        bct2label = ttk.Label(self.t1sliderframe,text='b.c.')
-        bct2label.grid(row=3,column=0,sticky='w')
-        self.sliders['bct2'] = ttk.Scale(self.t1sliderframe,from_=0,to=4,variable=self.thresholds['bct2'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'bct2'),orient='horizontal')
-        self.sliders['bct2'].grid(row=3,column=1,sticky='e')
-        self.sliderlabels['bct2'] = ttk.Label(self.t1sliderframe,text=self.thresholds['bct2'].get())
-        self.sliderlabels['bct2'].grid(row=3,column=2,sticky='e')
+        # bclabel = ttk.Label(self.t1sliderframe,text='b.c.')
+        # bclabel.grid(row=3,column=0,sticky='w')
+        self.sliders['T2 hyper']['bc'] = ttk.Scale(self.t1sliderframe,from_=0,to=4,variable=self.thresholds['T2 hyper']['bc'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'T2 hyper','bc'),orient='horizontal')
+        self.sliders['T2 hyper']['bc'].grid(row=2,column=1,sticky='e')
+        self.sliderlabels['T2 hyper']['bc'] = ttk.Label(self.t1sliderframe,text=self.thresholds['T2 hyper']['bc'].get())
+        self.sliderlabels['T2 hyper']['bc'].grid(row=2,column=2,sticky='e')
 
 
     #############
@@ -222,16 +221,20 @@ class CreateROIFrame(CreateFrame):
         self.ui.currentlayer = layer
         roi = self.ui.get_currentroi()
 
-        # when switching layers, slider values switch but no need to run re-blast immediately. 
-        # T1 slider is not used for T2 hyper.
+        # when switching layers, raise/lower the corresponding sliders
+        # slider values switch but no need to run re-blast immediately. 
         self.updatesliders()
-        if layer == 'T2 hyper':
-            self.t1slider.configure(state='disabled')
-            self.t2slider.configure(state='active')
+        for s in ['t12','flair','bc']:
+            if layer == 'T2 hyper':
+                self.sliders[layer][s].lift()
+                self.sliders['ET'][s].lower()
+            # self.t2slider.configure(state='active')
             # self.updatebcsize(self.bct2size.get(),blast=False)
-        else:
-            self.t2slider.configure(state='disabled')
-            self.t1slider.configure(state='active')
+            else:
+                self.sliders[layer][s].lift()
+                self.sliders['T2 hyper'][s].lower()
+                # self.t2slider.configure(state='disabled')
+                # self.t1slider.configure(state='active')
 
         # generate a new overlay
         # TODO: check for existing instead of automatically re-generating
@@ -405,18 +408,26 @@ class CreateROIFrame(CreateFrame):
     def updateflairt1label(self,event=None):
         self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
 
-    def updateslider(self,slider,event=None):
+    def updateslider(self,layer,slider,event=None):
         self.enhancingROI_overlay_value.set(True)
         if self.finalROI_overlay_value.get() == True:
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_callback()
-        layer = self.layer.get()
-        self.ui.data['blast']['gates']['brain '+layer] = None
+        # layer = self.layer.get()
+        if layer == 'bc':
+            self.ui.data['blast']['gates']['brain '+layer] = None
+        self.ui.data['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=True)
-        self.updatesliderlabel(slider)
+        self.updatesliderlabel(layer,slider)
 
-    def updatesliderlabel(self,slider):
-        self.sliderlabels[slider]['text'] = '{:.1f}'.format(self.sliders[slider].get())
+    def updatesliderlabel(self,layer,slider):
+        # if 'T2 hyper' in self.sliderlabels.keys() and 'T2 hyper' in self.sliders.keys():
+        try:
+            self.sliderlabels[layer][slider]['text'] = '{:.1f}'.format(self.sliders[layer][slider].get())
+        except KeyError as e:
+            print(e)
+        # else:
+        #     a=1
 
     def updatebct1size(self,event=None):
         self.enhancingROI_overlay_value.set(True)
@@ -486,9 +497,9 @@ class CreateROIFrame(CreateFrame):
                 layer = 'T2 hyper'
             else:
                 layer = 'ET'
-        for s in ['t1','t2','flairt1','flairt2','bct1','bct2']:
-            self.thresholds[s].set(self.ui.data['blast']['params'][layer][s])
-            self.updatesliderlabel(s)
+        for s in ['t12','flair','bc']:
+            self.thresholds[layer][s].set(self.ui.data['blast']['params'][layer][s])
+            self.updatesliderlabel(layer,s)
        
     def finalROI_overlay_callback(self,event=None):
         if self.finalROI_overlay_value.get() == False:
@@ -898,8 +909,8 @@ class CreateROIFrame(CreateFrame):
         # record slider values
         if layer is None:
             layer = self.layer.get()
-        for s in ['t1','t2','flairt1','flairt2','bct1','bct2']:
-            self.ui.data['blast']['params'][layer][s] = self.thresholds[s].get()
+        for s in ['t12','flair','bc']:
+            self.ui.data['blast']['params'][layer][s] = self.thresholds[layer][s].get()
 
         if all(self.ui.data['blast'][x] is not None for x in ['ET','T2 hyper']):
             self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*2 + (self.ui.data['blast'] ['T2 hyper'].astype('int'))
@@ -939,9 +950,10 @@ class CreateROIFrame(CreateFrame):
         self.ui.roiframe.layertype.set('blast')
         self.ui.roiframe.layer.set('ET')
         self.ui.dataselection='raw'
-        for s in ['t1','t2','flairt1','flairt2','bct1','bct2']:
-            self.thresholds[s].set(self.ui.config.thresholddefaults[s])
-            self.updatesliderlabel(s)
+        for l in ['ET','T2 hyper']:
+            for s in ['t12','flair','bc']:
+                self.thresholds[l][s].set(self.ui.config.thresholddefaults[s])
+                self.updatesliderlabel(l,s)
         self.update_roinumber_options()
 
     def append_roi(self,d):
