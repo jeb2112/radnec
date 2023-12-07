@@ -45,14 +45,13 @@ class BlastGui(object):
         self.data = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
                             'T2 hyper':None,
                             'ET':None,
-                            'params':{'ET':{'t1':0.0,'t2':0.0,'bc':3.0},
-                               'T2 hyper':{'t1':0.0,'t2':0.0,'bc':0.0},
-                               'stdt1':1,
-                               'stdt2':1,
-                               'meant1':1,
-                               'meant2':1}
+                            # t12,flair are slider setting for y-axis t1/t2 depending on layer, and flair common x-axis
+                            # std,mean are the cluster stats. 
+                            'params':{'ET':{'t12':0.0,'bc':3.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
+                               'T2 hyper':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
                                },
-                    }
+                    },
+        }
 
         self.affine = None
         self.roi = [0] # dummy value for Roi indexing 1-based
@@ -82,9 +81,9 @@ class BlastGui(object):
 
             # adjusted BLAST
             if False:
-                self.roiframe.currentt2threshold.set(-0.8)
-                self.roiframe.currentt1threshold.set(-0.7)
-                self.roiframe.currentbcsize.set(1.0)
+                self.roiframe.t2threshold.set(-0.8)
+                self.roiframe.t1threshold.set(-0.7)
+                self.roiframe.bcsize.set(1.0)
                 self.roiframe.updatebcsize()
                 self.roiframe.updatet1threshold()
                 self.roiframe.updatet2threshold()
@@ -155,7 +154,7 @@ class BlastGui(object):
 
         if layer is None:   
             layer = self.roiframe.layer.get()
-        clustersize = self.get_currentbcsize()
+        clustersize = self.get_bcsize()
 
         # if self.config.WLClip:
         #     self.sliceviewerframe.clipwl_raw()
@@ -176,7 +175,8 @@ class BlastGui(object):
             try:
                 retval = Blastbratsv3.run_blast(
                                     self.data,self.roiframe.t1slider.get(),
-                                    self.roiframe.t2slider.get(),clustersize,layer,
+                                    self.roiframe.t2slider.get(),self.roiframe.flairslider.get(),
+                                    clustersize,layer,
                                     currentslice=currentslice,
                                     gmthresh=None,wmthresh=None)
                 if retval is not None:
@@ -252,8 +252,10 @@ class BlastGui(object):
     def get_currentroi(self):
         return self.currentroi
 
-    def get_currentbcsize(self):
-        return self.roiframe.currentbcsize.get()
+    def get_bct1size(self):
+        return self.roiframe.bct1size.get()
+    def get_bct2size(self):
+        return self.roiframe.bct2size.get()
 
     def update_roidata(self):
         self.roiframe.updateROIData()
@@ -283,20 +285,15 @@ class BlastGui(object):
         self.currentslice = None
         self.dataselection = 'raw'
 
-        # self.data = {'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},'blast T2 hyper':None,'blast ET':None}
-        # self.data['blast']['params'] = {'stdt1':1,'stdt2':1,'meant1':1,'meant2':1}
         self.data = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
                             'T2 hyper':None,
                             'ET':None,
-                            'params':{'ET':{'t1':0.0,'t2':0.0,'bc':3.0},
-                               'T2 hyper':{'t1':0.0,'t2':0.0,'bc':0.0},
-                               'stdt1':1,
-                               'stdt2':1,
-                               'meant1':1,
-                               'meant2':1}
-                               }
-                    }
-
+                            'params':{'ET':{'t12':0.0,'bc':3.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
+                               'T2 hyper':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
+                               },
+                    },
+        }
+    
         self.roi = [0] # dummy value for Roi indexing 1-based
         self.currentroi = 0 # tracks the currentroi widget variable
         self.currentlayer = 0

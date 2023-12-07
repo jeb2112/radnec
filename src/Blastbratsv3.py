@@ -25,8 +25,8 @@ from src import OverlayPlots
 # BLAST algorithm
 #################
 
-def run_blast(data,t1thresh,t2thresh,clustersize,layer,
-            currentslice=None, maxZ=4,gmthresh=None,wmthresh=None):
+def run_blast(data,t1thresh,t2thresh,flairthresh,clustersize,layer,
+            currentslice=None, maxZ=4,minZ=-4,gmthresh=None,wmthresh=None):
 
     #check if any thresholds have actually changed
     if all(data['blast']['gates'][x] is not None for x in [layer,'brain '+layer]):
@@ -63,16 +63,17 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
     # row=y=t1 col=x=t2, but xy convention for patches.Ellipse is same as matlab
     brain_perimeter = Ellipse((data['blast']['params']['meant2'],data['blast']['params']['meant1']),2*t2Diff,2*t1Diff)
 
-    flairgate = data['blast']['params']['meanflair']+(flairthresh)*data['blast']['params']['stdflair']
     t2gate = data['blast']['params']['meant2']+(t2thresh)*data['blast']['params']['stdt2']
     t1gate = data['blast']['params']['meant1']+(t1thresh)*data['blast']['params']['stdt1']
 
-    # define ET threshold gate >= (t2gate,t1gate)
+    # define ET threshold gate >= (t2gate,t1gate). upper right quadrant
     if layer == 'ET':
+        flairgate = data['blast']['params']['meant1flair']+(flairthresh)*data['blast']['params']['stdt1flair']
         yv_gate = np.array([t1gate, maxZ, maxZ, t1gate])
         xv_gate = np.array([flairgate, flairgate, maxZ, maxZ]) 
     elif layer == 'T2 hyper':
-    # define NET threshold gate, >= ,flairgate,t2gate
+    # define NET threshold gate, >= ,flairgate,>= t2gate. upper right quadrant
+        flairgate = data['blast']['params']['meant2flair']+(flairthresh)*data['blast']['params']['stdt2flair']
         yv_gate = np.array([t2gate, maxZ, maxZ, t2gate])
         xv_gate = np.array([flairgate, flairgate, maxZ, maxZ]) 
 
@@ -123,8 +124,10 @@ def run_blast(data,t1thresh,t2thresh,clustersize,layer,
         t1channel = t1stack[region_of_support]
         t2channel = t2stack[region_of_support]
         flairchannel = flairstack[region_of_support]
-        t1flairverts = np.vstack((flairchannel.flatten(),t1channel.flatten())).T
-        t2flairverts = np.vstack((flairchannel.flatten(),t2channel.flatten())).T
+        if layer == 'ET':
+            t1t2verts = np.vstack((flairchannel.flatten(),t1channel.flatten())).T
+        else:
+            t1t2verts = np.vstack((flairchannel.flatten(),t2channel.flatten())).T
         xy_layerverts = np.vstack((xv_gate,yv_gate)).T
         xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
         unitverts = brain_perimeter.get_path().vertices

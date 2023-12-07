@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from matplotlib.artist import Artist
 from cProfile import Profile
 from pstats import SortKey,Stats
+from enum import Enum
 
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
@@ -27,6 +28,11 @@ from scipy.spatial.distance import dice
 from src.NavigationBar import NavigationBar
 from src.FileDialog import FileDialog
 
+# convenience for indexing data dict
+class data(Enum):
+    T1 = 0
+    FLAIR = 1
+    T2 = 2
 # utility class for callbacks with args
 class Command():
     def __init__(self, callback, *args, **kwargs):
@@ -299,7 +305,10 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ui.set_currentslice()
         if blast: # option for previewing enhancing in 2d
             self.ui.runblast(currentslice=slice)
-        self.ax_img.set(data=self.ui.data[self.ui.dataselection][0,slice,:,:])
+        if self.ui.roiframe.layer.get() == 'ET':
+            self.ax_img.set(data=self.ui.data[self.ui.dataselection][0,slice,:,:])
+        else:
+            self.ax_img.set(data=self.ui.data[self.ui.dataselection][2,slice,:,:])
         self.ax2_img.set(data=self.ui.data[self.ui.dataselection][1,slice,:,:])
         self.ax3_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,:,slicesag])
         self.ax4_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,slicecor,:])
@@ -431,7 +440,7 @@ class CreateSliceViewerFrame(CreateFrame):
     # keyboard for slice selection
     def keyboard_slice(self,event):
         # print(event,event.widget)
-        if event.y < 0 or event.y > self.ui.ui.current_panelsize*self.ui.config.dpi:
+        if event.y < 0 or event.y > self.ui.current_panelsize*self.ui.config.dpi:
             return
         a = self.tbar.select_artist(event)
         if a is None:
@@ -467,13 +476,13 @@ class CreateSliceViewerFrame(CreateFrame):
     # mouse wheel for slice selection
     def mousewheel_win32(self,event):
         # print(event,event.widget,event.delta)
-        if event.y < 0 or event.y > self.ui.ui.current_panelsize*self.ui.config.dpi:
+        if event.y < 0 or event.y > self.ui.current_panelsize*self.ui.config.dpi:
             return
-        if event.x < 2*self.ui.ui.current_panelsize*self.ui.config.dpi:
+        if event.x < 2*self.ui.current_panelsize*self.ui.config.dpi:
             item = self.currentslice
             maxslice = self.dim[0]-1
         else:
-            if event.y <= (self.ui.ui.current_panelsize*self.ui.config.dpi)/2:
+            if event.y <= (self.ui.current_panelsize*self.ui.config.dpi)/2:
                 item = self.currentsagslice
             else:
                 item = self.currentcorslice
@@ -488,7 +497,7 @@ class CreateSliceViewerFrame(CreateFrame):
     # mouse wheel for slice selection
     def mousewheel(self,event,key=None):
         # print(event,event.time,event.widget,event.delta,key)
-        if event.y < 0 or event.y > self.ui.ui.current_panelsize*self.ui.config.dpi:
+        if event.y < 0 or event.y > self.ui.current_panelsize*self.ui.config.dpi:
             return
         # queue mousewheel events for latency
         if key is None:
@@ -732,67 +741,62 @@ class CreateSliceViewerFrame(CreateFrame):
 
         if self.slicevolume_norm.get() == 0:
             self.normalslice=self.ui.get_currentslice()
-            region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]*self.ui.data['raw'][0,self.normalslice]>0) 
-            t1channel_normal = self.ui.data['raw'][0,self.normalslice][region_of_support]
-            flairchannel_normal = self.ui.data['raw'][1,self.normalslice][region_of_support]
-            t2channel_normal = self.ui.data['raw'][1,self.normalslice][region_of_support]
+            region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]*self.ui.data['raw'][1,self.normalslice]>0) 
+            vset = np.zeros((3,len(region_of_support)))
+            for i in range(3):
+                vset[i] = np.ravel(self.ui.data['raw'][i,self.normalslice][region_of_support])
         else:
             self.normalslice = None
             region_of_support = np.where(self.ui.data['raw'][0]*self.ui.data['raw'][1]*self.ui.data['raw'][2] >0)
-            t1channel_normal = self.ui.data['raw'][0][region_of_support]
-            flairchannel_normal = self.ui.data['raw'][1][region_of_support]
-            t2channel_normal = self.ui.data['raw'][2][region_of_support]
+            vset = np.zeros((3,len(region_of_support)))
+            for i in range(3):
+                vset[i] = np.ravel(self.ui.data['raw'][i][region_of_support])
+            # t1channel_normal = self.ui.data['raw'][0][region_of_support]
+            # flairchannel_normal = self.ui.data['raw'][1][region_of_support]
+            # t2channel_normal = self.ui.data['raw'][2][region_of_support]
 
         # kmeans to calculate statistics for brain voxels
-        t2 = np.ravel(t2channel_normal)
-        t1 = np.ravel(t1channel_normal)
-        X = np.column_stack((t2,t1))
-        # rng(1)
-        np.random.seed(1)
-        # [idx,C] = KMeans(n_clusters=2).fit(X)
-        kmeans = KMeans(n_clusters=2,n_init='auto').fit(X)
-        background_cluster = np.argmin(kmeans.cluster_centers_[:,0])
+        # X_et = np.column_stack((flair,t1))
+        # X_net = np.column_stack((flair,t2))
+        X={}
+        X['ET'] = np.column_stack((vset[1],vset[0]))
+        X['T2 hyper'] = np.column_stack((vset[1],vset[2]))
 
-        # Calculate stats for brain cluster
-        self.ui.data['blast']['params']['stdt1'] = np.std(X[kmeans.labels_==background_cluster,1])
-        self.ui.data['blast']['params']['stdt2'] = np.std(X[kmeans.labels_==background_cluster,0])
-        self.ui.data['blast']['params']['meant1'] = np.mean(X[kmeans.labels_==background_cluster,1])
-        self.ui.data['blast']['params']['meant2'] = np.mean(X[kmeans.labels_==background_cluster,0])
+        for i,layer in enumerate(['ET','T2 hyper']):
+            np.random.seed(1)
+            kmeans = KMeans(n_clusters=2,n_init='auto').fit(X[layer])
+            background_cluster = np.argmin(np.power(kmeans.cluster_centers_[:,0],2)+np.power(kmeans.cluster_centers_[:,1],2))
 
-        if False:
-            plt.figure(7)
-            ax = plt.subplot(1,3,1)
-            plt.scatter(X[kmeans.labels_==1-background_cluster,0],X[kmeans.labels_==1-background_cluster,1],c='b',s=1)
-            plt.scatter(X[kmeans.labels_==background_cluster,0],X[kmeans.labels_==background_cluster,1],c='r',s=1)
-            ax.set_aspect('equal')
-            ax.set_xlim(left=0,right=1.0)
-            ax.set_ylim(bottom=0,top=1.0)
-            plt.text(0,1.02,'{:.3f},{:.3f}'.format(self.ui.data['blast']['params']['meant2'],self.ui.data['blast']['params']['stdt2']))
-            plt.subplot(1,3,2)
-            plt.imshow(self.ui.data['raw'][0][80])
-            plt.subplot(1,3,3)
-            plt.imshow(self.ui.data['raw'][1][80])
+            # Calculate stats for brain cluster
+            self.ui.data['blast']['params'][layer]['stdt12'] = np.std(X[layer][kmeans.labels_==background_cluster,1])
+            self.ui.data['blast']['params'][layer]['stdflair'] = np.std(X[layer][kmeans.labels_==background_cluster,0])
+            self.ui.data['blast']['params'][layer]['meant12'] = np.mean(X[layer][kmeans.labels_==background_cluster,1])
+            self.ui.data['blast']['params'][layer]['meanflair'] = np.mean(X[layer][kmeans.labels_==background_cluster,0])
+
+            if True:
+                plt.figure(7)
+                ax = plt.subplot(1,2,i+1)
+                plt.scatter(X[layer][kmeans.labels_==1-background_cluster,0],X[layer][kmeans.labels_==1-background_cluster,1],c='b',s=1)
+                plt.scatter(X[layer][kmeans.labels_==background_cluster,0],X[layer][kmeans.labels_==background_cluster,1],c='r',s=1)
+                ax.set_aspect('equal')
+                ax.set_xlim(left=0,right=1.0)
+                ax.set_ylim(bottom=0,top=1.0)
+                plt.text(0,1.02,'{:.3f},{:.3f}'.format(self.ui.data['blast']['params'][layer]['meanflair'],self.ui.data['blast']['params'][layer]['stdflair']))
+
             plt.savefig('/home/jbishop/Pictures/scatterplot_normal.png')
             plt.clf()
             # plt.show(block=False)
 
-        # activate thresholds only after normal slice stats are available
-        self.ui.roiframe.bcslider['state']='normal'
-        self.ui.roiframe.t2slider['state']='normal'
-        self.ui.roiframe.t1slider['state']='normal'
-        # self.ui.roiframe.gmslider['state']='normal'
-        # self.ui.roiframe.wmslider['state']='normal'
-        self.ui.roiframe.t1slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet1threshold)
-        self.ui.roiframe.bcslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatebcsize)
-        self.ui.roiframe.t2slider.bind("<ButtonRelease-1>",self.ui.roiframe.updatet2threshold)
-        # self.ui.roiframe.gmslider.bind("<ButtonRelease-1>",self.ui.roiframe.updategmthreshold)
-        # self.ui.roiframe.wmslider.bind("<ButtonRelease-1>",self.ui.roiframe.updatewmthreshold)
-
         # automatically run BLAST
-        # self.ui.roiframe.updatet1threshold(currentslice=None)
-        for layer in ['ET','T2 hyper']:
             self.ui.roiframe.layer_callback(layer=layer,updateslice=False,overlay=False)
             self.ui.runblast(currentslice=None,layer=layer)
+
+        # activate thresholds only after normal slice stats are available
+        for s in ['t1','t2','flairt1','flairt2','bct1','bct2']:
+            self.ui.roiframe.sliders[s]['state']='normal'
+            self.ui.roiframe.sliders[s].bind("<ButtonRelease-1>",self.ui.roiframe.updateslider[s])
+        # since we finish the on the T2 hyper layer, have this slider disabled to begin with
+        self.ui.roiframe.sliders['t1']['state']='disabled'
 
 
 ################
@@ -985,11 +989,15 @@ class CreateCaseFrame(CreateFrame):
         # dimensions of canvas panel might have to change depending on dimension of new data loaded.
         if np.shape(img_arr_t1) != np.shape(img_arr_t2):
             # self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
-            print('Image matrices do not match. Resampling T2, flair into T1 space...')
+            print('Image matrices do not match. Resampling T2 into T1 space...')
             img_arr_t2,affine_t2 = self.resamplet2(img_arr_t1,img_arr_t2,affine_t1,affine_t2)
             img_arr_t2 = np.clip(img_arr_t2,0,None)
-            img_arr_flair,affine_flair = self.resamplet2(img_arr_t1,img_arr_t2,affine_t1,affine_t2)
+
+        if np.shape(img_arr_t1) != np.shape(img_arr_flair):
+            print('Image matrices do not match. Resampling flair into T1 space...')
+            img_arr_flair,affine_flair = self.resamplet2(img_arr_t1,img_arr_flair,affine_t1,affine_flair)
             img_arr_flair = np.clip(img_arr_flair,0,None)
+
             if True:
                 self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_resampled.nii.gz'),
                                             type='float',affine=affine_t1)
@@ -997,6 +1005,7 @@ class CreateCaseFrame(CreateFrame):
                                             type='float',affine=affine_t2)
                 self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_resampled.nii.gz'),
                                             type='float',affine=affine_flair)
+
 
         # registration
         if self.register_check_value.get() and self.processed is False:
@@ -1018,6 +1027,8 @@ class CreateCaseFrame(CreateFrame):
             if False:
                 self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_registered.nii.gz'),
                                         type='float',affine=affine_t1)
+                self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_registered.nii.gz'),
+                                        type='float',affine=affine_t1)
 
         # skull strip. for now assuming only needed on input dicoms
         if self.skullstrip_check_value.get() and self.processed is False:
@@ -1027,6 +1038,8 @@ class CreateCaseFrame(CreateFrame):
                                             type='float',affine=affine_t1)
                 self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_extracted.nii.gz'),
                                             type='float',affine=affine_t2)
+                self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_extracted.nii.gz'),
+                                            type='float',affine=affine_flair)
 
 
         # seg normal tissue. not using for now.
@@ -1047,7 +1060,7 @@ class CreateCaseFrame(CreateFrame):
             if np.min(img_arr_t2) < 0:
                 img_arr_t2[img_arr_t2 < 0] = 0
             if np.min(img_arr_flair) < 0:
-                img_arr_t2[img_arr_flair < 0] = 0
+                img_arr_flair[img_arr_flair < 0] = 0
             img_arr_t1 = self.rescale(img_arr_t1)
             img_arr_t2 = self.rescale(img_arr_t2)
             img_arr_flair = self.rescale(img_arr_flair)
@@ -1058,7 +1071,7 @@ class CreateCaseFrame(CreateFrame):
             # self.brainmage_clip(img_arr_t2)
             self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_processed.nii.gz'),type='float',affine=affine_t1)
             self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_processed.nii.gz'),type='float',affine=affine_t2)
-            self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_processed.nii.gz'),type='float',affine=affine_t2)
+            self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_processed.nii.gz'),type='float',affine=affine_flair)
 
         self.ui.sliceviewerframe.dim = np.shape(img_arr_t1)
         self.ui.sliceviewerframe.create_canvas()
@@ -1261,7 +1274,7 @@ class CreateCaseFrame(CreateFrame):
         img_arr_t2 = np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0))
         return img_arr_t2,img_t2_res.affine
 
-    def loadData(self,t1ce_file,flair_file,t2_file,type=None):
+    def loadData(self,t1ce_file,t2_file,flair_file,type=None):
         img_arr_t1 = img_arr_t2 = img_arr_flair = None
         if 'nii' in t1ce_file:
             try:
@@ -1305,9 +1318,9 @@ class CreateCaseFrame(CreateFrame):
         scaled_arr = np.clip(scaled_arr,a_min=0,a_max=1)
         return scaled_arr
     
-    def n4(self,a1,a2,shrinkFactor=4,nFittingLevels=4):
+    def n4(self,a1,a2,a3,shrinkFactor=4,nFittingLevels=4):
         # self.ui.set_message('Performing N4 bias correction')
-        img_arr = np.stack((a1,a2),axis=0)
+        img_arr = np.stack((a1,a2,a3),axis=0)
         print('N4 bias correction')
         for ch in range(2):
             data = copy.deepcopy(img_arr[ch])
@@ -1322,7 +1335,7 @@ class CreateCaseFrame(CreateFrame):
             corrected_img = dataImage / sitk.Exp(log_bias_field)
             corrected_img_arr = sitk.GetArrayFromImage(corrected_img)
             img_arr[ch] = copy.deepcopy(corrected_img_arr)
-        return img_arr[0],img_arr[1]
+        return img_arr[0],img_arr[1],img_arr[2]
 
     # callback for loading by individual files
     def datafileentry_callback(self):

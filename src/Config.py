@@ -55,8 +55,7 @@ class Config(object):
         self.T1default = 0.
         self.T2default = 0.
         self.BCdefault = (3.,0.)
-        self.GMdefault = 0.5
-        self.WMdefault = 0.5
+        self.thresholddefaults = {'t1':0,'t2':0,'flairt1':0,'flairt2':0,'bct1':3,'bct2':0}
 
         # image panel size
         self.PanelSize = 4 # inches at 100 dpi
