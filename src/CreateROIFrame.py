@@ -414,7 +414,7 @@ class CreateROIFrame(CreateFrame):
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_callback()
         # layer = self.layer.get()
-        if layer == 'bc':
+        if slider == 'bc':
             self.ui.data['blast']['gates']['brain '+layer] = None
         self.ui.data['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=True)
@@ -607,6 +607,7 @@ class CreateROIFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
         # logic stays in BLAST mode if both ET and t2 hyper are not yet selected.
+        # some tumour cases may not have enhancement though like INDIGO study may need to rethink this
         roi = self.ui.get_currentroi()
         if self.ui.roi[roi].status:
             self.finalROI_overlay_value.set(True)
@@ -767,12 +768,12 @@ class CreateROIFrame(CreateFrame):
             # update combined seg mask
             # nnunet convention for labels
             if self.ui.roi[roi].data['WT'] is None:
-                # there is a dummy background of +1 for missing 'WT' mask here
-                self.ui.roi[roi].data['seg'] = 1*self.ui.roi[roi].data['ET'] + \
+                self.ui.roi[roi].data['seg'] = 4*self.ui.roi[roi].data['ET'] + \
                                                     2*self.ui.roi[roi].data['TC']
             else:
-                self.ui.roi[roi].data['seg'] += 1*self.ui.roi[roi].data['ET'] + \
-                                                    1*self.ui.roi[roi].data['TC']
+                self.ui.roi[roi].data['seg'] += 4*self.ui.roi[roi].data['ET'] + \
+                                                    2*self.ui.roi[roi].data['TC'] +\
+                                                    1*self.ui.roi[roi].data['WT']
                 self.ui.roi[roi].status = True # ROI has both compartments selected                                                    
 
         elif m == 'WT':
@@ -784,8 +785,8 @@ class CreateROIFrame(CreateFrame):
                 # update WT based on smoothing for TC
                 self.ui.roi[roi].data['WT'] = self.ui.roi[roi].data['WT'] | self.ui.roi[roi].data['TC']
                 # if 'ET' exists but 'WT' didn't, then have to rebuild the combined mask because of the dummy +1
-                self.ui.roi[roi].data['seg'] = 1*self.ui.roi[roi].data['ET'] + \
-                                                    1*self.ui.roi[roi].data['TC'] + \
+                self.ui.roi[roi].data['seg'] = 4*self.ui.roi[roi].data['ET'] + \
+                                                    2*self.ui.roi[roi].data['TC'] + \
                                                     1*self.ui.roi[roi].data['WT']
                 self.ui.roi[roi].status = True # ROI has both compartments selected
             # WT contouring
@@ -913,9 +914,12 @@ class CreateROIFrame(CreateFrame):
             self.ui.data['blast']['params'][layer][s] = self.thresholds[layer][s].get()
 
         if all(self.ui.data['blast'][x] is not None for x in ['ET','T2 hyper']):
-            self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*2 + (self.ui.data['blast'] ['T2 hyper'].astype('int'))
+            # self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*2 + (self.ui.data['blast']['T2 hyper'].astype('int'))
+            self.ui.data['seg_raw'] = (self.ui.data['blast']['T2 hyper'].astype('int'))
+            et = np.where(self.ui.data['blast']['ET'])
+            self.ui.data['seg_raw'][et] += 4
         elif self.ui.data['blast']['ET'] is not None:
-            self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*3
+            self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*4
         elif self.ui.data['blast']['T2 hyper'] is not None:
             self.ui.data['seg_raw'] = self.ui.data['blast']['T2 hyper'].astype('int')
 

@@ -796,7 +796,7 @@ class CreateSliceViewerFrame(CreateFrame):
                 self.ui.roiframe.sliders[layer][s]['state']='normal'
                 self.ui.roiframe.sliders[layer][s].bind("<ButtonRelease-1>",Command(self.ui.roiframe.updateslider,layer,s))
         # since we finish the on the T2 hyper layer, have this slider disabled to begin with
-        self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
+        # self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
 
 
 ################

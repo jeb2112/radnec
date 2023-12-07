@@ -61,7 +61,7 @@ def run_blast(data,t12thresh,flairthresh,clustersize,layer,
     # h = images.roi.Ellipse(gca,'Center',[meant2 meant1],'Semiaxes',[t2Diff t1Diff],'Color','y','LineWidth',1,'LabelAlpha',0.5,'InteractionsAllowed','none')
 
     # row=y=t1 col=x=t2, but xy convention for patches.Ellipse is same as matlab
-    brain_perimeter = Ellipse((data['blast']['params'][layer]['meant12'],
+    brain_perimeter = Ellipse((data['blast']['params'][layer]['meanflair'],
                                data['blast']['params'][layer]['meant12']),2*flairDiff,2*t12Diff)
 
     flairgate = data['blast']['params'][layer]['meanflair']+(flairthresh)*data['blast']['params'][layer]['stdflair']
@@ -137,19 +137,6 @@ def run_blast(data,t12thresh,flairthresh,clustersize,layer,
         brain_gate = data['blast']['gates']['brain '+layer]
         layer_gate = data['blast']['gates'][layer]
 
-        if True:
-            plt.figure(7)
-            ax = plt.subplot(1,1,1)
-            plt.scatter(t1t2verts[:,0],t1t2verts[:,1],c='b',s=1)
-            plt.scatter(xy_layerverts[:,0],xy_layerverts[:,1],c='r',s=20)
-            ax.set_aspect('equal')
-            ax.set_xlim(left=0,right=1.0)
-            ax.set_ylim(bottom=0,top=1.0)
-            plt.text(0,1.02,'{:.3f},{:.3f}'.format(np.mean(flairchannel),np.std(flairchannel)))
-            plt.savefig('/home/jbishop/Pictures/scatterplot.png')
-            plt.clf()
-            # plt.show(block=False)
-
         if use_gpu:
             RGcoords = cudf.DataFrame({'x':t1t2verts[:,0],'y':t1t2verts[:,1]}).interleave_columns()
             RGseries = GeoSeries.from_points_xy(RGcoords)
@@ -178,11 +165,47 @@ def run_blast(data,t12thresh,flairthresh,clustersize,layer,
                 brain_gate = np.zeros(np.shape(t1stack),dtype='uint8')
                 brain_gate[region_of_support] = brain_path.contains_points(t1t2verts).flatten()
 
+        if True:
+            plt.figure(7)
+            if layer == 'ET':
+                ax = plt.subplot(1,2,1)
+                ax.cla()
+                plt.scatter(t1t2verts[:,0],t1t2verts[:,1],c='b',s=1)
+                layergate = np.where(layer_gate>0)
+                braingate = np.where(brain_gate>0)
+                plt.scatter(flairstack[layergate],t1stack[layergate],c='g',s=2)
+                plt.scatter(flairstack[braingate],t1stack[braingate],c='w',s=2)
+                plt.scatter(xy_layerverts[:,0],xy_layerverts[:,1],c='r',s=20)
+                ax.set_aspect('equal')
+                ax.set_xlim(left=0,right=1.0)
+                ax.set_ylim(bottom=0,top=1.0)
+                plt.text(0,1.02,'flair {:.3f},{:.3f}'.format(np.mean(flairchannel),np.std(flairchannel)))
+                plt.text(0,1.1,'t1 {:.3f},{:.3f}'.format(np.mean(t1channel),np.std(t1channel)))
+                plt.xlabel('flair')
+                plt.ylabel('t1')
+            elif layer == 'T2 hyper':
+                ax2 = plt.subplot(1,2,2)
+                ax2.cla()
+                plt.scatter(t1t2verts[:,0],t1t2verts[:,1],c='b',s=1)
+                layergate = np.where(layer_gate>0)
+                braingate = np.where(brain_gate>0)
+                plt.scatter(flairstack[layergate],t2stack[layergate],c='g',s=2)
+                plt.scatter(flairstack[braingate],t2stack[braingate],c='w',s=2)
+                plt.scatter(xy_layerverts[:,0],xy_layerverts[:,1],c='r',s=20)
+                ax2.set_aspect('equal')
+                ax2.set_xlim(left=0,right=1.0)
+                ax2.set_ylim(bottom=0,top=1.0)
+                plt.text(0,1.1,'t2 {:.3f},{:.3f}'.format(np.mean(t2channel),np.std(t2channel)))
+                plt.text(0,1.02,'flair {:.3f},{:.3f}'.format(np.mean(flairchannel),np.std(flairchannel)))
+                plt.xlabel('flair')
+                plt.ylabel('t2')
+            plt.savefig('/home/jbishop/Pictures/scatterplot.png')
+            # plt.clf()
+            # plt.show(block=False)
+
         dtime = time.time()-start
         print('polygon contains points time = {:.2f} sec'.format(dtime))
         layer_mask = np.logical_and(layer_gate, np.logical_not(brain_gate)) # 
-        # et_mask = max(et_mask,0)
-        # fusion = imfuse(et_mask,t1_template[slice,:,:,slice],'blend')
 
         # apply normal tissue mask
         if False:

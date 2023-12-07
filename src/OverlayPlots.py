@@ -24,11 +24,13 @@ color_cycle = (
 )
 
 # hard-coded convention
-layerdict = {'ET':[3],'TC':[2],'WT':[1],'T2 hyper':[1],'all':[1,2,3],'both':[1,3]}
+# layerdict = {'ET':[3],'TC':[2],'WT':[1],'T2 hyper':[1],'all':[1,2,3],'both':[1,3]}
+layerdict = {'ET':[4],'TC':[2],'WT':[1],'T2 hyper':[1],'all':[1,2,4],'both':[1,4]}
 # need both integer indexing for the mask overlay and dict keyword indexing for contour overlay
 # this is a convenience definition for reverse lookup from integer back to dict keyword, for
 # 'all' and 'both' in contour overlay, but it's awkward
-layersdict = {1:'WT',2:'TC',3:'ET'}
+# layersdict = {1:'WT',2:'TC',3:'ET'}
+layersdict = {1:'WT',2:'TC',4:'ET'}
 
 def hex_to_rgb(hex: str):
     assert len(hex) == 6
@@ -59,7 +61,7 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray = None, c
     elif layer is not None:
         raise KeyError('layer {} is not recognized.'.format(layer))
     else:
-        layers = [1,2,3]
+        layers = [1,2,4]
 
     if len(imagestack.shape) == 4:
         if imagestack.shape[0]<5:
@@ -82,7 +84,7 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray = None, c
     # overlay colours are fixed for a constant number of possible compartments
     if mapping is None:
         # uniques = np.sort(np.unique(segmentation.ravel()))
-        uniques = [0,1,2,3]
+        uniques = [0,1,2,4]
         mapping = {i: c for c, i in enumerate(uniques)} 
 
     for ch in range(n_channel):
@@ -97,25 +99,27 @@ def generate_overlay(input_image: np.ndarray, segmentation: np.ndarray = None, c
                 continue # skipping background here
 
             # do mask overlay
-            if l==3 or contour is None:
+            if l==4 or contour is None:
 
                 if l in layers:
                     overlay = overlay_intensity * np.array(hex_to_rgb(color_cycle[mapping[l]]))
                     if overlay_intensity == 1.0:
                         if len(layers) == 1:
-                            image[segmentation >= l] = overlay
+                            # image[segmentation >= l] = overlay
+                            image[segmentation & l == l] = overlay
                         else:
                             if l == 1:
-                                image[segmentation == l] = overlay
+                                image[segmentation & l == l] = overlay
                             else:
-                                image[segmentation == l] = overlay
+                                image[segmentation & l == l] = overlay
                     else:
                         if len(layers) == 1:
-                            image[segmentation >= l] += overlay
+                            # image[segmentation >= l] += overlay
+                            image[segmentation & l == l] += overlay
                         else:
-                            image[segmentation == l] += overlay
+                            image[segmentation & l == l] += overlay
                         
-            # do contour overlay
+            # do contour overlay. not finished yet.
             elif contour is not None:
 
                 if l in layers:
