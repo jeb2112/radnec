@@ -509,6 +509,16 @@ class CreateROIFrame(CreateFrame):
         else:
             self.enhancingROI_overlay_value.set(False)
             self.ui.dataselection = 'seg_fusion_d'
+            # handle the case of switching manually to ROI mode with only one of ET T2 hyper selected.
+            # eg the INDIGO case there won't be any ET. for now just a temp workaround.
+            # but this might need to become the default behaviour for all cases, and if it's automatic
+            # it won't pass through this callback but will be handled elsewhere.
+            roi = self.ui.get_currentroi()
+            if self.ui.roi[roi].status is False:
+                if self.ui.roi[roi].data['WT'] is not None:
+                    self.layerROI_callback(layer='WT')
+                elif self.ui.roi[roi].data['ET'] is not None:
+                    self.layerROI_callback(layer='ET')
             self.ui.updateslice(wl=True)
 
     def enhancingROI_overlay_callback(self,event=None):
@@ -606,8 +616,9 @@ class CreateROIFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='arrow')
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
-        # logic stays in BLAST mode if both ET and t2 hyper are not yet selected.
-        # some tumour cases may not have enhancement though like INDIGO study may need to rethink this
+        # currently this logic stays in BLAST mode if both ET and t2 hyper are not yet selected.
+        # however, the preferred workflow may be to switch to ROI mode automatically after 1st BLAST
+        # segmentation is selected, then manually jump back to BLAST mode for the 2nd selection
         roi = self.ui.get_currentroi()
         if self.ui.roi[roi].status:
             self.finalROI_overlay_value.set(True)
@@ -662,9 +673,10 @@ class CreateROIFrame(CreateFrame):
         if m == 'T2 hyper': # difference in naming convention between BLAST and final segmentation
             m = 'WT'
         # a quick config for ET, WT smoothing
-        mlist = {'ET':{'threshold':3,'dball':10,'dcube':2},
+        mlist = {'ET':{'threshold':4,'dball':10,'dcube':2},
                     'WT':{'threshold':1,'dball':10,'dcube':2}}
-        mask = (metmaskstack >= mlist[m]['threshold']).astype('double')
+        # mask = (metmaskstack >= mlist[m]['threshold']).astype('double')
+        mask = (metmaskstack & mlist[m]['threshold'] == mlist[m]['threshold']).astype('double')
 
         # TODO: 2d versus 3d connected components?
         CC_labeled = cc3d.connected_components(mask,connectivity=26)
@@ -813,7 +825,8 @@ class CreateROIFrame(CreateFrame):
                 if len(self.roilist) > 1:
                     roisuffix = '_roi'+roi
                 outputfilename = fileroot + '_blast_' + img + roisuffix + '.nii'
-                self.WriteImage(self.ui.roi[int(roi)].data[img],outputfilename,affine=self.ui.affine)
+                if self.ui.roi[int(roi)].data[img] is not None:
+                    self.WriteImage(self.ui.roi[int(roi)].data[img],outputfilename,affine=self.ui.affine)
         # manual outputs. for now these have only one roi
         if self.ui.data['label'] is not None:
             for img in ['manual_ET','manual_TC','manual_WT']:
@@ -828,10 +841,18 @@ class CreateROIFrame(CreateFrame):
             bdict['roi'+str(i)] = r.data
             msdict['roi'+str(i)] = {}
             mdict = msdict['roi'+str(i)]
-            mdict['greengate_count'] = r.data['blast']['params']['ET']['t2']
-            mdict['redgate_count'] = r.data['blast']['params']['ET']['t1']
-            mdict['objectmask'] = r.data['ET']
-            mdict['objectmask_filled'] = r.data['TC']
+            mdict['greengate_count'] = r.data['blast']['params']['ET']['flair']
+            mdict['redgate_count'] = r.data['blast']['params']['ET']['t12']
+            if r.data['ET'] is None:
+                et = 0
+            else: 
+                et = r.data['ET']
+            mdict['objectmask'] = et
+            if r.data['TC'] is None:
+                tc = 0
+            else:
+                tc = r.data['TC']
+            mdict['objectmask_filled'] = tc
             mdict['centreimage'] = 0
             mdict['specificity_et'] = r.stats['spec']['ET']
             mdict['sensitivity_et'] = r.stats['sens']['ET']

@@ -67,4 +67,4 @@ class Config(object):
         self.maxZ = 4
 
         # default 'contour' or 'mask' overlay
-        self.OverlayType = 0
+        self.OverlayType = 1
