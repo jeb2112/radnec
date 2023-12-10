@@ -852,8 +852,8 @@ class CreateCaseFrame(CreateFrame):
         self.skullstrip_check.grid(row=0,column=10,sticky='w')
         self.n4_check = ttk.Checkbutton(self.frame,text='N4',variable=self.n4_check_value)
         self.n4_check.grid(row=0,column=11,sticky='w')
-        self.segnormal_check = ttk.Checkbutton(self.frame,text='segment',variable=self.segnormal_check_value)
-        self.segnormal_check.grid(row=0,column=12,sticky='w')
+        # self.segnormal_check = ttk.Checkbutton(self.frame,text='segment',variable=self.segnormal_check_value)
+        # self.segnormal_check.grid(row=0,column=12,sticky='w')
 
 
     # callback for file dialog 
@@ -986,6 +986,7 @@ class CreateCaseFrame(CreateFrame):
                     for i,f in enumerate(files[1:]):
                         data = pd.dcmread(os.path.join(dpath,f))
                         img_arr_t2[i+1,:,:] = data.pixel_array
+            self.ui.affine = affine_t1
 
         # dimensions of canvas panel might have to change depending on dimension of new data loaded.
         if np.shape(img_arr_t1) != np.shape(img_arr_t2):
