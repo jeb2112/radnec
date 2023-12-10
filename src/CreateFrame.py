@@ -4,6 +4,7 @@ import glob
 import copy
 import re
 import logging
+import subprocess
 import tkinter as tk
 import nibabel as nb
 from nibabel.processing import resample_from_to
@@ -698,7 +699,7 @@ class CreateSliceViewerFrame(CreateFrame):
                     self.updatewl(ax=ax,lval=.01)
                 elif event.num == 5:
                     self.updatewl(ax=ax,lval=-.01)
-        elif self.ui.OS == 'nt':
+        elif self.ui.OS == 'win32':
             if event.state:
                 if event.num == 4:
                     # increment is hard-coded
@@ -773,7 +774,7 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ui.data['blast']['params'][layer]['meant12'] = np.mean(X[layer][kmeans.labels_==background_cluster,1])
             self.ui.data['blast']['params'][layer]['meanflair'] = np.mean(X[layer][kmeans.labels_==background_cluster,0])
 
-            if True:
+            if False:
                 plt.figure(7)
                 ax = plt.subplot(1,2,i+1)
                 plt.scatter(X[layer][kmeans.labels_==1-background_cluster,0],X[layer][kmeans.labels_==1-background_cluster,1],c='b',s=1)
@@ -783,9 +784,9 @@ class CreateSliceViewerFrame(CreateFrame):
                 ax.set_ylim(bottom=0,top=1.0)
                 plt.text(0,1.02,'{:.3f},{:.3f}'.format(self.ui.data['blast']['params'][layer]['meanflair'],self.ui.data['blast']['params'][layer]['stdflair']))
 
-            plt.savefig('/home/jbishop/Pictures/scatterplot_normal.png')
-            plt.clf()
-            # plt.show(block=False)
+                plt.savefig('/home/jbishop/Pictures/scatterplot_normal.png')
+                plt.clf()
+                # plt.show(block=False)
 
         # automatically run BLAST
             self.ui.roiframe.layer_callback(layer=layer,updateslice=False,overlay=False)
@@ -1067,8 +1068,6 @@ class CreateCaseFrame(CreateFrame):
 
         # save nifti files for future use
         if self.casetype == 2:
-            # self.brainmage_clip(img_arr_t1)
-            # self.brainmage_clip(img_arr_t2)
             self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_processed.nii.gz'),type='float',affine=affine_t1)
             self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_processed.nii.gz'),type='float',affine=affine_t2)
             self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_processed.nii.gz'),type='float',affine=affine_flair)
@@ -1204,22 +1203,37 @@ class CreateCaseFrame(CreateFrame):
 
     def skullstrip(self,img_arr_t1,img_arr_t2,img_arr_flair):
         print('brain extract')
-        if True:
-            img_arr_t1 = self.brainmage_clip(img_arr_t1)
-            img_arr_t2 = self.brainmage_clip(img_arr_t2)
-            img_arr_flair = self.brainmage_clip(img_arr_flair)
+        img_arr_t1 = self.brainmage_clip(img_arr_t1)
+        img_arr_t2 = self.brainmage_clip(img_arr_t2)
+        img_arr_flair = self.brainmage_clip(img_arr_flair)
         self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_temp.nii'),norm=False,type='float')
         self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_temp.nii'),norm=False,type='float')
         self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_temp.nii'),norm=False,type='float')
         for t in ['T1','T2','flair']:
+
             tfile = 'img_' + t + '_temp.nii'
             ofile = 'img_' + t + '_brain.nii'
-            command = 'conda run -n brainmage brain_mage_single_run '
-            command += ' -i ' + os.path.join(self.casedir,tfile)
-            command += ' -o ' + os.path.join('/tmp/foo')
-            command += ' -m ' + os.path.join(self.casedir,ofile) + ' -dev 0'
-            res = os.system(command)
+            if self.ui.OS == 'linux':
+                command = 'conda run -n brainmage brain_mage_single_run '
+                command += ' -i ' + os.path.join(self.casedir,tfile)
+                command += ' -o ' + os.path.join('/tmp/foo')
+                command += ' -m ' + os.path.join(self.casedir,ofile) + ' -dev 0'
+                res = os.system(command)
+
+            elif self.ui.OS == 'win32':
+                # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
+                command1 = '\"C:\Program Files\\anaconda3\Scripts\\activate.bat\" \"C:\\Users\Chris Heyn Lab\\anaconda3\envs\\brainmage\"'
+                command2 = 'python \"' + os.path.join(self.config.UIResourcesPath,'brain_mage_single_run')
+                command2 += '\" -i   \"' + os.path.join(self.casedir,tfile)
+                command2 += '\"  -o  \"' + os.path.join(self.casedir,'foo')
+                command2 += '\"   -m   \"' + os.path.join(self.casedir,ofile) + '\"'
+                cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
+                info = subprocess.STARTUPINFO()
+                info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                info.wShowWindow = subprocess.SW_HIDE
+                res = subprocess.run(cstr,shell=True,startupinfo=info,creationflags=subprocess.CREATE_NO_WINDOW)
             # print(res)
+
         img_nb_t1 = nb.load(os.path.join(self.casedir,'img_T1_brain.nii'))
         img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
         img_nb_t2 = nb.load(os.path.join(self.casedir,'img_T2_brain.nii'))
