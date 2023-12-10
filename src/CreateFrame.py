@@ -1223,10 +1223,10 @@ class CreateCaseFrame(CreateFrame):
 
             elif self.ui.OS == 'win32':
                 # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
-                command1 = '\"C:\Program Files\\anaconda3\Scripts\\activate.bat\" \"C:\\Users\Chris Heyn Lab\\anaconda3\envs\\brainmage\"'
+                command1 = '\"C:\Program Files\\anaconda3\Scripts\\activate.bat\" \"' + os.path.expanduser('~')+'\\anaconda3\envs\\brainmage\"'
                 command2 = 'python \"' + os.path.join(self.config.UIResourcesPath,'brain_mage_single_run')
                 command2 += '\" -i   \"' + os.path.join(self.casedir,tfile)
-                command2 += '\"  -o  \"' + os.path.join(self.casedir,'foo')
+                command2 += '\"  -o  \"' + os.path.join(os.path.expanduser('~'),'AppData','Local','Temp','foo')
                 command2 += '\"   -m   \"' + os.path.join(self.casedir,ofile) + '\"'
                 cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
                 info = subprocess.STARTUPINFO()

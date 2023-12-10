@@ -36,10 +36,10 @@ class Config(object):
 
         # Path to dataset images
         if os.name == 'nt':
-            self.UIdatadir = os.path.join('C:\\','Users','chint','Data')
+            self.UIdatadir = os.path.join(os.path.expanduser('~'),'Data')
         elif os.name == 'posix':
             # self.UIdatadir = '/media/jbishop/WD4/brainmets/raw/BraTS2021'
-            self.UIdatadir = '/home/jbishop/Data/blast'
+            self.UIdatadir = os.path.join(os.path.expanduser('~'),'Data','blast')
         self.UIdataroot = 'BraTS2021_'
 
         # automatically load first case in directory
