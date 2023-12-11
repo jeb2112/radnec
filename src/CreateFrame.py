@@ -1231,10 +1231,22 @@ class CreateCaseFrame(CreateFrame):
                 command2 += '\"  -o  \"' + os.path.join(os.path.expanduser('~'),'AppData','Local','Temp','foo')
                 command2 += '\"   -m   \"' + os.path.join(self.casedir,ofile) + '\"'
                 cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
-                info = subprocess.STARTUPINFO()
-                info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                info.wShowWindow = subprocess.SW_HIDE
-                res = subprocess.run(cstr,shell=True,startupinfo=info,creationflags=subprocess.CREATE_NO_WINDOW)
+                if False:   
+                    info = subprocess.STARTUPINFO()
+                    info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    info.wShowWindow = subprocess.SW_HIDE
+                    res = subprocess.run(cstr,shell=True,startupinfo=info,creationflags=subprocess.CREATE_NO_WINDOW)
+                    # res = subprocess.run(cstr,shell=True)
+                else:
+                    popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
+                    for stdout_line in iter(popen.stdout.readline,""):
+                        if stdout_line != '\n':
+                            print(stdout_line)
+                    popen.stdout.close()
+                    res = popen.wait()
+                    if res:
+                        raise subprocess.CalledProcessError(res,cstr)
+                        print(res)
             # print(res)
 
         img_nb_t1 = nb.load(os.path.join(self.casedir,'img_T1_brain.nii'))
