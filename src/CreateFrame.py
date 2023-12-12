@@ -814,7 +814,7 @@ class CreateCaseFrame(CreateFrame):
         self.filenames = None
         self.casename = StringVar()
         self.casefile_prefix = None
-        self.caselist = []
+        self.caselist = {'tags':[],'dirs':[]}
         self.n4_check_value = tk.BooleanVar(value=True)
         self.register_check_value = tk.BooleanVar(value=True)
         self.skullstrip_check_value = tk.BooleanVar(value=True)
@@ -841,7 +841,7 @@ class CreateCaseFrame(CreateFrame):
         caselabel = ttk.Label(self.frame, text='Case: ')
         caselabel.grid(column=0,row=0,sticky='we')
         # self.casename.trace_add('write',self.case_callback)
-        self.w = ttk.Combobox(self.frame,width=8,textvariable=self.casename,values=self.caselist)
+        self.w = ttk.Combobox(self.frame,width=8,textvariable=self.casename,values=self.caselist['tags'])
         self.w.grid(column=1,row=0)
         self.w.bind("<<ComboboxSelected>>",self.case_callback)
 
@@ -899,7 +899,9 @@ class CreateCaseFrame(CreateFrame):
         if case is not None:
             self.casename.set(case)
             self.ui.set_casename()
-        self.casedir = os.path.join(self.datadir.get(),self.config.UIdataroot+self.casename.get())
+        caseindex = self.caselist['tags'].index(self.casename.get())
+        # self.casedir = os.path.join(self.datadir.get(),self.config.UIdataroot+self.casename.get())
+        self.casedir = os.path.join(self.datadir.get(),self.caselist['dirs'][caseindex])
 
         # if two image files are given load them directly
         if files is not None:
@@ -1373,11 +1375,11 @@ class CreateCaseFrame(CreateFrame):
             self.casefile_prefix = ''
             casefiles = os.path.split(dir)[1]
             self.config.UIdataroot = self.casefile_prefix
-            self.caselist = casefiles
-            self.w['values'] = self.caselist
+            self.caselist['tags'] = casefiles
+            self.w['values'] = self.caselist['tags']
             self.w.current(0)
-            self.w.config(width=min(20,len(self.caselist)))
-            self.casename.set(self.caselist)
+            self.w.config(width=min(20,len(self.caselist['tags'])))
+            self.casename.set(self.caselist['tags'])
             self.datadir.set(os.path.split(dir)[0])
             self.casetype = 0
             self.case_callback(files=self.filenames)
@@ -1421,7 +1423,17 @@ class CreateCaseFrame(CreateFrame):
                             self.w.config(width=6)
                         else:
                             self.casefile_prefix = ''
-                            casefiles = niftidirs
+                            # for niftidirs that are processed dicomdirs, there may be
+                            # multiple empty subdirectories. for now assume that the 
+                            # immediate subdir of the datadir is the best tag for the casefile
+                            # 
+                            casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
+                            casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
+                            # may need a future sort
+                            if False:
+                                casefiles,casedirs = (list(t) for t in zip(*sorted(zip(casefiles,casedirs))))
+                            self.caselist['tags'] = casefiles
+                            self.caselist['dirs'] = casedirs
                             self.w.config(width=max(20,len(casefiles[0])))
                         self.casetype = 1
                         doload = self.config.AutoLoad
@@ -1445,11 +1457,11 @@ class CreateCaseFrame(CreateFrame):
             if len(casefiles):
                 self.config.UIdataroot = self.casefile_prefix
                 # TODO: will need a better sort here
-                self.caselist = sorted(casefiles)
-                self.w['values'] = self.caselist
+                self.caselist['tags'] = sorted(casefiles)
+                self.w['values'] = self.caselist['tags']
                 self.w.current(0)
                 # current(0) should do this too, but sometimes it does not
-                self.casename.set(self.caselist[0])
+                self.casename.set(self.caselist['tags'][0])
                 # autoload first case
                 if doload:
                     self.case_callback()
@@ -1486,10 +1498,14 @@ class CreateCaseFrame(CreateFrame):
                     dcmdirs.append(os.path.split(root)[0])
                 if len(niftifiles):
                     niftidirs.append(os.path.join(root))
-        # due to the intermediate seriesdirs, the above walk generates duplicates
-        dcmdirs = list(set(dcmdirs))
         if len(niftidirs+dcmdirs):
             self.ui.set_message('')
+            self.datadir.set(dir)
+        # due to the intermediate seriesdirs, the above walk generates duplicates
+        dcmdirs = list(set(dcmdirs))
+        # for nifti dirs, need to set the casefiles for the pulldown at one of the more
+        # recognizeable subdirs of the datadir. 
+
         return niftidirs,dcmdirs
     
     # run multiple dicom directories
@@ -1608,4 +1624,5 @@ class CreateCaseFrame(CreateFrame):
         self.filenames = None
         self.casename = StringVar()
         self.casefile_prefix = None
-        self.caselist = []
+        self.caselist['tags'] = []
+        self.caselist['dirs'] = []
