@@ -1224,8 +1224,16 @@ class CreateCaseFrame(CreateFrame):
             elif self.ui.OS == 'win32':
                 # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
                 # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
-                # it is currently hard-coded to anaconda3/envs location rather than .conda/envs
-                command1 = '\"C:\Program Files\\anaconda3\Scripts\\activate.bat\" \"' + os.path.expanduser('~')+'\\anaconda3\envs\\brainmage\"'
+                # it is currently hard-coded to anaconda3/envs location rather than .conda/envs, but anaconda3 could be installed
+                # under either ProgramFiles or Users so check both
+                if os.path.isfile(os.path.expanduser('~')+'\\anaconda3\Scripts\\activate.bat'):
+                    activatebatch = os.path.expanduser('~')+"\\anaconda3\Scripts\\activate.bat"
+                elif os.path.isfile("C:\Program Files\\anaconda3\Scripts\\activate.bat"):
+                    activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
+                else:
+                    raise FileNotFoundError('anaconda3/Scripts/activate.bat')
+                                    
+                command1 = '\"'+activatebatch+'\" \"' + os.path.expanduser('~')+'\\anaconda3\envs\\brainmage\"'
                 command2 = 'python \"' + os.path.join(os.path.expanduser('~'),'anaconda3','envs','brainmage','Scripts','brain_mage_single_run')
                 command2 += '\" -i   \"' + os.path.join(self.casedir,tfile)
                 command2 += '\"  -o  \"' + os.path.join(os.path.expanduser('~'),'AppData','Local','Temp','foo')
