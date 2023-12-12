@@ -1394,7 +1394,6 @@ class CreateCaseFrame(CreateFrame):
             if len(files):
 
                 imagefiles = self.get_imagefiles(files)
-                niftidirs,dcmdirs = self.get_imagedirs(files)
 
                 # single case directory with image files
                 if len(imagefiles) > 1:
@@ -1409,6 +1408,7 @@ class CreateCaseFrame(CreateFrame):
 
                 # one or more case subdirectories
                 else:
+                    niftidirs,dcmdirs = self.get_imagedirs(dir)
                     # niftidirs option is intended for processing cases from a parent directory. such as BraTS.
                     # imagefiles and dcmdirs intended for processing at the level of the individual case directory.
                     if len(niftidirs):
@@ -1424,15 +1424,23 @@ class CreateCaseFrame(CreateFrame):
                             casefiles = niftidirs
                             self.w.config(width=max(20,len(casefiles[0])))
                         self.casetype = 1
+                        doload = self.config.AutoLoad
 
-                    # currently only a single dicom case directory is handled
-                    elif len(dcmdirs):
+                    # assumes all nifti dirs or all dicom dirs.
+                    # if only a single dicom case directory continue directly to blast
+                    elif len(dcmdirs)==1:
                         self.casefile_prefix = ''
-                        self.datadir.set(os.path.split(dir)[0])
-                        casefiles = [os.path.split(dir)[1]]
+                        self.datadir.set(os.path.split(dcmdirs)[0])
+                        casefiles = [os.path.split(dcmdirs)[1]]
                         self.w.config(width=max(20,len(casefiles[0])))
                         self.casetype = 2
-                    doload = self.config.AutoLoad
+                        doload = self.config.AutoLoad
+                    elif len(dcmdirs) > 1:
+                    # if multiple dicom dirs, preprocess only
+                        self.preprocess(dcmdirs)
+                        casefiles = []
+                        doload = False
+                        return
 
             if len(casefiles):
                 self.config.UIdataroot = self.casefile_prefix
@@ -1462,24 +1470,139 @@ class CreateCaseFrame(CreateFrame):
             self.ui.set_message('')
         return imagefiles
     
-    def get_imagedirs(self,files):
-        dir = self.datadir.get()
+    def get_imagedirs(self,dir):
+        # dir = self.datadir.get()
         dcmdirs = []
         niftidirs = []
-        for f in files:
-            fpath = os.path.join(dir,f)
-            if os.path.isdir(fpath):
-                flist = os.listdir(fpath)
-                dcmfiles = [f for f in flist if re.match('.*\.dcm',f.lower())]
-                niftifiles = [f for f in flist if re.match('.*\.(nii|nii\.gz)',f.lower())]
+        for root,dirs,files in os.walk(dir,topdown=True):
+            if len(files):
+                dcmfiles = [f for f in files if re.match('.*\.dcm',f.lower())]
+                niftifiles = [f for f in files if re.match('.*\.(nii|nii\.gz)',f.lower())]
                 if len(dcmfiles):
-                    dcmdirs.append(f)
+                    # for now assume that the parent of this dir is a series dir, and will take 
+                    # the dicomdir as the parent of the series dir
+                    # but for exported sunnybrook dicoms at least the more recognizeable dir might 
+                    # be two levels above at the date.
+                    dcmdirs.append(os.path.split(root)[0])
                 if len(niftifiles):
-                    niftidirs.append(f)
+                    niftidirs.append(os.path.join(root))
+        # due to the intermediate seriesdirs, the above walk generates duplicates
+        dcmdirs = list(set(dcmdirs))
         if len(niftidirs+dcmdirs):
             self.ui.set_message('')
-                    
         return niftidirs,dcmdirs
+    
+    # run multiple dicom directories
+    def preprocess(self,dirs):
+        for d in dirs:
+
+            # assume a dicomdir is a parent of several series directories
+            self.casedir = d
+            seriesdirs = os.listdir(d)
+            for sd in seriesdirs:
+                dpath = os.path.join(d,sd)
+                files = sorted(os.listdir(dpath))
+                metadata = pd.dcmread(os.path.join(dpath,files[0]))
+                print(metadata.SeriesDescription)
+                if 't1' in metadata.SeriesDescription.lower():
+                    if 'pre' in metadata.SeriesDescription.lower():
+                        continue
+                    img_arr_t1 = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                    affine_t1 = self.get_affine(metadata)
+                    img_arr_t1[0,:,:] = metadata.pixel_array
+                    for i,f in enumerate(files[1:]):
+                        data = pd.dcmread(os.path.join(dpath,f))
+                        img_arr_t1[i+1,:,:] = data.pixel_array
+                elif any([f in metadata.SeriesDescription.lower() for f in ['flair','fluid']]):
+                    img_arr_flair = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                    affine_flair = self.get_affine(metadata)
+                    img_arr_flair[0,:,:] = metadata.pixel_array
+                    for i,f in enumerate(files[1:]):
+                        data = pd.dcmread(os.path.join(dpath,f))
+                        img_arr_flair[i+1,:,:] = data.pixel_array
+                elif 't2' in metadata.SeriesDescription.lower():
+                    img_arr_t2 = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                    affine_t2 = self.get_affine(metadata)
+                    img_arr_t2[0,:,:] = metadata.pixel_array
+                    for i,f in enumerate(files[1:]):
+                        data = pd.dcmread(os.path.join(dpath,f))
+                        img_arr_t2[i+1,:,:] = data.pixel_array
+            self.ui.affine = affine_t1
+
+            # dimensions of canvas panel might have to change depending on dimension of new data loaded.
+            if np.shape(img_arr_t1) != np.shape(img_arr_t2):
+                # self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
+                print('Image matrices do not match. Resampling T2 into T1 space...')
+                img_arr_t2,affine_t2 = self.resamplet2(img_arr_t1,img_arr_t2,affine_t1,affine_t2)
+                img_arr_t2 = np.clip(img_arr_t2,0,None)
+
+            if np.shape(img_arr_t1) != np.shape(img_arr_flair):
+                print('Image matrices do not match. Resampling flair into T1 space...')
+                img_arr_flair,affine_flair = self.resamplet2(img_arr_t1,img_arr_flair,affine_t1,affine_flair)
+                img_arr_flair = np.clip(img_arr_flair,0,None)
+
+                if True:
+                    self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(d,'img_T1_resampled.nii.gz'),
+                                                type='float',affine=affine_t1)
+                    self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(d,'img_T2_resampled.nii.gz'),
+                                                type='float',affine=affine_t2)
+                    self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(d,'img_flair_resampled.nii.gz'),
+                                                type='float',affine=affine_flair)
+
+
+            # registration
+            print('register T2, flair')
+            if True:
+                img = nb.load(os.path.join(d,'img_T1_resampled.nii.gz'))
+                img_arr_t1 = np.transpose(np.array(img.dataobj),axes=(2,1,0))
+                img = nb.load(os.path.join(d,'img_T2_resampled.nii.gz'))
+                img_arr_t2 = np.transpose(np.array(img.dataobj),axes=(2,1,0))
+                img = nb.load(os.path.join(d,'img_flair_resampled.nii.gz'))
+                img_arr_flair = np.transpose(np.array(img.dataobj),axes=(2,1,0))
+                os.remove(os.path.join(d,'img_T1_resampled.nii.gz'))
+                os.remove(os.path.join(d,'img_T2_resampled.nii.gz'))
+                os.remove(os.path.join(d,'img_flair_resampled.nii.gz'))
+            fixed_image = itk.GetImageFromArray(img_arr_t1)
+            moving_image = itk.GetImageFromArray(img_arr_t2)
+            moving_image_res = self.elastix_affine(fixed_image,moving_image)
+            img_arr_t2 = itk.GetArrayFromImage(moving_image_res)
+            if False:
+                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(d,'img_T2_registered.nii.gz'),
+                                        type='float',affine=affine_t1)
+                self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(d,'img_flair_registered.nii.gz'),
+                                        type='float',affine=affine_t1)
+
+            # skull strip. for now assuming only needed on input dicoms
+            img_arr_t1,img_arr_t2,img_arr_flair = self.skullstrip(img_arr_t1,img_arr_t2,img_arr_flair)
+            if False:
+                self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(d,'img_T1_extracted.nii.gz'),
+                                            type='float',affine=affine_t1)
+                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(d,'img_T2_extracted.nii.gz'),
+                                            type='float',affine=affine_t2)
+                self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(d,'img_flair_extracted.nii.gz'),
+                                        type='float',affine=affine_flair)
+
+            # bias correction.
+            img_arr_t1,img_arr_t2,img_arr_flair = self.n4(img_arr_t1,img_arr_t2,img_arr_flair)
+
+            # rescale the data
+            if self.processed is False:
+                # if necessary clip any negative values introduced by the processing
+                if np.min(img_arr_t1) < 0:
+                    img_arr_t1[img_arr_t1 < 0] = 0
+                if np.min(img_arr_t2) < 0:
+                    img_arr_t2[img_arr_t2 < 0] = 0
+                if np.min(img_arr_flair) < 0:
+                    img_arr_flair[img_arr_flair < 0] = 0
+                img_arr_t1 = self.rescale(img_arr_t1)
+                img_arr_t2 = self.rescale(img_arr_t2)
+                img_arr_flair = self.rescale(img_arr_flair)
+
+            # save nifti files for future use
+            self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(d,'img_T1_processed.nii.gz'),type='float',affine=affine_t1)
+            self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(d,'img_T2_processed.nii.gz'),type='float',affine=affine_t2)
+            self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(d,'img_flair_processed.nii.gz'),type='float',affine=affine_flair)
+
 
     def resetCase(self):
         self.filenames = None
