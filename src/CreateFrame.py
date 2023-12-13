@@ -978,8 +978,8 @@ class CreateCaseFrame(CreateFrame):
         # for now it will assumed not be multi-frame format
         else:
             self.processed = False
-            dcmdirs = os.listdir(self.casedir)
-            for d in dcmdirs:
+            seriesdirs = [d for d in os.listdir(self.casedir) if os.path.isdir(os.path.join(self.casedir,d))]
+            for d in seriesdirs:
                 dpath = os.path.join(self.casedir,d)
                 files = sorted(os.listdir(dpath))
                 metadata = pd.dcmread(os.path.join(dpath,files[0]))
@@ -1510,7 +1510,7 @@ class CreateCaseFrame(CreateFrame):
         for root,dirs,files in os.walk(dir,topdown=True):
             if len(files):
                 dcmfiles = [f for f in files if re.match('.*\.dcm',f.lower())]
-                niftifiles = [f for f in files if re.match('.*\.(nii|nii\.gz)',f.lower())]
+                niftifiles = [f for f in files if re.match('.*(t1|t2|flair).*\.(nii|nii\.gz)',f.lower())]
                 if len(dcmfiles):
                     # for now assume that the parent of this dir is a series dir, and will take 
                     # the dicomdir as the parent of the series dir
