@@ -831,7 +831,7 @@ class CreateCaseFrame(CreateFrame):
         self.fdbutton.grid(row=0,column=2)
         # select file
         self.fdbicon_file = PhotoImage(file=os.path.join(self.config.UIResourcesPath,'file_icon_16.png'))
-        self.fdbutton_file = ttk.Button(self.frame,image=self.fdbicon_file,command = self.select_file)
+        self.fdbutton_file = ttk.Button(self.frame,image=self.fdbicon_file,command = self.datafileentry_callback)
         self.fdbutton_file.grid(row=0,column=3)
 
         self.datadirentry = ttk.Entry(self.frame,width=40,textvariable=self.datadir)
@@ -864,17 +864,33 @@ class CreateCaseFrame(CreateFrame):
         self.datadirentry.update()
         self.datadirentry_callback()
 
-    def select_file(self):
+    # callback for loading by individual files
+    def datafileentry_callback(self):
+    # def select_file(self):
         self.resetCase()
         self.fd.select_file()
-        if len(self.fd.filenames) != 2:
-            self.ui.set_message('Two files must be selected')
+        if len(self.fd.filenames) != 3:
+            self.ui.set_message('Three files must be selected')
             return
         self.ui.set_message('')
         self.datadir.set(os.path.split(self.fd.filenames[0])[0])
-        self.filenames = os.path.split(self.fd.filenames[0])[1],os.path.split(self.fd.filenames[1])[1]
-        self.filenames = sorted(self.filenames,key=lambda x:x.find('t1'),reverse=True)
-        self.datafileentry_callback()
+        self.filenames = [os.path.split(f)[1] for f in self.fd.filenames]
+        # sort assumes minimal tags t1,t2 are present flair image is the 3rd.
+        self.filenames = sorted(self.filenames,key=lambda x:(x.lower().find('t1'),x.lower().find('t2')),reverse=True)
+        # self.datafileentry_callback()
+        # for indiviudally selected files, datadir is the parent and intermediate 'dirs' not used
+        self.caselist['dirs'] = ''
+        casefiles = os.path.split(self.datadir.get())[1]
+        self.casefile_prefix = ''
+        self.config.UIdataroot = self.casefile_prefix
+        self.caselist['tags'] = casefiles
+        self.w['values'] = self.caselist['tags']
+        self.w.current(0)
+        self.w.config(width=min(20,len(self.caselist['tags'])))
+        self.casename.set(self.caselist['tags'])
+        # self.datadir.set(os.path.split(dir)[0])
+        self.casetype = 0
+        self.case_callback(files=self.filenames)
         return
 
     def case_callback(self,casevar=None,val=None,event=None,files=None):
@@ -901,9 +917,11 @@ class CreateCaseFrame(CreateFrame):
             self.ui.set_casename()
         caseindex = self.caselist['tags'].index(self.casename.get())
         # self.casedir = os.path.join(self.datadir.get(),self.config.UIdataroot+self.casename.get())
-        self.casedir = os.path.join(self.datadir.get(),self.caselist['dirs'][caseindex])
+        self.casedir = self.datadir.get()
+        if len(self.caselist['dirs']):
+            self.casedir = os.path.join(self.datadir.get(),self.caselist['dirs'][caseindex])
 
-        # if two image files are given load them directly
+        # if three image files are given load them directly
         if files is not None:
             if len(files) != 3:
                 self.ui.set_message('Select three image files')
@@ -1368,22 +1386,6 @@ class CreateCaseFrame(CreateFrame):
             img_arr[ch] = copy.deepcopy(corrected_img_arr)
         return img_arr[0],img_arr[1],img_arr[2]
 
-    # callback for loading by individual files
-    def datafileentry_callback(self):
-        dir = self.datadir.get().strip()
-        if len(self.filenames) == 2:
-            self.casefile_prefix = ''
-            casefiles = os.path.split(dir)[1]
-            self.config.UIdataroot = self.casefile_prefix
-            self.caselist['tags'] = casefiles
-            self.w['values'] = self.caselist['tags']
-            self.w.current(0)
-            self.w.config(width=min(20,len(self.caselist['tags'])))
-            self.casename.set(self.caselist['tags'])
-            self.datadir.set(os.path.split(dir)[0])
-            self.casetype = 0
-            self.case_callback(files=self.filenames)
-            return
 
     # main callback for selecting a data directory either by file dialog or text entry
     # find the list of cases in the current directory, set the combobox, and optionally load a case
@@ -1402,6 +1404,8 @@ class CreateCaseFrame(CreateFrame):
                     imagefiles = [i.group(1) for i in imagefiles]
                     self.casefile_prefix = ''
                     casefiles = [os.path.split(dir)[1]]
+                    self.caselist['tags'] = casefiles
+                    self.caselist['dirs'] = [os.path.split(dir)[1]]
                     self.ui.set_message('')
                     self.w.config(width=min(20,len(casefiles[0])))
                     self.datadir.set(os.path.split(dir)[0])
@@ -1476,7 +1480,7 @@ class CreateCaseFrame(CreateFrame):
         return
 
     def get_imagefiles(self,files):
-        imagefiles = [re.match('(^.*(t1|flair).*\.(nii|nii\.gz|dcm)$)',f.lower()) for f in files]
+        imagefiles = [re.match('(^.*(t1|t2|flair).*\.(nii|nii\.gz|dcm)$)',f.lower()) for f in files]
         imagefiles = list(filter(lambda item: item is not None,imagefiles))
         if len(imagefiles):
             self.ui.set_message('')

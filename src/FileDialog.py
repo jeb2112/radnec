@@ -32,7 +32,7 @@ class FileDialog():
             ('dicom files', '*.dcm')
         )
         self.filenames = fd.askopenfilenames(
-            title='Select T1 and FLAIR images',
+            title='Select T1,T2 and FLAIR images',
             initialdir=self.dir,
             filetypes=filetypes)
         return
