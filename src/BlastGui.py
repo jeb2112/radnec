@@ -129,7 +129,8 @@ class BlastGui(object):
         self.roiframe = CreateROIFrame(self.mainframe,ui=self,padding='0')
 
         # initialize default directory.
-        self.caseframe.datadirentry_callback()
+        if False:
+            self.caseframe.datadirentry_callback()
 
         for row_num in range(self.mainframe.grid_size()[1]):
             if row_num == 1:
