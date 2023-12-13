@@ -814,7 +814,7 @@ class CreateCaseFrame(CreateFrame):
         self.filenames = None
         self.casename = StringVar()
         self.casefile_prefix = None
-        self.caselist = {'tags':[],'dirs':[]}
+        self.caselist = {'casetags':[],'casedirs':[]}
         self.n4_check_value = tk.BooleanVar(value=True)
         self.register_check_value = tk.BooleanVar(value=True)
         self.skullstrip_check_value = tk.BooleanVar(value=True)
@@ -841,7 +841,7 @@ class CreateCaseFrame(CreateFrame):
         caselabel = ttk.Label(self.frame, text='Case: ')
         caselabel.grid(column=0,row=0,sticky='we')
         # self.casename.trace_add('write',self.case_callback)
-        self.w = ttk.Combobox(self.frame,width=8,textvariable=self.casename,values=self.caselist['tags'])
+        self.w = ttk.Combobox(self.frame,width=8,textvariable=self.casename,values=self.caselist['casetags'])
         self.w.grid(column=1,row=0)
         self.w.bind("<<ComboboxSelected>>",self.case_callback)
 
@@ -873,21 +873,21 @@ class CreateCaseFrame(CreateFrame):
             self.ui.set_message('Three files must be selected')
             return
         self.ui.set_message('')
-        self.datadir.set(os.path.split(self.fd.filenames[0])[0])
+        self.casedir = os.path.split(self.fd.filenames[0])[0]
+        self.caselist['casedirs'] = [os.path.split(self.casedir)[1]]
+        self.datadir.set(os.path.split(self.casedir)[0])
         self.filenames = [os.path.split(f)[1] for f in self.fd.filenames]
         # sort assumes minimal tags t1,t2 are present flair image is the 3rd.
         self.filenames = sorted(self.filenames,key=lambda x:(x.lower().find('t1'),x.lower().find('t2')),reverse=True)
         # self.datafileentry_callback()
-        # for indiviudally selected files, datadir is the parent and intermediate 'dirs' not used
-        self.caselist['dirs'] = ''
-        casefiles = os.path.split(self.datadir.get())[1]
+        # for indiviudally selected files, datadir is the parent and intermediate 'casedirs' not used
+        self.caselist['casetags'] = os.path.split(self.datadir.get())[1]
         self.casefile_prefix = ''
         self.config.UIdataroot = self.casefile_prefix
-        self.caselist['tags'] = casefiles
-        self.w['values'] = self.caselist['tags']
+        self.w['values'] = self.caselist['casetags']
         self.w.current(0)
-        self.w.config(width=min(20,len(self.caselist['tags'])))
-        self.casename.set(self.caselist['tags'])
+        self.w.config(width=min(20,len(self.caselist['casetags'])))
+        self.casename.set(self.caselist['casetags'])
         # self.datadir.set(os.path.split(dir)[0])
         self.casetype = 0
         self.case_callback(files=self.filenames)
@@ -915,11 +915,12 @@ class CreateCaseFrame(CreateFrame):
         if case is not None:
             self.casename.set(case)
             self.ui.set_casename()
-        caseindex = self.caselist['tags'].index(self.casename.get())
+        caseindex = self.caselist['casetags'].index(self.casename.get())
         # self.casedir = os.path.join(self.datadir.get(),self.config.UIdataroot+self.casename.get())
-        self.casedir = self.datadir.get()
-        if len(self.caselist['dirs']):
-            self.casedir = os.path.join(self.datadir.get(),self.caselist['dirs'][caseindex])
+        if len(self.caselist['casedirs']):
+            self.casedir = os.path.join(self.datadir.get(),self.caselist['casedirs'][caseindex])
+        else:
+            raise ValueError('No cases to load')
 
         # if three image files are given load them directly
         if files is not None:
@@ -1020,19 +1021,16 @@ class CreateCaseFrame(CreateFrame):
             img_arr_flair,affine_flair = self.resamplet2(img_arr_t1,img_arr_flair,affine_t1,affine_flair)
             img_arr_flair = np.clip(img_arr_flair,0,None)
 
-            if True:
-                self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_resampled.nii.gz'),
-                                            type='float',affine=affine_t1)
-                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_resampled.nii.gz'),
-                                            type='float',affine=affine_t2)
-                self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_resampled.nii.gz'),
-                                            type='float',affine=affine_flair)
-
-
         # registration
         if self.register_check_value.get() and self.processed is False:
             print('register T2, flair')
             if True:
+                self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_resampled.nii.gz'),
+                                            type='float',affine=self.ui.affine)
+                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_resampled.nii.gz'),
+                                            type='float',affine=self.ui.affine)
+                self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_resampled.nii.gz'),
+                                            type='float',affine=self.ui.affine)
                 d = nb.load(os.path.join(self.casedir,'img_T1_resampled.nii.gz'))
                 img_arr_t1 = np.transpose(np.array(d.dataobj),axes=(2,1,0))
                 d = nb.load(os.path.join(self.casedir,'img_T2_resampled.nii.gz'))
@@ -1404,8 +1402,8 @@ class CreateCaseFrame(CreateFrame):
                     imagefiles = [i.group(1) for i in imagefiles]
                     self.casefile_prefix = ''
                     casefiles = [os.path.split(dir)[1]]
-                    self.caselist['tags'] = casefiles
-                    self.caselist['dirs'] = [os.path.split(dir)[1]]
+                    self.caselist['casetags'] = casefiles
+                    self.caselist['casedirs'] = [os.path.split(dir)[1]]
                     self.ui.set_message('')
                     self.w.config(width=min(20,len(casefiles[0])))
                     self.datadir.set(os.path.split(dir)[0])
@@ -1418,26 +1416,33 @@ class CreateCaseFrame(CreateFrame):
                     # niftidirs option is intended for processing cases from a parent directory. such as BraTS.
                     # imagefiles and dcmdirs intended for processing at the level of the individual case directory.
                     if len(niftidirs):
+                        self.datadir.set(dir)
 
                         # check for BraTS format first
                         brats = re.match('(^.*)0[0-9]{4}',niftidirs[0])
                         if brats:
                             self.casefile_prefix = brats.group(1)
                             casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
+                            self.caselist['casetags'] = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
+                            self.caselist['casedirs'] = files
                             self.w.config(width=6)
+                            # brats data already have this processing
+                            self.register_check_value.set(0)
+                            self.skullstrip_check_value.set(0)
                         else:
                             self.casefile_prefix = ''
                             # for niftidirs that are processed dicomdirs, there may be
                             # multiple empty subdirectories. for now assume that the 
                             # immediate subdir of the datadir is the best tag for the casefile
-                            # 
+                            # the casedir is a sub-directory path between the upper datadir,
+                            # and the parent of the dicom series dirs
                             casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
                             casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
                             # may need a future sort
                             if False:
                                 casefiles,casedirs = (list(t) for t in zip(*sorted(zip(casefiles,casedirs))))
-                            self.caselist['tags'] = casefiles
-                            self.caselist['dirs'] = casedirs
+                            self.caselist['casetags'] = casefiles
+                            self.caselist['casedirs'] = casedirs
                             self.w.config(width=max(20,len(casefiles[0])))
                         self.casetype = 1
                         doload = self.config.AutoLoad
@@ -1445,27 +1450,31 @@ class CreateCaseFrame(CreateFrame):
                     # assumes all nifti dirs or all dicom dirs.
                     # if only a single dicom case directory continue directly to blast
                     elif len(dcmdirs)==1:
+                        # self.datadir.set(dir)
                         self.casefile_prefix = ''
-                        self.datadir.set(os.path.split(dcmdirs)[0])
-                        casefiles = [os.path.split(dcmdirs)[1]]
-                        self.w.config(width=max(20,len(casefiles[0])))
+                        self.casedir = dcmdirs[0]
+                        self.datadir.set(os.path.split(self.casedir)[0])
+                        self.caselist['casetags'] = [os.path.split(self.casedir)[1]]
+                        self.caselist['casedirs'] = [os.path.split(self.casedir)[1]]
+                        self.w.config(width=max(20,len(self.caselist['casetags'][0])))
                         self.casetype = 2
                         doload = self.config.AutoLoad
                     elif len(dcmdirs) > 1:
                     # if multiple dicom dirs, preprocess only
+                        self.datadir.set(dir)
                         self.preprocess(dcmdirs)
                         casefiles = []
                         doload = False
                         return
 
-            if len(casefiles):
+            if len(self.caselist['casetags']):
                 self.config.UIdataroot = self.casefile_prefix
                 # TODO: will need a better sort here
-                self.caselist['tags'] = sorted(casefiles)
-                self.w['values'] = self.caselist['tags']
+                self.caselist['casetags'] = sorted(self.caselist['casetags'])
+                self.w['values'] = self.caselist['casetags']
                 self.w.current(0)
                 # current(0) should do this too, but sometimes it does not
-                self.casename.set(self.caselist['tags'][0])
+                self.casename.set(self.caselist['casetags'][0])
                 # autoload first case
                 if doload:
                     self.case_callback()
@@ -1504,7 +1513,7 @@ class CreateCaseFrame(CreateFrame):
                     niftidirs.append(os.path.join(root))
         if len(niftidirs+dcmdirs):
             self.ui.set_message('')
-            self.datadir.set(dir)
+            # self.datadir.set(dir)
         # due to the intermediate seriesdirs, the above walk generates duplicates
         dcmdirs = list(set(dcmdirs))
         # for nifti dirs, need to set the casefiles for the pulldown at one of the more
@@ -1628,5 +1637,5 @@ class CreateCaseFrame(CreateFrame):
         self.filenames = None
         self.casename = StringVar()
         self.casefile_prefix = None
-        self.caselist['tags'] = []
-        self.caselist['dirs'] = []
+        self.caselist['casetags'] = []
+        self.caselist['casedirs'] = []
