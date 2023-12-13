@@ -1427,7 +1427,7 @@ class CreateCaseFrame(CreateFrame):
                         self.datadir.set(dir)
 
                         # check for BraTS format first
-                        brats = re.match('(^.*)0[0-9]{4}',niftidirs[0])
+                        brats = re.match('(^.*brats.*)0[0-9]{4}',niftidirs[0],flags=re.I)
                         if brats:
                             self.casefile_prefix = brats.group(1)
                             casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
