@@ -928,182 +928,68 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.set_message('Select three image files')
                 return
             t1ce_file,t2_file,flair_file = self.filenames
+            dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},'flair':{'d':None,'ex':False}}
+            dset['t1']['d'],dset['t2']['d'],dset['flair']['d'],affine = self.loadData(t1ce_file,t2_file,flair_file)
             if all(['processed' in f for f in self.filenames]):
                 self.processed = True
-            img_arr_t1,img_arr_t2,img_arr_flair,affine = self.loadData(t1ce_file,t2_file,flair_file)
+            else:
+                dset = self.processNifti(dset)
             self.ui.affine = affine
 
         # check for nifti image files with matching filenames
         # 'processed' refers to earlier output and is loaded preferentially.
         # for now assuming files are either all or none processed
         elif self.casetype <= 1:
+            dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},'flair':{'d':None,'ex':False}}
             files = os.listdir(self.casedir)
             t1_files = [f for f in files if 't1' in f.lower()]
             if len(t1_files) > 0:
                 if len(t1_files) > 1:
                     t1ce_file = next((f for f in t1_files if re.search('(processed)',f.lower())),None)
-                    self.processed = True
                     if t1ce_file is None:
                         t1ce_file = next((f for f in t1_files if re.search('(ce|gad|gd|post)',f.lower())),t1_files[0])
-                        self.processed = False
                 elif len(t1_files) == 1:
                     t1ce_file = t1_files[0]
-                    self.processed = 'processed' in t1ce_file
             flair_files = [f for f in files if 'flair' in f.lower()]
             if len(flair_files) > 0:
                 if len(flair_files) > 1:
                     flair_file = next((f for f in flair_files if re.search('(processed)',f.lower())),None)
-                    self.processed = True
                     if flair_file is None:
                         flair_file = next((f for f in flair_files if re.search('(ce|gad|gd|post)',f.lower())),flair_files[0])
-                        self.processed = False
                 elif len(flair_files) == 1:
                     flair_file = flair_files[0]
-                    self.processed = 'processed' in flair_file
             t2_files = [f for f in files if 't2' in f.lower()]
             if len(t2_files) > 0:
                 if len(t2_files) > 1:
                     t2_file = next((f for f in t2_files if re.search('(processed)',f.lower())),None)
-                    self.processed = True
                     if t2_file is None:
                         t2_file = next((f for f in t2_files if re.search('(ce|gad|gd|post)',f.lower())),t2_files[0])
-                        self.processed = False
                 elif len(t2_files) == 1:
                     t2_file = t2_files[0]
-                    self.processed = 'processed' in t2_file
-            img_arr_t1,img_arr_t2,img_arr_flair,affine = self.loadData(t1ce_file,t2_file,flair_file)
+            dset['t1']['d'],dset['t2']['d'],dset['flair']['d'],affine = self.loadData(t1ce_file,t2_file,flair_file)
+            # assuming processed is all or none
+            if all(['processed' in f for f in [t1ce_file,t2_file,flair_file]]):
+                self.processed = True
+            else:
+                dset = self.processNifti(dset)
             self.ui.affine = affine
 
-        # dicom directories each containing one image series
-        # for now it will assumed not be multi-frame format
+        # dicom directories each containing several image series
+        # for now it will assumed dicom is not multi-frame format
         else:
-            self.processed = False
-            seriesdirs = [d for d in os.listdir(self.casedir) if os.path.isdir(os.path.join(self.casedir,d))]
-            for d in seriesdirs:
-                dpath = os.path.join(self.casedir,d)
-                files = sorted(os.listdir(dpath))
-                metadata = pd.dcmread(os.path.join(dpath,files[0]))
-                print(metadata.SeriesDescription)
-                if 't1' in metadata.SeriesDescription.lower():
-                    if 'pre' in metadata.SeriesDescription.lower():
-                        continue
-                    img_arr_t1 = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                    affine_t1 = self.get_affine(metadata)
-                    img_arr_t1[0,:,:] = metadata.pixel_array
-                    for i,f in enumerate(files[1:]):
-                        data = pd.dcmread(os.path.join(dpath,f))
-                        img_arr_t1[i+1,:,:] = data.pixel_array
-                elif any([f in metadata.SeriesDescription.lower() for f in ['flair','fluid']]):
-                    img_arr_flair = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                    affine_flair = self.get_affine(metadata)
-                    img_arr_flair[0,:,:] = metadata.pixel_array
-                    for i,f in enumerate(files[1:]):
-                        data = pd.dcmread(os.path.join(dpath,f))
-                        img_arr_flair[i+1,:,:] = data.pixel_array
-                elif 't2' in metadata.SeriesDescription.lower():
-                    img_arr_t2 = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                    affine_t2 = self.get_affine(metadata)
-                    img_arr_t2[0,:,:] = metadata.pixel_array
-                    for i,f in enumerate(files[1:]):
-                        data = pd.dcmread(os.path.join(dpath,f))
-                        img_arr_t2[i+1,:,:] = data.pixel_array
-            self.ui.affine = affine_t1
+            dset = self.preprocess([self.casedir])
 
-        # dimensions of canvas panel might have to change depending on dimension of new data loaded.
-        if np.shape(img_arr_t1) != np.shape(img_arr_t2):
-            # self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
-            print('Image matrices do not match. Resampling T2 into T1 space...')
-            img_arr_t2,affine_t2 = self.resamplet2(img_arr_t1,img_arr_t2,affine_t1,affine_t2)
-            img_arr_t2 = np.clip(img_arr_t2,0,None)
-
-        if np.shape(img_arr_t1) != np.shape(img_arr_flair):
-            print('Image matrices do not match. Resampling flair into T1 space...')
-            img_arr_flair,affine_flair = self.resamplet2(img_arr_t1,img_arr_flair,affine_t1,affine_flair)
-            img_arr_flair = np.clip(img_arr_flair,0,None)
-
-        # registration
-        if self.register_check_value.get() and self.processed is False:
-            print('register T2, flair')
-            if True:
-                self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_resampled.nii.gz'),
-                                            type='float',affine=self.ui.affine)
-                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_resampled.nii.gz'),
-                                            type='float',affine=self.ui.affine)
-                self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_resampled.nii.gz'),
-                                            type='float',affine=self.ui.affine)
-                d = nb.load(os.path.join(self.casedir,'img_T1_resampled.nii.gz'))
-                img_arr_t1 = np.transpose(np.array(d.dataobj),axes=(2,1,0))
-                d = nb.load(os.path.join(self.casedir,'img_T2_resampled.nii.gz'))
-                img_arr_t2 = np.transpose(np.array(d.dataobj),axes=(2,1,0))
-                d = nb.load(os.path.join(self.casedir,'img_flair_resampled.nii.gz'))
-                img_arr_flair = np.transpose(np.array(d.dataobj),axes=(2,1,0))
-                os.remove(os.path.join(self.casedir,'img_T1_resampled.nii.gz'))
-                os.remove(os.path.join(self.casedir,'img_T2_resampled.nii.gz'))
-                os.remove(os.path.join(self.casedir,'img_flair_resampled.nii.gz'))
-            fixed_image = itk.GetImageFromArray(img_arr_t1)
-            moving_image = itk.GetImageFromArray(img_arr_t2)
-            moving_image_res = self.elastix_affine(fixed_image,moving_image)
-            img_arr_t2 = itk.GetArrayFromImage(moving_image_res)
-            if False:
-                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_registered.nii.gz'),
-                                        type='float',affine=affine_t1)
-                self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_registered.nii.gz'),
-                                        type='float',affine=affine_t1)
-
-        # skull strip. for now assuming only needed on input dicoms
-        if self.skullstrip_check_value.get() and self.processed is False:
-            img_arr_t1,img_arr_t2,img_arr_flair = self.skullstrip(img_arr_t1,img_arr_t2,img_arr_flair)
-            if False:
-                self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_extracted.nii.gz'),
-                                            type='float',affine=affine_t1)
-                self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_extracted.nii.gz'),
-                                            type='float',affine=affine_t2)
-                self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_extracted.nii.gz'),
-                                            type='float',affine=affine_flair)
-
-
-        # seg normal tissue. not using for now.
-        img_arr_prob_GM = img_arr_prob_WM = None
-        if False:
-            if self.segnormal_check_value.get() and self.processed is False:
-                img_arr_prob_GM,img_arr_prob_WM = self.segnormal(img_arr_t1,affine_t1)
-
-        # bias correction.
-        if self.n4_check_value.get() and self.processed is False:  
-            img_arr_t1,img_arr_t2,img_arr_flair = self.n4(img_arr_t1,img_arr_t2,img_arr_flair)
-
-        # rescale the data
-        if self.processed is False:
-            # if necessary clip any negative values introduced by the processing
-            if np.min(img_arr_t1) < 0:
-                img_arr_t1[img_arr_t1 < 0] = 0
-            if np.min(img_arr_t2) < 0:
-                img_arr_t2[img_arr_t2 < 0] = 0
-            if np.min(img_arr_flair) < 0:
-                img_arr_flair[img_arr_flair < 0] = 0
-            img_arr_t1 = self.rescale(img_arr_t1)
-            img_arr_t2 = self.rescale(img_arr_t2)
-            img_arr_flair = self.rescale(img_arr_flair)
-
-        # save nifti files for future use
-        if self.casetype == 2:
-            self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_processed.nii.gz'),type='float',affine=affine_t1)
-            self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_processed.nii.gz'),type='float',affine=affine_t2)
-            self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_processed.nii.gz'),type='float',affine=affine_flair)
-
-        self.ui.sliceviewerframe.dim = np.shape(img_arr_t1)
+        self.ui.sliceviewerframe.dim = np.shape(dset['t1']['d'])
         self.ui.sliceviewerframe.create_canvas()
 
-        # 2 channels hard-coded
+        # 3 channels hard-coded. not currently loading t1 pre-contrast
         self.ui.data['raw'] = np.zeros((3,)+self.ui.sliceviewerframe.dim,dtype='float32')
-        self.ui.data['raw'][0] = img_arr_t1
-
-        # Create t2flair template. assuming there is only 1 flair image file
-        # t2flair = sitk.ReadImage(os.path.join(self.casedir,t2flair_file))
-        # # img_arr = np.flip(sitk.GetArrayFromImage(t2flair),axis=0)
-        # img_arr = sitk.GetArrayFromImage(t2flair)
-        self.ui.data['raw'][1] = img_arr_flair
-        self.ui.data['raw'][2] = img_arr_t2
+        self.ui.data['raw'][0] = dset['t1']['d']
+        self.ui.data['raw'][1] = dset['flair']['d']
+        # for now it is assumed this data will be present in the rest of the ui code
+        # so this check is just a placeholder
+        if dset['t2']['ex']:
+            self.ui.data['raw'][2] = dset['t2']['d']
 
         if False:
             if img_arr_prob_GM is None:
@@ -1146,7 +1032,54 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.data['manual_TC'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
                 self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
 
+    def loadData(self,t1_file,t2_file,flair_file,type=None):
+        img_arr_t1 = None
+        img_arr_t2 = None
+        img_arr_flair = None
+        if 'nii' in t1_file:
+            try:
+                img_nb_t1 = nb.load(os.path.join(self.casedir,t1_file))
+                img_nb_t2 = nb.load(os.path.join(self.casedir,t2_file))
+                img_nb_flair = nb.load(os.path.join(self.casedir,flair_file))
+            except IOError as e:
+                self.ui.set_message('Can\'t import {} or {}'.format(t1_file,t2_file,flair_file))
+            self.ui.nb_header = img_nb_t1.header.copy()
+            # nibabel convention will be transposed to sitk convention
+            img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
+            img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
+            img_arr_flair = np.transpose(np.array(img_nb_flair.dataobj),axes=(2,1,0))
+            affine = img_nb_t1.affine
+        elif 'dcm' in t1_file: # not finished yet
+            try:
+                img_dcm_t1 = pd.dcmread(os.path.join(self.casedir,t1ce_file))
+                img_dcm_t2 = pd.dcmread(os.path.join(self.casedir,t2flair_file))
+            except IOError as e:
+                self.ui.set_message('Can\'t import {} or {}'.format(t1ce_file,t2flair_file))
+            self.ui.dcm_header = None
+            img_arr_t1 = np.transpose(np.array(img_dcm_t1.dataobj),axes=(2,1,0))
+            img_arr_t2 = np.transpose(np.array(img_dcm_t2.dataobj),axes=(2,1,0))
+            affine = None
+        return img_arr_t1,img_arr_t2,img_arr_flair,affine
+    
 
+    #################
+    # process methods
+    #################
+
+    def processNifti(self,dset):
+        if self.register_check_value:
+            for t in ['t2','flair']:
+                fixed_image = itk.GetImageFromArray(dset['t1']['d'])
+                moving_image = itk.GetImageFromArray(dset[t]['d'])
+                moving_image_reg = self.elastix_affine(fixed_image,moving_image)
+                dset[t]['d'] = itk.GetArrayFromImage(moving_image_reg)
+        if self.skullstrip_check_value:
+            for t in ['t1','t2','flair']:
+                dset[t]['d'] = self.extractbrain(dset[t]['d'])
+        if self.n4_check_value:
+            for t in ['t1','t2','flair']:
+                dset[t]['d'] = self.n4bias(dset[t]['d'])
+        return dset
 
     def multires_registration(self, fixed_image, moving_image):
         initial_transform = sitk.CenteredTransformInitializer(fixed_image, 
@@ -1385,33 +1318,6 @@ class CreateCaseFrame(CreateFrame):
         img_arr_t2 = np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0))
         return img_arr_t2,img_t2_res.affine
 
-    def loadData(self,t1ce_file,t2_file,flair_file,type=None):
-        img_arr_t1 = img_arr_t2 = img_arr_flair = None
-        if 'nii' in t1ce_file:
-            try:
-                img_nb_t1 = nb.load(os.path.join(self.casedir,t1ce_file))
-                img_nb_t2 = nb.load(os.path.join(self.casedir,t2_file))
-                img_nb_flair = nb.load(os.path.join(self.casedir,flair_file))
-            except IOError as e:
-                self.ui.set_message('Can\'t import {} or {}'.format(t1ce_file,t2_file,flair_file))
-            self.ui.nb_header = img_nb_t1.header.copy()
-            # nibabel convention will be transposed to sitk convention
-            img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
-            img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
-            img_arr_flair = np.transpose(np.array(img_nb_flair.dataobj),axes=(2,1,0))
-            affine = img_nb_t1.affine
-        elif 'dcm' in t1ce_file: # not finished yet
-            try:
-                img_dcm_t1 = pd.dcmread(os.path.join(self.casedir,t1ce_file))
-                img_dcm_t2 = pd.dcmread(os.path.join(self.casedir,t2flair_file))
-            except IOError as e:
-                self.ui.set_message('Can\'t import {} or {}'.format(t1ce_file,t2flair_file))
-            self.ui.dcm_header = None
-            img_arr_t1 = np.transpose(np.array(img_dcm_t1.dataobj),axes=(2,1,0))
-            img_arr_t2 = np.transpose(np.array(img_dcm_t2.dataobj),axes=(2,1,0))
-            affine = None
-        return img_arr_t1,img_arr_t2,img_arr_flair,affine
-
 
     # operates on a single image channel 
     def rescale(self,img_arr,vmin=None,vmax=None):
@@ -1447,6 +1353,22 @@ class CreateCaseFrame(CreateFrame):
             corrected_img_arr = sitk.GetArrayFromImage(corrected_img)
             img_arr[ch] = copy.deepcopy(corrected_img_arr)
         return img_arr[0],img_arr[1],img_arr[2]
+
+    def n4bias(self,img_arr,shrinkFactor=4,nFittingLevels=4):
+        print('N4 bias correction')
+        data = copy.deepcopy(img_arr)
+        dataImage = sitk.Cast(sitk.GetImageFromArray(data),sitk.sitkFloat32)
+        sdataImage = sitk.Shrink(dataImage,[shrinkFactor]*dataImage.GetDimension())
+        maskImage = sitk.Cast(sitk.GetImageFromArray(np.where(data,True,False).astype('uint8')),sitk.sitkUInt8)
+        maskImage = sitk.Shrink(maskImage,[shrinkFactor]*maskImage.GetDimension())
+        corrector = sitk.N4BiasFieldCorrectionImageFilter()
+        lowres_img = corrector.Execute(sdataImage,maskImage)
+        log_bias_field = corrector.GetLogBiasFieldAsImage(dataImage)
+        log_bias_field_arr = sitk.GetArrayFromImage(log_bias_field)
+        corrected_img = dataImage / sitk.Exp(log_bias_field)
+        corrected_img_arr = sitk.GetArrayFromImage(corrected_img)
+        img_arr = copy.deepcopy(corrected_img_arr)
+        return img_arr
 
 
     # main callback for selecting a data directory either by file dialog or text entry
@@ -1585,53 +1507,59 @@ class CreateCaseFrame(CreateFrame):
 
         return niftidirs,dcmdirs
     
-    # run multiple dicom directories
+    # load up to four dicom series directories in the provided parent directory
+    def loaddicom(self,d):
+        dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},'flair':{'d':None,'ex':False}}
+        # assume a dicomdir is a parent of several series directories
+        self.casedir = d
+        seriesdirs = os.listdir(d)
+        for sd in seriesdirs:
+            dpath = os.path.join(d,sd)
+            files = sorted(os.listdir(dpath))
+            metadata = pd.dcmread(os.path.join(dpath,files[0]))
+            print(metadata.SeriesDescription)
+            if 't1' in metadata.SeriesDescription.lower():
+                if 'pre' in metadata.SeriesDescription.lower():
+                    dset['t1pre']['ex'] = True
+                    dset['t1pre']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                    # affine_t1pre = self.get_affine(metadata)
+                    dset['t1pre']['d'][0,:,:] = metadata.pixel_array
+                    for i,f in enumerate(files[1:]):
+                        data = pd.dcmread(os.path.join(dpath,f))
+                        dset['t1pre']['d'][i+1,:,:] = data.pixel_array
+                else:
+                    dset['t1']['ex'] = True
+                    dset['t1']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                    affine_t1 = self.get_affine(metadata)
+                    dset['t1']['d'][0,:,:] = metadata.pixel_array
+                    for i,f in enumerate(files[1:]):
+                        data = pd.dcmread(os.path.join(dpath,f))
+                        dset['t1']['d'][i+1,:,:] = data.pixel_array
+            elif any([f in metadata.SeriesDescription.lower() for f in ['flair','fluid']]):
+                dset['flair']['ex'] = True
+                dset['flair']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                affine_flair = self.get_affine(metadata)
+                dset['flair']['d'][0,:,:] = metadata.pixel_array
+                for i,f in enumerate(files[1:]):
+                    data = pd.dcmread(os.path.join(dpath,f))
+                    dset['flair']['d'][i+1,:,:] = data.pixel_array
+            elif 't2' in metadata.SeriesDescription.lower():
+                dset['t2']['ex'] = True
+                dset['t2']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
+                affine_t2 = self.get_affine(metadata)
+                dset['t2']['d'][0,:,:] = metadata.pixel_array
+                for i,f in enumerate(files[1:]):
+                    data = pd.dcmread(os.path.join(dpath,f))
+                    dset['t2']['d'][i+1,:,:] = data.pixel_array
+        self.ui.affine = affine_t1
+        return dset
+    
+    # use for an input dicom directory
+    # preprocessing nifti files is handled by the checkbox settings
     def preprocess(self,dirs):
         for d in dirs:
 
-            dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},'flair':{'d':None,'ex':False}}
-            # assume a dicomdir is a parent of several series directories
-            self.casedir = d
-            seriesdirs = os.listdir(d)
-            for sd in seriesdirs:
-                dpath = os.path.join(d,sd)
-                files = sorted(os.listdir(dpath))
-                metadata = pd.dcmread(os.path.join(dpath,files[0]))
-                print(metadata.SeriesDescription)
-                if 't1' in metadata.SeriesDescription.lower():
-                    if 'pre' in metadata.SeriesDescription.lower():
-                        dset['t1pre']['ex'] = True
-                        dset['t1pre']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                        # affine_t1pre = self.get_affine(metadata)
-                        dset['t1pre']['d'][0,:,:] = metadata.pixel_array
-                        for i,f in enumerate(files[1:]):
-                            data = pd.dcmread(os.path.join(dpath,f))
-                            dset['t1pre']['d'][i+1,:,:] = data.pixel_array
-                    else:
-                        dset['t1']['ex'] = True
-                        dset['t1']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                        affine_t1 = self.get_affine(metadata)
-                        dset['t1']['d'][0,:,:] = metadata.pixel_array
-                        for i,f in enumerate(files[1:]):
-                            data = pd.dcmread(os.path.join(dpath,f))
-                            dset['t1']['d'][i+1,:,:] = data.pixel_array
-                elif any([f in metadata.SeriesDescription.lower() for f in ['flair','fluid']]):
-                    dset['flair']['ex'] = True
-                    dset['flair']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                    affine_flair = self.get_affine(metadata)
-                    dset['flair']['d'][0,:,:] = metadata.pixel_array
-                    for i,f in enumerate(files[1:]):
-                        data = pd.dcmread(os.path.join(dpath,f))
-                        dset['flair']['d'][i+1,:,:] = data.pixel_array
-                elif 't2' in metadata.SeriesDescription.lower():
-                    dset['t2']['ex'] = True
-                    dset['t2']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                    affine_t2 = self.get_affine(metadata)
-                    dset['t2']['d'][0,:,:] = metadata.pixel_array
-                    for i,f in enumerate(files[1:]):
-                        data = pd.dcmread(os.path.join(dpath,f))
-                        dset['t2']['d'][i+1,:,:] = data.pixel_array
-            self.ui.affine = affine_t1
+            dset = self.loaddicom(d)
 
             # dimensions of canvas panel might have to change depending on dimension of new data loaded.
             if np.shape(dset['t1']['d']) != np.shape(dset['t2']['d']):
@@ -1666,7 +1594,7 @@ class CreateCaseFrame(CreateFrame):
             for t in ['t1pre','t2','flair']:
                 fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
                 if dset[t]['ex']:
-                    moving_image = itk.GetImageFromArray(dset[f]['d'])
+                    moving_image = itk.GetImageFromArray(dset[t]['d'])
                     moving_image_res = self.elastix_affine(fixed_image,moving_image)
                     dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
                     if False:
@@ -1684,22 +1612,24 @@ class CreateCaseFrame(CreateFrame):
             # bias correction.
             for t in ['t1pre','t1','t2','flair']:
                 if dset[t]['ex']:   
-                    dset[t]['d'] = self.n4(dset[t]['d'])
+                    dset[t]['d'] = self.n4bias(dset[t]['d'])
 
             # rescale the data
-            if self.processed is False:
-                # if necessary clip any negative values introduced by the processing
-                for t in ['t1pre','t1','t2','flair']:
-                    if dset[t]['ex']:
-                        if np.min(dset[t]['d']) < 0:
-                            dset[t]['d'][dset[t]['d'] < 0] = 0
-                        dset[t]['d'] = self.rescale(dset[t]['d'])
+            # if necessary clip any negative values introduced by the processing
+            for t in ['t1pre','t1','t2','flair']:
+                if dset[t]['ex']:
+                    if np.min(dset[t]['d']) < 0:
+                        dset[t]['d'][dset[t]['d'] < 0] = 0
+                    dset[t]['d'] = self.rescale(dset[t]['d'])
 
             # save nifti files for future use
             for t in ['t1pre','t1','t2','flair']:
                 if dset[t]['ex']:
                     self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_processed.nii.gz'),type='float',affine=affine_t1)
 
+        if len(dirs) == 1:
+            return dset
+        return
 
     def resetCase(self):
         self.filenames = None
