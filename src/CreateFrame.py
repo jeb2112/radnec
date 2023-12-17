@@ -934,7 +934,7 @@ class CreateCaseFrame(CreateFrame):
                 self.processed = True
             else:
                 dset = self.processNifti(dset)
-            self.ui.affine = affine
+            self.ui.affine['t1'] = affine
 
         # check for nifti image files with matching filenames
         # 'processed' refers to earlier output and is loaded preferentially.
@@ -972,12 +972,17 @@ class CreateCaseFrame(CreateFrame):
                 self.processed = True
             else:
                 dset = self.processNifti(dset)
-            self.ui.affine = affine
+            self.ui.affine['t1'] = affine
 
         # dicom directories each containing several image series
         # for now it will assumed dicom is not multi-frame format
         else:
             dset = self.preprocess([self.casedir])
+
+        # convenience for presence of dataset
+        for t in ['t1','t2','flair']:
+            if dset[t]['d'] is not None:
+                dset[t]['ex'] = True
 
         self.ui.sliceviewerframe.dim = np.shape(dset['t1']['d'])
         self.ui.sliceviewerframe.create_canvas()
@@ -1013,11 +1018,14 @@ class CreateCaseFrame(CreateFrame):
             self.ui.sliceviewerframe.normalslice_callback()
 
         # create the label. 'seg' picks up the BraTS convention but may need to be more specific
-        seg_file = next((f for f in files if 'seg' in f),None)
-        if seg_file is not None and 'blast' not in seg_file:
-            label = sitk.ReadImage(os.path.join(self.casedir,seg_file))
-            img_arr = sitk.GetArrayFromImage(label)
-            self.ui.data['label'] = img_arr
+        if self.casetype <= 1:
+            seg_file = next((f for f in files if 'seg' in f),None)
+            if seg_file is not None and 'blast' not in seg_file:
+                label = sitk.ReadImage(os.path.join(self.casedir,seg_file))
+                img_arr = sitk.GetArrayFromImage(label)
+                self.ui.data['label'] = img_arr
+            else:
+                self.ui.data['label'] = None
         else:
             self.ui.data['label'] = None
 
@@ -1420,10 +1428,20 @@ class CreateCaseFrame(CreateFrame):
                             # for niftidirs that are processed dicomdirs, there may be
                             # multiple empty subdirectories. for now assume that the 
                             # immediate subdir of the datadir is the best tag for the casefile
+                            # if there are multiple niftidirs, and the selected datadir itself is the
+                            # tag for a single nifti file
                             # the casedir is a sub-directory path between the upper datadir,
-                            # and the parent of the dicom series dirs
-                            casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
-                            casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
+                            # and the parent of the dicom series dirs where the nifti's get stored
+                            if len(niftidirs) > 1:
+                                casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
+                                casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
+                                doload = self.config.AutoLoad
+                            elif len(niftidirs) == 1:
+                                self.casedir = niftidirs[0]
+                                self.datadir.set(os.path.split(dir)[0])
+                                casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
+                                casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
+                                doload = True
                             # may need a future sort
                             if False:
                                 casefiles,casedirs = (list(t) for t in zip(*sorted(zip(casefiles,casedirs))))
@@ -1431,7 +1449,6 @@ class CreateCaseFrame(CreateFrame):
                             self.caselist['casedirs'] = casedirs
                             self.w.config(width=max(20,len(casefiles[0])))
                         self.casetype = 1
-                        doload = self.config.AutoLoad
 
                     # assumes all nifti dirs or all dicom dirs.
                     # if only a single dicom case directory continue directly to blast
@@ -1439,12 +1456,13 @@ class CreateCaseFrame(CreateFrame):
                         # self.datadir.set(dir)
                         self.casefile_prefix = ''
                         self.casedir = dcmdirs[0]
-                        self.datadir.set(os.path.split(self.casedir)[0])
-                        self.caselist['casetags'] = [os.path.split(self.casedir)[1]]
-                        self.caselist['casedirs'] = [os.path.split(self.casedir)[1]]
+                        self.datadir.set(os.path.split(dir)[0])
+                        self.caselist['casetags'] = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in dcmdirs]
+                        # self.caselist['casetags'] = [os.path.split(self.casedir)[1]]
+                        self.caselist['casedirs'] = [d[len(self.datadir.get())+1:] for d in dcmdirs]
                         self.w.config(width=max(20,len(self.caselist['casetags'][0])))
                         self.casetype = 2
-                        doload = self.config.AutoLoad
+                        doload = True
                     elif len(dcmdirs) > 1:
                     # if multiple dicom dirs, preprocess only
                         self.datadir.set(dir)
@@ -1522,7 +1540,7 @@ class CreateCaseFrame(CreateFrame):
                 if 'pre' in metadata.SeriesDescription.lower():
                     dset['t1pre']['ex'] = True
                     dset['t1pre']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                    # affine_t1pre = self.get_affine(metadata)
+                    self.ui.affine['t1pre'] = self.get_affine(metadata)
                     dset['t1pre']['d'][0,:,:] = metadata.pixel_array
                     for i,f in enumerate(files[1:]):
                         data = pd.dcmread(os.path.join(dpath,f))
@@ -1530,7 +1548,7 @@ class CreateCaseFrame(CreateFrame):
                 else:
                     dset['t1']['ex'] = True
                     dset['t1']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                    affine_t1 = self.get_affine(metadata)
+                    self.ui.affine['t1'] = self.get_affine(metadata)
                     dset['t1']['d'][0,:,:] = metadata.pixel_array
                     for i,f in enumerate(files[1:]):
                         data = pd.dcmread(os.path.join(dpath,f))
@@ -1538,7 +1556,7 @@ class CreateCaseFrame(CreateFrame):
             elif any([f in metadata.SeriesDescription.lower() for f in ['flair','fluid']]):
                 dset['flair']['ex'] = True
                 dset['flair']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                affine_flair = self.get_affine(metadata)
+                self.ui.affine['flair'] = self.get_affine(metadata)
                 dset['flair']['d'][0,:,:] = metadata.pixel_array
                 for i,f in enumerate(files[1:]):
                     data = pd.dcmread(os.path.join(dpath,f))
@@ -1546,12 +1564,10 @@ class CreateCaseFrame(CreateFrame):
             elif 't2' in metadata.SeriesDescription.lower():
                 dset['t2']['ex'] = True
                 dset['t2']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                affine_t2 = self.get_affine(metadata)
-                dset['t2']['d'][0,:,:] = metadata.pixel_array
+                self.ui.affine['t2'] = self.get_affine(metadata)
                 for i,f in enumerate(files[1:]):
                     data = pd.dcmread(os.path.join(dpath,f))
                     dset['t2']['d'][i+1,:,:] = data.pixel_array
-        self.ui.affine = affine_t1
         return dset
     
     # use for an input dicom directory
@@ -1565,19 +1581,19 @@ class CreateCaseFrame(CreateFrame):
             if np.shape(dset['t1']['d']) != np.shape(dset['t2']['d']):
                 # self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
                 print('Image matrices do not match. Resampling T2 into T1 space...')
-                dset['t2']['d'],affine_t2 = self.resamplet2(dset['t1']['d'],dset['t2']['d'],affine_t1,affine_t2)
+                dset['t2']['d'],self.ui.affine['t2'] = self.resamplet2(dset['t1']['d'],dset['t2']['d'],self.ui.affine['t1'],self.ui.affine['t2'])
                 dset['t2']['d']= np.clip(dset['t2']['d'],0,None)
 
             if np.shape(dset['t1']['d']) != np.shape(dset['flair']['d']):
                 print('Image matrices do not match. Resampling flair into T1 space...')
-                dset['flair']['d'],affine_flair = self.resamplet2(dset['t1']['d'],dset['flair']['d'],affine_t1,affine_flair)
+                dset['flair']['d'],self.ui.affine['flair'] = self.resamplet2(dset['t1']['d'],dset['flair']['d'],self.ui.affine['t1'],self.ui.affine['flair'])
                 dset['flair']['d'] = np.clip(dset['flair']['d'],0,None)
 
                 if True:
                     for t in ['t1pre','t1','t2','flair']:
                         if dset[t]['ex']:
                             self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
-                                                type='float',affine=affine_t1)
+                                                type='float',affine=self.ui.affine['t1'])
 
             # registration
             print('register T2, flair')
@@ -1599,7 +1615,7 @@ class CreateCaseFrame(CreateFrame):
                     dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
                     if False:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
-                                                type='float',affine=affine_t1)
+                                                type='float',affine=self.ui.affine['t1'])
 
             # skull strip. for now assuming only needed on input dicoms
             for t in ['t1pre','t1','t2','flair']:
@@ -1607,7 +1623,7 @@ class CreateCaseFrame(CreateFrame):
                     dset[t]['d'] = self.extractbrain(dset[t]['d'])
                     if False:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_extracted.nii.gz'),
-                                                    type='float',affine=affine_t1)
+                                                    type='float',affine=self.ui.affine['t1'])
 
             # bias correction.
             for t in ['t1pre','t1','t2','flair']:
@@ -1625,7 +1641,8 @@ class CreateCaseFrame(CreateFrame):
             # save nifti files for future use
             for t in ['t1pre','t1','t2','flair']:
                 if dset[t]['ex']:
-                    self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_processed.nii.gz'),type='float',affine=affine_t1)
+                    self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_processed.nii.gz'),
+                                                type='float',affine=self.ui.affine['t1'])
 
         if len(dirs) == 1:
             return dset

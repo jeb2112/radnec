@@ -826,12 +826,12 @@ class CreateROIFrame(CreateFrame):
                     roisuffix = '_roi'+roi
                 outputfilename = fileroot + '_blast_' + img + roisuffix + '.nii'
                 if self.ui.roi[int(roi)].data[img] is not None:
-                    self.WriteImage(self.ui.roi[int(roi)].data[img],outputfilename,affine=self.ui.affine)
+                    self.WriteImage(self.ui.roi[int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
         # manual outputs. for now these have only one roi
         if self.ui.data['label'] is not None:
             for img in ['manual_ET','manual_TC','manual_WT']:
                 outputfilename = fileroot + '_' + img + '.nii'
-                self.WriteImage(self.ui.data[img],outputfilename,affine=self.ui.affine)
+                self.WriteImage(self.ui.data[img],outputfilename,affine=self.ui.affine['t1'])
 
         sdict = {}
         bdict = {}
