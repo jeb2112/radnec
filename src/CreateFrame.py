@@ -1160,18 +1160,28 @@ class CreateCaseFrame(CreateFrame):
         return image_reg
 
     # create nb affine from dicom 
-    def get_affine(self,metadata):
-        dircos = np.array(list(map(float,metadata.ImageOrientationPatient)))
+    def get_affine(self,dicomdata,dslice):
+        dircos = np.array(list(map(float,dicomdata.ImageOrientationPatient)))
         affine = np.zeros((4,4))
-        affine[:3,0] = dircos[0:3]*float(metadata.PixelSpacing[0])
-        affine[:3,1] = dircos[3:]*float(metadata.PixelSpacing[1])
+        affine[:3,0] = dircos[0:3]*float(dicomdata.PixelSpacing[0])
+        affine[:3,1] = dircos[3:]*float(dicomdata.PixelSpacing[1])
         d3 = np.cross(dircos[:3],dircos[3:])
-        slthick = float(metadata.SliceThickness)
-        # if hasattr(metadata,'SpacingBetweenSlices'):
-        #     # a philips tag
-        #     slthick += float(metadata.SpacingBetweenSlices)
+        # not entirely sure if these three tags all work the same across the 3 vendors
+        if dicomdata[(0x0018,0x0023)].value == '3D':
+            if hasattr(dicomdata,'SpacingBetweenSlices'):
+                slthick = float(dicomdata.SpacingBetweenSlices)
+            elif hasattr(dicomdata,'SliceThickness'):
+                slthick = float(dicomdata.SliceThickness)
+            else:
+                raise ValueError('Slice thickness not parsed')
+        else:
+            if hasattr(dicomdata,'SliceThickness'):
+                slthick = float(dicomdata.SliceThickness)
+            else:
+                raise ValueError('Slice thickness not parsed')
+
         affine[:3,2] = d3*slthick
-        affine[:3,3] = metadata.ImagePositionPatient
+        affine[:3,3] = dicomdata.ImagePositionPatient
         affine[3,3] = 1
         # print(affine)
         return affine
@@ -1275,14 +1285,6 @@ class CreateCaseFrame(CreateFrame):
         img_arr_t2 = np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0))
         return img_arr_t2,img_t2_res.affine
     
-    # for RT images, they may have been zero-padded to 512 matrix before exporting to dicom
-    # for now there will be no filtering as they are indicated to be zero-padded in the first place
-    # simple factor of 2 for now to get started with
-    def downsample(self,img_arr,affine):
-        img_arr = img_arr[::2,::2,::2]
-        affine[:3,:3] *= 2
-        return img_arr,affine
-
     # operates on a single image channel 
     def rescale(self,img_arr,vmin=None,vmax=None):
         scaled_arr =  np.zeros(np.shape(img_arr))
@@ -1490,37 +1492,50 @@ class CreateCaseFrame(CreateFrame):
         for sd in seriesdirs:
             dpath = os.path.join(d,sd)
             files = sorted(os.listdir(dpath))
-            metadata = pd.dcmread(os.path.join(dpath,files[0]))
-            print(metadata.SeriesDescription)
-            if 't1' in metadata.SeriesDescription.lower():
-                if 'pre' in metadata.SeriesDescription.lower():
+            ds0 = pd.dcmread(os.path.join(dpath,files[0]))
+            slice0 = ds0[(0x0020,0x0032)].value[2]
+            ds = pd.dcmread(os.path.join(dpath,files[-1]))
+            dslice = ds[(0x0020,0x0032)].value[2] - slice0
+            if dslice < 0:
+                files = sorted(files,reverse=True)
+            print(ds0.SeriesDescription)
+            if 't1' in ds0.SeriesDescription.lower():
+                if 'pre' in ds0.SeriesDescription.lower():
                     dset['t1pre']['ex'] = True
-                    dset['t1pre']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                    self.ui.affine['t1pre'] = self.get_affine(metadata)
-                    dset['t1pre']['d'][0,:,:] = metadata.pixel_array
+                    dset['t1pre']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                    self.ui.affine['t1pre'] = self.get_affine(ds0,dslice)
+                    dset['t1pre']['d'][0,:,:] = ds0.pixel_array
                     for i,f in enumerate(files[1:]):
                         data = pd.dcmread(os.path.join(dpath,f))
                         dset['t1pre']['d'][i+1,:,:] = data.pixel_array
                 else:
                     dset['t1']['ex'] = True
-                    dset['t1']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                    self.ui.affine['t1'] = self.get_affine(metadata)
-                    dset['t1']['d'][0,:,:] = metadata.pixel_array
+                    dset['t1']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                    self.ui.affine['t1'] = self.get_affine(ds0,dslice)
+                    dset['t1']['d'][0,:,:] = ds0.pixel_array
+                    # also create isotropic target affine for resampling based on the t1 affine
+                    nslice = int( ds0[(0x2001,0x1018)].value * float(ds0[(0x0018,0x0088)].value) )
+                    nx = int( float(ds0[(0x0028,0x0030)].value[0]) * ds0[(0x0028,0x0010)].value )
+                    ny = int( float(ds0[(0x0028,0x0030)].value[1]) * ds0[(0x0028,0x0011)].value )
+                    affine =  np.diag(np.ones(4),k=0)
+                    affine[:3,3] = self.ui.affine['t1'][:3,3]
+                    self.ui.affine['target'] = affine
+                    dset['target'] = np.zeros((nslice,ny,nx))
                     for i,f in enumerate(files[1:]):
                         data = pd.dcmread(os.path.join(dpath,f))
                         dset['t1']['d'][i+1,:,:] = data.pixel_array
-            elif any([f in metadata.SeriesDescription.lower() for f in ['flair','fluid']]):
+            elif any([f in ds0.SeriesDescription.lower() for f in ['flair','fluid']]):
                 dset['flair']['ex'] = True
-                dset['flair']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                self.ui.affine['flair'] = self.get_affine(metadata)
-                dset['flair']['d'][0,:,:] = metadata.pixel_array
+                dset['flair']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                self.ui.affine['flair'] = self.get_affine(ds0,dslice)
+                dset['flair']['d'][0,:,:] = ds0.pixel_array
                 for i,f in enumerate(files[1:]):
                     data = pd.dcmread(os.path.join(dpath,f))
                     dset['flair']['d'][i+1,:,:] = data.pixel_array
-            elif 't2' in metadata.SeriesDescription.lower():
+            elif 't2' in ds0.SeriesDescription.lower():
                 dset['t2']['ex'] = True
-                dset['t2']['d'] = np.zeros((len(files),metadata.Rows,metadata.Columns))
-                self.ui.affine['t2'] = self.get_affine(metadata)
+                dset['t2']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                self.ui.affine['t2'] = self.get_affine(ds0,dslice)
                 for i,f in enumerate(files[1:]):
                     data = pd.dcmread(os.path.join(dpath,f))
                     dset['t2']['d'][i+1,:,:] = data.pixel_array
@@ -1533,29 +1548,26 @@ class CreateCaseFrame(CreateFrame):
 
             dset = self.loaddicom(d)
 
-            # downsample any matrix over 300
-            if np.shape(dset['t1']['d'])[1] > 300:
-                dset['t1']['d'],self.ui.affine['t1'] = self.downsample(dset['t1']['d'],self.ui.affine['t1'])
+            # resample to target isotropic matrix
+            for t in ['t1pre','t2']:
+                if dset[t]['ex']:
+                    print('Resampling ' + t + ' into target space...')
+                    dset[t]['d'],self.ui.affine[t] = self.resamplet2(dset['target'],dset['t2']['d'],
+                                                                     self.ui.affine['target'],self.ui.affine['t2'])
+                    dset[t]['d']= np.clip(dset[t]['d'],0,None)
 
-            # match T2,flair to T1 matrix
-            if dset['t2']['ex']:
-                if np.shape(dset['t1']['d']) != np.shape(dset['t2']['d']):
-                    # self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
-                    print('Image matrices do not match. Resampling T2 into T1 space...')
-                    dset['t2']['d'],self.ui.affine['t2'] = self.resamplet2(dset['t1']['d'],dset['t2']['d'],self.ui.affine['t1'],self.ui.affine['t2'])
-                    dset['t2']['d']= np.clip(dset['t2']['d'],0,None)
+            # assuming t1,flair always present in any possible dataset
+            for t in ['t1','flair']:
+                print('Resampling ' + t + ' into target space...')
+                dset[t]['d'],self.ui.affine[t] = self.resamplet2(dset['target'],dset['flair']['d'],
+                                                                 self.ui.affine['target'],self.ui.affine['flair'])
+                dset[t]['d'] = np.clip(dset[t]['d'],0,None)
 
-            # assuming flair is always present in any possible dataset
-            if np.shape(dset['t1']['d']) != np.shape(dset['flair']['d']):
-                print('Image matrices do not match. Resampling flair into T1 space...')
-                dset['flair']['d'],self.ui.affine['flair'] = self.resamplet2(dset['t1']['d'],dset['flair']['d'],self.ui.affine['t1'],self.ui.affine['flair'])
-                dset['flair']['d'] = np.clip(dset['flair']['d'],0,None)
-
-                if True:
-                    for t in ['t1pre','t1','t2','flair']:
-                        if dset[t]['ex']:
-                            self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
-                                                type='float',affine=self.ui.affine['t1'])
+            if True:
+                for t in ['t1pre','t1','t2','flair']:
+                    if dset[t]['ex']:
+                        self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
+                                            type='float',affine=self.ui.affine['t1'])
 
             # registration
             print('register T2, flair')
@@ -1565,7 +1577,8 @@ class CreateCaseFrame(CreateFrame):
                         fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
                         img = nb.load(fname)
                         dset[t]['d'] = np.transpose(np.array(img.dataobj),axes=(2,1,0))
-                        os.remove(fname)
+                        if False:
+                            os.remove(fname)
 
             # reference
             fixed_image = itk.GetImageFromArray(dset['t1']['d'])
@@ -1576,7 +1589,7 @@ class CreateCaseFrame(CreateFrame):
                     moving_image = itk.GetImageFromArray(dset[t]['d'])
                     moving_image_res = self.elastix_affine(fixed_image,moving_image)
                     dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
-                    if False:
+                    if True:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
                                                 type='float',affine=self.ui.affine['t1'])
 
@@ -1584,7 +1597,7 @@ class CreateCaseFrame(CreateFrame):
             for t in ['t1pre','t1','t2','flair']:
                 if dset[t]['ex']:
                     dset[t]['d'] = self.extractbrain(dset[t]['d'])
-                    if False:
+                    if True:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_extracted.nii.gz'),
                                                     type='float',affine=self.ui.affine['t1'])
 
