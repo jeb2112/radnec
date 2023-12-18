@@ -942,6 +942,7 @@ class CreateCaseFrame(CreateFrame):
         elif self.casetype <= 1:
             dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},'flair':{'d':None,'ex':False}}
             files = os.listdir(self.casedir)
+            # files = self.get_imagefiles(files)
             t1_files = [f for f in files if 't1' in f.lower()]
             if len(t1_files) > 0:
                 if len(t1_files) > 1:
@@ -966,11 +967,16 @@ class CreateCaseFrame(CreateFrame):
                         t2_file = next((f for f in t2_files if re.search('(ce|gad|gd|post)',f.lower())),t2_files[0])
                 elif len(t2_files) == 1:
                     t2_file = t2_files[0]
+            else:
+                t2_file = None
             dset['t1']['d'],dset['t2']['d'],dset['flair']['d'],affine = self.loadData(t1ce_file,t2_file,flair_file)
             # assuming processed is all or none
-            if all(['processed' in f for f in [t1ce_file,t2_file,flair_file]]):
-                self.processed = True
-            else:
+            self.processed = True
+            for f in [t1ce_file,t2_file,flair_file]:
+                if f is not None:
+                    if 'processed' not in f:
+                        self.processed = False
+            if self.processed is False:
                 dset = self.processNifti(dset)
             self.ui.affine['t1'] = affine
 
@@ -979,7 +985,7 @@ class CreateCaseFrame(CreateFrame):
         else:
             dset = self.preprocess([self.casedir])
 
-        # convenience for presence of dataset
+        # convenience test for presence of dataset
         for t in ['t1','t2','flair']:
             if dset[t]['d'] is not None:
                 dset[t]['ex'] = True
@@ -991,10 +997,12 @@ class CreateCaseFrame(CreateFrame):
         self.ui.data['raw'] = np.zeros((3,)+self.ui.sliceviewerframe.dim,dtype='float32')
         self.ui.data['raw'][0] = dset['t1']['d']
         self.ui.data['raw'][1] = dset['flair']['d']
-        # for now it is assumed this data will be present in the rest of the ui code
-        # so this check is just a placeholder
+        # if a t2 image is not available, fall back to using the t1 post image.
         if dset['t2']['ex']:
             self.ui.data['raw'][2] = dset['t2']['d']
+        else:
+            self.ui.data['raw'][2] = dset['t1']['d']
+
 
         if False:
             if img_arr_prob_GM is None:
@@ -1047,16 +1055,23 @@ class CreateCaseFrame(CreateFrame):
         if 'nii' in t1_file:
             try:
                 img_nb_t1 = nb.load(os.path.join(self.casedir,t1_file))
-                img_nb_t2 = nb.load(os.path.join(self.casedir,t2_file))
                 img_nb_flair = nb.load(os.path.join(self.casedir,flair_file))
             except IOError as e:
-                self.ui.set_message('Can\'t import {} or {}'.format(t1_file,t2_file,flair_file))
+                self.ui.set_message('Can\'t import {} or {}'.format(t1_file,flair_file))
             self.ui.nb_header = img_nb_t1.header.copy()
             # nibabel convention will be transposed to sitk convention
             img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
-            img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
             img_arr_flair = np.transpose(np.array(img_nb_flair.dataobj),axes=(2,1,0))
             affine = img_nb_t1.affine
+            if t2_file is not None:
+                try:
+                    img_nb_t2 = nb.load(os.path.join(self.casedir,t2_file))
+                except IOError as e:
+                    self.ui.set_message('Can\'t import {} or {}'.format(t2_file))
+                img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
+            else:
+                img_arr_t2 = None
+
         elif 'dcm' in t1_file: # not finished yet
             try:
                 img_dcm_t1 = pd.dcmread(os.path.join(self.casedir,t1ce_file))
@@ -1160,75 +1175,9 @@ class CreateCaseFrame(CreateFrame):
         affine[3,3] = 1
         # print(affine)
         return affine
-
-    def skullstrip(self,img_arr_t1,img_arr_t2,img_arr_flair):
-        print('brain extract')
-        img_arr_t1 = self.brainmage_clip(img_arr_t1)
-        img_arr_t2 = self.brainmage_clip(img_arr_t2)
-        img_arr_flair = self.brainmage_clip(img_arr_flair)
-        self.ui.roiframe.WriteImage(img_arr_t1,os.path.join(self.casedir,'img_T1_temp.nii'),norm=False,type='float')
-        self.ui.roiframe.WriteImage(img_arr_t2,os.path.join(self.casedir,'img_T2_temp.nii'),norm=False,type='float')
-        self.ui.roiframe.WriteImage(img_arr_flair,os.path.join(self.casedir,'img_flair_temp.nii'),norm=False,type='float')
-        for t in ['T1','T2','flair']:
-
-            tfile = 'img_' + t + '_temp.nii'
-            ofile = 'img_' + t + '_brain.nii'
-            if self.ui.OS == 'linux':
-                command = 'conda run -n brainmage brain_mage_single_run '
-                command += ' -i ' + os.path.join(self.casedir,tfile)
-                command += ' -o ' + os.path.join('/tmp/foo')
-                command += ' -m ' + os.path.join(self.casedir,ofile) + ' -dev 0'
-                res = os.system(command)
-
-            elif self.ui.OS == 'win32':
-                # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
-                # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
-                # it is currently hard-coded to anaconda3/envs location rather than .conda/envs, but anaconda3 could be installed
-                # under either ProgramFiles or Users so check both
-                if os.path.isfile(os.path.expanduser('~')+'\\anaconda3\Scripts\\activate.bat'):
-                    activatebatch = os.path.expanduser('~')+"\\anaconda3\Scripts\\activate.bat"
-                elif os.path.isfile("C:\Program Files\\anaconda3\Scripts\\activate.bat"):
-                    activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
-                else:
-                    raise FileNotFoundError('anaconda3/Scripts/activate.bat')
-                                    
-                command1 = '\"'+activatebatch+'\" \"' + os.path.expanduser('~')+'\\anaconda3\envs\\brainmage\"'
-                command2 = 'python \"' + os.path.join(os.path.expanduser('~'),'anaconda3','envs','brainmage','Scripts','brain_mage_single_run')
-                command2 += '\" -i   \"' + os.path.join(self.casedir,tfile)
-                command2 += '\"  -o  \"' + os.path.join(os.path.expanduser('~'),'AppData','Local','Temp','foo')
-                command2 += '\"   -m   \"' + os.path.join(self.casedir,ofile) + '\"'
-                cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
-                if False:   
-                    info = subprocess.STARTUPINFO()
-                    info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                    info.wShowWindow = subprocess.SW_HIDE
-                    res = subprocess.run(cstr,shell=True,startupinfo=info,creationflags=subprocess.CREATE_NO_WINDOW)
-                    # res = subprocess.run(cstr,shell=True)
-                else:
-                    popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
-                    for stdout_line in iter(popen.stdout.readline,""):
-                        if stdout_line != '\n':
-                            print(stdout_line)
-                    popen.stdout.close()
-                    res = popen.wait()
-                    if res:
-                        raise subprocess.CalledProcessError(res,cstr)
-                        print(res)
-            # print(res)
-
-        img_nb_t1 = nb.load(os.path.join(self.casedir,'img_T1_brain.nii'))
-        img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
-        img_nb_t2 = nb.load(os.path.join(self.casedir,'img_T2_brain.nii'))
-        img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
-        img_nb_flair = nb.load(os.path.join(self.casedir,'img_flair_brain.nii'))
-        img_arr_flair = np.transpose(np.array(img_nb_flair.dataobj),axes=(2,1,0))
-        for t in ['T1','T2','flair']:
-            os.remove(os.path.join(self.casedir,'img_' + t + '_brain.nii'))
-            os.remove(os.path.join(self.casedir,'img_' + t + '_temp.nii'))
-        return img_arr_t1,img_arr_t2,img_arr_flair
     
     def extractbrain(self,img_arr):
-        print('brain extract')
+        print('extract brain')
         img_arr = self.brainmage_clip(img_arr)
         self.ui.roiframe.WriteImage(img_arr,os.path.join(self.casedir,'img_temp.nii'),norm=False,type='float')
 
@@ -1325,7 +1274,14 @@ class CreateCaseFrame(CreateFrame):
         img_t2_res = resample_from_to(img_t2,(img_t1.shape[:3],img_t1.affine))
         img_arr_t2 = np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0))
         return img_arr_t2,img_t2_res.affine
-
+    
+    # for RT images, they may have been zero-padded to 512 matrix before exporting to dicom
+    # for now there will be no filtering as they are indicated to be zero-padded in the first place
+    # simple factor of 2 for now to get started with
+    def downsample(self,img_arr,affine):
+        img_arr = img_arr[::2,::2,::2]
+        affine[:3,:3] *= 2
+        return img_arr,affine
 
     # operates on a single image channel 
     def rescale(self,img_arr,vmin=None,vmax=None):
@@ -1577,13 +1533,19 @@ class CreateCaseFrame(CreateFrame):
 
             dset = self.loaddicom(d)
 
-            # dimensions of canvas panel might have to change depending on dimension of new data loaded.
-            if np.shape(dset['t1']['d']) != np.shape(dset['t2']['d']):
-                # self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
-                print('Image matrices do not match. Resampling T2 into T1 space...')
-                dset['t2']['d'],self.ui.affine['t2'] = self.resamplet2(dset['t1']['d'],dset['t2']['d'],self.ui.affine['t1'],self.ui.affine['t2'])
-                dset['t2']['d']= np.clip(dset['t2']['d'],0,None)
+            # downsample any matrix over 300
+            if np.shape(dset['t1']['d'])[1] > 300:
+                dset['t1']['d'],self.ui.affine['t1'] = self.downsample(dset['t1']['d'],self.ui.affine['t1'])
 
+            # match T2,flair to T1 matrix
+            if dset['t2']['ex']:
+                if np.shape(dset['t1']['d']) != np.shape(dset['t2']['d']):
+                    # self.ui.set_message('Image matrices do not match. Resampling T2flair into T1 space...')
+                    print('Image matrices do not match. Resampling T2 into T1 space...')
+                    dset['t2']['d'],self.ui.affine['t2'] = self.resamplet2(dset['t1']['d'],dset['t2']['d'],self.ui.affine['t1'],self.ui.affine['t2'])
+                    dset['t2']['d']= np.clip(dset['t2']['d'],0,None)
+
+            # assuming flair is always present in any possible dataset
             if np.shape(dset['t1']['d']) != np.shape(dset['flair']['d']):
                 print('Image matrices do not match. Resampling flair into T1 space...')
                 dset['flair']['d'],self.ui.affine['flair'] = self.resamplet2(dset['t1']['d'],dset['flair']['d'],self.ui.affine['t1'],self.ui.affine['flair'])
@@ -1599,10 +1561,11 @@ class CreateCaseFrame(CreateFrame):
             print('register T2, flair')
             if True:
                 for t in ['t1pre','t1','t2','flair']:
-                    fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
-                    img = nb.load(fname)
-                    dset[t]['d'] = np.transpose(np.array(img.dataobj),axes=(2,1,0))
-                    os.remove(fname)
+                    if dset[t]['ex']:
+                        fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
+                        img = nb.load(fname)
+                        dset[t]['d'] = np.transpose(np.array(img.dataobj),axes=(2,1,0))
+                        os.remove(fname)
 
             # reference
             fixed_image = itk.GetImageFromArray(dset['t1']['d'])
