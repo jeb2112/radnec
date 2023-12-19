@@ -838,7 +838,7 @@ class CreateROIFrame(CreateFrame):
         msdict = {} 
         for i,r in enumerate(self.ui.roi[1:]): # skip dummy 
             sdict['roi'+str(i)] = r.stats
-            bdict['roi'+str(i)] = r.data
+            bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT','blast','raw'))
             msdict['roi'+str(i)] = {}
             mdict = msdict['roi'+str(i)]
             mdict['greengate_count'] = r.data['blast']['params']['ET']['flair']

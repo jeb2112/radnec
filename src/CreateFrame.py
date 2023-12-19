@@ -1552,15 +1552,15 @@ class CreateCaseFrame(CreateFrame):
             for t in ['t1pre','t2']:
                 if dset[t]['ex']:
                     print('Resampling ' + t + ' into target space...')
-                    dset[t]['d'],self.ui.affine[t] = self.resamplet2(dset['target'],dset['t2']['d'],
-                                                                     self.ui.affine['target'],self.ui.affine['t2'])
+                    dset[t]['d'],self.ui.affine[t] = self.resamplet2(dset['target'],dset[t]['d'],
+                                                                     self.ui.affine['target'],self.ui.affine[t])
                     dset[t]['d']= np.clip(dset[t]['d'],0,None)
 
             # assuming t1,flair always present in any possible dataset
             for t in ['t1','flair']:
                 print('Resampling ' + t + ' into target space...')
-                dset[t]['d'],self.ui.affine[t] = self.resamplet2(dset['target'],dset['flair']['d'],
-                                                                 self.ui.affine['target'],self.ui.affine['flair'])
+                dset[t]['d'],self.ui.affine[t] = self.resamplet2(dset['target'],dset[t]['d'],
+                                                                 self.ui.affine['target'],self.ui.affine[t])
                 dset[t]['d'] = np.clip(dset[t]['d'],0,None)
 
             if True:
