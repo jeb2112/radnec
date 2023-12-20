@@ -1098,7 +1098,7 @@ class CreateCaseFrame(CreateFrame):
                 dset[t]['d'] = itk.GetArrayFromImage(moving_image_reg)
         if self.skullstrip_check_value:
             for t in ['t1','t2','flair']:
-                dset[t]['d'] = self.extractbrain(dset[t]['d'])
+                dset[t]['d'],_ = self.extractbrain(dset[t]['d'])
         if self.n4_check_value:
             for t in ['t1','t2','flair']:
                 dset[t]['d'] = self.n4bias(dset[t]['d'])
@@ -1152,9 +1152,9 @@ class CreateCaseFrame(CreateFrame):
         os.remove('reg.tif')  
         return sitk_image
     
-    def elastix_affine(self,image,template):
+    def elastix_affine(self,image,template,type='rigid'):
         parameter_object = itk.ParameterObject.New()
-        default_rigid_parameter_map = parameter_object.GetDefaultParameterMap('affine')
+        default_rigid_parameter_map = parameter_object.GetDefaultParameterMap(type)
         parameter_object.AddParameterMap(default_rigid_parameter_map)        
         image_reg, params = itk.elastix_registration_method(image, template,parameter_object=parameter_object)
         return image_reg
@@ -1193,10 +1193,11 @@ class CreateCaseFrame(CreateFrame):
 
         tfile = 'img_temp.nii'
         ofile = 'img_brain.nii'
+        mfile = 'img_mask.nii'
         if self.ui.OS == 'linux':
             command = 'conda run -n brainmage brain_mage_single_run '
             command += ' -i ' + os.path.join(self.casedir,tfile)
-            command += ' -o ' + os.path.join('/tmp/foo')
+            command += ' -o ' + os.path.join(self.casedir,mfile)
             command += ' -m ' + os.path.join(self.casedir,ofile) + ' -dev 0'
             res = os.system(command)
 
@@ -1238,9 +1239,12 @@ class CreateCaseFrame(CreateFrame):
 
         img_nb = nb.load(os.path.join(self.casedir,'img_brain.nii'))
         img_arr = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
+        img_nb = nb.load(os.path.join(self.casedir,'img_mask.nii'))
+        img_arr_mask = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
         os.remove(os.path.join(self.casedir,'img_brain.nii'))
         os.remove(os.path.join(self.casedir,'img_temp.nii'))
-        return img_arr
+        os.remove(os.path.join(self.casedir,'img_mask.nii'))
+        return img_arr,img_arr_mask
 
     # clip outliers as in brainmage code
     def brainmage_clip(self,img):
@@ -1587,16 +1591,23 @@ class CreateCaseFrame(CreateFrame):
                 fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
                 if dset[t]['ex']:
                     moving_image = itk.GetImageFromArray(dset[t]['d'])
-                    moving_image_res = self.elastix_affine(fixed_image,moving_image)
+                    moving_image_res = self.elastix_affine(fixed_image,moving_image,type='rigid')
                     dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
                     if True:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
                                                 type='float',affine=self.ui.affine['t1'])
 
             # skull strip. for now assuming only needed on input dicoms
-            for t in ['t1pre','t1','t2','flair']:
+            dset['t1']['d'],mask = self.extractbrain(dset['t1']['d'])
+            nmask = len(mask[mask>0])
+            for t in ['t1pre','t2','flair']:
                 if dset[t]['ex']:
-                    dset[t]['d'] = self.extractbrain(dset[t]['d'])
+                    be,_ = self.extractbrain(dset[t]['d'])
+                    if len(be[be>0]) > 0.98*nmask:
+                        dset[t]['d'] = be
+                    else:
+                        dset[t]['d'] = np.where(mask,dset[t]['d'],0)
+
                     if True:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_extracted.nii.gz'),
                                                     type='float',affine=self.ui.affine['t1'])
