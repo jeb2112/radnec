@@ -1573,6 +1573,21 @@ class CreateCaseFrame(CreateFrame):
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
                                             type='float',affine=self.ui.affine['t1'])
 
+            # skull strip. for now assuming only needed on input dicoms
+            dset['t1']['d'],mask = self.extractbrain(dset['t1']['d'])
+            nmask = len(mask[mask>0])
+            for t in ['t1pre','t2','flair']:
+                if dset[t]['ex']:
+                    be,_ = self.extractbrain(dset[t]['d'])
+                    if len(be[be>0]) > 0.98*nmask:
+                        dset[t]['d'] = be
+                    else:
+                        dset[t]['d'] = np.where(mask,dset[t]['d'],0)
+
+                    if True:
+                        self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_extracted.nii.gz'),
+                                                    type='float',affine=self.ui.affine['t1'])
+
             # registration
             print('register T2, flair')
             if True:
@@ -1596,21 +1611,6 @@ class CreateCaseFrame(CreateFrame):
                     if True:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
                                                 type='float',affine=self.ui.affine['t1'])
-
-            # skull strip. for now assuming only needed on input dicoms
-            dset['t1']['d'],mask = self.extractbrain(dset['t1']['d'])
-            nmask = len(mask[mask>0])
-            for t in ['t1pre','t2','flair']:
-                if dset[t]['ex']:
-                    be,_ = self.extractbrain(dset[t]['d'])
-                    if len(be[be>0]) > 0.98*nmask:
-                        dset[t]['d'] = be
-                    else:
-                        dset[t]['d'] = np.where(mask,dset[t]['d'],0)
-
-                    if True:
-                        self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_extracted.nii.gz'),
-                                                    type='float',affine=self.ui.affine['t1'])
 
             # bias correction.
             for t in ['t1pre','t1','t2','flair']:
