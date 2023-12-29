@@ -928,7 +928,8 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.set_message('Select three image files')
                 return
             t1ce_file,t2_file,flair_file = self.filenames
-            dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},'flair':{'d':None,'ex':False}}
+            dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},
+                    'flair':{'d':None,'ex':False},'ref':{'d':None,'mask':None,'ex':False}}
             dset['t1']['d'],dset['t2']['d'],dset['flair']['d'],affine = self.loadData(t1ce_file,t2_file,flair_file)
             if all(['processed' in f for f in self.filenames]):
                 self.processed = True
@@ -940,7 +941,8 @@ class CreateCaseFrame(CreateFrame):
         # 'processed' refers to earlier output and is loaded preferentially.
         # for now assuming files are either all or none processed
         elif self.casetype <= 1:
-            dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},'flair':{'d':None,'ex':False}}
+            dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},
+                    'flair':{'d':None,'ex':False},'ref':{'d':None,'mask':None,'ex':False}}
             files = os.listdir(self.casedir)
             # files = self.get_imagefiles(files)
             t1_files = [f for f in files if 't1' in f.lower()]
@@ -1489,10 +1491,19 @@ class CreateCaseFrame(CreateFrame):
     
     # load up to four dicom series directories in the provided parent directory
     def loaddicom(self,d):
-        dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},'flair':{'d':None,'ex':False}}
+        dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},
+                'flair':{'d':None,'ex':False},'ref':{'d':None,'mask':None,'ex':False}}
         # assume a dicomdir is a parent of several series directories
         self.casedir = d
         seriesdirs = os.listdir(d)
+        # special case subdir for providing an externally generated mask
+        if 'mask' in seriesdirs:
+            seriesdirs.pop(seriesdirs.index('mask'))
+            dpath = os.path.join(d,'mask')
+            img_nb = nb.load(os.path.join(dpath,'img_mask.nii.gz'))
+            dset['ref']['mask'] = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
+            img_nb = nb.load(os.path.join(dpath,'img_reference.nii.gz'))
+            dset['ref']['d'] = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
         for sd in seriesdirs:
             dpath = os.path.join(d,sd)
             files = sorted(os.listdir(dpath))
@@ -1575,6 +1586,12 @@ class CreateCaseFrame(CreateFrame):
 
             # skull strip. for now assuming only needed on input dicoms
             dset['t1']['d'],mask = self.extractbrain(dset['t1']['d'])
+            if True:
+                self.ui.roiframe.WriteImage(dset['t1']['d'],os.path.join(d,'img_'+'t1'+'_extracted.nii.gz'),
+                                            type='float',affine=self.ui.affine['t1'])
+                self.ui.roiframe.WriteImage(mask,os.path.join(d,'img_'+'t1'+'_mask.nii.gz'),
+                                            type='uint8',affine=self.ui.affine['t1'])
+                
             nmask = len(mask[mask>0])
             for t in ['t1pre','t2','flair']:
                 if dset[t]['ex']:
