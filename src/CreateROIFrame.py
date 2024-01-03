@@ -885,15 +885,16 @@ class CreateROIFrame(CreateFrame):
 
     # for now output only segmentations so uint8
     def WriteImage(self,img_arr,filename,header=None,norm=False,type='uint8',affine=None):
+        img_arr_cp = copy.deepcopy(img_arr)
         if norm:
-            img_arr = (img_arr -np.min(img_arr)) / (np.max(img_arr)-np.min(img_arr)) * norm
+            img_arr_cp = (img_arr_cp -np.min(img_arr_cp)) / (np.max(img_arr_cp)-np.min(img_arr_cp)) * norm
         # using nibabel nifti coordinates
         if True:
-            img_nb = nb.Nifti1Image(np.transpose(img_arr.astype(type),(2,1,0)),affine,header=header)
+            img_nb = nb.Nifti1Image(np.transpose(img_arr_cp.astype(type),(2,1,0)),affine,header=header)
             nb.save(img_nb,filename)
         # couldn't get sitk nifti coordinates to work in mricron viewer
         else:
-            img = sitk.GetImageFromArray(img_arr.astype('uint8'))
+            img = sitk.GetImageFromArray(img_arr_cp.astype('uint8'))
             # this fails to copy origin, so do it manually
             # img.CopyInformation(self.ui.t1ce)
             img.SetDirection(self.ui.direction)

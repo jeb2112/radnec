@@ -1188,8 +1188,9 @@ class CreateCaseFrame(CreateFrame):
         # print(affine)
         return affine
     
-    def extractbrain(self,img_arr):
+    def extractbrain(self,img_arr_input):
         print('extract brain')
+        img_arr = copy.deepcopy(img_arr_input)
         img_arr = self.brainmage_clip(img_arr)
         self.ui.roiframe.WriteImage(img_arr,os.path.join(self.casedir,'img_temp.nii'),norm=False,type='float')
 
@@ -1284,11 +1285,13 @@ class CreateCaseFrame(CreateFrame):
         return img_arr_prob_GM,img_arr_prob_WM
                 
     # if T2 matrix is different resample it to t1
-    def resamplet2(self,img_arr_t1,img_arr_t2,a1,a2):
+    def resamplet2(self,arr_t1,arr_t2,a1,a2):
+        img_arr_t1 = copy.deepcopy(arr_t1)
+        img_arr_t2 = copy.deepcopy(arr_t2)
         img_t1 = nb.Nifti1Image(np.transpose(img_arr_t1,axes=(2,1,0)),affine=a1)
         img_t2 = nb.Nifti1Image(np.transpose(img_arr_t2,axes=(2,1,0)),affine=a2)
         img_t2_res = resample_from_to(img_t2,(img_t1.shape[:3],img_t1.affine))
-        img_arr_t2 = np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0))
+        img_arr_t2 = np.ascontiguousarray(np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0)))
         return img_arr_t2,img_t2_res.affine
     
     # operates on a single image channel 
@@ -1583,36 +1586,88 @@ class CreateCaseFrame(CreateFrame):
                     if dset[t]['ex']:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
                                             type='float',affine=self.ui.affine['t1'])
+                        
 
             # skull strip. for now assuming only needed on input dicoms
-            dset['t1']['d'],mask = self.extractbrain(dset['t1']['d'])
-            if True:
-                self.ui.roiframe.WriteImage(dset['t1']['d'],os.path.join(d,'img_'+'t1'+'_extracted.nii.gz'),
-                                            type='float',affine=self.ui.affine['t1'])
-                self.ui.roiframe.WriteImage(mask,os.path.join(d,'img_'+'t1'+'_mask.nii.gz'),
-                                            type='uint8',affine=self.ui.affine['t1'])
-                
-            nmask = len(mask[mask>0])
-            for t in ['t1pre','t2','flair']:
-                if dset[t]['ex']:
-                    be,_ = self.extractbrain(dset[t]['d'])
-                    if len(be[be>0]) > 0.98*nmask:
-                        dset[t]['d'] = be
-                    else:
-                        dset[t]['d'] = np.where(mask,dset[t]['d'],0)
 
-                    if True:
+            if dset['ref']['mask'] is not None:
+                # use optional mask if available. 
+
+                # pre-registration. for now assuming mask is a T1post so register T1pre,T2,flair
+                # reference
+                fixed_image = itk.GetImageFromArray(dset['t1']['d'])
+
+                for t in ['t1pre','t2','flair']:
+                    fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
+                    if dset[t]['ex']:
+                        moving_image = itk.GetImageFromArray(dset[t]['d'])
+                        moving_image_res = self.elastix_affine(fixed_image,moving_image,type='rigid')
+                        dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
+                        if True:
+                            self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
+                                                    type='float',affine=self.ui.affine['t1'])
+
+                # apply mask
+                for t in ['t1','t1pre','t2','flair']:
+                    if dset[t]['ex']:
+                        dset[t]['d'] = np.where(dset['ref']['mask'],dset[t]['d'],0)
+
+            else:    
+                # attempt model extraction
+                img_arr_t1_ex,mask = self.extractbrain(dset['t1']['d'])
+                if True:
+                    self.ui.roiframe.WriteImage(mask,os.path.join(d,'img_'+'t1'+'_mask.nii.gz'),
+                                                type='uint8',affine=self.ui.affine['t1'])
+                nmask = len(mask[mask>0])
+                for t in ['t1pre','t2','flair']:
+                    if dset[t]['ex']:
+                        img_arr_t_ex,_ = self.extractbrain(dset[t]['d'])
+                        # if extraction mask is significantly smaller than t1 mask, assume it's not good
+                        # and just use the t1 mask
+                        if len(img_arr_t_ex[img_arr_t_ex>0]) > 0.98*nmask:
+                            dset[t]['d'] = copy.deepcopy(img_arr_t_ex)
+                        else:
+                            # to use t1 mask have to preregister to t1 first
+                            if False:
+                                # some problem with references. elastix often fails without this kludge reload
+                                if dset[t]['ex']:
+                                    if dset['ref']['mask'] is not None:
+                                        fname = os.path.join(d,'img_'+t+'_preregistered.nii.gz')
+                                    else:
+                                        fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
+                                    img = nb.load(fname)
+                                    dset[t]['d'] = np.array(img.dataobj)
+                                    if False:
+                                        os.remove(fname)
+                            fixed_image = itk.GetImageFromArray(dset['t1']['d'])
+
+                            fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
+                            if dset[t]['ex']:
+                                moving_image = itk.GetImageFromArray(dset[t]['d'])
+                                moving_image_res = self.elastix_affine(fixed_image,moving_image,type='rigid')
+                                dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
+                                if True:
+                                    self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
+                                                            type='float',affine=self.ui.affine['t1'])
+                            # apply t1 mask
+                            dset[t]['d'] = np.where(mask,dset[t]['d'],0)
+                # finally record extracted t1
+                dset['t1']['d'] = img_arr_t1_ex
+
+            if True:
+                for t in ['t1','t1pre','t2','flair']:
+                    if dset[t]['ex']:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_extracted.nii.gz'),
                                                     type='float',affine=self.ui.affine['t1'])
 
             # registration
             print('register T2, flair')
-            if True:
+            if False:
                 for t in ['t1pre','t1','t2','flair']:
                     if dset[t]['ex']:
-                        fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
+                        fname = os.path.join(d,'img_'+t+'_extracted.nii.gz')
                         img = nb.load(fname)
-                        dset[t]['d'] = np.transpose(np.array(img.dataobj),axes=(2,1,0))
+                        dset[t]['d'] = np.array(img.dataobj)
                         if False:
                             os.remove(fname)
 
