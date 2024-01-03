@@ -1581,7 +1581,7 @@ class CreateCaseFrame(CreateFrame):
                                                                  self.ui.affine['target'],self.ui.affine[t])
                 dset[t]['d'] = np.clip(dset[t]['d'],0,None)
 
-            if True:
+            if False:
                 for t in ['t1pre','t1','t2','flair']:
                     if dset[t]['ex']:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
@@ -1603,7 +1603,7 @@ class CreateCaseFrame(CreateFrame):
                         moving_image = itk.GetImageFromArray(dset[t]['d'])
                         moving_image_res = self.elastix_affine(fixed_image,moving_image,type='rigid')
                         dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
-                        if True:
+                        if False:
                             self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
                                                     type='float',affine=self.ui.affine['t1'])
 
@@ -1628,17 +1628,6 @@ class CreateCaseFrame(CreateFrame):
                             dset[t]['d'] = copy.deepcopy(img_arr_t_ex)
                         else:
                             # to use t1 mask have to preregister to t1 first
-                            if False:
-                                # some problem with references. elastix often fails without this kludge reload
-                                if dset[t]['ex']:
-                                    if dset['ref']['mask'] is not None:
-                                        fname = os.path.join(d,'img_'+t+'_preregistered.nii.gz')
-                                    else:
-                                        fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
-                                    img = nb.load(fname)
-                                    dset[t]['d'] = np.array(img.dataobj)
-                                    if False:
-                                        os.remove(fname)
                             fixed_image = itk.GetImageFromArray(dset['t1']['d'])
 
                             fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
@@ -1646,7 +1635,7 @@ class CreateCaseFrame(CreateFrame):
                                 moving_image = itk.GetImageFromArray(dset[t]['d'])
                                 moving_image_res = self.elastix_affine(fixed_image,moving_image,type='rigid')
                                 dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
-                                if True:
+                                if False:
                                     self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
                                                             type='float',affine=self.ui.affine['t1'])
                             # apply t1 mask
@@ -1654,7 +1643,7 @@ class CreateCaseFrame(CreateFrame):
                 # finally record extracted t1
                 dset['t1']['d'] = img_arr_t1_ex
 
-            if True:
+            if False:
                 for t in ['t1','t1pre','t2','flair']:
                     if dset[t]['ex']:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_extracted.nii.gz'),
@@ -1662,14 +1651,6 @@ class CreateCaseFrame(CreateFrame):
 
             # registration
             print('register T2, flair')
-            if False:
-                for t in ['t1pre','t1','t2','flair']:
-                    if dset[t]['ex']:
-                        fname = os.path.join(d,'img_'+t+'_extracted.nii.gz')
-                        img = nb.load(fname)
-                        dset[t]['d'] = np.array(img.dataobj)
-                        if False:
-                            os.remove(fname)
 
             # reference
             fixed_image = itk.GetImageFromArray(dset['t1']['d'])
@@ -1680,7 +1661,7 @@ class CreateCaseFrame(CreateFrame):
                     moving_image = itk.GetImageFromArray(dset[t]['d'])
                     moving_image_res = self.elastix_affine(fixed_image,moving_image,type='rigid')
                     dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
-                    if True:
+                    if False:
                         self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
                                                 type='float',affine=self.ui.affine['t1'])
 
