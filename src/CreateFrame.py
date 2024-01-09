@@ -1092,18 +1092,21 @@ class CreateCaseFrame(CreateFrame):
     #################
 
     def processNifti(self,dset):
-        if self.register_check_value:
+        if self.register_check_value.get():
             for t in ['t2','flair']:
-                fixed_image = itk.GetImageFromArray(dset['t1']['d'])
-                moving_image = itk.GetImageFromArray(dset[t]['d'])
-                moving_image_reg = self.elastix_affine(fixed_image,moving_image)
-                dset[t]['d'] = itk.GetArrayFromImage(moving_image_reg)
-        if self.skullstrip_check_value:
+                if dset[t]['ex']:
+                    fixed_image = itk.GetImageFromArray(dset['t1']['d'])
+                    moving_image = itk.GetImageFromArray(dset[t]['d'])
+                    moving_image_reg = self.elastix_affine(fixed_image,moving_image)
+                    dset[t]['d'] = itk.GetArrayFromImage(moving_image_reg)
+        if self.skullstrip_check_value.get():
             for t in ['t1','t2','flair']:
-                dset[t]['d'],_ = self.extractbrain(dset[t]['d'])
-        if self.n4_check_value:
+                if dset[t]['ex']:
+                    dset[t]['d'],_ = self.extractbrain(dset[t]['d'])
+        if self.n4_check_value.get():
             for t in ['t1','t2','flair']:
-                dset[t]['d'] = self.n4bias(dset[t]['d'])
+                if dset[t]['ex']:
+                    dset[t]['d'] = self.n4bias(dset[t]['d'])
         return dset
 
     def multires_registration(self, fixed_image, moving_image):
@@ -1533,6 +1536,12 @@ class CreateCaseFrame(CreateFrame):
                     dset['t1']['d'][0,:,:] = ds0.pixel_array
                     # also create isotropic target affine for resampling based on the t1 affine
                     nslice = int( ds0[(0x2001,0x1018)].value * float(ds0[(0x0018,0x0088)].value) )
+                    if pd.tag.Tag(0x2001,0x1018) in ds0.keys() and pd.tag.Tag(0x0018,0x0088) in ds0.keys(): # philips. siemens?
+                        nslice = int( ds0[(0x2001,0x1018)].value * float(ds0[(0x0018,0x0088)].value) )
+                    elif pd.tag.Tag(0x0018,0x0050) in ds0.keys(): # possible alternate for siemens?
+                        nslice = int(float(ds0[(0x0018,0x0050)].value) * len(files))
+                    else:
+                        raise Exception('number of 1mm slices cannot be parsed from header')
                     nx = int( float(ds0[(0x0028,0x0030)].value[0]) * ds0[(0x0028,0x0010)].value )
                     ny = int( float(ds0[(0x0028,0x0030)].value[1]) * ds0[(0x0028,0x0011)].value )
                     affine =  np.diag(np.ones(4),k=0)
