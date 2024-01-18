@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# script calculates radiomics features for all case directories
+# script calculates radiomics features for all case sub-directories
 # in data dir
 
 
@@ -31,44 +31,6 @@ def tqdmProgressbar():
 
   import tqdm
   radiomics.progressReporter = tqdm.tqdm
-
-
-def clickProgressbar():
-  """
-  This function will setup the progress bar exposed by the 'click' package.
-  Progress reporting is only used in PyRadiomics for the calculation of GLCM and GLSZM in full python mode, therefore
-  enable GLCM and full-python mode to show the progress bar functionality.
-
-  Because the signature used to instantiate a click progress bar is different from what PyRadiomics expects, we need to
-  write a simple wrapper class to enable use of a click progress bar. In this case we only need to change the 'desc'
-  keyword argument to a 'label' keyword argument.
-
-  N.B. This function will only work if the 'click' package is installed (not included in the PyRadiomics requirements)
-  """
-  global extractor
-
-  # Enable the GLCM class to show the progress bar
-  extractor.enableFeatureClassByName('glcm')
-
-  radiomics.setVerbosity(logging.INFO)  # Verbosity must be at least INFO to enable progress bar
-
-  import click
-
-  class progressWrapper:
-    def __init__(self, iterable, desc=''):
-      # For a click progressbar, the description must be provided in the 'label' keyword argument.
-      self.bar = click.progressbar(iterable, label=desc)
-
-    def __iter__(self):
-      return self.bar.__iter__()  # Redirect to the __iter__ function of the click progressbar
-
-    def __enter__(self):
-      return self.bar.__enter__()  # Redirect to the __enter__ function of the click progressbar
-
-    def __exit__(self, exc_type, exc_value, tb):
-      return self.bar.__exit__(exc_type, exc_value, tb)  # Redirect to the __exit__ function of the click progressbar
-
-  radiomics.progressReporter = progressWrapper
 
 def nifti2nrrd(dir,file,scale=1):
     img_nii = sitk.ReadImage(os.path.join(dir,file))
@@ -111,7 +73,7 @@ else:
     outputDir = os.path.join(dataDir,'radiomics')
 
 # requested features
-paramsFile = os.path.abspath(os.path.join(os.path.dirname(__file__),'..','resources','exampleVoxel.yaml'))
+paramsFile = os.path.abspath(os.path.join(os.path.dirname(__file__),'voxel_radiomics.yaml'))
 # Initialize feature extractor using the settings file
 extractor = featureextractor.RadiomicsFeatureExtractor(paramsFile)
 featureClasses = getFeatureClasses()
@@ -145,10 +107,8 @@ for c in caseDirs:
             print('Error getting testcase!')
             exit()
 
-        # Uncomment one of these functions to show how PyRadiomics can use the 'tqdm' or 'click' package to report progress when
-        # running in full python mode. Assumes the respective package is installed (not included in the requirements)
+        # Assumes the respective package is installed (not included in the requirements)
         tqdmProgressbar()
-        # clickProgressbar()
 
         featureVector = extractor.execute(imageName, maskName, voxelBased=True)
 

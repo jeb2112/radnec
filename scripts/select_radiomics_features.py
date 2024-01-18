@@ -111,15 +111,15 @@ dsets = {'RN':{'dir':None,'vv':None},'T':{'dir':None,'vv':None}}
 dset_keys = dsets.keys()
 
 if True:
-    if False:
+    if True:
         radnecDir = '/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC'
     else:
         # for remote access of window dropbox, direct mount is easiest.
         if not os.path.isdir('/mnt/D'):
             os.system('sudo mount -t cifs //192.168.50.224/D /mnt/D -o rw,uid=jbishop,gid=jbishop,username=Chris\ Heyn\ Lab,vers=3.0')
         radnecDir = '/mnt/D/Dropbox/BLAST DEVELOPMENT/RAD NEC'
-        sftp = None
-    dataDir = os.path.join(radnecDir,'CONVENTIONAL MRI')
+    sftp = None
+    dataDir = os.path.join(radnecDir,'radiomics')
     files = os.listdir(dataDir)
 
 else:
@@ -133,27 +133,27 @@ else:
     dataDir = os.path.join(radnecDir,'CONVENTIONAL MRI')
     files = listdir(dataDir,sftp=sftp)
     
-outputDir = os.path.join(radnecDir,'radiomics')
+outputDir = os.path.join(radnecDir)
 datafile = os.path.join(outputDir,'voxel_radiomics.pkl')
 
 cases = [f for f in files if os.path.isdir(os.path.join(dataDir,f))]
-
-files = os.listdir(os.path.join(dataDir,cases[0]))
-# naming convention from pyradiomics
-rfeature = re.compile('^M.*_([a-z]+_[A-Za-z]+)\.')
-rcase = re.compile('^M00[0-9]{2}')
-featureset_files = list(filter(rfeature.search,files))
-featureset = [rfeature.search(f).group(1) for f in featureset_files if rfeature.search(f)]
 
 
 if os.path.exists(datafile):
     t = time.ctime(os.path.getmtime(datafile))
     print('\n\nloading {}, last modified {}...\n\n'.format(datafile,t))
     with open(datafile,'rb') as fp:
-        dsets = pickle.load(fp)   
+        dsets = pickle.load(fp)
+        featureset = list(dsets['RN']['M0001_RN']['t2flair'].keys())
 
 else:
 
+    files = os.listdir(os.path.join(dataDir,cases[0]))
+    # naming convention from pyradiomics
+    rfeature = re.compile('^M.*_([a-z]+_[A-Za-z]+)\.')
+    rcase = re.compile('^M00[0-9]{2}[a-b]?')
+    featureset_files = list(filter(rfeature.search,files))
+    featureset = [rfeature.search(f).group(1) for f in featureset_files if rfeature.search(f)]
     for d in ['RN','T']:
 
         for c in cases:
@@ -175,7 +175,7 @@ else:
 # first pass significant difference of feature
 cases_RN = [key for key in dsets['RN'].keys() if key.endswith('RN')]
 cases_T = [key for key in dsets['T'].keys() if key.startswith('M')]
-n_T = len(cases_RN)
+n_T = len(cases_T)
 n_RN = len(cases_RN)
 labelset_ = np.ravel(np.row_stack((np.ones((n_T,1)),np.zeros((n_RN,1)))))
 
@@ -203,23 +203,50 @@ for im in ['t1mprage','t2flair']:
         auc[im][feature] = roc_auc_score(labelset_, l_prob)
         print('im {}, feature {}, auc = {:.2f}'.format(im, feature,auc[im][feature]))
 
-# results
-a=1
-
-
-if sftp:
-    sftp.disconnect()
-
- 
-
+# combine and sort the two lists
+t2_flist = list(map(list,auc['t2flair'].items()))
+t1_flist = list(map(list,auc['t1mprage'].items()))
+t2_flist = [['t2_'+t[0],t[1]] for t in t2_flist]
+t1_flist = [['t1_'+t[0],t[1]] for t in t1_flist]
+feature_list = t2_flist + t1_flist
+feature_list = sorted(feature_list,key=lambda x:x[1],reverse=True)[:10]
 
 
 ########
 # output
 ########
 
-plt.figure(fig1)
-plt.savefig(os.path.join(output_dir,'voxel_volume2.png'))
+print('\n\nTop ten radiomic features\n')
+drow_format = "{}\t{:<40}\t{:<8.1f}({:.1f})\t{:<8.1f}({:.1f})\t{:<8.3f}\t{:<8.2f}"
+trow_format = "{}\t{:<40}\t{:8}\t{:8}\t{:8}\t{:8}"
+drow_format_f = "{}\t{:<40}\t{:<8.1f}({:.1f})\t{:<8.1f}({:.1f})\t{:<8.3f}\t{:<8.2f}\n"
+trow_format_f = "{}\t{:<40}\t{:8}\t{:8}\t{:8}\t{:8}\n"
 
-plt.figure(fig5)
-plt.savefig(os.path.join(output_dir,'voxel_volume2_separate.png'))
+with open(os.path.join(outputDir,'radiomics_features.txt'),'w') as fp:
+
+    print(trow_format.format('Rank','Feature','RN mean (se)','TP mean(se)','P-value','AUC '))
+    fp.write(trow_format_f.format('Rank','Feature','RN mean (se)','TP mean(se)','P-value','AUC '))
+    for i,t in enumerate(feature_list):
+        if t[0][:2] == 't1':
+            im = 't1mprage'
+        else:
+            im = 't2flair'
+        feature = t[0][3:]
+        fval_RN = [dsets['RN'][case][im][feature]['mu'] for case in cases_RN]
+        fval_T = [dsets['T'][case][im][feature]['mu'] for case in cases_T]
+        res = scipy.stats.ttest_ind(fval_RN,fval_T,equal_var=True)    
+        mu_RN = np.mean(fval_RN)
+        mu_TP = np.mean(fval_T)
+        se_RN = np.std(fval_RN)/np.sqrt(len(fval_RN)-1)
+        se_TP = np.std(fval_T)/np.sqrt(len(fval_T)-1)
+            
+        print(drow_format.format(i+1,t[0].replace('_',' '),mu_RN,se_RN,mu_TP,se_TP,res.pvalue,t[1]))
+        fp.write(drow_format_f.format(i+1,t[0].replace('_',' '),mu_RN,se_RN,mu_TP,se_TP,res.pvalue,t[1]))
+
+
+if sftp:
+    sftp.disconnect()
+
+if os.system('mountpoint -q /mnt/D') == 0:
+    os.system('sudo umount /mnt/D')
+ 
