@@ -115,7 +115,7 @@ if True:
         radnecDir = '/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC'
     else:
         # for remote access of window dropbox, direct mount is easiest.
-        if not os.path.isdir('/mnt/D'):
+        if os.system('mountpoint -q /mnt/D') == 0:
             os.system('sudo mount -t cifs //192.168.50.224/D /mnt/D -o rw,uid=jbishop,gid=jbishop,username=Chris\ Heyn\ Lab,vers=3.0')
         radnecDir = '/mnt/D/Dropbox/BLAST DEVELOPMENT/RAD NEC'
     sftp = None
