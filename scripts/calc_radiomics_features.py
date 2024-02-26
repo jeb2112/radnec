@@ -32,15 +32,17 @@ def tqdmProgressbar():
   import tqdm
   radiomics.progressReporter = tqdm.tqdm
 
-def nifti2nrrd(dir,file,scale=1):
+def nifti2nrrd(dir,file,scale=1,odir=None):
+    if odir is None:
+        odir = dir
     img_nii = sitk.ReadImage(os.path.join(dir,file))
     img_nii = img_nii * float(scale)
     writer = sitk.ImageFileWriter()
     writer.SetImageIO('NrrdImageIO')
     file = file.replace('nii','nrrd')
-    writer.SetFileName(os.path.join(dir,file))
+    writer.SetFileName(os.path.join(odir,file))
     writer.Execute(img_nii)
-    return os.path.join(cdir,file)
+    return os.path.join(odir,file)
 
 
 # start logger
@@ -69,7 +71,7 @@ else:
     if not os.path.isdir('/mnt/D'):
         os.system('sudo mount -t cifs //192.168.50.224/D /mnt/D -o rw,uid=jbishop,gid=jbishop,username=Chris\ Heyn\ Lab,vers=3.0')
     dataDir = '/mnt/D/Dropbox/BLAST DEVELOPMENT/RAD NEC'
-    inputDir = os.path.join(dataDir,'CONVENTIONAL MRI')
+    inputDir = os.path.join(dataDir,'MANUSCRIPT','RAD NEC MET RESULTS')
     outputDir = os.path.join(dataDir,'radiomics')
 
 # requested features
@@ -83,25 +85,25 @@ for cls, features in six.iteritems(extractor.enabledFeatures):
         features = [f for f, deprecated in six.iteritems(featureClasses[cls].getFeatureNames()) if not deprecated]
     for f in features:
         print(f)
-        print(getattr(featureClasses[cls], 'get%sFeatureValue' % f).__doc__)
+        # print(getattr(featureClasses[cls], 'get%sFeatureValue' % f).__doc__)
 
 files = os.listdir(inputDir)
 caseDirs = [f for f in files if os.path.isdir(os.path.join(inputDir,f))]
 
-for c in caseDirs:
+for c in caseDirs[43:]:
     print(c)
     cname = re.match('^(M00[0-9]{2}[a-b]?)',c).group(1)
     cdir = os.path.join(inputDir,c)
-    odir = os.path.join(outputDir,c)
+    odir = os.path.join(outputDir,cname)
     if not os.path.isdir(odir):
-      os.mkdir(odir)
+        os.mkdir(odir)
     cfiles = os.listdir(cdir)
-    maskr = re.compile('t1ce.*ET.nii')
+    maskr = re.compile('^.*ET.nii')
     maskName = next(filter(maskr.match,cfiles))
-    maskName = nifti2nrrd(cdir,maskName)
+    maskName = nifti2nrrd(cdir,maskName,odir=odir)
     for im in ['t1mprage','t2flair']:
         imageName = im+'_template.nii'
-        imageName = nifti2nrrd(cdir,imageName,scale=1024)
+        imageName = nifti2nrrd(cdir,imageName,scale=1024,odir=odir)
 
         if imageName is None or maskName is None:  # Something went wrong, in this case PyRadiomics will also log an error
             print('Error getting testcase!')
@@ -116,7 +118,8 @@ for c in caseDirs:
             if isinstance(featureValue, sitk.Image):
                 if 'original' in featureName:
                     featureName = featureName.replace('original',im)
-                sitk.WriteImage(featureValue, '%s_%s.nrrd' % (os.path.join(odir,cname), featureName))
-                print('Computed %s, stored as "%s_%s.nrrd"' % (featureName, cname, featureName))
+                sitk.WriteImage(featureValue, '%s.nrrd' % (os.path.join(odir, featureName)))
+                # print('Computed %s, stored as "%s.nrrd"' % (featureName, featureName))
             else:
+                continue
                 print('%s: %s' % (featureName, featureValue))
