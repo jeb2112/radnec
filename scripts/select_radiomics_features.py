@@ -324,6 +324,9 @@ auc_rfe_train = roc_auc_score(mlrdata['y'],clf_eval.fit(X_rfe, mlrdata['y']).pre
 # output
 ########
 
+with open(os.path.join(outputDir,'voxel_radiomics_selected_features.pkl'),'wb') as fp:
+    pickle.dump((mlrdata[['ID','Final Dx','y']+featureset_rfecv_loocv]),fp)
+
 drow_format = "{}\t{:<40}\t{:<8.1f}({:.1f})\t{:<8.1f}({:.1f})\t{:<8.3f}\t{:<8.2f}"
 drow_format_mul = "{}\t{:<40}\t{:<8.1f}({:.1f})\t{:<8.1f}({:.1f})\t{:<8.3f}"
 trow_format = "{}\t{:<40}\t{:8}\t{:8}\t{:8}\t{:8}"
