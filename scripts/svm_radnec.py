@@ -378,8 +378,9 @@ def main():
 
 
     # check feature correlation
-    corr = X.corr()
+    corr = mlrdata[fset['all']].corr()
     sns_plot = sns.clustermap(np.abs(corr))
+    sns_plot.savefig(os.path.join(datadir,'feature_correlation.png'))
 
     # construct roc
     plt.figure(2)
