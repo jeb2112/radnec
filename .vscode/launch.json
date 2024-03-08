@@ -45,6 +45,15 @@
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": false
+        }, 
+        {
+            "name": "svm radnec",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/svm_radnec.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
         } 
 
         
