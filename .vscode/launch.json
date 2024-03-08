@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Gui",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/startGui.py",
             "args": [
@@ -18,7 +18,7 @@
         } ,
         {
             "name": "Gui (debug)",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/startGui.py",
             "args": [
@@ -31,7 +31,7 @@
         },
         {
             "name": "itk elastix",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/scripts/elastix_register.py",
             "args": [
@@ -51,6 +51,22 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/scripts/svm_radnec.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "simple elastix",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/simpleelastix_register.py",
+            "args": [
+                "--debug",
+                "-m/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC/Figures/FIG 7/M0021 DSC/t1ce_cbv.nii",
+                "-f/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC/Figures/FIG 7/M0021 BLAST/t1ce.nii",
+                "-o/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC/Figures/FIG 7/t1ce_CBV_reg.nii",
+                "--resample","/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC/Figures/FIG 7/M0021 DSC/RELCBV_register.nii"
+            ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": false
