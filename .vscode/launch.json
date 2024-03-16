@@ -62,10 +62,26 @@
             "program": "${workspaceFolder}/scripts/simpleelastix_register.py",
             "args": [
                 "--debug",
-                "-m/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC/Figures/FIG 7/M0021 DSC/t1ce_cbv.nii",
-                "-f/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC/Figures/FIG 7/M0021 BLAST/t1ce.nii",
-                "-o/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC/Figures/FIG 7/t1ce_CBV_reg.nii",
-                "--resample","/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC/Figures/FIG 7/M0021 DSC/RELCBV_register.nii"
+                "-m/mnt/D/Dropbox/BLAST DEVELOPMENT/RAD NEC/MANUSCRIPT/RAD NEC MET DSC RESULTS/M0072/t1ce.nii",
+                "-f/mnt/D/Dropbox/BLAST DEVELOPMENT/RAD NEC/MANUSCRIPT/RAD NEC MET DATA/M0072/M0072 processed/t1ce.nii",
+                "-ot1ce_regBLAST.nii",
+                "--resample","RELCCBV_register.nii","NAWM.nii"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }, 
+        {
+            "name": "regular elastix",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/regularelastix_register.py",
+            "args": [
+                "--debug",
+                "-m/mnt/D/Dropbox/BLAST DEVELOPMENT/RAD NEC/MANUSCRIPT/RAD NEC MET DSC RESULTS/M0066/t1ce.nii",
+                "-f/mnt/D/Dropbox/BLAST DEVELOPMENT/RAD NEC/MANUSCRIPT/RAD NEC MET DATA/M0066/M0066 processed/t1ce.nii",
+                "-ot1ce_regBLAST.nii",
+                "--resample","RELCCBV_register.nii","NAWM.nii"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
