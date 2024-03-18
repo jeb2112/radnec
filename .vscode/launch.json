@@ -62,10 +62,10 @@
             "program": "${workspaceFolder}/scripts/simpleelastix_register.py",
             "args": [
                 "--debug",
-                "-m/mnt/D/Dropbox/BLAST DEVELOPMENT/RAD NEC/MANUSCRIPT/RAD NEC MET DSC RESULTS/M0072/t1ce.nii",
-                "-f/mnt/D/Dropbox/BLAST DEVELOPMENT/RAD NEC/MANUSCRIPT/RAD NEC MET DATA/M0072/M0072 processed/t1ce.nii",
+                "-m/mnt/D/Dropbox/BLAST DEVELOPMENT/RAD NEC/MANUSCRIPT/RAD NEC MET DSC RESULTS/M0013/t1ce.nii",
+                "-f/mnt/D/Dropbox/BLAST DEVELOPMENT/RAD NEC/MANUSCRIPT/RAD NEC MET DATA/M0013/M0013 processed/t1ce.nii",
                 "-ot1ce_regBLAST.nii",
-                "--resample","RELCCBV_register.nii","NAWM.nii"
+                "--resample","RELCCBV_register.nii","NAWM.nii","rCBV.nii"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
