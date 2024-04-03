@@ -1,4 +1,4 @@
-# command line script for running SimpleITK-SimpleElastix registration
+# command line script for running ants registration
 # use simple-elastix conda env                
 
 # example args for registering T1 from RADNEC and DSC studies, then using 
@@ -14,7 +14,7 @@
 
 
 
-import itk
+import ants
 import SimpleITK as sitk
 import os
 import argparse
@@ -38,30 +38,29 @@ def main():
     # simple itk elastix
     fixed = sitk.ReadImage(args.f)
     moving = sitk.ReadImage(args.m)
-    elastixImageFilter = sitk.ElastixImageFilter()  
-    elastixImageFilter.SetFixedImage(fixed)  
-    elastixImageFilter.SetMovingImage(moving)
-    pmap = sitk.GetDefaultParameterMap(args.transform)
-    pmap['MaximumNumberOfIterations'] = [str(args.iterations)]
-    elastixImageFilter.SetParameterMap(pmap)  
-    elastixImageFilter.PrintParameterMap(pmap)
-    elastixImageFilter.Execute()  
-    sitk.WriteImage(elastixImageFilter.GetResultImage(), os.path.join(moving_dir,args.o))  
-    tform = elastixImageFilter.GetTransformParameterMap()
+    fixed_ants = ants.from_numpy(sitk.GetArrayFromImage(fixed).astype('double'))
+    moving_ants = ants.from_numpy(sitk.GetArrayFromImage(moving).astype('double'))
+    mytx = ants.registration(fixed=fixed_ants, moving=moving_ants, type_of_transform = 'Affine' )
+    m_arr = mytx['warpedmovout'].numpy()
+    m_sitk = sitk.GetImageFromArray(m_arr)
+    m_sitk.CopyInformation(fixed)
+    sitk.WriteImage(m_sitk, os.path.join(moving_dir,args.o))
+    
     # store transform to file
-    sitk.WriteParameterFile(tform[0],os.path.join(moving_dir,'reg2blast.txt'))
-
+    tform = ants.read_transform(mytx['fwdtransforms'][0])
+    ants.write_transform(tform,os.path.join(moving_dir,'reg2blast_ants.txt'))
 
     # additional image to resample with registration transform
     # it is assumed these are in the dir of the moving image
     if args.resample:
         for f in args.resample:
-            tformixImageFilter = sitk.TransformixImageFilter()
-            tformixImageFilter.SetTransformParameterMap(tform)
-            tformixImageFilter.SetMovingImage(sitk.ReadImage(os.path.join(moving_dir,f)))
-            tformixImageFilter.Execute()
+            moving = sitk.ReadImage(os.path.join(moving_dir,f))
+            m_ants = tform.apply_to_image(ants.from_numpy(sitk.GetArrayFromImage(moving)),reference=fixed_ants)
+            m_arr = m_ants.numpy()
             output_fname = f[:-4] + '_blastreg.nii' # the suffix is hard-coded here.
-            sitk.WriteImage(tformixImageFilter.GetResultImage(),os.path.join(moving_dir,output_fname))
+            m_sitk = sitk.GetImageFromArray(m_arr)
+            m_sitk.CopyInformation(fixed)
+            sitk.WriteImage(m_sitk, os.path.join(moving_dir,output_fname))
 
     return
 
