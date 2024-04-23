@@ -29,6 +29,7 @@ from scipy.spatial.distance import dice
 from src.NavigationBar import NavigationBar
 from src.FileDialog import FileDialog
 from src.CreateFrame import *
+from src.PreProcess import PreProcess
 
 
 ################
@@ -47,6 +48,7 @@ class CreateCaseFrame(CreateFrame):
         self.casefile_prefix = None
         self.caselist = {'casetags':[],'casedirs':[]}
         self.processed = False
+        self.pp = None
 
         # case selection
         self.frame.grid(row=0,column=0,columnspan=3,sticky='ew')
@@ -282,115 +284,7 @@ class CreateCaseFrame(CreateFrame):
     #################
 
 
-    # create nb affine from dicom 
-    def get_affine(self,dicomdata,dslice):
-        dircos = np.array(list(map(float,dicomdata.ImageOrientationPatient)))
-        affine = np.zeros((4,4))
-        affine[:3,0] = dircos[0:3]*float(dicomdata.PixelSpacing[0])
-        affine[:3,1] = dircos[3:]*float(dicomdata.PixelSpacing[1])
-        d3 = np.cross(dircos[:3],dircos[3:])
-        # not entirely sure if these three tags all work the same across the 3 vendors
-        if dicomdata[(0x0018,0x0023)].value == '3D':
-            if hasattr(dicomdata,'SpacingBetweenSlices'):
-                slthick = float(dicomdata.SpacingBetweenSlices)
-            elif hasattr(dicomdata,'SliceThickness'):
-                slthick = float(dicomdata.SliceThickness)
-            else:
-                raise ValueError('Slice thickness not parsed')
-        else:
-            if hasattr(dicomdata,'SliceThickness'):
-                slthick = float(dicomdata.SliceThickness)
-            else:
-                raise ValueError('Slice thickness not parsed')
-
-        affine[:3,2] = d3*slthick
-        affine[:3,3] = dicomdata.ImagePositionPatient
-        affine[3,3] = 1
-        # print(affine)
-        return affine
-    
-    def extractbrain(self,img_arr_input):
-        print('extract brain')
-        img_arr = copy.deepcopy(img_arr_input)
-        img_arr = self.brainmage_clip(img_arr)
-        self.ui.roiframe.WriteImage(img_arr,os.path.join(self.casedir,'img_temp.nii'),norm=False,type='float')
-
-        tfile = 'img_temp.nii'
-        ofile = 'img_brain.nii'
-        mfile = 'img_mask.nii'
-        if self.ui.OS == 'linux':
-            command = 'conda run -n brainmage brain_mage_single_run '
-            command += ' -i ' + os.path.join(self.casedir,tfile)
-            command += ' -o ' + os.path.join(self.casedir,mfile)
-            command += ' -m ' + os.path.join(self.casedir,ofile) + ' -dev 0'
-            res = os.system(command)
-
-        elif self.ui.OS == 'win32':
-            # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
-            # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
-            # it is currently hard-coded to anaconda3/envs location rather than .conda/envs, but anaconda3 could be installed
-            # under either ProgramFiles or Users so check both
-            if os.path.isfile(os.path.expanduser('~')+'\\anaconda3\Scripts\\activate.bat'):
-                activatebatch = os.path.expanduser('~')+"\\anaconda3\Scripts\\activate.bat"
-            elif os.path.isfile("C:\Program Files\\anaconda3\Scripts\\activate.bat"):
-                activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
-            else:
-                raise FileNotFoundError('anaconda3/Scripts/activate.bat')
-                                
-            command1 = '\"'+activatebatch+'\" \"' + os.path.expanduser('~')+'\\anaconda3\envs\\brainmage\"'
-            command2 = 'python \"' + os.path.join(os.path.expanduser('~'),'anaconda3','envs','brainmage','Scripts','brain_mage_single_run')
-            command2 += '\" -i   \"' + os.path.join(self.casedir,tfile)
-            command2 += '\"  -o  \"' + os.path.join(os.path.expanduser('~'),'AppData','Local','Temp','foo')
-            command2 += '\"   -m   \"' + os.path.join(self.casedir,ofile) + '\"'
-            cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
-            if False:   
-                info = subprocess.STARTUPINFO()
-                info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                info.wShowWindow = subprocess.SW_HIDE
-                res = subprocess.run(cstr,shell=True,startupinfo=info,creationflags=subprocess.CREATE_NO_WINDOW)
-                # res = subprocess.run(cstr,shell=True)
-            else:
-                popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
-                for stdout_line in iter(popen.stdout.readline,""):
-                    if stdout_line != '\n':
-                        print(stdout_line)
-                popen.stdout.close()
-                res = popen.wait()
-                if res:
-                    raise subprocess.CalledProcessError(res,cstr)
-                    print(res)
-        # print(res)
-
-        img_nb = nb.load(os.path.join(self.casedir,'img_brain.nii'))
-        img_arr = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
-        img_nb = nb.load(os.path.join(self.casedir,'img_mask.nii'))
-        img_arr_mask = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
-        os.remove(os.path.join(self.casedir,'img_brain.nii'))
-        os.remove(os.path.join(self.casedir,'img_temp.nii'))
-        os.remove(os.path.join(self.casedir,'img_mask.nii'))
-        return img_arr,img_arr_mask
-
-    # clip outliers as in brainmage code
-    def brainmage_clip(self,img):
-        img_temp = img[np.where(img>0)]
-        img_temp = img[img >= img_temp.mean()]
-        p1 = np.percentile(img_temp, 1)
-        p2 = np.percentile(img_temp, 99)
-        img[img > p2] = p2
-        img = (img - p1) / p2
-        return img.astype(np.float32)
-
-                
-    # if T2 matrix is different resample it to t1
-    def resamplet2(self,arr_t1,arr_t2,a1,a2):
-        img_arr_t1 = copy.deepcopy(arr_t1)
-        img_arr_t2 = copy.deepcopy(arr_t2)
-        img_t1 = nb.Nifti1Image(np.transpose(img_arr_t1,axes=(2,1,0)),affine=a1)
-        img_t2 = nb.Nifti1Image(np.transpose(img_arr_t2,axes=(2,1,0)),affine=a2)
-        img_t2_res = resample_from_to(img_t2,(img_t1.shape[:3],img_t1.affine))
-        img_arr_t2 = np.ascontiguousarray(np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0)))
-        return img_arr_t2,img_t2_res.affine
-    
+   
     # operates on a single image channel 
     def rescale(self,img_arr,vmin=None,vmax=None):
         scaled_arr =  np.zeros(np.shape(img_arr))
@@ -407,21 +301,6 @@ class CreateCaseFrame(CreateFrame):
         scaled_arr = np.clip(scaled_arr,a_min=0,a_max=1)
         return scaled_arr
     
-    def n4bias(self,img_arr,shrinkFactor=4,nFittingLevels=4):
-        print('N4 bias correction')
-        data = copy.deepcopy(img_arr)
-        dataImage = sitk.Cast(sitk.GetImageFromArray(data),sitk.sitkFloat32)
-        sdataImage = sitk.Shrink(dataImage,[shrinkFactor]*dataImage.GetDimension())
-        maskImage = sitk.Cast(sitk.GetImageFromArray(np.where(data,True,False).astype('uint8')),sitk.sitkUInt8)
-        maskImage = sitk.Shrink(maskImage,[shrinkFactor]*maskImage.GetDimension())
-        corrector = sitk.N4BiasFieldCorrectionImageFilter()
-        lowres_img = corrector.Execute(sdataImage,maskImage)
-        log_bias_field = corrector.GetLogBiasFieldAsImage(dataImage)
-        log_bias_field_arr = sitk.GetArrayFromImage(log_bias_field)
-        corrected_img = dataImage / sitk.Exp(log_bias_field)
-        corrected_img_arr = sitk.GetArrayFromImage(corrected_img)
-        img_arr = copy.deepcopy(corrected_img_arr)
-        return img_arr
 
 
     # main callback for selecting a data directory either by file dialog or text entry
@@ -457,61 +336,37 @@ class CreateCaseFrame(CreateFrame):
                     if len(niftidirs):
                         self.datadir.set(dir)
 
-                        # check for BraTS format first
-                        brats = re.match('(^.*brats.*)0[0-9]{4}',niftidirs[0],flags=re.I)
-                        if brats:
-                            self.casefile_prefix = brats.group(1)
-                            casefiles = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
-                            self.caselist['casetags'] = [re.match('.*(0[0-9]{4})',f).group(1) for f in files if re.search('_0[0-9]{4}$',f)]
-                            self.caselist['casedirs'] = files
-                            self.w.config(width=6)
-                            # brats data already have this processing
-                            self.register_check_value.set(0)
-                            self.skullstrip_check_value.set(0)
-                        else:
-                            self.casefile_prefix = ''
-                            # for niftidirs that are processed dicomdirs, there may be
-                            # multiple empty subdirectories. for now assume that the 
-                            # immediate subdir of the datadir is the best tag for the casefile
-                            # if there are multiple niftidirs, and the selected datadir itself is the
-                            # tag for a single nifti file
-                            # the casedir is a sub-directory path between the upper datadir,
-                            # and the parent of the dicom series dirs where the nifti's get stored
-                            if len(niftidirs) > 1:
-                                casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
-                                casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
-                                doload = self.config.AutoLoad
-                            elif len(niftidirs) == 1:
-                                self.casedir = niftidirs[0]
-                                self.datadir.set(os.path.split(dir)[0])
-                                casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
-                                casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
-                                doload = True
-                            # may need a future sort
-                            if False:
-                                casefiles,casedirs = (list(t) for t in zip(*sorted(zip(casefiles,casedirs))))
-                            self.caselist['casetags'] = casefiles
-                            self.caselist['casedirs'] = casedirs
-                            self.w.config(width=max(20,len(casefiles[0])))
+                        self.casefile_prefix = ''
+                        # for niftidirs that are processed dicomdirs, there may be
+                        # multiple empty subdirectories. for now assume that the 
+                        # immediate subdir of the datadir is the best tag for the casefile
+                        # if there are multiple niftidirs, and the selected datadir itself is the
+                        # tag for a single nifti file
+                        # the casedir is a sub-directory path between the upper datadir,
+                        # and the parent of the dicom series dirs where the nifti's get stored
+                        if len(niftidirs) > 1:
+                            casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
+                            casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
+                            doload = self.config.AutoLoad
+                        elif len(niftidirs) == 1:
+                            self.casedir = niftidirs[0]
+                            self.datadir.set(os.path.split(dir)[0])
+                            casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
+                            casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
+                            doload = True
+                        # may need a future sort
+                        if False:
+                            casefiles,casedirs = (list(t) for t in zip(*sorted(zip(casefiles,casedirs))))
+                        self.caselist['casetags'] = casefiles
+                        self.caselist['casedirs'] = casedirs
+                        self.w.config(width=max(20,len(casefiles[0])))
                         self.casetype = 1
 
                     # assumes all nifti dirs or all dicom dirs.
-                    # if only a single dicom case directory continue directly to blast
-                    elif len(dcmdirs)==1:
-                        # self.datadir.set(dir)
-                        self.casefile_prefix = ''
-                        self.casedir = dcmdirs[0]
-                        self.datadir.set(os.path.split(dir)[0])
-                        self.caselist['casetags'] = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in dcmdirs]
-                        # self.caselist['casetags'] = [os.path.split(self.casedir)[1]]
-                        self.caselist['casedirs'] = [d[len(self.datadir.get())+1:] for d in dcmdirs]
-                        self.w.config(width=max(20,len(self.caselist['casetags'][0])))
-                        self.casetype = 2
-                        doload = True
-                    elif len(dcmdirs) > 1:
-                    # if multiple dicom dirs, preprocess only
+                    elif len(dcmdirs):
                         self.datadir.set(dir)
-                        self.preprocess(dcmdirs)
+                        self.pp = PreProcess()
+                        self.pp.preprocess(dcmdirs)
                         casefiles = []
                         doload = False
                         return

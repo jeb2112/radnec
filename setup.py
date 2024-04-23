@@ -1,12 +1,12 @@
 from setuptools import setup, find_namespace_packages
 import versioneer
 
-setup(name='blast',
-      packages=find_namespace_packages(include=["blast"]),
+setup(name='radnec',
+      packages=find_namespace_packages(include=["radnec"]),
       version=versioneer.get_version(),
       cmdclass = versioneer.get_cmdclass(),
-      description='BLAST User Interface',
-      url='https://github.com/jeb2112/blast',
+      description='RADNEC User Interface',
+      url='https://github.com/jeb2112/radnec',
       author='JB',
       install_requires=[
             "scipy",
@@ -14,6 +14,7 @@ setup(name='blast',
             "numpy",
             "scikit-image",
             "SimpleITK",
+            "ants",
             "pandas",
             "matplotlib",
             "connected-components-3d",
@@ -21,6 +22,5 @@ setup(name='blast',
             "versioneer",
             "nibabel",
             "screeninfo",
-            "pydicom",
-            "itk-elastix"])
+            "pydicom"])
  

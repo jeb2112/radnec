@@ -18,12 +18,6 @@ from skimage.measure import find_contours
 from scipy.spatial.distance import dice
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
-if os.name == 'posix':
-    from cucim.skimage.morphology import binary_closing as cucim_binary_closing
-elif os.name == 'nt':
-    from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
-import cupy as cp
-import cc3d
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
