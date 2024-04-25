@@ -36,6 +36,7 @@ class DcmProcess():
                      'flair+':{'d':None,'time':None,'affine':None,'ex':False},
                      'cbv':{'d':None,'time':None,'affine':None,'ex':False},
                      't1_cbv':{'d':None,'time':None,'affine':None,'ex':False},
+                     'target':{'d':None,'affine':None,'ex':False}
                      }
         self.dtag = [k for k in self.dset.keys()]
         # list of time attributes to check
@@ -81,74 +82,20 @@ class DcmProcess():
             if 't1' in ds0.SeriesDescription.lower():
                 if 'pre' in ds0.SeriesDescription.lower():
                     dt = 't1'
-                    # self.dset['t1']['ex'] = True
-                    # self.dset['t1']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
-                    # self.dset['t1']['affine'] = self.get_affine(ds0,dslice)
-                    # self.dset['t1']['d'][0,:,:] = ds0.pixel_array
-                    # for i,f in enumerate(files[1:]):
-                    #     data = pd.dcmread(os.path.join(dpath,f))
-                    #     self.dset['t1']['d'][i+1,:,:] = data.pixel_array
                 else:
                     dt = 't1+'
-
-                    # self.dset['t1+']['ex'] = True
-                    # self.dset['t1+']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
-                    # self.dset['t1+']['affine'] = self.get_affine(ds0,dslice)
-                    # self.dset['t1+']['d'][0,:,:] = ds0.pixel_array
-
-                    # also create isotropic target affine for resampling based on the t1 affine
-                    # might not need anymore
-                    if False:
-                        nslice = int( ds0[(0x2001,0x1018)].value * float(ds0[(0x0018,0x0088)].value) )
-                        if pd.tag.Tag(0x2001,0x1018) in ds0.keys() and pd.tag.Tag(0x0018,0x0088) in ds0.keys(): # philips. siemens?
-                            nslice = int( ds0[(0x2001,0x1018)].value * float(ds0[(0x0018,0x0088)].value) )
-                        elif pd.tag.Tag(0x0018,0x0050) in ds0.keys(): # possible alternate for siemens?
-                            nslice = int(float(ds0[(0x0018,0x0050)].value) * len(files))
-                        else:
-                            raise Exception('number of 1mm slices cannot be parsed from header')
-                        nx = int( float(ds0[(0x0028,0x0030)].value[0]) * ds0[(0x0028,0x0010)].value )
-                        ny = int( float(ds0[(0x0028,0x0030)].value[1]) * ds0[(0x0028,0x0011)].value )
-                        affine =  np.diag(np.ones(4),k=0)
-                        affine[:3,3] = self.ui.affine['t1'][:3,3]
-                        self.ui.affine['target'] = affine
-                        self.dset['target'] = np.zeros((nslice,ny,nx))
-
-                    # for i,f in enumerate(files[1:]):
-                    #     data = pd.dcmread(os.path.join(dpath,f))
-                    #     self.dset['t1+']['d'][i+1,:,:] = data.pixel_array
 
             elif any([f in ds0.SeriesDescription.lower() for f in ['flair','fluid']]):
                 if 'pre' in ds0.SeriesDescription.lower():
                     dt = 'flair'
-                    # self.dset['flair']['ex'] = True
-                    # self.dset['flair']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
-                    # self.dset['flair']['affine'] = self.get_affine(ds0,dslice)
-                    # self.dset['flair']['d'][0,:,:] = ds0.pixel_array
-                    # for i,f in enumerate(files[1:]):
-                    #     data = pd.dcmread(os.path.join(dpath,f))
-                    #     self.dset['flair']['d'][i+1,:,:] = data.pixel_array
                 else:
                     dt = 'flair+'
-                    # self.dset['flair+']['ex'] = True
-                    # self.dset['flair+']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
-                    # self.dset['flair+']['affine'] = self.get_affine(ds0,dslice)
-                    # self.dset['flair+']['d'][0,:,:] = ds0.pixel_array
-                    # for i,f in enumerate(files[1:]):
-                    #     data = pd.dcmread(os.path.join(dpath,f))
-                    #     self.dset['flair+']['d'][i+1,:,:] = data.pixel_array
 
             # not taking relcbv or relcbf, just relccbv
             # note this may be exported in a separate studydir, without a matching t1
             # TODO: the matching t1 has to come from another studydir, based on time tags
             elif any([f in ds0.SeriesDescription.lower() for f in ['relccbv','perf']]):
                 dt = 'cbv'
-                # self.dset['cbv']['ex'] = True
-                # self.dset['cbv']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
-                # self.dset['cbv']['affine'] = self.get_affine(ds0,dslice)
-                # self.dset['cbv']['d'][0,:,:] = ds0.pixel_array
-                # for i,f in enumerate(files[1:]):
-                #     data = pd.dcmread(os.path.join(dpath,f))
-                #     self.dset['cbv']['d'][i+1,:,:] = data.pixel_array
             else:
                 dt = None
                 continue
@@ -166,6 +113,26 @@ class DcmProcess():
                     if hasattr(ds0,t):
                         self.dset[dt]['time'] = getattr(ds0,t)
                         break
+
+            # also create target affine with 1mm slices (not finished) 
+            # t1+ will probably always have 1mm slices anyway, might not need anymore
+            if False:
+                if dt == 't1+':
+                    if pd.tag.Tag(0x2001,0x1018) in ds0.keys() and pd.tag.Tag(0x0018,0x0088) in ds0.keys(): # philips. siemens?
+                        nslice = int( ds0[(0x2001,0x1018)].value * float(ds0[(0x0018,0x0088)].value) )
+                    elif pd.tag.Tag(0x0018,0x0050) in ds0.keys(): # possible alternate for siemens?
+                        nslice = int(float(ds0[(0x0018,0x0050)].value) * len(files))
+                    else:
+                        raise Exception('number of 1mm slices cannot be parsed from header')
+                    nx = int( float(ds0[(0x0028,0x0030)].value[0]) * ds0[(0x0028,0x0010)].value )
+                    ny = int( float(ds0[(0x0028,0x0030)].value[1]) * ds0[(0x0028,0x0011)].value )
+                    affine =  np.diag(np.ones(4),k=0)
+                    # affine[:3,3] = self.dset['t1+']['affine'][:3,3]
+                    # self.dset['target']['affine'] = affine
+                    # self.dset['target']['d'] = np.zeros((nslice,ny,nx))
+
+
+
 
         return
     
@@ -217,21 +184,15 @@ class DcmProcess():
             self.dset['t1+']['d'],tx = self.register(self.reference,self.dset['t1+']['d'],transform='Rigid')
 
 
-        # resample to target isotropic matrix
-        if False:
-            for t in ['t1pre']:
-                if self.dset[t]['ex']:
-                    print('Resampling ' + t + ' into target space...')
-                    self.dset[t]['d'],self.ui.affine[t] = self.resamplet2(self.dset['target'],self.dset[t]['d'],
-                                                                        self.ui.affine['target'],self.ui.affine[t])
-                    self.dset[t]['d']= np.clip(self.dset[t]['d'],0,None)
+        # resample to target matrix (t1+ for now)
+        if True:
+            for dt in ['flair','flair+','cbv']:
+                if self.dset[dt]['ex'] and self.dset['t1+']['ex']:
+                    print('Resampling ' + dt + ' into target space...')
+                    self.dset[dt]['d'],self.dset[dt]['affine'] = self.resamplet2(self.dset['t1+']['d'],self.dset[dt]['d'],
+                                                                        self.dset['t1+']['affine'],self.dset[dt]['affine'])
+                    self.dset[dt]['d']= np.clip(self.dset[dt]['d'],0,None)
 
-            # assuming t1,flair always present in any possible dataset
-            for t in ['t1','flair']:
-                print('Resampling ' + t + ' into target space...')
-                self.dset[t]['d'],self.ui.affine[t] = self.resamplet2(self.dset['target'],self.dset[t]['d'],
-                                                                    self.ui.affine['target'],self.ui.affine[t])
-                self.dset[t]['d'] = np.clip(self.dset[t]['d'],0,None)
 
         if False:
             for t in ['t1pre','t1','t2','flair']:
@@ -277,19 +238,21 @@ class DcmProcess():
                     self.dset[dt]['d'] *= self.dset[dt+'+']['mask']
 
 
-        # registration
-        if self.dset['t1+']['ex']:
-            fixed_image = self.dset['t1+']['d']
-            for dt in ['t1','flair','flair+']:
-                fname = os.path.join(self.localcasedir,dt+'_resampled.nii.gz')
-                if self.dset[dt]['ex']:
-                    moving_image = self.dset[dt]['d']
-                    self.dset[dt]['d'] = self.register(fixed_image,moving_image,transform='Rigid')
-                    if False:
-                        self.writenifti(self.dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
-                                                type='float',affine=self.ui.affine['t1'])
-        else:
-            print('No T1+ to register on, skipping...')
+        # registration. some RELCCBV exports may have their own study number
+        # and need to be reconnected with the source T1 scan by study date tag
+        if True:
+            if self.dset['t1+']['ex']:
+                fixed_image = self.dset['t1+']['d']
+                for dt in ['t1','flair','flair+']:
+                    fname = os.path.join(self.localcasedir,dt+'_resampled.nii.gz')
+                    if self.dset[dt]['ex']:
+                        moving_image = self.dset[dt]['d']
+                        self.dset[dt]['d'] = self.register(fixed_image,moving_image,transform='Rigid')
+                        if False:
+                            self.writenifti(self.dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
+                                                    type='float',affine=self.ui.affine['t1'])
+            else:
+                print('No T1+ to register on, skipping...')
 
 
         # bias correction.
@@ -306,10 +269,14 @@ class DcmProcess():
                 self.dset[dt]['d'] = self.rescale(self.dset[dt]['d'])
 
         # save nifti files for future use
-        for dt in ['t1','t1+','flair','flair+','cbv']:
+        for dt in ['flair+','t1','t1+','flair']:
             if self.dset[dt]['ex']:
                 self.writenifti(self.dset[dt]['d'],os.path.join(self.localcasedir,dt+'_processed.nii'),
-                                            type='float',affine=self.dset[dt]['affine'])
+                                            type='float',affine=self.dset['t1+']['affine'])
+        for dt in ['cbv']: # pending solution for registration
+            if self.dset[dt]['ex']:
+                self.writenifti(self.dset[dt]['d'],os.path.join(self.localcasedir,dt+'_processed.nii'),
+                                            type='float',affine=self.dset['t1+']['affine'])
 
         return
 
