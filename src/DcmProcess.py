@@ -23,27 +23,47 @@ from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice
 
 
-class PreProcess():
-    def __init__(self):
-        self.dtag = ['t0','t1r'] 
-        self.dset = {'t0':{'d':None,'d2':None,'time':None,'affine':None},'t1r':{'d':None,'d2':None,'time':None,'affine':None}}
+class DcmProcess():
+    def __init__(self,config):
+        # collection of scans on any given date
+        self.config = config
+        self.date = None
+        self.casedir = None
+        self.localcasedir = None
+        self.dset = {'t1':{'d':None,'time':None,'affine':None,'ex':False},
+                     't1+':{'d':None,'time':None,'affine':None,'ex':False,'mask':None},
+                     'flair':{'d':None,'time':None,'affine':None,'ex':False},
+                     'flair+':{'d':None,'time':None,'affine':None,'ex':False},
+                     'cbv':{'d':None,'time':None,'affine':None,'ex':False},
+                     't1_cbv':{'d':None,'time':None,'affine':None,'ex':False},
+                     }
+        self.dtag = [k for k in self.dset.keys()]
+        # list of time attributes to check
+        self.seriestimeattrs = ['AcquisitionTime']
+        self.studytimeattrs = {'StudyDate':None,'StudyTime':None}
+        self.date = None
+        # talairach reference image
+        self.reference,self.affine = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',os.path.join(self.config.UIdatadir,'mni152'))
+
+
         return
 
-    # load up to four dicom series directories in the provided parent directory
+    # load up multiple series directories in the provided study directory
     def loaddicom(self,d):
-        dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},
-                'flair':{'d':None,'ex':False},'ref':{'d':None,'mask':None,'ex':False}}
-        # assume a dicomdir is a parent of several series directories
         self.casedir = d
         seriesdirs = os.listdir(d)
+
         # special case subdir for providing an externally generated mask
-        if 'mask' in seriesdirs:
-            seriesdirs.pop(seriesdirs.index('mask'))
-            dpath = os.path.join(d,'mask')
-            img_nb = nb.load(os.path.join(dpath,'img_mask.nii.gz'))
-            dset['ref']['mask'] = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
-            img_nb = nb.load(os.path.join(dpath,'img_reference.nii.gz'))
-            dset['ref']['d'] = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
+        # probably not needed anymore
+        if False:
+            if 'mask' in seriesdirs:
+                seriesdirs.pop(seriesdirs.index('mask'))
+                dpath = os.path.join(d,'mask')
+                img_nb = nb.load(os.path.join(dpath,'img_mask.nii.gz'))
+                self.dset['ref']['mask'] = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
+                img_nb = nb.load(os.path.join(dpath,'img_reference.nii.gz'))
+                self.dset['ref']['d'] = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
+
         for sd in seriesdirs:
             dpath = os.path.join(d,sd)
             files = sorted(os.listdir(dpath))
@@ -54,57 +74,105 @@ class PreProcess():
             if dslice < 0:
                 files = sorted(files,reverse=True)
             print(ds0.SeriesDescription)
+            for t in self.studytimeattrs.keys():
+                if hasattr(ds0,t):
+                    self.studytimeattrs[t] = getattr(ds0,t)
+
             if 't1' in ds0.SeriesDescription.lower():
                 if 'pre' in ds0.SeriesDescription.lower():
-                    dset['t1pre']['ex'] = True
-                    dset['t1pre']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
-                    self.ui.affine['t1pre'] = self.get_affine(ds0,dslice)
-                    dset['t1pre']['d'][0,:,:] = ds0.pixel_array
-                    for i,f in enumerate(files[1:]):
-                        data = pd.dcmread(os.path.join(dpath,f))
-                        dset['t1pre']['d'][i+1,:,:] = data.pixel_array
+                    dt = 't1'
+                    # self.dset['t1']['ex'] = True
+                    # self.dset['t1']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                    # self.dset['t1']['affine'] = self.get_affine(ds0,dslice)
+                    # self.dset['t1']['d'][0,:,:] = ds0.pixel_array
+                    # for i,f in enumerate(files[1:]):
+                    #     data = pd.dcmread(os.path.join(dpath,f))
+                    #     self.dset['t1']['d'][i+1,:,:] = data.pixel_array
                 else:
-                    dset['t1']['ex'] = True
-                    dset['t1']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
-                    self.ui.affine['t1'] = self.get_affine(ds0,dslice)
-                    dset['t1']['d'][0,:,:] = ds0.pixel_array
+                    dt = 't1+'
+
+                    # self.dset['t1+']['ex'] = True
+                    # self.dset['t1+']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                    # self.dset['t1+']['affine'] = self.get_affine(ds0,dslice)
+                    # self.dset['t1+']['d'][0,:,:] = ds0.pixel_array
+
                     # also create isotropic target affine for resampling based on the t1 affine
-                    nslice = int( ds0[(0x2001,0x1018)].value * float(ds0[(0x0018,0x0088)].value) )
-                    if pd.tag.Tag(0x2001,0x1018) in ds0.keys() and pd.tag.Tag(0x0018,0x0088) in ds0.keys(): # philips. siemens?
+                    # might not need anymore
+                    if False:
                         nslice = int( ds0[(0x2001,0x1018)].value * float(ds0[(0x0018,0x0088)].value) )
-                    elif pd.tag.Tag(0x0018,0x0050) in ds0.keys(): # possible alternate for siemens?
-                        nslice = int(float(ds0[(0x0018,0x0050)].value) * len(files))
-                    else:
-                        raise Exception('number of 1mm slices cannot be parsed from header')
-                    nx = int( float(ds0[(0x0028,0x0030)].value[0]) * ds0[(0x0028,0x0010)].value )
-                    ny = int( float(ds0[(0x0028,0x0030)].value[1]) * ds0[(0x0028,0x0011)].value )
-                    affine =  np.diag(np.ones(4),k=0)
-                    affine[:3,3] = self.ui.affine['t1'][:3,3]
-                    self.ui.affine['target'] = affine
-                    dset['target'] = np.zeros((nslice,ny,nx))
-                    for i,f in enumerate(files[1:]):
-                        data = pd.dcmread(os.path.join(dpath,f))
-                        dset['t1']['d'][i+1,:,:] = data.pixel_array
+                        if pd.tag.Tag(0x2001,0x1018) in ds0.keys() and pd.tag.Tag(0x0018,0x0088) in ds0.keys(): # philips. siemens?
+                            nslice = int( ds0[(0x2001,0x1018)].value * float(ds0[(0x0018,0x0088)].value) )
+                        elif pd.tag.Tag(0x0018,0x0050) in ds0.keys(): # possible alternate for siemens?
+                            nslice = int(float(ds0[(0x0018,0x0050)].value) * len(files))
+                        else:
+                            raise Exception('number of 1mm slices cannot be parsed from header')
+                        nx = int( float(ds0[(0x0028,0x0030)].value[0]) * ds0[(0x0028,0x0010)].value )
+                        ny = int( float(ds0[(0x0028,0x0030)].value[1]) * ds0[(0x0028,0x0011)].value )
+                        affine =  np.diag(np.ones(4),k=0)
+                        affine[:3,3] = self.ui.affine['t1'][:3,3]
+                        self.ui.affine['target'] = affine
+                        self.dset['target'] = np.zeros((nslice,ny,nx))
+
+                    # for i,f in enumerate(files[1:]):
+                    #     data = pd.dcmread(os.path.join(dpath,f))
+                    #     self.dset['t1+']['d'][i+1,:,:] = data.pixel_array
+
             elif any([f in ds0.SeriesDescription.lower() for f in ['flair','fluid']]):
-                dset['flair']['ex'] = True
-                dset['flair']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
-                self.ui.affine['flair'] = self.get_affine(ds0,dslice)
-                dset['flair']['d'][0,:,:] = ds0.pixel_array
+                if 'pre' in ds0.SeriesDescription.lower():
+                    dt = 'flair'
+                    # self.dset['flair']['ex'] = True
+                    # self.dset['flair']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                    # self.dset['flair']['affine'] = self.get_affine(ds0,dslice)
+                    # self.dset['flair']['d'][0,:,:] = ds0.pixel_array
+                    # for i,f in enumerate(files[1:]):
+                    #     data = pd.dcmread(os.path.join(dpath,f))
+                    #     self.dset['flair']['d'][i+1,:,:] = data.pixel_array
+                else:
+                    dt = 'flair+'
+                    # self.dset['flair+']['ex'] = True
+                    # self.dset['flair+']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                    # self.dset['flair+']['affine'] = self.get_affine(ds0,dslice)
+                    # self.dset['flair+']['d'][0,:,:] = ds0.pixel_array
+                    # for i,f in enumerate(files[1:]):
+                    #     data = pd.dcmread(os.path.join(dpath,f))
+                    #     self.dset['flair+']['d'][i+1,:,:] = data.pixel_array
+
+            # not taking relcbv or relcbf, just relccbv
+            # note this may be exported in a separate studydir, without a matching t1
+            # TODO: the matching t1 has to come from another studydir, based on time tags
+            elif any([f in ds0.SeriesDescription.lower() for f in ['relccbv','perf']]):
+                dt = 'cbv'
+                # self.dset['cbv']['ex'] = True
+                # self.dset['cbv']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                # self.dset['cbv']['affine'] = self.get_affine(ds0,dslice)
+                # self.dset['cbv']['d'][0,:,:] = ds0.pixel_array
+                # for i,f in enumerate(files[1:]):
+                #     data = pd.dcmread(os.path.join(dpath,f))
+                #     self.dset['cbv']['d'][i+1,:,:] = data.pixel_array
+            else:
+                dt = None
+                continue
+
+            if dt is not None:
+                self.dset[dt]['ex'] = True
+                self.dset[dt]['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                self.dset[dt]['affine'] = self.get_affine(ds0,dslice)
+                self.dset[dt]['d'][0,:,:] = ds0.pixel_array
                 for i,f in enumerate(files[1:]):
                     data = pd.dcmread(os.path.join(dpath,f))
-                    dset['flair']['d'][i+1,:,:] = data.pixel_array
-            elif 't2' in ds0.SeriesDescription.lower():
-                dset['t2']['ex'] = True
-                dset['t2']['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
-                self.ui.affine['t2'] = self.get_affine(ds0,dslice)
-                for i,f in enumerate(files[1:]):
-                    data = pd.dcmread(os.path.join(dpath,f))
-                    dset['t2']['d'][i+1,:,:] = data.pixel_array
-        return dset
+                    self.dset[dt]['d'][i+1,:,:] = data.pixel_array
+
+                for t in self.seriestimeattrs:
+                    if hasattr(ds0,t):
+                        self.dset[dt]['time'] = getattr(ds0,t)
+                        break
+
+        return
     
 
     # load single dicom series directory 
     # from temporal regression
+    # not sure if needed
     def loaddicom2(self,dpath):
         # list of time attributes to check
         timeattrs = {'AcquisitionDate':None,'AcquisitionTime':None,'StudyDate':None,'StudyTime':None}
@@ -134,137 +202,120 @@ class PreProcess():
 
 
 
-    # use for an input dicom directory
-    # preprocessing nifti files is handled by the checkbox settings
-    def preprocess(self,dirs):
-        for d in dirs:
+    # use for an input study directory
+    # there could be multiple study directories per case using date to create subdirs
+    def preprocess(self,case,studydir):
 
-            dset = self.loaddicom(d)
+        print('case = {},{}'.format(case,studydir))
+        self.loaddicom(studydir)
+        self.localcasedir = os.path.join(self.config.UIlocaldir,case,self.studytimeattrs['StudyDate'])
+        if not os.path.exists(self.localcasedir):
+            os.makedirs(self.localcasedir)
 
-            # resample to target isotropic matrix
-            for t in ['t1pre','t2']:
-                if dset[t]['ex']:
+        # register to talairach space
+        if False:
+            self.dset['t1+']['d'],tx = self.register(self.reference,self.dset['t1+']['d'],transform='Rigid')
+
+
+        # resample to target isotropic matrix
+        if False:
+            for t in ['t1pre']:
+                if self.dset[t]['ex']:
                     print('Resampling ' + t + ' into target space...')
-                    dset[t]['d'],self.ui.affine[t] = self.resamplet2(dset['target'],dset[t]['d'],
-                                                                     self.ui.affine['target'],self.ui.affine[t])
-                    dset[t]['d']= np.clip(dset[t]['d'],0,None)
+                    self.dset[t]['d'],self.ui.affine[t] = self.resamplet2(self.dset['target'],self.dset[t]['d'],
+                                                                        self.ui.affine['target'],self.ui.affine[t])
+                    self.dset[t]['d']= np.clip(self.dset[t]['d'],0,None)
 
             # assuming t1,flair always present in any possible dataset
             for t in ['t1','flair']:
                 print('Resampling ' + t + ' into target space...')
-                dset[t]['d'],self.ui.affine[t] = self.resamplet2(dset['target'],dset[t]['d'],
-                                                                 self.ui.affine['target'],self.ui.affine[t])
-                dset[t]['d'] = np.clip(dset[t]['d'],0,None)
+                self.dset[t]['d'],self.ui.affine[t] = self.resamplet2(self.dset['target'],self.dset[t]['d'],
+                                                                    self.ui.affine['target'],self.ui.affine[t])
+                self.dset[t]['d'] = np.clip(self.dset[t]['d'],0,None)
 
-            if False:
-                for t in ['t1pre','t1','t2','flair']:
-                    if dset[t]['ex']:
-                        self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
-                                            type='float',affine=self.ui.affine['t1'])
-                        
+        if False:
+            for t in ['t1pre','t1','t2','flair']:
+                if self.dset[t]['ex']:
+                    self.ui.roiframe.WriteImage(self.dset[t]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
+                                        type='float',affine=self.ui.affine['t1'])
+                    
 
-            # skull strip. for now assuming only needed on input dicoms
+        # skull strip
 
-            if dset['ref']['mask'] is not None:
-                # use optional mask if available. 
+        # optional. use mask. not sure if it will be needed 
+        if self.dset['t1+']['mask'] is not None:
 
-                # pre-registration. for now assuming mask is a T1post so register T1pre,T2,flair
-                # reference
-                fixed_image = itk.GetImageFromArray(dset['t1']['d'])
-
-                for t in ['t1pre','t2','flair']:
-                    fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
-                    if dset[t]['ex']:
-                        moving_image = itk.GetImageFromArray(dset[t]['d'])
-                        moving_image_res = self.elastix_affine(fixed_image,moving_image,type='rigid')
-                        dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
-                        if False:
-                            self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
-                                                    type='float',affine=self.ui.affine['t1'])
-
-                # apply mask
-                for t in ['t1','t1pre','t2','flair']:
-                    if dset[t]['ex']:
-                        dset[t]['d'] = np.where(dset['ref']['mask'],dset[t]['d'],0)
-
-            else:    
-                # attempt model extraction
-                img_arr_t1_ex,mask = self.extractbrain(dset['t1']['d'])
-                if True:
-                    self.ui.roiframe.WriteImage(mask,os.path.join(d,'img_'+'t1'+'_mask.nii.gz'),
-                                                type='uint8',affine=self.ui.affine['t1'])
-                nmask = len(mask[mask>0])
-                for t in ['t1pre','t2','flair']:
-                    if dset[t]['ex']:
-                        img_arr_t_ex,_ = self.extractbrain(dset[t]['d'])
-                        # if extraction mask is significantly smaller than t1 mask, assume it's not good
-                        # and just use the t1 mask
-                        if len(img_arr_t_ex[img_arr_t_ex>0]) > 0.98*nmask:
-                            dset[t]['d'] = copy.deepcopy(img_arr_t_ex)
-                        else:
-                            # to use t1 mask have to preregister to t1 first
-                            fixed_image = itk.GetImageFromArray(dset['t1']['d'])
-
-                            fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
-                            if dset[t]['ex']:
-                                moving_image = itk.GetImageFromArray(dset[t]['d'])
-                                moving_image_res = self.elastix_affine(fixed_image,moving_image,type='rigid')
-                                dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
-                                if False:
-                                    self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
-                                                            type='float',affine=self.ui.affine['t1'])
-                            # apply t1 mask
-                            dset[t]['d'] = np.where(mask,dset[t]['d'],0)
-                # finally record extracted t1
-                dset['t1']['d'] = img_arr_t1_ex
-
-            if False:
-                for t in ['t1','t1pre','t2','flair']:
-                    if dset[t]['ex']:
-                        self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_extracted.nii.gz'),
-                                                    type='float',affine=self.ui.affine['t1'])
-
-            # registration
-            print('register T2, flair')
-
+            # pre-registration. for now assuming mask is a T1post so register T1pre,T2,flair
             # reference
-            fixed_image = itk.GetImageFromArray(dset['t1']['d'])
+            fixed_image = self.dset['t1+']['d']
 
-            for t in ['t1pre','t2','flair']:
-                fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
-                if dset[t]['ex']:
-                    moving_image = itk.GetImageFromArray(dset[t]['d'])
-                    moving_image_res = self.elastix_affine(fixed_image,moving_image,type='rigid')
-                    dset[t]['d'] = itk.GetArrayFromImage(moving_image_res)
+            for dt in ['t1pre','flair','flair+']:
+                # fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
+                if self.dset[dt]['ex']:
+                    moving_image = self.dset[dt]['d']
+                    self.dset[dt]['d'] = self.register(fixed_image,moving_image,transform='Rigid')
                     if False:
-                        self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
+                        self.ui.roiframe.WriteImage(self.dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
                                                 type='float',affine=self.ui.affine['t1'])
 
-            # bias correction.
-            for t in ['t1pre','t1','t2','flair']:
-                if dset[t]['ex']:   
-                    dset[t]['d'] = self.n4bias(dset[t]['d'])
+            # apply mask
+            for dt in ['t1','flair','flair+']:
+                if self.dset[dt]['ex']:
+                    self.dset[dt]['d'] = np.where(self.dset['t1+']['mask'],self.dset[dt]['d'],0)
 
-            # rescale the data
-            # if necessary clip any negative values introduced by the processing
-            for t in ['t1pre','t1','t2','flair']:
-                if dset[t]['ex']:
-                    if np.min(dset[t]['d']) < 0:
-                        dset[t]['d'][dset[t]['d'] < 0] = 0
-                    dset[t]['d'] = self.rescale(dset[t]['d'])
 
-            # save nifti files for future use
-            for t in ['t1pre','t1','t2','flair']:
-                if dset[t]['ex']:
-                    self.ui.roiframe.WriteImage(dset[t]['d'],os.path.join(d,'img_'+t+'_processed.nii.gz'),
+        # attempt model extraction
+        else:    
+            for dt in ['t1+','flair+']:
+                if self.dset[dt]['ex']:
+                    self.dset[dt]['d'],self.dset[dt]['mask'] = self.extractbrain2(self.dset[dt]['d'],affine=self.dset[dt]['affine'],fname=dt)
+
+            # if these pre-contrast exams exist, assumes that post-contrast is present
+            # TODO: add registration? mask versus extract? 
+            for dt in ['t1','flair']:
+                if self.dset[dt]['ex']:
+                    self.dset[dt]['d'] *= self.dset[dt+'+']['mask']
+
+
+        # registration
+        if self.dset['t1+']['ex']:
+            fixed_image = self.dset['t1+']['d']
+            for dt in ['t1','flair','flair+']:
+                fname = os.path.join(self.localcasedir,dt+'_resampled.nii.gz')
+                if self.dset[dt]['ex']:
+                    moving_image = self.dset[dt]['d']
+                    self.dset[dt]['d'] = self.register(fixed_image,moving_image,transform='Rigid')
+                    if False:
+                        self.writenifti(self.dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
                                                 type='float',affine=self.ui.affine['t1'])
+        else:
+            print('No T1+ to register on, skipping...')
 
-        if len(dirs) == 1:
-            return dset
+
+        # bias correction.
+        for dt in ['t1','t1+','flair','flair+']:
+            if self.dset[dt]['ex']:   
+                self.dset[dt]['d'] = self.n4bias(self.dset[dt]['d'])
+
+        # rescale the data
+        # if necessary clip any negative values introduced by the processing
+        for dt in ['t1','t1+','flair','flair+']:
+            if self.dset[dt]['ex']:
+                if np.min(self.dset[dt]['d']) < 0:
+                    self.dset[dt]['d'][self.dset[dt]['d'] < 0] = 0
+                self.dset[dt]['d'] = self.rescale(self.dset[dt]['d'])
+
+        # save nifti files for future use
+        for dt in ['t1','t1+','flair','flair+','cbv']:
+            if self.dset[dt]['ex']:
+                self.writenifti(self.dset[dt]['d'],os.path.join(self.localcasedir,dt+'_processed.nii'),
+                                            type='float',affine=self.dset[dt]['affine'])
+
         return
 
 
     # newer from temporal regression
+    # not sure if needed
     def process_dicom(self,dcmdirs,case,rc):
 
         dtag = ['t0','t1r'] 
@@ -414,7 +465,46 @@ class PreProcess():
         return affine
     
 
+    def get_time(self):
+        if all(self.dset[v]['time']['AcquisitionDate'] is not None for v in ['t0','t1r']):
+            if self.dset['t0']['time']['AcquisitionDate'] > self.dset['t1r']['time']['AcquisitionDate']:
+                self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
+            elif self.dset['t0']['time']['AcquisitionDate'] == self.dset['t1r']['time']['AcquisitionDate']:
+                if self.dset['t0']['time']['AcquisitionTime'] > self.dset['t1r']['time']['AcquisitionTime']:
+                    self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
+        # for a study that crosses midnight, the study date could remain the same while acquisition dates change
+        elif all(self.dset[v]['time']['StudyDate'] is not None for v in ['t0','t1r']):
+            if self.dset['t0']['time']['StudyDate'] > self.dset['t1r']['time']['StudyDate']:
+                self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
+            elif self.dset['t0']['time']['StudyDate'] == self.dset['t1r']['time']['StudyDate']:
+                if self.dset['t0']['time']['AcquisitionTime'] > self.dset['t1r']['time']['AcquisitionTime']:
+                    self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
+        else:
+            print('T0,T1 times not detected')
+
+
+
+
+    # skull extraction
     # replace with hd-bet
+    def extractbrain2(self,img_arr_input,affine=None,fname=None):
+        print('extract brain')
+        img_arr = copy.deepcopy(img_arr_input)
+        if fname is None:
+            fname = 'temp'
+        self.writenifti(img_arr,os.path.join(self.localcasedir,fname+'.nii'),affine=affine,norm=False,type='float')
+
+        command = 'conda run -n hdbet hd-bet '
+        command += ' -i ' + os.path.join(self.localcasedir,fname+'.nii')
+        res = os.system(command)
+        img_arr,_ = self.loadnifti(fname+'_bet.nii.gz',self.localcasedir)
+        img_arr_mask,_ = self.loadnifti(fname+'_bet_mask.nii.gz',self.localcasedir)
+        if fname == 'temp':
+            for f in glob.glob(os.path.join(self.localcasedir,'temp*')):
+                os.remove(f)
+        return img_arr,img_arr_mask
+
+    # original from brainmage
     def extractbrain(self,img_arr_input):
         print('extract brain')
         img_arr = copy.deepcopy(img_arr_input)
@@ -492,7 +582,7 @@ class PreProcess():
         return img_arr_n4
 
 
-    def loadnifti(t1_file,casedir,type=None):
+    def loadnifti(self,t1_file,casedir,type=None):
         img_arr_t1 = None
         try:
             img_nb_t1 = nb.load(os.path.join(casedir,t1_file))
@@ -509,7 +599,7 @@ class PreProcess():
         return img_arr_t1,affine
 
     # use uint8 for masks 
-    def writenifti(img_arr,filename,header=None,norm=False,type='float64',affine=None):
+    def writenifti(self,img_arr,filename,header=None,norm=False,type='float64',affine=None):
         img_arr_cp = copy.deepcopy(img_arr)
         if norm:
             img_arr_cp = (img_arr_cp -np.min(img_arr_cp)) / (np.max(img_arr_cp)-np.min(img_arr_cp)) * norm
@@ -520,14 +610,31 @@ class PreProcess():
             os.system('gzip --force {}'.format(filename))
 
 
-    # register-only, for temporal parameter space
-    def register(img_arr_fixed,img_arr_moving):
-        print('register T1,T0')
+    # registration
+    def register(self,img_arr_fixed,img_arr_moving,transform='Affine'):
+        print('register fixed, moving')
 
         fixed_ants = ants.from_numpy(img_arr_fixed)
         moving_ants = ants.from_numpy(img_arr_moving)
-        mytx = ants.registration(fixed=fixed_ants, moving=moving_ants, type_of_transform = 'Affine' )
+        mytx = ants.registration(fixed=fixed_ants, moving=moving_ants, type_of_transform = transform )
         img_arr_reg = mytx['warpedmovout'].numpy()
         a=1
 
         return img_arr_reg
+
+
+    # operates on a single image channel 
+    def rescale(self,img_arr,vmin=None,vmax=None):
+        scaled_arr =  np.zeros(np.shape(img_arr))
+        if vmin is None:
+            minv = np.min(img_arr)
+        else:
+            minv = vmin
+        if vmax is None:
+            maxv = np.max(img_arr)
+        else:
+            maxv = vmax
+        assert(maxv>minv)
+        scaled_arr = (img_arr-minv) / (maxv-minv)
+        scaled_arr = np.clip(scaled_arr,a_min=0,a_max=1)
+        return scaled_arr

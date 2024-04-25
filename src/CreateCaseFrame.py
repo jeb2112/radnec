@@ -29,7 +29,7 @@ from scipy.spatial.distance import dice
 from src.NavigationBar import NavigationBar
 from src.FileDialog import FileDialog
 from src.CreateFrame import *
-from src.PreProcess import PreProcess
+from src.DcmProcess import DcmProcess
 
 
 ################
@@ -46,6 +46,7 @@ class CreateCaseFrame(CreateFrame):
         self.filenames = None
         self.casename = StringVar()
         self.casefile_prefix = None
+        self.casedir_prefix = 'M' # simple convention to identify root dir of a case
         self.caselist = {'casetags':[],'casedirs':[]}
         self.processed = False
         self.pp = None
@@ -331,8 +332,7 @@ class CreateCaseFrame(CreateFrame):
                 # one or more case subdirectories
                 else:
                     niftidirs,dcmdirs = self.get_imagedirs(dir)
-                    # niftidirs option is intended for processing cases from a parent directory. such as BraTS.
-                    # imagefiles and dcmdirs intended for processing at the level of the individual case directory.
+                    # niftidirs option could be a single case, or a directory of multiple cases 
                     if len(niftidirs):
                         self.datadir.set(dir)
 
@@ -362,13 +362,16 @@ class CreateCaseFrame(CreateFrame):
                         self.w.config(width=max(20,len(casefiles[0])))
                         self.casetype = 1
 
-                    # assumes all nifti dirs or all dicom dirs.
+                    # if dicom dirs, then preprocess only. could be a single case or multiple cases
                     elif len(dcmdirs):
-                        self.datadir.set(dir)
-                        self.pp = PreProcess()
-                        self.pp.preprocess(dcmdirs)
-                        casefiles = []
-                        doload = False
+                        dcmdirs = self.group_dcmdirs(dcmdirs)
+                        for c in dcmdirs.keys():
+                            for d in dcmdirs[c]:
+                                self.datadir.set(d)
+                                self.pp = DcmProcess(self.config)
+                                self.pp.preprocess(c,d)
+                                casefiles = []
+                                doload = False
                         return
 
             if len(self.caselist['casetags']):
@@ -399,6 +402,9 @@ class CreateCaseFrame(CreateFrame):
             self.ui.set_message('')
         return imagefiles
     
+    # get list of all image directories under the selected directory
+    # in the case of dcmdirs, it could be one or more cases
+    # in the case of niftidirs, it should just be one case
     def get_imagedirs(self,dir):
         # dir = self.datadir.get()
         dcmdirs = []
@@ -424,6 +430,29 @@ class CreateCaseFrame(CreateFrame):
         # recognizeable subdirs of the datadir. 
 
         return niftidirs,dcmdirs
+    
+    # further group dcmdirs into separate cases
+    # the download directory structure isn't specified
+    # for now, assume that if multiple dcmdirs are present
+    # in selected dir, and the root dir of those dmcdirs is prefixed with a certain string,
+    # then they can be further grouped as case dirs
+    def group_dcmdirs(self,dcmdirs):
+        dcm_casedirs = {}
+        casedirs = []
+        for i,d in enumerate(dcmdirs):
+            casedirs.append([s for s in d.split('/') if s.startswith(self.casedir_prefix)][0])
+        if len(casedirs) == len(dcmdirs):
+            casedir_keys = set(casedirs)
+            dcm_casedirs = {c:[] for c in casedir_keys}
+            for r,d in zip(casedirs,dcmdirs):
+                dcm_casedirs[r].append(d)
+            return dcm_casedirs
+
+        else:
+            raise ValueError('Not all directories match a case prefix')
+
+
+
     
 
     def resetCase(self):

@@ -38,7 +38,8 @@ class Config(object):
         if os.name == 'nt':
             self.UIdatadir = os.path.join(os.path.expanduser('~'),'Data')
         elif os.name == 'posix':
-            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC'
+            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
+            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti'
             # self.UIdatadir = os.path.join(os.path.expanduser('~'),'Data','radnec')
         self.UIdataroot = 'BraTS2021_'
 
