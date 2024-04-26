@@ -7,6 +7,7 @@ import copy
 import re
 import logging
 import subprocess
+import pickle
 import tkinter as tk
 import nibabel as nb
 from nibabel.processing import resample_from_to
@@ -22,11 +23,77 @@ import ants
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice
 
+# a collection of multiple studies
+class Case():
+    def __init__(self,casename,studydirs,config):
 
-class DcmProcess():
-    def __init__(self,config):
-        # collection of scans on any given date
         self.config = config
+        self.case = casename
+        self.studydirs = studydirs
+        self.studies = []
+
+
+        self.load_studydirs()
+        self.process_studydirs()
+        self.process_timepoints()
+
+
+
+    # load all studies of current case
+    def load_studydirs(self):
+
+        for i,sd in enumerate(self.studydirs):
+            self.studies.append(Study(self.case,sd))
+            self.studies[i].loaddicom()
+        # sort studies by time and number of series
+        self.studies = sorted(self.studies,key=lambda x:(x.studytimeattrs['StudyDate'],
+                                                         len([t for t in x.dset.keys() if not x.dset[t]['ex']])))
+        # combine studies with common date, for now any series in the study with fewer series, is 
+        # copied to the study with more series, over-writes are not being checked yet but should be well-behaved
+        # TODO: actually check the times, so a later series only overwrites an earlier series according to temporal
+        # relation, ie possible rescan
+        dates = sorted(list(set([d.studytimeattrs['StudyDate'] for d in self.studies])))
+        studies = []
+        for i,d in enumerate(dates):
+            dstudies = [s for s in self.studies if s.studytimeattrs['StudyDate'] == d]
+            for ds in dstudies[-1:0:-1]:
+                for series in ds.dset.keys():
+                    if ds.dset[series]['ex']:
+                        dstudies[0].dset[series]['d'] = np.copy(ds.dset[series]['d'])
+                        dstudies[0].dset[series]['affine'] = np.copy(ds.dset[series]['affine'])
+                        dstudies[0].dset[series]['time'] = ds.dset[series]['time']
+                        dstudies[0].dset[series]['ex'] = True
+                dstudies.remove(ds)
+            studies.append(dstudies[0])
+        self.studies = studies
+        self.p = DcmProcess(self.case,self.studies,self.config)
+
+        return
+
+    # resample,register,bias correction
+    def process_studydirs(self):
+        self.p.process_studydirs()
+
+        return
+
+    # register time0 to talairach, then register
+    # all subsequent time points to time0
+    def process_timepoints(self):
+        self.p.postprocess()
+
+        return
+
+
+
+
+
+
+
+class Study():
+
+    def __init__(self,case,d):
+        self.studydir = d
+        self.case = case
         self.date = None
         self.casedir = None
         self.localcasedir = None
@@ -43,15 +110,11 @@ class DcmProcess():
         self.seriestimeattrs = ['AcquisitionTime']
         self.studytimeattrs = {'StudyDate':None,'StudyTime':None}
         self.date = None
-        # talairach reference image
-        self.reference,self.affine = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',os.path.join(self.config.UIdatadir,'mni152'))
-
-
         return
-
+    
     # load up multiple series directories in the provided study directory
-    def loaddicom(self,d):
-        self.casedir = d
+    def loaddicom(self):
+        d = self.studydir
         seriesdirs = os.listdir(d)
 
         # special case subdir for providing an externally generated mask
@@ -80,11 +143,14 @@ class DcmProcess():
                     self.studytimeattrs[t] = getattr(ds0,t)
 
             if 't1' in ds0.SeriesDescription.lower():
+                # so far 'pre' is sufficient for t1
                 if 'pre' in ds0.SeriesDescription.lower():
                     dt = 't1'
                 else:
                     dt = 't1+'
 
+            # if flair scans aren't designated pre/post, assume post
+            # this may change if a pre-contrast flair is added to protocol
             elif any([f in ds0.SeriesDescription.lower() for f in ['flair','fluid']]):
                 if 'pre' in ds0.SeriesDescription.lower():
                     dt = 'flair'
@@ -131,11 +197,9 @@ class DcmProcess():
                     # self.dset['target']['affine'] = affine
                     # self.dset['target']['d'] = np.zeros((nslice,ny,nx))
 
-
-
-
         return
     
+
 
     # load single dicom series directory 
     # from temporal regression
@@ -168,88 +232,198 @@ class DcmProcess():
         return dset,affine,timeattrs,ds0
 
 
+    # create nb affine from dicom 
+    def get_affine(self,dicomdata,dslice):
+        dircos = np.array(list(map(float,dicomdata.ImageOrientationPatient)))
+        affine = np.zeros((4,4))
+        affine[:3,0] = dircos[0:3]*float(dicomdata.PixelSpacing[0])
+        affine[:3,1] = dircos[3:]*float(dicomdata.PixelSpacing[1])
+        d3 = np.cross(dircos[:3],dircos[3:])
+        # not entirely sure if these three tags all work the same across the 3 vendors
+        if dicomdata[(0x0018,0x0023)].value == '3D':
+            if hasattr(dicomdata,'SpacingBetweenSlices'):
+                slthick = float(dicomdata.SpacingBetweenSlices)
+            elif hasattr(dicomdata,'SliceThickness'):
+                slthick = float(dicomdata.SliceThickness)
+            else:
+                raise ValueError('Slice thickness not parsed')
+        else:
+            if hasattr(dicomdata,'SliceThickness'):
+                slthick = float(dicomdata.SliceThickness)
+            else:
+                raise ValueError('Slice thickness not parsed')
 
-    # use for an input study directory
-    # there could be multiple study directories per case using date to create subdirs
-    def preprocess(self,case,studydir):
+        affine[:3,2] = d3*slthick
+        affine[:3,3] = dicomdata.ImagePositionPatient
+        affine[3,3] = 1
+        # print(affine)
+        return affine
+    
+    # from temporal regression
+    def get_time(self):
+        if all(self.dset[v]['time']['AcquisitionDate'] is not None for v in ['t0','t1r']):
+            if self.dset['t0']['time']['AcquisitionDate'] > self.dset['t1r']['time']['AcquisitionDate']:
+                self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
+            elif self.dset['t0']['time']['AcquisitionDate'] == self.dset['t1r']['time']['AcquisitionDate']:
+                if self.dset['t0']['time']['AcquisitionTime'] > self.dset['t1r']['time']['AcquisitionTime']:
+                    self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
+        # for a study that crosses midnight, the study date could remain the same while acquisition dates change
+        elif all(self.dset[v]['time']['StudyDate'] is not None for v in ['t0','t1r']):
+            if self.dset['t0']['time']['StudyDate'] > self.dset['t1r']['time']['StudyDate']:
+                self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
+            elif self.dset['t0']['time']['StudyDate'] == self.dset['t1r']['time']['StudyDate']:
+                if self.dset['t0']['time']['AcquisitionTime'] > self.dset['t1r']['time']['AcquisitionTime']:
+                    self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
+        else:
+            print('T0,T1 times not detected')
 
-        print('case = {},{}'.format(case,studydir))
-        self.loaddicom(studydir)
-        self.localcasedir = os.path.join(self.config.UIlocaldir,case,self.studytimeattrs['StudyDate'])
+
+
+
+# process single study directory containing multiple dicom series dirs
+class DcmProcess():
+    def __init__(self,case,studies,config):
+        # collection of scans on any given date
+        self.case = case
+        self.studies = studies
+        self.config = config
+        # talairach reference image
+        self.reference,self.affine = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',os.path.join(self.config.UIdatadir,'mni152'))
+        mask,_ = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a_mask.nii',os.path.join(self.config.UIdatadir,'mni152'))
+        self.reference *= mask
+        self.reference = self.rescale(self.reference)
+        return
+
+    # register time point0 to talairach, and all subsequent time points to time point 0
+    def postprocess(self):
+        s = self.studies[0]
+        # ant register can't handle this flip.
+        for dt in s.dtag:
+            if s.dset[dt]['ex']:
+                s.dset[dt]['d'] = np.flip(s.dset[dt]['d'],axis=1)
+        if s.dset['t1+']['ex']:
+            dref = 't1+'
+        elif s.dset['t1']['ex']:
+            dref = 't1'
+        else:
+            raise ValueError('No T1 data to register to')
+        s.dset[dref]['d'],tx = self.register(self.reference,s.dset[dref]['d'],transform='Rigid')
+        if True:
+            self.writenifti(s.dset[dref]['d'],os.path.join(self.config.UIlocaldir,self.case,dref+'_talairach.nii'),affine=self.affine)
+            # self.writenifti(self.reference,os.path.join(self.config.UIlocaldir,self.case,'talairach.nii'),affine=self.affine)
+
+        for dt in [dt for dt in s.dtag if dt != dref]:
+            if s.dset[dt]['ex']:
+                s.dset[dt]['d'] = self.tx(self.reference,s.dset[dt]['d'],tx)
+
+        # remainder of studies register to first study
+        for s in self.studies[1:]:
+            for dt in s.dtag:
+                if s.dset[dt]['ex']:
+                    s.dset[dt]['d'] = np.flip(s.dset[dt]['d'],axis=1)
+            if s.dset['t1+']['ex']:
+                dref = 't1+'
+                s.dset[dref]['d'],tx = self.register(self.studies[0].dset[dref]['d'],s.dset[dref]['d'],transform='Rigid')
+            else:
+                raise ValueError('No T1+ to register to')
+            for dt in [dt for dt in s.dtag if dt != dref]:
+                if s.dset[dt]['ex']:
+                    s.dset[dt]['d'] = self.tx(self.studies[0].dset[dref]['d'],s.dset[dt]['d'],tx)
+
+        self.write_all()
+        return
+
+
+
+    def process_studydirs(self):
+        pname = os.path.join(self.config.UIlocaldir,self.case,'studies.pkl')
+        if os.path.exists(pname):
+            with open(pname,'rb') as fp:
+                self.studies = []
+                self.studies = pickle.load(fp)
+        else:
+            for i,s in enumerate(self.studies):
+                self.preprocess(s)
+            if True:
+                with open(pname,'wb') as fp:
+                    pickle.dump(self.studies,fp)
+
+    
+    # resampling, registration, bias correction
+    def preprocess(self,study):
+
+        print('case = {},{}'.format(self.case,study.studydir))
+        self.localcasedir = os.path.join(self.config.UIlocaldir,self.case,study.studytimeattrs['StudyDate'])
         if not os.path.exists(self.localcasedir):
             os.makedirs(self.localcasedir)
-
-        # register to talairach space
-        if False:
-            self.dset['t1+']['d'],tx = self.register(self.reference,self.dset['t1+']['d'],transform='Rigid')
-
 
         # resample to target matrix (t1+ for now)
         if True:
             for dt in ['flair','flair+','cbv']:
-                if self.dset[dt]['ex'] and self.dset['t1+']['ex']:
+                if study.dset[dt]['ex'] and study.dset['t1+']['ex']:
                     print('Resampling ' + dt + ' into target space...')
-                    self.dset[dt]['d'],self.dset[dt]['affine'] = self.resamplet2(self.dset['t1+']['d'],self.dset[dt]['d'],
-                                                                        self.dset['t1+']['affine'],self.dset[dt]['affine'])
-                    self.dset[dt]['d']= np.clip(self.dset[dt]['d'],0,None)
+                    study.dset[dt]['d'],study.dset[dt]['affine'] = self.resamplet2(study.dset['t1+']['d'],study.dset[dt]['d'],
+                                                                        study.dset['t1+']['affine'],study.dset[dt]['affine'])
+                    study.dset[dt]['d']= np.clip(study.dset[dt]['d'],0,None)
 
 
         if False:
             for t in ['t1pre','t1','t2','flair']:
-                if self.dset[t]['ex']:
-                    self.ui.roiframe.WriteImage(self.dset[t]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
+                if study.dset[t]['ex']:
+                    self.writenifti(study.dset[t]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
                                         type='float',affine=self.ui.affine['t1'])
                     
 
         # skull strip
 
         # optional. use mask. not sure if it will be needed 
-        if self.dset['t1+']['mask'] is not None:
+        if study.dset['t1+']['mask'] is not None:
 
             # pre-registration. for now assuming mask is a T1post so register T1pre,T2,flair
             # reference
-            fixed_image = self.dset['t1+']['d']
+            fixed_image = study.dset['t1+']['d']
 
             for dt in ['t1pre','flair','flair+']:
                 # fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
-                if self.dset[dt]['ex']:
-                    moving_image = self.dset[dt]['d']
-                    self.dset[dt]['d'] = self.register(fixed_image,moving_image,transform='Rigid')
+                if study.dset[dt]['ex']:
+                    moving_image = study.dset[dt]['d']
+                    study.dset[dt]['d'],_ = self.register(fixed_image,moving_image,transform='Rigid')
                     if False:
-                        self.ui.roiframe.WriteImage(self.dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
+                        self.ui.roiframe.WriteImage(study.dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
                                                 type='float',affine=self.ui.affine['t1'])
 
             # apply mask
             for dt in ['t1','flair','flair+']:
-                if self.dset[dt]['ex']:
-                    self.dset[dt]['d'] = np.where(self.dset['t1+']['mask'],self.dset[dt]['d'],0)
+                if study.dset[dt]['ex']:
+                    study.dset[dt]['d'] = np.where(study.dset['t1+']['mask'],study.dset[dt]['d'],0)
 
 
         # attempt model extraction
         else:    
-            for dt in ['t1+','flair+']:
-                if self.dset[dt]['ex']:
-                    self.dset[dt]['d'],self.dset[dt]['mask'] = self.extractbrain2(self.dset[dt]['d'],affine=self.dset[dt]['affine'],fname=dt)
+            for dt in ['t1+','flair+','t1','flair']:
+                if study.dset[dt]['ex']:
+                    study.dset[dt]['d'],study.dset[dt]['mask'] = self.extractbrain2(study.dset[dt]['d'],affine=study.dset[dt]['affine'],fname=dt)
 
-            # if these pre-contrast exams exist, assumes that post-contrast is present
-            # TODO: add registration? mask versus extract? 
-            for dt in ['t1','flair']:
-                if self.dset[dt]['ex']:
-                    self.dset[dt]['d'] *= self.dset[dt+'+']['mask']
+            # could maybe just post-contrast mask for speed assuming no significant change
+            # in pose.
+            if False:
+                for dt in ['t1','flair']:
+                    if study.dset[dt]['ex']:
+                        study.dset[dt]['d'] *= study.dset[dt+'+']['mask']
 
 
         # registration. some RELCCBV exports may have their own study number
         # and need to be reconnected with the source T1 scan by study date tag
         if True:
-            if self.dset['t1+']['ex']:
-                fixed_image = self.dset['t1+']['d']
+            if study.dset['t1+']['ex']:
+                fixed_image = study.dset['t1+']['d']
                 for dt in ['t1','flair','flair+']:
                     fname = os.path.join(self.localcasedir,dt+'_resampled.nii.gz')
-                    if self.dset[dt]['ex']:
-                        moving_image = self.dset[dt]['d']
-                        self.dset[dt]['d'] = self.register(fixed_image,moving_image,transform='Rigid')
+                    if study.dset[dt]['ex']:
+                        moving_image = study.dset[dt]['d']
+                        study.dset[dt]['d'],_ = self.register(fixed_image,moving_image,transform='Rigid')
                         if False:
-                            self.writenifti(self.dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
+                            self.writenifti(study.dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
                                                     type='float',affine=self.ui.affine['t1'])
             else:
                 print('No T1+ to register on, skipping...')
@@ -257,26 +431,27 @@ class DcmProcess():
 
         # bias correction.
         for dt in ['t1','t1+','flair','flair+']:
-            if self.dset[dt]['ex']:   
-                self.dset[dt]['d'] = self.n4bias(self.dset[dt]['d'])
+            if study.dset[dt]['ex']:   
+                study.dset[dt]['d'] = self.n4bias(study.dset[dt]['d'])
 
         # rescale the data
         # if necessary clip any negative values introduced by the processing
         for dt in ['t1','t1+','flair','flair+']:
-            if self.dset[dt]['ex']:
-                if np.min(self.dset[dt]['d']) < 0:
-                    self.dset[dt]['d'][self.dset[dt]['d'] < 0] = 0
-                self.dset[dt]['d'] = self.rescale(self.dset[dt]['d'])
+            if study.dset[dt]['ex']:
+                if np.min(study.dset[dt]['d']) < 0:
+                    study.dset[dt]['d'][study.dset[dt]['d'] < 0] = 0
+                study.dset[dt]['d'] = self.rescale(study.dset[dt]['d'])
 
         # save nifti files for future use
-        for dt in ['flair+','t1','t1+','flair']:
-            if self.dset[dt]['ex']:
-                self.writenifti(self.dset[dt]['d'],os.path.join(self.localcasedir,dt+'_processed.nii'),
-                                            type='float',affine=self.dset['t1+']['affine'])
-        for dt in ['cbv']: # pending solution for registration
-            if self.dset[dt]['ex']:
-                self.writenifti(self.dset[dt]['d'],os.path.join(self.localcasedir,dt+'_processed.nii'),
-                                            type='float',affine=self.dset['t1+']['affine'])
+        if False:
+            for dt in ['flair+','t1','t1+','flair']:
+                if study.dset[dt]['ex']:
+                    self.writenifti(study.dset[dt]['d'],os.path.join(self.localcasedir,dt+'_processed.nii'),
+                                                type='float',affine=study.dset['t1+']['affine'])
+            for dt in ['cbv']: # pending solution for registration
+                if study.dset[dt]['ex']:
+                    self.writenifti(study.dset[dt]['d'],os.path.join(self.localcasedir,dt+'_processed.nii'),
+                                                type='float',affine=study.dset['t1+']['affine'])
 
         return
 
@@ -323,7 +498,7 @@ class DcmProcess():
 
         # pre-registration. 
         if rc[case]['dcmtype'] == 'MR':
-            dset['t1r']['d'] = self.register(dset['t0']['d'],dset['t1r']['d'],type='ants')
+            dset['t1r']['d'],_ = self.register(dset['t0']['d'],dset['t1r']['d'],type='ants')
             for dt in dtag:
                 niftifile = os.path.join(npath,dt,dt+'.nii')
                 self.writenifti(dset[dt]['d'],niftifile,type=dset[dt]['d'].dtype.name,affine=dset['t0']['affine'])
@@ -339,7 +514,7 @@ class DcmProcess():
 
         # post-registration
         if rc[case]['dcmtype'] == 'MR':
-            dset['t1r']['d'] = self.register(dset['t0']['d'],dset['t1r']['d'],type='ants')
+            dset['t1r']['d'],_ = self.register(dset['t0']['d'],dset['t1r']['d'],type='ants')
 
         # N4 bias correction
         if rc[case]['dcmtype'] == 'MR':
@@ -402,52 +577,6 @@ class DcmProcess():
                 plt.savefig('/home/jbishop/Pictures/scatterplot_normal.png')
                 plt.clf()
                 # plt.show(block=False)
-
-
-    # create nb affine from dicom 
-    def get_affine(self,dicomdata,dslice):
-        dircos = np.array(list(map(float,dicomdata.ImageOrientationPatient)))
-        affine = np.zeros((4,4))
-        affine[:3,0] = dircos[0:3]*float(dicomdata.PixelSpacing[0])
-        affine[:3,1] = dircos[3:]*float(dicomdata.PixelSpacing[1])
-        d3 = np.cross(dircos[:3],dircos[3:])
-        # not entirely sure if these three tags all work the same across the 3 vendors
-        if dicomdata[(0x0018,0x0023)].value == '3D':
-            if hasattr(dicomdata,'SpacingBetweenSlices'):
-                slthick = float(dicomdata.SpacingBetweenSlices)
-            elif hasattr(dicomdata,'SliceThickness'):
-                slthick = float(dicomdata.SliceThickness)
-            else:
-                raise ValueError('Slice thickness not parsed')
-        else:
-            if hasattr(dicomdata,'SliceThickness'):
-                slthick = float(dicomdata.SliceThickness)
-            else:
-                raise ValueError('Slice thickness not parsed')
-
-        affine[:3,2] = d3*slthick
-        affine[:3,3] = dicomdata.ImagePositionPatient
-        affine[3,3] = 1
-        # print(affine)
-        return affine
-    
-
-    def get_time(self):
-        if all(self.dset[v]['time']['AcquisitionDate'] is not None for v in ['t0','t1r']):
-            if self.dset['t0']['time']['AcquisitionDate'] > self.dset['t1r']['time']['AcquisitionDate']:
-                self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
-            elif self.dset['t0']['time']['AcquisitionDate'] == self.dset['t1r']['time']['AcquisitionDate']:
-                if self.dset['t0']['time']['AcquisitionTime'] > self.dset['t1r']['time']['AcquisitionTime']:
-                    self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
-        # for a study that crosses midnight, the study date could remain the same while acquisition dates change
-        elif all(self.dset[v]['time']['StudyDate'] is not None for v in ['t0','t1r']):
-            if self.dset['t0']['time']['StudyDate'] > self.dset['t1r']['time']['StudyDate']:
-                self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
-            elif self.dset['t0']['time']['StudyDate'] == self.dset['t1r']['time']['StudyDate']:
-                if self.dset['t0']['time']['AcquisitionTime'] > self.dset['t1r']['time']['AcquisitionTime']:
-                    self.dset['t1r'],self.dset['t0'] = self.dset['t0'],self.dset['t1r']
-        else:
-            print('T0,T1 times not detected')
 
 
 
@@ -548,6 +677,55 @@ class DcmProcess():
         img_arr_n4 = dataImage_n4.numpy()
         return img_arr_n4
 
+    # registration
+    def register(self,img_arr_fixed,img_arr_moving,transform='Affine'):
+        print('register fixed, moving')
+
+        fixed_ants = ants.from_numpy(img_arr_fixed)
+        moving_ants = ants.from_numpy(img_arr_moving)
+        mytx = ants.registration(fixed=fixed_ants, moving=moving_ants, type_of_transform = transform )
+        img_arr_reg = mytx['warpedmovout'].numpy()
+        a=1
+
+        return img_arr_reg,mytx['fwdtransforms']
+
+    # transform
+    def tx(self,img_arr_fixed,img_arr_moving,tx):
+        print('transform fixed, moving')
+
+        fixed_ants = ants.from_numpy(img_arr_fixed)
+        moving_ants = ants.from_numpy(img_arr_moving)
+        img_arr_tx = ants.apply_transforms(fixed_ants, moving_ants, tx).numpy()
+
+        return img_arr_tx
+
+    # operates on a single image channel 
+    def rescale(self,img_arr,vmin=None,vmax=None):
+        scaled_arr =  np.zeros(np.shape(img_arr))
+        if vmin is None:
+            minv = np.min(img_arr)
+        else:
+            minv = vmin
+        if vmax is None:
+            maxv = np.max(img_arr)
+        else:
+            maxv = vmax
+        assert(maxv>minv)
+        scaled_arr = (img_arr-minv) / (maxv-minv)
+        scaled_arr = np.clip(scaled_arr,a_min=0,a_max=1)
+        return scaled_arr
+
+
+    # use uint8 for masks 
+    def writenifti(self,img_arr,filename,header=None,norm=False,type='float64',affine=None):
+        img_arr_cp = copy.deepcopy(img_arr)
+        if norm:
+            img_arr_cp = (img_arr_cp -np.min(img_arr_cp)) / (np.max(img_arr_cp)-np.min(img_arr_cp)) * norm
+        # using nibabel nifti coordinates
+        img_nb = nb.Nifti1Image(np.transpose(img_arr_cp.astype(type),(2,1,0)),affine,header=header)
+        nb.save(img_nb,filename)
+        if True:
+            os.system('gzip --force {}'.format(filename))
 
     def loadnifti(self,t1_file,casedir,type=None):
         img_arr_t1 = None
@@ -565,43 +743,11 @@ class DcmProcess():
 
         return img_arr_t1,affine
 
-    # use uint8 for masks 
-    def writenifti(self,img_arr,filename,header=None,norm=False,type='float64',affine=None):
-        img_arr_cp = copy.deepcopy(img_arr)
-        if norm:
-            img_arr_cp = (img_arr_cp -np.min(img_arr_cp)) / (np.max(img_arr_cp)-np.min(img_arr_cp)) * norm
-        # using nibabel nifti coordinates
-        img_nb = nb.Nifti1Image(np.transpose(img_arr_cp.astype(type),(2,1,0)),affine,header=header)
-        nb.save(img_nb,filename)
-        if True:
-            os.system('gzip --force {}'.format(filename))
-
-
-    # registration
-    def register(self,img_arr_fixed,img_arr_moving,transform='Affine'):
-        print('register fixed, moving')
-
-        fixed_ants = ants.from_numpy(img_arr_fixed)
-        moving_ants = ants.from_numpy(img_arr_moving)
-        mytx = ants.registration(fixed=fixed_ants, moving=moving_ants, type_of_transform = transform )
-        img_arr_reg = mytx['warpedmovout'].numpy()
-        a=1
-
-        return img_arr_reg
-
-
-    # operates on a single image channel 
-    def rescale(self,img_arr,vmin=None,vmax=None):
-        scaled_arr =  np.zeros(np.shape(img_arr))
-        if vmin is None:
-            minv = np.min(img_arr)
-        else:
-            minv = vmin
-        if vmax is None:
-            maxv = np.max(img_arr)
-        else:
-            maxv = vmax
-        assert(maxv>minv)
-        scaled_arr = (img_arr-minv) / (maxv-minv)
-        scaled_arr = np.clip(scaled_arr,a_min=0,a_max=1)
-        return scaled_arr
+    def write_all(self):
+        # save nifti files for future use
+        for s in self.studies:
+            localcasedir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
+            for dt in s.dtag:
+                if s.dset[dt]['ex']:
+                    self.writenifti(s.dset[dt]['d'],os.path.join(localcasedir,dt+'_processed.nii'),
+                                                type='float',affine=self.affine)

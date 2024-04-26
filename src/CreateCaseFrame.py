@@ -4,32 +4,29 @@ import glob
 import copy
 import re
 import logging
-import subprocess
+import pickle
 import tkinter as tk
 import nibabel as nb
 from nibabel.processing import resample_from_to
 import pydicom as pd
-from pydicom.fileset import FileSet
 from tkinter import ttk,StringVar,DoubleVar,PhotoImage
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg,NavigationToolbar2Tk
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.artist import Artist
 from cProfile import Profile
 from pstats import SortKey,Stats
 from enum import Enum
 
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
-import itk
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice
 
 from src.NavigationBar import NavigationBar
 from src.FileDialog import FileDialog
 from src.CreateFrame import *
-from src.DcmProcess import DcmProcess
+from src.DcmCase import DcmProcess,Case
 
 
 ################
@@ -366,12 +363,7 @@ class CreateCaseFrame(CreateFrame):
                     elif len(dcmdirs):
                         dcmdirs = self.group_dcmdirs(dcmdirs)
                         for c in dcmdirs.keys():
-                            for d in dcmdirs[c]:
-                                self.datadir.set(d)
-                                self.pp = DcmProcess(self.config)
-                                self.pp.preprocess(c,d)
-                                casefiles = []
-                                doload = False
+                            case = Case(c,dcmdirs[c],self.config)
                         return
 
             if len(self.caselist['casetags']):
