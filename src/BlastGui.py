@@ -41,17 +41,8 @@ class BlastGui(object):
         self.currentslice = None # tracks the current slice widget variable
         self.dataselection = 'raw'
 
-        # initialize data struct. other keys are added elsewhere
-        self.data = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
-                            'T2 hyper':None,
-                            'ET':None,
-                            # t12,flair are slider setting for y-axis t1/t2 depending on layer, and flair common x-axis
-                            # std,mean are the cluster stats. 
-                            'params':{'ET':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
-                               'T2 hyper':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
-                               },
-                    },
-        }
+        # data is a dict of studies
+        self.data = {}  
 
         self.affine = {'t1pre':None,'t1':None,'t2':None,'flair':None}
         self.roi = [0] # dummy value for Roi indexing 1-based
@@ -79,16 +70,6 @@ class BlastGui(object):
             self.sliceviewerframe.currentslice.set(81)
             self.updateslice()
 
-            # adjusted BLAST
-            if False:
-                self.roiframe.t2threshold.set(-0.8)
-                self.roiframe.t1threshold.set(-0.7)
-                self.roiframe.bcsize.set(1.0)
-                self.roiframe.updatebcsize()
-                self.roiframe.updatet1threshold()
-                self.roiframe.updatet2threshold()
-                self.roiframe.enhancingROI_callback()
-                self.updateslice()
 
             # adjusted window/level
             # self.sliceviewerframe.window=np.array([.6,1],dtype='float')
@@ -169,20 +150,12 @@ class BlastGui(object):
 
     def get_currentroi(self):
         return self.currentroi
-
-    def get_bcsize(self,layer=None):
-        if layer is None:
-            layer = self.roiframe.layer.get()
-        return self.roiframe.thresholds[layer]['bc'].get()
     
     def update_roidata(self):
         self.roiframe.updateROIData()
 
     def update_blast(self,**kwargs):
         self.roiframe.updateBLAST(**kwargs)
-
-    def starttime(self):
-        self.tstart = time.time()
 
     def endtime(self):
         self.roi[self.currentroi].stats['elapsed_time'] = time.time() - self.tstart
@@ -203,14 +176,7 @@ class BlastGui(object):
         self.currentslice = None
         self.dataselection = 'raw'
 
-        self.data = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
-                            'T2 hyper':None,
-                            'ET':None,
-                            'params':{'ET':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
-                               'T2 hyper':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
-                               },
-                    },
-        }
+        self.data = {}
     
         self.roi = [0] # dummy value for Roi indexing 1-based
         self.currentroi = 0 # tracks the currentroi widget variable

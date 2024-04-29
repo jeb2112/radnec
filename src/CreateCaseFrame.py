@@ -26,7 +26,7 @@ from scipy.spatial.distance import dice
 from src.NavigationBar import NavigationBar
 from src.FileDialog import FileDialog
 from src.CreateFrame import *
-from src.DcmCase import DcmProcess,Case
+from src.DcmCase import Case,NiftiStudy
 
 
 ################
@@ -115,15 +115,9 @@ class CreateCaseFrame(CreateFrame):
         self.ui.set_casename(val=case)
         print('Loading case {}'.format(case))
         self.loadCase(files=files)
-        # if normal stats is 3d then seg runs automatically, can show 'seg_raw' directly
-        if self.ui.sliceviewerframe.slicevolume_norm.get() == 0:
-            self.ui.dataselection = 'raw'
-        else:
-            self.ui.roiframe.enhancingROI_overlay_value.set(True)
-            # self.ui.roiframe.enhancingROI_overlay_callback()
+        self.ui.dataselection = 't1+'
         self.ui.sliceviewerframe.tbar.home()
         self.ui.updateslice()
-        self.ui.starttime()
 
     def loadCase(self,case=None,files=None):
 
@@ -140,6 +134,7 @@ class CreateCaseFrame(CreateFrame):
             raise ValueError('No cases to load')
 
         # if three image files are given load them directly
+        # mignt not need this anymore
         if files is not None:
             if len(files) != 3:
                 self.ui.set_message('Select three image files')
@@ -153,128 +148,71 @@ class CreateCaseFrame(CreateFrame):
             self.ui.affine['t1'] = affine
 
         # check for nifti image files with matching filenames
-        # 'processed' refers to earlier output and is loaded preferentially.
-        # for now assuming files are either all or none processed
         elif self.casetype <= 1:
             dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},
                     'flair':{'d':None,'ex':False},'ref':{'d':None,'mask':None,'ex':False}}
-            files = os.listdir(self.casedir)
-            # files = self.get_imagefiles(files)
-            t1_files = [f for f in files if 't1' in f.lower()]
-            if len(t1_files) > 0:
-                if len(t1_files) > 1:
-                    t1ce_file = next((f for f in t1_files if re.search('(processed)',f.lower())),None)
-                    if t1ce_file is None:
-                        t1ce_file = next((f for f in t1_files if re.search('(ce|gad|gd|post)',f.lower())),t1_files[0])
-                elif len(t1_files) == 1:
-                    t1ce_file = t1_files[0]
-            flair_files = [f for f in files if 'flair' in f.lower()]
-            if len(flair_files) > 0:
-                if len(flair_files) > 1:
-                    flair_file = next((f for f in flair_files if re.search('(processed)',f.lower())),None)
-                    if flair_file is None:
-                        flair_file = next((f for f in flair_files if re.search('(ce|gad|gd|post)',f.lower())),flair_files[0])
-                elif len(flair_files) == 1:
-                    flair_file = flair_files[0]
-            t2_files = [f for f in files if 't2' in f.lower()]
-            if len(t2_files) > 0:
-                if len(t2_files) > 1:
-                    t2_file = next((f for f in t2_files if re.search('(processed)',f.lower())),None)
-                    if t2_file is None:
-                        t2_file = next((f for f in t2_files if re.search('(ce|gad|gd|post)',f.lower())),t2_files[0])
-                elif len(t2_files) == 1:
-                    t2_file = t2_files[0]
-            else:
-                t2_file = None
-            dset['t1']['d'],dset['t2']['d'],dset['flair']['d'],affine = self.loadData(t1ce_file,t2_file,flair_file)
-            # might not need this flag anymore
-            self.processed = True
-            self.ui.affine['t1'] = affine
+            studies = [f for f in os.listdir(self.casedir) if os.path.isdir(os.path.join(self.casedir,f)) ]
+            # by convention, study dir name is the date of the study
+            for sname in studies:
+                self.ui.data[sname] = NiftiStudy(self.casename.get(),os.path.join(self.casedir,sname))
+                self.ui.data[sname].loaddata()
+                self.ui.data[sname].date = sname
+                if False:
+                    files = os.listdir(os.path.join(self.casedir,sname))
+                    files = self.get_imagefiles(files)
+                    for dt in ['t1','t1+','flair','flair+','cbv']:
+                        dt_files = [f for f in files if dt in f.lower()]
+                        if len(dt_files) > 0:
+                            if len(dt_files) > 1:
+                                # by convention '_processed' is the final output from dcm preprocess()
+                                dt_file = next((f for f in dt_files if re.search('_processed',f.lower())),None)
+                            elif len(dt_files) == 1:
+                                dt_file = dt_files[0]
 
-        # convenience test for presence of dataset
-        for t in ['t1','t2','flair']:
-            if dset[t]['d'] is not None:
-                dset[t]['ex'] = True
+                            dset[dt]['d'],dset[dt]['affine'] = self.loadData(dt_file)
 
-        self.ui.sliceviewerframe.dim = np.shape(dset['t1']['d'])
+
+        self.ui.sliceviewerframe.dim = np.shape(self.ui.data[sname].dset['t1']['d'])
         self.ui.sliceviewerframe.create_canvas()
 
-        # 3 channels hard-coded. not currently loading t1 pre-contrast
-        self.ui.data['raw'] = np.zeros((3,)+self.ui.sliceviewerframe.dim,dtype='float32')
-        self.ui.data['raw'][0] = dset['t1']['d']
-        self.ui.data['raw'][1] = dset['flair']['d']
-        # if a t2 image is not available, fall back to using the t1 post image.
-        if dset['t2']['ex']:
-            self.ui.data['raw'][2] = dset['t2']['d']
-        else:
-            self.ui.data['raw'][2] = dset['t1']['d']
-
-            
-        # save copy of the raw data
-        self.ui.data['raw_copy'] = copy.deepcopy(self.ui.data['raw'])
-
-        # automatically run normal stats if volume selected
-        if self.ui.sliceviewerframe.slicevolume_norm.get() == 1:
-            self.ui.sliceviewerframe.normalslice_callback()
-
         # create the label. 'seg' picks up the BraTS convention but may need to be more specific
-        if self.casetype <= 1:
-            seg_file = next((f for f in files if 'seg' in f),None)
-            if seg_file is not None and 'blast' not in seg_file:
-                label = sitk.ReadImage(os.path.join(self.casedir,seg_file))
-                img_arr = sitk.GetArrayFromImage(label)
-                self.ui.data['label'] = img_arr
+        if False:
+            if self.casetype <= 1:
+                seg_file = next((f for f in files if 'seg' in f),None)
+                if seg_file is not None and 'blast' not in seg_file:
+                    label = sitk.ReadImage(os.path.join(self.casedir,seg_file))
+                    img_arr = sitk.GetArrayFromImage(label)
+                    self.ui.data['label'] = img_arr
+                else:
+                    self.ui.data['label'] = None
             else:
                 self.ui.data['label'] = None
-        else:
-            self.ui.data['label'] = None
 
-        # supplementary labels. brats and nnunet conventions are differnt.
-        if self.ui.data['label'] is not None:
-            if False: # nnunet
-                self.ui.data['manual_ET'] = (self.ui.data['label'] == 3).astype('int') #enhancing tumor 
-                self.ui.data['manual_TC'] = (self.ui.data['label'] >= 2).astype('int') #tumour core
-                self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
-            else: # brats
-                self.ui.data['manual_ET'] = (self.ui.data['label'] == 4).astype('int') #enhancing tumor 
-                self.ui.data['manual_TC'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
-                self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
+            # supplementary labels. brats and nnunet conventions are differnt.
+            if self.ui.data['label'] is not None:
+                if False: # nnunet
+                    self.ui.data['manual_ET'] = (self.ui.data['label'] == 3).astype('int') #enhancing tumor 
+                    self.ui.data['manual_TC'] = (self.ui.data['label'] >= 2).astype('int') #tumour core
+                    self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
+                else: # brats
+                    self.ui.data['manual_ET'] = (self.ui.data['label'] == 4).astype('int') #enhancing tumor 
+                    self.ui.data['manual_TC'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
+                    self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
 
-    def loadData(self,t1_file,t2_file,flair_file,type=None):
-        img_arr_t1 = None
-        img_arr_t2 = None
-        img_arr_flair = None
-        if 'nii' in t1_file:
+    # probably don't need this anymore
+    def loadData(self,dt_file,type=None):
+        img_arr = None
+        if 'nii' in dt_file:
             try:
-                img_nb_t1 = nb.load(os.path.join(self.casedir,t1_file))
-                img_nb_flair = nb.load(os.path.join(self.casedir,flair_file))
+                img_nb = nb.load(os.path.join(self.casedir,dt_file))
             except IOError as e:
-                self.ui.set_message('Can\'t import {} or {}'.format(t1_file,flair_file))
-            self.ui.nb_header = img_nb_t1.header.copy()
+                self.ui.set_message('Can\'t import {} or {}'.format(dt_file))
+            nb_header = img_nb.header.copy()
             # nibabel convention will be transposed to sitk convention
-            img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
-            img_arr_flair = np.transpose(np.array(img_nb_flair.dataobj),axes=(2,1,0))
-            affine = img_nb_t1.affine
-            if t2_file is not None:
-                try:
-                    img_nb_t2 = nb.load(os.path.join(self.casedir,t2_file))
-                except IOError as e:
-                    self.ui.set_message('Can\'t import {} or {}'.format(t2_file))
-                img_arr_t2 = np.transpose(np.array(img_nb_t2.dataobj),axes=(2,1,0))
-            else:
-                img_arr_t2 = None
+            img_arr = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
+            affine = img_nb.affine
 
-        elif 'dcm' in t1_file: # not finished yet
-            try:
-                img_dcm_t1 = pd.dcmread(os.path.join(self.casedir,t1ce_file))
-                img_dcm_t2 = pd.dcmread(os.path.join(self.casedir,t2flair_file))
-            except IOError as e:
-                self.ui.set_message('Can\'t import {} or {}'.format(t1ce_file,t2flair_file))
-            self.ui.dcm_header = None
-            img_arr_t1 = np.transpose(np.array(img_dcm_t1.dataobj),axes=(2,1,0))
-            img_arr_t2 = np.transpose(np.array(img_dcm_t2.dataobj),axes=(2,1,0))
-            affine = None
-        return img_arr_t1,img_arr_t2,img_arr_flair,affine
+        return img_arr,affine
     
 
     #################

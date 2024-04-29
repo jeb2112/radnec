@@ -86,9 +86,6 @@ class Case():
 
 
 
-
-
-
 class Study():
 
     def __init__(self,case,d):
@@ -96,16 +93,88 @@ class Study():
         self.case = case
         self.date = None
         self.casedir = None
-        self.localcasedir = None
         self.dset = {'t1':{'d':None,'time':None,'affine':None,'ex':False},
                      't1+':{'d':None,'time':None,'affine':None,'ex':False,'mask':None},
+                     'zt1+':{'d':None,'time':None,'affine':None,'ex':False},
                      'flair':{'d':None,'time':None,'affine':None,'ex':False},
                      'flair+':{'d':None,'time':None,'affine':None,'ex':False},
+                     'zflair+':{'d':None,'time':None,'affine':None,'ex':False},
                      'cbv':{'d':None,'time':None,'affine':None,'ex':False},
-                     't1_cbv':{'d':None,'time':None,'affine':None,'ex':False},
-                     'target':{'d':None,'affine':None,'ex':False}
+                     'target':{'d':None,'affine':None,'ex':False},
+                     'ET':{'d':None,'affine':None,'ex':False},
+                     'WT':{'d':None,'affine':None,'ex':False}
                      }
         self.dtag = [k for k in self.dset.keys()]
+        self.date = None
+        return
+    
+    def loadnifti(self,t1_file,dir=None,type=None):
+        img_arr_t1 = None
+        if dir is None:
+            dir = self.studydir
+        try:
+            img_nb_t1 = nb.load(os.path.join(dir,t1_file))
+        except IOError as e:
+            print('Can\'t import {}'.format(t1_file))
+            return None,None
+        nb_header = img_nb_t1.header.copy()
+        # nibabel convention will be transposed to sitk convention
+        img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
+        if type is not None:
+            img_arr_t1 = img_arr_t1.astype(type)
+        affine = img_nb_t1.affine
+
+        return img_arr_t1,affine
+
+
+    # use uint8 for masks 
+    def writenifti(self,img_arr,filename,header=None,norm=False,type='float64',affine=None):
+        img_arr_cp = copy.deepcopy(img_arr)
+        if norm:
+            img_arr_cp = (img_arr_cp -np.min(img_arr_cp)) / (np.max(img_arr_cp)-np.min(img_arr_cp)) * norm
+        # using nibabel nifti coordinates
+        img_nb = nb.Nifti1Image(np.transpose(img_arr_cp.astype(type),(2,1,0)),affine,header=header)
+        nb.save(img_nb,filename)
+        if True:
+            os.system('gzip --force {}'.format(filename))
+
+    def write_all(self):
+        # save nifti files for future use
+        for s in self.studies:
+            localcasedir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
+            for dt in s.dtag:
+                if s.dset[dt]['ex']:
+                    self.writenifti(s.dset[dt]['d'],os.path.join(localcasedir,dt+'_processed.nii'),
+                                                type='float',affine=self.affine)
+
+
+class NiftiStudy(Study):
+
+    def __init__(self,case,d):
+        super().__init__(case,d)
+
+    def loaddata(self):
+        files = os.listdir(self.studydir)
+        for dt in self.dtag:
+            dt_files = [f for f in files if dt in f.lower()]
+            if len(dt_files) > 0:
+                if len(dt_files) > 1:
+                    # by convention '_processed' is the final output from dcm preprocess()
+                    dt_file = next((f for f in dt_files if re.search('_processed',f.lower())),None)
+                elif len(dt_files) == 1:
+                    dt_file = dt_files[0]
+
+                self.dset[dt]['d'],self.dset[dt]['affine'] = self.loadnifti(dt_file)
+                self.dset[dt]['ex'] = True
+        return
+
+
+
+class DcmStudy(Study):
+
+    def __init__(self,case,d):
+        super()._init__(case,d)
+        self.localcasedir = None
         # list of time attributes to check
         self.seriestimeattrs = ['AcquisitionTime']
         self.studytimeattrs = {'StudyDate':None,'StudyTime':None}
@@ -288,8 +357,8 @@ class DcmProcess():
         self.studies = studies
         self.config = config
         # talairach reference image
-        self.reference,self.affine = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',os.path.join(self.config.UIdatadir,'mni152'))
-        mask,_ = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a_mask.nii',os.path.join(self.config.UIdatadir,'mni152'))
+        self.reference,self.affine = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',dir=os.path.join(self.config.UIdatadir,'mni152'))
+        mask,_ = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a_mask.nii',dir=os.path.join(self.config.UIdatadir,'mni152'))
         self.reference *= mask
         self.reference = self.rescale(self.reference)
         return
@@ -509,7 +578,7 @@ class DcmProcess():
                 command = 'conda run -n hdbet hd-bet '
                 command += ' -i ' + os.path.join(npath,dt,dt+'.nii')
                 res = os.system(command)
-                dset[dt]['d'],_ = self.loadnifti(dt+'_bet.nii.gz',os.path.join(npath,dt))
+                dset[dt]['d'],_ = self.loadnifti(dt+'_bet.nii.gz',dir=os.path.join(npath,dt))
 
 
         # post-registration
@@ -593,8 +662,8 @@ class DcmProcess():
         command = 'conda run -n hdbet hd-bet '
         command += ' -i ' + os.path.join(self.localcasedir,fname+'.nii')
         res = os.system(command)
-        img_arr,_ = self.loadnifti(fname+'_bet.nii.gz',self.localcasedir)
-        img_arr_mask,_ = self.loadnifti(fname+'_bet_mask.nii.gz',self.localcasedir)
+        img_arr,_ = self.loadnifti(fname+'_bet.nii.gz',dir=self.localcasedir)
+        img_arr_mask,_ = self.loadnifti(fname+'_bet_mask.nii.gz',dir=self.localcasedir)
         if fname == 'temp':
             for f in glob.glob(os.path.join(self.localcasedir,'temp*')):
                 os.remove(f)
@@ -715,39 +784,3 @@ class DcmProcess():
         scaled_arr = np.clip(scaled_arr,a_min=0,a_max=1)
         return scaled_arr
 
-
-    # use uint8 for masks 
-    def writenifti(self,img_arr,filename,header=None,norm=False,type='float64',affine=None):
-        img_arr_cp = copy.deepcopy(img_arr)
-        if norm:
-            img_arr_cp = (img_arr_cp -np.min(img_arr_cp)) / (np.max(img_arr_cp)-np.min(img_arr_cp)) * norm
-        # using nibabel nifti coordinates
-        img_nb = nb.Nifti1Image(np.transpose(img_arr_cp.astype(type),(2,1,0)),affine,header=header)
-        nb.save(img_nb,filename)
-        if True:
-            os.system('gzip --force {}'.format(filename))
-
-    def loadnifti(self,t1_file,casedir,type=None):
-        img_arr_t1 = None
-        try:
-            img_nb_t1 = nb.load(os.path.join(casedir,t1_file))
-        except IOError as e:
-            print('Can\'t import {}'.format(t1_file))
-            return None,None
-        nb_header = img_nb_t1.header.copy()
-        # nibabel convention will be transposed to sitk convention
-        img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
-        if type is not None:
-            img_arr_t1 = img_arr_t1.astype(type)
-        affine = img_nb_t1.affine
-
-        return img_arr_t1,affine
-
-    def write_all(self):
-        # save nifti files for future use
-        for s in self.studies:
-            localcasedir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
-            for dt in s.dtag:
-                if s.dset[dt]['ex']:
-                    self.writenifti(s.dset[dt]['d'],os.path.join(localcasedir,dt+'_processed.nii'),
-                                                type='float',affine=self.affine)

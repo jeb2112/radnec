@@ -198,35 +198,7 @@ class CreateROIFrame(CreateFrame):
         for s in layerlist:
             menu.add_command(label=s,command = tk._setit(self.layerROI,s,self.layerROI_callback))
         self.layerROI.set(layerlist[0])
-
-    # methods for roi number choice menu
-    def roinumber_callback(self,item=None):
-        if self.enhancingROI_overlay_value.get() == True:
-            self.enhancingROI_overlay_value.set(False)
-            self.finalROI_overlay_value.set(True)
-            self.finalROI_overlay_callback()
-
-        self.ui.set_currentroi()
-        # reference or copy
-        self.layerROI_callback(updatedata=True)
-        self.ui.updateslice()
-        return
     
-    def update_roinumber_options(self,n=None):
-        if n is None:
-            n = len(self.ui.roi)
-        menu = self.roinumbermenu['menu']
-        menu.delete(0,'end')
-        # 1-based indexing
-        for s in [str(i) for i in range(1,n)]:
-            menu.add_command(label=s,command = tk._setit(self.currentroi,s,self.roinumber_callback))
-        self.roilist = [str(i) for i in range(1,n)]
-        if n>1:
-            self.roinumbermenu.configure(state='active')
-        else:
-            self.roinumbermenu.configure(state='disabled')
-            self.finalROI_overlay_value.set(False)
-
     def set_currentroi(self,var,index,mode):
         if mode == 'write':
             self.ui.set_currentroi()    
@@ -326,8 +298,6 @@ class CreateROIFrame(CreateFrame):
         # record slider values
         if layer is None:
             layer = self.layer.get()
-        for s in ['t12','flair','bc']:
-            self.ui.data['blast']['params'][layer][s] = self.thresholds[layer][s].get()
 
         if all(self.ui.data['blast'][x] is not None for x in ['ET','T2 hyper']):
             # self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*2 + (self.ui.data['blast']['T2 hyper'].astype('int'))
@@ -354,11 +324,6 @@ class CreateROIFrame(CreateFrame):
         self.ui.roiframe.layertype.set('blast')
         self.ui.roiframe.layer.set('ET')
         self.ui.dataselection='raw'
-        for l in ['ET','T2 hyper']:
-            for s in ['t12','flair','bc']:
-                self.thresholds[l][s].set(self.ui.config.thresholddefaults[s])
-                self.updatesliderlabel(l,s)
-        self.update_roinumber_options()
 
     def append_roi(self,d):
         for k,v in d.items():
