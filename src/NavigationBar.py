@@ -349,28 +349,6 @@ class NavigationBar(NavigationToolbar2Tk):
                 (start_x, start_y, event.x, event.y),
                 self._zoom_info.direction, key, twinx, twiny)
             
-        # display coordinate scaling for zooming the sag/cor axes. The scaling consists
-        # of the slicefovratio number of slices / inplane pixel dimension, assuming isotropic,
-        # an x offset to account for width of t1 and t2 panels,
-        # and a y offset for the sag or cor pane.
-        panelnum = int(start_x/(self.ui.current_panelsize*self.ui.dpi))    
-        slicefovratio = self.ui.config.ImageDim[0]/self.ui.config.ImageDim[1]
-        # offset x coordinate back into first (t1) panel
-        sx = start_x - panelnum*self.ui.current_panelsize*self.ui.dpi
-        ex = event.x - panelnum*self.ui.current_panelsize*self.ui.dpi
-        start_x_sagcor = ((sx/(self.ui.current_panelsize*self.ui.dpi))*(2/slicefovratio) + 2*self.ui.current_panelsize) * self.ui.dpi
-        start_y_sagcor = ((start_y/(self.ui.current_panelsize*self.ui.dpi))*(2) + self.ui.current_panelsize/2) * self.ui.dpi
-        event_x_sagcor = ((ex/(self.ui.current_panelsize*self.ui.dpi))*(2/slicefovratio) + 2*self.ui.current_panelsize) * self.ui.dpi
-        event_y_sagcor = ((event.y/(self.ui.current_panelsize*self.ui.dpi))*(2) + self.ui.current_panelsize/2) * self.ui.dpi
-        # zoom the coronal
-        self.axs['C']._set_view_from_bbox(
-            (start_x_sagcor,start_y_sagcor,event_x_sagcor,event_y_sagcor),
-            self._zoom_info.direction, None, False, False)
-        # zoom the sagittal
-        self.axs['D']._set_view_from_bbox(
-            (start_x_sagcor,start_y_sagcor-self.ui.current_panelsize/2*self.ui.dpi,event_x_sagcor,event_y_sagcor-self.ui.current_panelsize/2*self.ui.dpi),
-            self._zoom_info.direction, None, False, False)
-
         self.canvas.draw_idle()
         self._zoom_info = None
         self.push_current()

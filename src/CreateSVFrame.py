@@ -51,8 +51,8 @@ class CreateSliceViewerFrame(CreateFrame):
         self.windowlabel = None
         self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
-        self.sagcordisplay = tk.IntVar(value=0)
-        self.overlaytype = tk.IntVar(value=self.config.OverlayType)
+        self.basedisplay = tk.IntVar(value=1)
+        # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
         # window/level values for T1,T2
         self.window = np.array([1.,1.],dtype='float')
@@ -82,27 +82,35 @@ class CreateSliceViewerFrame(CreateFrame):
         self.canvasframe.configure(style='canvasframe.TFrame')
         self.canvasframe.grid(row=1,column=0,columnspan=3,sticky='NW')
 
-        # t1/t2 selection for sag/cor panes
+        # t1/t2 base layer selection
         self.normal_frame = ttk.Frame(self.parentframe,padding='0')
         self.normal_frame.grid(row=3,column=0,sticky='NW')
-        sagcordisplay_label = ttk.Label(self.normal_frame, text='Sag/Cor: ')
-        sagcordisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
-        self.sagcordisplay_button = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.sagcordisplay,value=0,
+        basedisplay_label = ttk.Label(self.normal_frame, text='base image: ')
+        basedisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
+        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.basedisplay,value=0,
                                                     command=self.updateslice)
-        self.sagcordisplay_button.grid(column=1,row=0,sticky='w')
-        self.sagcordisplay_button = ttk.Radiobutton(self.normal_frame,text='T2',variable=self.sagcordisplay,value=1,
+        self.basedisplay_button.grid(column=1,row=0,sticky='w')
+        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.basedisplay,value=1,
                                                     command=self.updateslice)
-        self.sagcordisplay_button.grid(column=2,row=0,sticky='w')
+        self.basedisplay_button.grid(column=2,row=0,sticky='w')
+        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.basedisplay,value=2,
+                                                    command=self.updateslice)
+        self.basedisplay_button.grid(column=3,row=0,sticky='w')
+        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='FLAIR+',variable=self.basedisplay,value=3,
+                                                    command=self.updateslice)
+        self.basedisplay_button.grid(column=4,row=0,sticky='w')
+        self.basedisplay_keys = ['t1','t1+','flair','flair+']
 
         # overlay type contour mask
-        overlaytype_label = ttk.Label(self.normal_frame, text='overlay type: ')
-        overlaytype_label.grid(row=1,column=0,padx=(50,0),sticky='e')
-        self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='C',variable=self.overlaytype,value=0,
-                                                    command=Command(self.updateslice,wl=True))
-        self.overlaytype_button.grid(row=1,column=1,sticky='w')
-        self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='M',variable=self.overlaytype,value=1,
-                                                    command=Command(self.updateslice,wl=True))
-        self.overlaytype_button.grid(row=1,column=2,sticky='w')
+        if False:
+            overlaytype_label = ttk.Label(self.normal_frame, text='overlay type: ')
+            overlaytype_label.grid(row=1,column=0,padx=(50,0),sticky='e')
+            self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='z-score',variable=self.overlaytype,value=0,
+                                                        command=Command(self.updateslice,wl=True))
+            self.overlaytype_button.grid(row=1,column=1,sticky='w')
+            self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='CBV',variable=self.overlaytype,value=1,
+                                                        command=Command(self.updateslice,wl=True))
+            self.overlaytype_button.grid(row=1,column=2,sticky='w')
 
         # messages text frame
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -256,6 +264,7 @@ class CreateSliceViewerFrame(CreateFrame):
         slicesag = self.currentsagslice.get()
         slicecor = self.currentcorslice.get()
         self.ui.set_currentslice()
+        self.ui.dataselection = self.basedisplay_keys[self.basedisplay.get()]
         if blast: # option for previewing enhancing in 2d
             self.ui.runblast(currentslice=slice)
         # if self.ui.roiframe.layer.get() == 'ET':
@@ -301,26 +310,6 @@ class CreateSliceViewerFrame(CreateFrame):
         self.labels['L_A'] = self.axs['labelA'].text(self.xyfig['L_A'][0],self.xyfig['L_A'][1],'L = '+'{:d}'.format(int(self.level[0]*255)),color='w')
         self.labels['W_B'] = self.axs['labelB'].text(self.xyfig['W_B'][0],self.xyfig['W_B'][1],'W = '+'{:d}'.format(int(self.window[1]*255)),color='w')
         self.labels['L_B'] = self.axs['labelB'].text(self.xyfig['L_B'][0],self.xyfig['L_B'][1],'L = '+'{:d}'.format(int(self.level[1]*255)),color='w')
-
-    # special update for previewing BLAST enhancing lesion in 2d
-    def updateslice_blast(self,event=None):
-        slice = self.currentslice.get()
-        self.ui.set_currentslice()
-        self.ui.runblast(currentslice=slice)
-        # self.vslicenumberlabel['text'] = '{}'.format(slice)
-        self.canvas.draw()
-
-    # update for previewing final segmentation in 2d
-    # probably can't be implemented at this time.
-    def updateslice_roi(self,event=None):
-        slice = self.currentslice.get()
-        self.ui.set_currentslice(slice)
-        self.ui.runblast(currentslice=slice)
-        # 2d preview of final segmentation will still require 3d connected components, 
-        # need to fix this.
-        self.ui.roiframe.ROIclick(do3d=True)
-        # self.vslicenumberlabel['text'] = '{}'.format(slice)
-        self.canvas.draw()
         
     # TODO: latency problem for fusions. 
     # for now, don't allow to call this function if overlay is selected

@@ -61,5 +61,5 @@ class Config(object):
         # max/min z score in parameter space.
         self.maxZ = 4
 
-        # default 'contour' or 'mask' overlay
-        self.OverlayType = 1
+        # default 'z-score' or 'CBV' overlay
+        self.OverlayType = 0

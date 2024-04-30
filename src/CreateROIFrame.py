@@ -32,7 +32,7 @@ class CreateROIFrame(CreateFrame):
         self.finalROI_overlay_value = tk.BooleanVar(value=False)
         self.enhancingROI_overlay_value = tk.BooleanVar(value=False)
         roidict = {'ET':{'t12':None,'flair':None,'bc':None},'T2 hyper':{'t12':None,'flair':None,'bc':None}}
-        self.overlaytype = tk.IntVar(value=0)
+        self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layerROI = tk.StringVar(value='ET')
@@ -44,7 +44,17 @@ class CreateROIFrame(CreateFrame):
         # layout for the buttons
         ########################
 
-        self.frame.grid(row=2,column=4,rowspan=3,sticky='NE')
+        self.frame.grid(row=2,column=1,rowspan=3,sticky='NEW')
+
+        # overlay type
+        overlaytype_label = ttk.Label(self.frame, text='overlay type: ')
+        overlaytype_label.grid(row=0,column=0,padx=(50,0),sticky='e')
+        self.overlaytype_button = ttk.Radiobutton(self.frame,text='z-score',variable=self.overlaytype,value=0,
+                                                    command=Command(self.ui.updateslice,wl=True))
+        self.overlaytype_button.grid(row=0,column=1,sticky='w')
+        self.overlaytype_button = ttk.Radiobutton(self.frame,text='CBV',variable=self.overlaytype,value=1,
+                                                    command=Command(self.ui.updateslice,wl=True))
+        self.overlaytype_button.grid(row=0,column=2,sticky='w')
 
         # ROI buttons
         enhancingROI_label = ttk.Label(self.frame,text='overlay on/off')
@@ -55,38 +65,27 @@ class CreateROIFrame(CreateFrame):
         enhancingROI_overlay.grid(row=1,column=1,sticky='w')
 
         # enhancing layer choice
-        layerlabel = ttk.Label(self.frame,text='BLAST layer:')
-        layerlabel.grid(row=0,column=0,sticky='w')
-        self.layer.trace_add('write',lambda *args: self.layer.get())
-        self.layermenu = ttk.OptionMenu(self.frame,self.layer,self.layerlist['blast'][0],
-                                        *self.layerlist['blast'],command=self.layer_callback)
-        self.layermenu.config(width=7)
-        self.layermenu.grid(row=0,column=1,sticky='w')
+        if False:
+            layerlabel = ttk.Label(self.frame,text='BLAST layer:')
+            layerlabel.grid(row=0,column=0,sticky='w')
+            self.layer.trace_add('write',lambda *args: self.layer.get())
+            self.layermenu = ttk.OptionMenu(self.frame,self.layer,self.layerlist['blast'][0],
+                                            *self.layerlist['blast'],command=self.layer_callback)
+            self.layermenu.config(width=7)
+            self.layermenu.grid(row=0,column=1,sticky='w')
 
         # ROI segmentation layer choice
-        finalROI_overlay = ttk.Checkbutton(self.frame,text='',
-                                           variable=self.finalROI_overlay_value,
-                                           command=self.finalROI_overlay_callback)
-        finalROI_overlay.grid(row=1,column=3,sticky='w')
-        layerlabel = ttk.Label(self.frame,text='ROI layer:')
-        layerlabel.grid(row=0,column=2,sticky='w')
-        self.layerROI.trace_add('write',lambda *args: self.layerROI.get())
-        self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['blast'][0],
-                                           *self.layerlist['seg'],command=self.layerROI_callback)
-        self.layerROImenu.config(width=8)
-        self.layerROImenu.grid(row=0,column=3,sticky='w')
-
-
-        # overlay contour/mask
-        if False:
-            overlaytype_label = ttk.Label(self.frame, text='overlay type: ')
-            overlaytype_label.grid(row=2,column=0,padx=(0,0),sticky='w')
-            self.overlaytype_button = ttk.Radiobutton(self.frame,text='C',variable=self.overlaytype,value=0,
-                                                        command=self.ui.sliceviewerframe.updateslice)
-            self.overlaytype_button.grid(row=2,column=1,sticky='w')
-            self.overlaytype_button = ttk.Radiobutton(self.frame,text='M',variable=self.overlaytype,value=1,
-                                                        command=self.ui.sliceviewerframe.updateslice)
-            self.overlaytype_button.grid(row=2,column=2,sticky='w')
+            finalROI_overlay = ttk.Checkbutton(self.frame,text='',
+                                            variable=self.finalROI_overlay_value,
+                                            command=self.finalROI_overlay_callback)
+            finalROI_overlay.grid(row=1,column=3,sticky='w')
+            layerlabel = ttk.Label(self.frame,text='ROI layer:')
+            layerlabel.grid(row=0,column=2,sticky='w')
+            self.layerROI.trace_add('write',lambda *args: self.layerROI.get())
+            self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['blast'][0],
+                                            *self.layerlist['seg'],command=self.layerROI_callback)
+            self.layerROImenu.config(width=8)
+            self.layerROImenu.grid(row=0,column=3,sticky='w')
 
 
     #############
