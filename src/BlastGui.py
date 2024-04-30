@@ -42,7 +42,9 @@ class BlastGui(object):
         self.dataselection = 'raw'
 
         # data is a dict of studies
-        self.data = {}  
+        self.data = {} 
+        # time points to display (index of temporal order)
+        self.timepoints = [1,0]
 
         self.affine = {'t1pre':None,'t1':None,'t2':None,'flair':None}
         self.roi = [0] # dummy value for Roi indexing 1-based

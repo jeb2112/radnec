@@ -153,10 +153,12 @@ class CreateCaseFrame(CreateFrame):
                     'flair':{'d':None,'ex':False},'ref':{'d':None,'mask':None,'ex':False}}
             studies = [f for f in os.listdir(self.casedir) if os.path.isdir(os.path.join(self.casedir,f)) ]
             # by convention, study dir name is the date of the study
-            for sname in studies:
-                self.ui.data[sname] = NiftiStudy(self.casename.get(),os.path.join(self.casedir,sname))
-                self.ui.data[sname].loaddata()
-                self.ui.data[sname].date = sname
+            for i,sname in enumerate(studies):
+                # won't use date string as a key
+                # self.ui.timepoints = studies
+                self.ui.data[i] = NiftiStudy(self.casename.get(),os.path.join(self.casedir,sname))
+                self.ui.data[i].loaddata()
+                self.ui.data[i].date = sname
                 if False:
                     files = os.listdir(os.path.join(self.casedir,sname))
                     files = self.get_imagefiles(files)
@@ -172,7 +174,7 @@ class CreateCaseFrame(CreateFrame):
                             dset[dt]['d'],dset[dt]['affine'] = self.loadData(dt_file)
 
 
-        self.ui.sliceviewerframe.dim = np.shape(self.ui.data[sname].dset['t1']['d'])
+        self.ui.sliceviewerframe.dim = np.shape(self.ui.data[0].dset['t1']['d'])
         self.ui.sliceviewerframe.create_canvas()
 
         # create the label. 'seg' picks up the BraTS convention but may need to be more specific

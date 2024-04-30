@@ -243,10 +243,6 @@ class NavigationBar(NavigationToolbar2Tk):
             a = self.axs['A'].images[0]
         elif event.x <= 2*pdim:
             a = self.axs['B'].images[0]
-        elif event.y <= pdim/2:
-            a = self.axs['C'].images[0]
-        elif event.y >= pdim/2:
-            a = self.axs['D'].images[0]
         else:
             a = None
         return a

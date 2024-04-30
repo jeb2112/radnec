@@ -161,22 +161,17 @@ class CreateSliceViewerFrame(CreateFrame):
     def create_canvas(self,figsize=None):
         slicefovratio = self.dim[0]/self.dim[1]
         if figsize is None:
-            figsize = (self.ui.current_panelsize*(2 + 1/(2*slicefovratio)),self.ui.current_panelsize)
+            figsize = (self.ui.current_panelsize*(2),self.ui.current_panelsize)
         if self.fig is not None:
             plt.close(self.fig)
 
-        self.fig,self.axs = plt.subplot_mosaic([['A','B','C'],['A','B','D']],
-                                     width_ratios=[self.ui.current_panelsize,self.ui.current_panelsize,
-                                                   self.ui.current_panelsize / (2 * slicefovratio) ],
+        self.fig,self.axs = plt.subplot_mosaic([['A','B'],['A','B']],
+                                     width_ratios=[self.ui.current_panelsize,self.ui.current_panelsize],
                                      figsize=figsize,dpi=self.ui.dpi)
         self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
         self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
-        self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
-        self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
         self.ax_img.format_cursor_data = self.make_cursordata_format()
         self.ax2_img.format_cursor_data = self.make_cursordata_format()
-        self.ax3_img.format_cursor_data = self.make_cursordata_format()
-        self.ax4_img.format_cursor_data = self.make_cursordata_format()
 
         # add dummy axes for image labels. absolute canvas coords
 
@@ -190,12 +185,10 @@ class CreateSliceViewerFrame(CreateFrame):
         # 3. this dummy axis covers the bottom half of subplot mosaic 'A' in range (0,1), which preserves the aspect
         # ratio and transform, and with a simple offset of +1 in y also gets to the top half of 'A'
         # in figure coordinates.
-        self.axs['labelA'] = self.fig.add_subplot(2,3,4)
+        self.axs['labelA'] = self.fig.add_subplot(1,2,1)
 
-        self.axs['labelB'] = self.fig.add_subplot(2,3,5)
-        self.axs['labelC'] = self.fig.add_subplot(2,3,3)
-        self.axs['labelD'] = self.fig.add_subplot(2,3,6)
-        for a in ['A','B','C','D']:
+        self.axs['labelB'] = self.fig.add_subplot(1,2,2)
+        for a in ['A','B']:
             # set axes zorder so label axis is on the bottom
             # self.axs[a].set_zorder(1)
             # prevent labels from panning or zooming
@@ -213,15 +206,13 @@ class CreateSliceViewerFrame(CreateFrame):
         # record the data to figure coords of each label for each axis
         self.xyfig={}
         figtrans={}
-        for a in ['A','B','C','D']:
+        for a in ['A','B']:
             figtrans[a] = self.axs[a].transData + self.axs[a].transAxes.inverted()
         self.xyfig['Im_A']= figtrans['A'].transform((5,25))
         self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),self.dim[1]-10))
         self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),self.dim[1]-10))
         self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),self.dim[1]-10))
         self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),self.dim[1]-10))
-        self.xyfig['Im_C'] = figtrans['C'].transform((5,self.dim[0]-15))
-        self.xyfig['Im_D'] = figtrans['D'].transform((5,self.dim[0]-15))
         self.figtrans = figtrans
 
         # figure canvas
@@ -238,7 +229,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.canvas = newcanvas
 
         # slider bars
-        if True:
+        if False:
             self.axsliceslider = ttk.Scale(self.canvasframe,from_=0,to=self.dim[0]-1,variable=self.currentslice,
                                         orient=tk.VERTICAL, length='3i',command=self.updateslice)
             self.axsliceslider.grid(column=0,row=0,sticky='w')
@@ -267,13 +258,11 @@ class CreateSliceViewerFrame(CreateFrame):
         self.ui.set_currentslice()
         if blast: # option for previewing enhancing in 2d
             self.ui.runblast(currentslice=slice)
-        if self.ui.roiframe.layer.get() == 'ET':
-            self.ax_img.set(data=self.ui.data[self.ui.dataselection][0,slice,:,:])
-        else:
-            self.ax_img.set(data=self.ui.data[self.ui.dataselection][2,slice,:,:])
-        self.ax2_img.set(data=self.ui.data[self.ui.dataselection][1,slice,:,:])
-        self.ax3_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,:,slicesag])
-        self.ax4_img.set(data=self.ui.data[self.ui.dataselection][self.sagcordisplay.get(),:,slicecor,:])
+        # if self.ui.roiframe.layer.get() == 'ET':
+        #     self.ax_img.set(data=self.ui.data[self.ui.dataselection][0,slice,:,:])
+        # else:
+        self.ax_img.set(data=self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection]['d'][slice])
+        self.ax2_img.set(data=self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection]['d'][slice])
         # add current slice overlay
         self.update_labels()
 
@@ -281,17 +270,11 @@ class CreateSliceViewerFrame(CreateFrame):
         if self.ui.dataselection in['seg_raw_fusion_d','seg_fusion_d']:
             self.ax_img.set(cmap='viridis')
             self.ax2_img.set(cmap='viridis')
-            self.ax3_img.set(cmap='viridis')
-            self.ax4_img.set(cmap='viridis')
         else:
             self.ax_img.set(cmap='gray')
             self.updatewl(ax=0)
             self.ax2_img.set(cmap='gray')
             self.updatewl(ax=1)
-            self.ax3_img.set(cmap='gray')
-            self.updatewl(ax=2)
-            self.ax4_img.set(cmap='gray')
-            self.updatewl(ax=3)
         if wl:   
             # possible latency problem here
             if self.ui.dataselection == 'seg_raw_fusion_d':
@@ -318,8 +301,6 @@ class CreateSliceViewerFrame(CreateFrame):
         self.labels['L_A'] = self.axs['labelA'].text(self.xyfig['L_A'][0],self.xyfig['L_A'][1],'L = '+'{:d}'.format(int(self.level[0]*255)),color='w')
         self.labels['W_B'] = self.axs['labelB'].text(self.xyfig['W_B'][0],self.xyfig['W_B'][1],'W = '+'{:d}'.format(int(self.window[1]*255)),color='w')
         self.labels['L_B'] = self.axs['labelB'].text(self.xyfig['L_B'][0],self.xyfig['L_B'][1],'L = '+'{:d}'.format(int(self.level[1]*255)),color='w')
-        self.labels['Im_C'] = self.axs['labelC'].text(self.xyfig['Im_C'][0],self.xyfig['Im_C'][1],'Im:'+str(self.currentsagslice.get()),color='w')
-        self.labels['Im_D'] = self.axs['labelD'].text(self.xyfig['Im_D'][0],self.xyfig['Im_D'][1],'Im:'+str(self.currentcorslice.get()),color='w')
 
     # special update for previewing BLAST enhancing lesion in 2d
     def updateslice_blast(self,event=None):
@@ -365,12 +346,6 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ax_img.set_clim(vmin=vmin,vmax=vmax)
         elif ax==1:
             self.ax2_img.set_clim(vmin=vmin,vmax=vmax)
-        if self.sagcordisplay.get() == 0:
-            self.ax3_img.set_clim(vmin=vmin0,vmax=vmax0)
-            self.ax4_img.set_clim(vmin=vmin0,vmax=vmax0)
-        elif self.sagcordisplay.get() == 1:
-            self.ax3_img.set_clim(vmin=vmin1,vmax=vmax1)
-            self.ax4_img.set_clim(vmin=vmin1,vmax=vmax1)
 
         self.canvas.draw()
 
