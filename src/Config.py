@@ -14,6 +14,9 @@ class Config(object):
         # Path where R&D user interface built in Python is located
         self.UIPath = os.path.join(self.InstallPath, 'src')
 
+        # Path to HD-bet code
+        self.HDBETPath = os.path.join(os.path.expanduser('~'),'src','hd-bet')
+
         # Path for UI based resources (images, icons, etc)
         # use this hack for relative path for installation of a wheel distro into a virtual env
         self.UIResourcesPath = os.path.join(os.path.dirname(__file__), '..','resources')
@@ -36,7 +39,8 @@ class Config(object):
 
         # Path to dataset images
         if os.name == 'nt':
-            self.UIdatadir = os.path.join(os.path.expanduser('~'),'Data')
+            self.UIdatadir = os.path.join('C:\\','Users','Chris Heyn Lab','Data')
+            self.UIlocaldir = os.path.join('C:\\','Users','Chris Heyn Lab','Data','dicom2nifti')
         elif os.name == 'posix':
             self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
             self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti'

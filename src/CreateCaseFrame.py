@@ -372,7 +372,7 @@ class CreateCaseFrame(CreateFrame):
         dcm_casedirs = {}
         casedirs = []
         for i,d in enumerate(dcmdirs):
-            casedirs.append([s for s in d.split('/') if s.startswith(self.casedir_prefix)][0])
+            casedirs.append([s for s in re.split('\/|\\\\',d) if s.startswith(self.casedir_prefix)][0])
         if len(casedirs) == len(dcmdirs):
             casedir_keys = set(casedirs)
             dcm_casedirs = {c:[] for c in casedir_keys}
