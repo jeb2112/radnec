@@ -322,7 +322,7 @@ class CreateROIFrame(CreateFrame):
         self.ui.roiframe.enhancingROI_overlay_value.set(False)
         self.ui.roiframe.layertype.set('blast')
         self.ui.roiframe.layer.set('ET')
-        self.ui.dataselection='raw'
+        self.ui.dataselection='t1+'
 
     def append_roi(self,d):
         for k,v in d.items():

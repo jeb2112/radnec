@@ -134,10 +134,10 @@ class CreateSliceViewerFrame(CreateFrame):
         slicefovratio = self.dim[0]/self.dim[1]
         # self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.normal_frame_minsize)/self.ui.dpi
         self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.ui.roiframe.frame.winfo_height())/self.ui.dpi
-        self.wi = self.hi*2 + self.hi / (2*slicefovratio)
+        self.wi = self.hi*2 + 0 * self.hi / (2*slicefovratio)
         if self.wi > event.width/self.ui.dpi:
             self.wi = (event.width-2*int(self.ui.mainframe_padding))/self.ui.dpi
-            self.hi = self.wi/(2+1/(2*slicefovratio))
+            self.hi = self.wi/(2+0/(2*slicefovratio))
         self.ui.current_panelsize = self.hi
         # print('{:d},{:d},{:.2f},{:.2f},{:.2f}'.format(event.width,event.height,self.wi,self.hi,self.wi/self.hi))
         # self.cw.grid_propagate(0)
@@ -150,7 +150,7 @@ class CreateSliceViewerFrame(CreateFrame):
     # with just frame background style resizing behaviour seems correct.
     def create_blank_canvas(self):
         slicefovratio = self.config.ImageDim[0]/self.config.ImageDim[1]
-        w = self.ui.current_panelsize*(2 + 1/(2*slicefovratio)) * self.ui.dpi
+        w = self.ui.current_panelsize*(2 + 0/(2*slicefovratio)) * self.ui.dpi
         h = self.ui.current_panelsize * self.ui.dpi
         if True:
             fig = plt.figure(figsize=(w/self.ui.dpi,h/self.ui.dpi),dpi=self.ui.dpi)
@@ -306,10 +306,10 @@ class CreateSliceViewerFrame(CreateFrame):
                     print(e)
         # convert data units to figure units
         self.labels['Im_A'] = self.axs['labelA'].text(self.xyfig['Im_A'][0],1+self.xyfig['Im_A'][1],'Im:'+str(self.currentslice.get()),color='w')
-        self.labels['W_A'] = self.axs['labelA'].text(self.xyfig['W_A'][0],self.xyfig['W_A'][1],'W = '+'{:d}'.format(int(self.window[0]*255)),color='w')
-        self.labels['L_A'] = self.axs['labelA'].text(self.xyfig['L_A'][0],self.xyfig['L_A'][1],'L = '+'{:d}'.format(int(self.level[0]*255)),color='w')
-        self.labels['W_B'] = self.axs['labelB'].text(self.xyfig['W_B'][0],self.xyfig['W_B'][1],'W = '+'{:d}'.format(int(self.window[1]*255)),color='w')
-        self.labels['L_B'] = self.axs['labelB'].text(self.xyfig['L_B'][0],self.xyfig['L_B'][1],'L = '+'{:d}'.format(int(self.level[1]*255)),color='w')
+        self.labels['W_A'] = self.axs['labelA'].text(self.xyfig['W_A'][0],self.xyfig['W_A'][1],'W = '+'{:d}'.format(int(self.window[0])),color='w')
+        self.labels['L_A'] = self.axs['labelA'].text(self.xyfig['L_A'][0],self.xyfig['L_A'][1],'L = '+'{:d}'.format(int(self.level[0])),color='w')
+        self.labels['W_B'] = self.axs['labelB'].text(self.xyfig['W_B'][0],self.xyfig['W_B'][1],'W = '+'{:d}'.format(int(self.window[1])),color='w')
+        self.labels['L_B'] = self.axs['labelB'].text(self.xyfig['L_B'][0],self.xyfig['L_B'][1],'L = '+'{:d}'.format(int(self.level[1])),color='w')
         
     # TODO: latency problem for fusions. 
     # for now, don't allow to call this function if overlay is selected

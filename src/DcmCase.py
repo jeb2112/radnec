@@ -101,9 +101,8 @@ class Case():
         else:
             raise ValueError('No T1 data to register to')
         s.dset[dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset[dref]['d'],transform='Rigid')
-        if True:
+        if False:
             s.writenifti(s.dset[dref]['d'],os.path.join(self.config.UIlocaldir,self.case,dref+'_talairach.nii'),affine=s.dset['ref']['affine'])
-            # self.writenifti(self.reference,os.path.join(self.config.UIlocaldir,self.case,'talairach.nii'),affine=s.affine)
 
         for dt in [dt for dt in s.dtag if dt != dref]:
             if s.dset[dt]['ex']:
@@ -144,11 +143,11 @@ class Study():
         self.case = case
         self.date = None
         self.casedir = None
-        self.dset = {'t1':{'d':None,'time':None,'affine':None,'ex':False},
-                     't1+':{'d':None,'time':None,'affine':None,'ex':False,'mask':None},
+        self.dset = {'t1':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
+                     't1+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None},
                      'zt1+':{'d':None,'time':None,'affine':None,'ex':False},
-                     'flair':{'d':None,'time':None,'affine':None,'ex':False},
-                     'flair+':{'d':None,'time':None,'affine':None,'ex':False},
+                     'flair':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
+                     'flair+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
                      'zflair+':{'d':None,'time':None,'affine':None,'ex':False},
                      'cbv':{'d':None,'time':None,'affine':None,'ex':False},
                      'ref':{'d':None,'affine':None,'ex':False},
@@ -208,6 +207,11 @@ class NiftiStudy(Study):
                     dt_file = dt_files[0]
 
                 self.dset[dt]['d'],self.dset[dt]['affine'] = self.loadnifti(dt_file)
+                if dt in ['t1+','flair+']:
+                    self.dset[dt]['max'] = np.max(self.dset[dt]['d'])
+                    self.dset[dt]['min'] = np.min(self.dset[dt]['d'])
+                    self.dset[dt[:-1]]['max'] = self.dset[dt]['max']
+                    self.dset[dt[:-1]]['min'] = self.dset[dt]['min']
                 self.dset[dt]['ex'] = True
         return
 
