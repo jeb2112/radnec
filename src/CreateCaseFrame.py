@@ -38,13 +38,13 @@ class CreateCaseFrame(CreateFrame):
         super().__init__(parent,ui=ui)
 
         self.fd = FileDialog(initdir=self.config.UIdatadir)
-        self.datadir = StringVar()
+        self.datadir = StringVar() # parent of a directory containing case directories
         self.datadir.set(self.fd.dir)
         self.filenames = None
         self.casename = StringVar()
         self.casefile_prefix = None
         self.casedir_prefix = 'M' # simple convention to identify root dir of a case
-        self.caselist = {'casetags':[],'casedirs':[]}
+        self.caselist = {'casetags':[],'casedirs':[]} # list of case directories in self.datadir, and short-form tags
         self.processed = False
         self.pp = None
 
@@ -173,8 +173,10 @@ class CreateCaseFrame(CreateFrame):
 
                             dset[dt]['d'],dset[dt]['affine'] = self.loadData(dt_file)
 
-
-        self.ui.sliceviewerframe.dim = np.shape(self.ui.data[0].dset['t1']['d'])
+        # update sliceviewer according to data loaded
+        self.ui.sliceviewerframe.dim = np.shape(self.ui.data[0].dset[self.ui.dataselection]['d'])
+        self.ui.sliceviewerframe.level = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/4]*2)
+        self.ui.sliceviewerframe.window = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/2]*2)
         self.ui.sliceviewerframe.create_canvas()
 
         # create the label. 'seg' picks up the BraTS convention but may need to be more specific
@@ -265,21 +267,24 @@ class CreateCaseFrame(CreateFrame):
                     # the casedir is a sub-directory path between the upper datadir,
                     # and the parent of the dicom series dirs where the nifti's get stored
                     if len(niftidirs) > 1:
-                        casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
-                        casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
+                        niftidirs = self.group_dcmdirs(niftidirs)
+                        # casefiles = [re.split(r'/|\\\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
+                        casedirs = [k for k in niftidirs.keys()]
+                        # if a single nifti case dir at the level  of the case dir and not the parent dir,
+                        # need to adjust datadir to be the parent directory
+                        if len(casedirs) == 1:
+                            datadir = self.datadir.get()
+                            if casedirs[0] in datadir:
+                                self.datadir.set(os.path.split(datadir)[0])
                         doload = self.config.AutoLoad
                     elif len(niftidirs) == 1:
-                        self.casedir = niftidirs[0]
-                        self.datadir.set(os.path.split(dir)[0])
-                        casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
-                        casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
-                        doload = True
+                        raise ValueError('Only one image directory found for this case')
                     # may need a future sort
                     if False:
                         casefiles,casedirs = (list(t) for t in zip(*sorted(zip(casefiles,casedirs))))
-                    self.caselist['casetags'] = casefiles
+                    self.caselist['casetags'] = casedirs
                     self.caselist['casedirs'] = casedirs
-                    self.w.config(width=max(20,len(casefiles[0])))
+                    self.w.config(width=max(20,len(casedirs[0])))
                     self.casetype = 1
 
                 # if dicom dirs, then preprocess only. could be a single case or multiple cases
@@ -355,7 +360,7 @@ class CreateCaseFrame(CreateFrame):
         dcm_casedirs = {}
         casedirs = []
         for i,d in enumerate(dcmdirs):
-            casedirs.append([s for s in d.split('/') if s.startswith(self.casedir_prefix)][0])
+            casedirs.append([s for s in re.split('\/|\\\\',d) if s.startswith(self.casedir_prefix)][0])
         if len(casedirs) == len(dcmdirs):
             casedir_keys = set(casedirs)
             dcm_casedirs = {c:[] for c in casedir_keys}

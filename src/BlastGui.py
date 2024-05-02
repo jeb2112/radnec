@@ -176,7 +176,7 @@ class BlastGui(object):
     def resetUI(self):
         self.normalslice = None
         self.currentslice = None
-        self.dataselection = 'raw'
+        self.dataselection = 't1+'
 
         self.data = {}
     

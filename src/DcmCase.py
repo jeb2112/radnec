@@ -101,13 +101,12 @@ class Case():
         else:
             raise ValueError('No T1 data to register to')
         s.dset[dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset[dref]['d'],transform='Rigid')
-        if True:
-            self.writenifti(s.dset[dref]['d'],os.path.join(self.config.UIlocaldir,self.case,dref+'_talairach.nii'),affine=self.affine)
-            # self.writenifti(self.reference,os.path.join(self.config.UIlocaldir,self.case,'talairach.nii'),affine=self.affine)
+        if False:
+            s.writenifti(s.dset[dref]['d'],os.path.join(self.config.UIlocaldir,self.case,dref+'_talairach.nii'),affine=s.dset['ref']['affine'])
 
         for dt in [dt for dt in s.dtag if dt != dref]:
             if s.dset[dt]['ex']:
-                s.dset[dt]['d'] = self.tx(s.dset['ref']['d'],s.dset[dt]['d'],tx)
+                s.dset[dt]['d'] = s.tx(s.dset['ref']['d'],s.dset[dt]['d'],tx)
 
         # remainder of studies register to first study
         for s in self.studies[1:]:
@@ -116,17 +115,25 @@ class Case():
                     s.dset[dt]['d'] = np.flip(s.dset[dt]['d'],axis=1)
             if s.dset['t1+']['ex']:
                 dref = 't1+'
-                s.dset[dref]['d'],tx = self.register(self.studies[0].dset[dref]['d'],s.dset[dref]['d'],transform='Rigid')
+                s.dset[dref]['d'],tx = s.register(self.studies[0].dset[dref]['d'],s.dset[dref]['d'],transform='Rigid')
             else:
                 raise ValueError('No T1+ to register to')
             for dt in [dt for dt in s.dtag if dt != dref]:
                 if s.dset[dt]['ex']:
-                    s.dset[dt]['d'] = self.tx(self.studies[0].dset[dref]['d'],s.dset[dt]['d'],tx)
+                    s.dset[dt]['d'] = s.tx(self.studies[0].dset[dref]['d'],s.dset[dt]['d'],tx)
 
         self.write_all()
         return
 
 
+    def write_all(self):
+        # save nifti files for future use
+        for s in self.studies:
+            localstudydir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
+            for dt in s.dtag:
+                if s.dset[dt]['ex']:
+                    s.writenifti(s.dset[dt]['d'],os.path.join(localstudydir,dt+'_processed.nii'),
+                                                type='float',affine=s.dset['ref']['affine'])
 
 
 class Study():
@@ -136,13 +143,11 @@ class Study():
         self.case = case
         self.date = None
         self.casedir = None
-        self.dset = {'t1':{'d':None,'time':None,'affine':None,'ex':False},
-                     'zt1':{'d':None,'time':None,'affine':None,'ex':False},
-                     't1+':{'d':None,'time':None,'affine':None,'ex':False,'mask':None},
+        self.dset = {'t1':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
+                     't1+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None},
                      'zt1+':{'d':None,'time':None,'affine':None,'ex':False},
-                     'flair':{'d':None,'time':None,'affine':None,'ex':False},
-                     'zflair':{'d':None,'time':None,'affine':None,'ex':False},
-                     'flair+':{'d':None,'time':None,'affine':None,'ex':False},
+                     'flair':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
+                     'flair+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
                      'zflair+':{'d':None,'time':None,'affine':None,'ex':False},
                      'cbv':{'d':None,'time':None,'affine':None,'ex':False},
                      'ref':{'d':None,'affine':None,'ex':False},
@@ -181,16 +186,8 @@ class Study():
         img_nb = nb.Nifti1Image(np.transpose(img_arr_cp.astype(type),(2,1,0)),affine,header=header)
         nb.save(img_nb,filename)
         if True:
-            os.system('gzip --force {}'.format(filename))
+            os.system('gzip --force "{}"'.format(filename))
 
-    def write_all(self):
-        # save nifti files for future use
-        for s in self.studies:
-            localstudydir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
-            for dt in s.dtag:
-                if s.dset[dt]['ex']:
-                    self.writenifti(s.dset[dt]['d'],os.path.join(localstudydir,dt+'_processed.nii'),
-                                                type='float',affine=self.affine)
 
 
 class NiftiStudy(Study):
@@ -210,6 +207,11 @@ class NiftiStudy(Study):
                     dt_file = dt_files[0]
 
                 self.dset[dt]['d'],self.dset[dt]['affine'] = self.loadnifti(dt_file)
+                if dt in ['t1+','flair+']:
+                    self.dset[dt]['max'] = np.max(self.dset[dt]['d'])
+                    self.dset[dt]['min'] = np.min(self.dset[dt]['d'])
+                    self.dset[dt[:-1]]['max'] = self.dset[dt]['max']
+                    self.dset[dt[:-1]]['min'] = self.dset[dt]['min']
                 self.dset[dt]['ex'] = True
         return
 
@@ -539,36 +541,14 @@ class DcmStudy(Study):
         img_arr = copy.deepcopy(img_arr_input)
         if fname is None:
             fname = 'temp'
-        self.writenifti(img_arr,os.path.join(self.localstudydir,fname+'.nii'),affine=affine,norm=False,type='float')
+        tfile = os.path.join(self.localstudydir,fname+'.nii')
+        self.writenifti(img_arr,tfile,affine=affine,norm=False,type='float')
 
-        command = 'conda run -n hdbet hd-bet '
-        command += ' -i ' + os.path.join(self.localstudydir,fname+'.nii')
-        res = os.system(command)
-        img_arr,_ = self.loadnifti(fname+'_bet.nii.gz',dir=self.localstudydir)
-        img_arr_mask,_ = self.loadnifti(fname+'_bet_mask.nii.gz',dir=self.localstudydir)
-        if fname == 'temp':
-            for f in glob.glob(os.path.join(self.localstudydir,'temp*')):
-                os.remove(f)
-        return img_arr,img_arr_mask
-
-    # original from brainmage
-    def extractbrain(self,img_arr_input):
-        print('extract brain')
-        img_arr = copy.deepcopy(img_arr_input)
-        img_arr = self.brainmage_clip(img_arr)
-        self.ui.roiframe.WriteImage(img_arr,os.path.join(self.casedir,'img_temp.nii'),norm=False,type='float')
-
-        tfile = 'img_temp.nii'
-        ofile = 'img_brain.nii'
-        mfile = 'img_mask.nii'
-        if self.ui.OS == 'linux':
-            command = 'conda run -n brainmage brain_mage_single_run '
-            command += ' -i ' + os.path.join(self.casedir,tfile)
-            command += ' -o ' + os.path.join(self.casedir,mfile)
-            command += ' -m ' + os.path.join(self.casedir,ofile) + ' -dev 0'
+        if os.name == 'posix':
+            command = 'conda run -n hdbet hd-bet '
+            command += ' -i ' + tfile
             res = os.system(command)
-
-        elif self.ui.OS == 'win32':
+        elif os.name == 'nt':
             # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
             # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
             # it is currently hard-coded to anaconda3/envs location rather than .conda/envs, but anaconda3 could be installed
@@ -579,12 +559,9 @@ class DcmStudy(Study):
                 activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
             else:
                 raise FileNotFoundError('anaconda3/Scripts/activate.bat')
-                                
-            command1 = '\"'+activatebatch+'\" \"' + os.path.expanduser('~')+'\\anaconda3\envs\\brainmage\"'
-            command2 = 'python \"' + os.path.join(os.path.expanduser('~'),'anaconda3','envs','brainmage','Scripts','brain_mage_single_run')
-            command2 += '\" -i   \"' + os.path.join(self.casedir,tfile)
-            command2 += '\"  -o  \"' + os.path.join(os.path.expanduser('~'),'AppData','Local','Temp','foo')
-            command2 += '\"   -m   \"' + os.path.join(self.casedir,ofile) + '\"'
+            command1 = '\"'+activatebatch+'\" \"' + os.path.expanduser('~')+'\\anaconda3\envs\\hdbet\"'
+            command2 = 'python \"' + os.path.join(self.config.HDBETPath,'HD_BET','hd-bet')
+            command2 += '\" -i   \"' + tfile
             cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
             popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
             for stdout_line in iter(popen.stdout.readline,""):
@@ -596,15 +573,14 @@ class DcmStudy(Study):
                 raise subprocess.CalledProcessError(res,cstr)
                 print(res)
 
-        img_nb = nb.load(os.path.join(self.casedir,'img_brain.nii'))
-        img_arr = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
-        img_nb = nb.load(os.path.join(self.casedir,'img_mask.nii'))
-        img_arr_mask = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
-        os.remove(os.path.join(self.casedir,'img_brain.nii'))
-        os.remove(os.path.join(self.casedir,'img_temp.nii'))
-        os.remove(os.path.join(self.casedir,'img_mask.nii'))
-        return img_arr,img_arr_mask
 
+
+        img_arr,_ = self.loadnifti(fname+'_bet.nii.gz',dir=self.localstudydir)
+        img_arr_mask,_ = self.loadnifti(fname+'_bet_mask.nii.gz',dir=self.localstudydir)
+        if fname == 'temp':
+            for f in glob.glob(os.path.join(self.localstudydir,'temp*')):
+                os.remove(f)
+        return img_arr,img_arr_mask
                 
     # if T2 matrix is different resample it to t1
     def resamplet2(self,arr_t1,arr_t2,a1,a2):
