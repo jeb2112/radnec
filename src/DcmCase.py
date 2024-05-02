@@ -76,7 +76,7 @@ class Case():
             with open(pname,'rb') as fp:
                 self.studies = []
                 self.studies = pickle.load(fp)
-                if True:
+                if False:
                     for i,s in enumerate(self.studies):
                         s.normalstats()
         else:
@@ -144,11 +144,13 @@ class Study():
         self.date = None
         self.casedir = None
         self.dset = {'t1':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
+                     'zt1':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None},
                      't1+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None},
-                     'zt1+':{'d':None,'time':None,'affine':None,'ex':False},
+                     'zt1+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
                      'flair':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
+                     'zflair':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
                      'flair+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'zflair+':{'d':None,'time':None,'affine':None,'ex':False},
+                     'zflair+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
                      'cbv':{'d':None,'time':None,'affine':None,'ex':False},
                      'ref':{'d':None,'affine':None,'ex':False},
                      'ET':{'d':None,'affine':None,'ex':False},
@@ -458,22 +460,19 @@ class DcmStudy(Study):
 
         # bias correction.
         self.dbias = {} # working data for calculating z-scores
-        for dt in ['t1+','flair+']:
+        for dt in ['t1','t1+','flair','flair+']:
             if self.dset[dt]['ex']:   
                 self.dset['z'+dt]['d'] = np.copy(self.n4bias(self.dset[dt]['d']))
                 self.dset['z'+dt]['ex'] = True
-                # self.dbias[dt] = self.n4bias(self.dset[dt]['d'])
 
         # if necessary clip any negative values introduced by the processing
-        for dt in ['t1+','flair+']:
+        for dt in ['t1','t1+','flair','flair+']:
             if self.dset[dt]['ex']:
                 if np.min(self.dset['z'+dt]['d']) < 0:
-                # if np.min(self.dbias[dt]) < 0:
                     self.dset['z'+dt]['d'][self.dset['z'+dt]['d'] < 0] = 0
-                    # self.dbias[dt][self.dbias[dt] < 0] = 0
                 # self.dset[dt]['d'] = self.rescale(self.dset[dt]['d'])
 
-        # normal brain stats
+        # normal brain stats and z-score images
         self.normalstats()
             
 
@@ -501,6 +500,7 @@ class DcmStudy(Study):
         for dt2 in [('flair','t1'),('flair+','t1+')]:
             if self.dset['z'+dt2[0]]['ex'] and self.dset['z'+dt2[1]]['ex']:
                 region_of_support = np.where(self.dset[dt2[0]]['d']*self.dset[dt2[1]]['d'] >0)
+                background = np.where(self.dset[dt2[0]]['d']*self.dset[dt2[1]]['d'] == 0)
                 # vset = np.zeros_like(region_of_support,dtype='float')
                 for dt in dt2:
                     vset[dt] = np.ravel(self.dset['z'+dt]['d'][region_of_support])
@@ -528,6 +528,7 @@ class DcmStudy(Study):
                     plt.show(block=False)
 
                 self.dset['z'+dt]['d'] = ( self.dset['z'+dt]['d'] - self.params[dt]['mean']) / self.params[dt]['std']
+                self.dset['z'+dt]['d'][background] = 0
                 self.writenifti(self.dset['z'+dt]['d'],os.path.join(self.localstudydir,'z'+dt+'.nii'),affine=self.dset[dt]['affine'])
         plt.savefig(os.path.join(self.localcasedir,'scatterplot_normal.png'))
 
