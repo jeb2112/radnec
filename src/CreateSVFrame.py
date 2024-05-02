@@ -134,10 +134,10 @@ class CreateSliceViewerFrame(CreateFrame):
         slicefovratio = self.dim[0]/self.dim[1]
         # self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.normal_frame_minsize)/self.ui.dpi
         self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.ui.roiframe.frame.winfo_height())/self.ui.dpi
-        self.wi = self.hi*2 + self.hi / (2*slicefovratio)
+        self.wi = self.hi*2 + 0 * self.hi / (2*slicefovratio)
         if self.wi > event.width/self.ui.dpi:
             self.wi = (event.width-2*int(self.ui.mainframe_padding))/self.ui.dpi
-            self.hi = self.wi/(2+1/(2*slicefovratio))
+            self.hi = self.wi/(2+0/(2*slicefovratio))
         self.ui.current_panelsize = self.hi
         # print('{:d},{:d},{:.2f},{:.2f},{:.2f}'.format(event.width,event.height,self.wi,self.hi,self.wi/self.hi))
         # self.cw.grid_propagate(0)

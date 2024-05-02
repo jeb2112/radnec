@@ -251,60 +251,43 @@ class CreateCaseFrame(CreateFrame):
             casefiles = []
             if len(files):
 
-                imagefiles = self.get_imagefiles(files)
+                niftidirs,dcmdirs = self.get_imagedirs(dir)
+                # niftidirs option could be a single case, or a directory of multiple cases 
+                if len(niftidirs):
+                    self.datadir.set(dir)
 
-                # single case directory with image files
-                if len(imagefiles) > 1:
-                    imagefiles = [i.group(1) for i in imagefiles]
                     self.casefile_prefix = ''
-                    casefiles = [os.path.split(dir)[1]]
+                    # for niftidirs that are processed dicomdirs, there may be
+                    # multiple empty subdirectories. for now assume that the 
+                    # immediate subdir of the datadir is the best tag for the casefile
+                    # if there are multiple niftidirs, and the selected datadir itself is the
+                    # tag for a single nifti file
+                    # the casedir is a sub-directory path between the upper datadir,
+                    # and the parent of the dicom series dirs where the nifti's get stored
+                    if len(niftidirs) > 1:
+                        casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
+                        casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
+                        doload = self.config.AutoLoad
+                    elif len(niftidirs) == 1:
+                        self.casedir = niftidirs[0]
+                        self.datadir.set(os.path.split(dir)[0])
+                        casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
+                        casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
+                        doload = True
+                    # may need a future sort
+                    if False:
+                        casefiles,casedirs = (list(t) for t in zip(*sorted(zip(casefiles,casedirs))))
                     self.caselist['casetags'] = casefiles
-                    self.caselist['casedirs'] = [os.path.split(dir)[1]]
-                    self.ui.set_message('')
-                    self.w.config(width=min(20,len(casefiles[0])))
-                    self.datadir.set(os.path.split(dir)[0])
-                    self.casetype = 0
-                    doload = True
+                    self.caselist['casedirs'] = casedirs
+                    self.w.config(width=max(20,len(casefiles[0])))
+                    self.casetype = 1
 
-                # one or more case subdirectories
-                else:
-                    niftidirs,dcmdirs = self.get_imagedirs(dir)
-                    # niftidirs option could be a single case, or a directory of multiple cases 
-                    if len(niftidirs):
-                        self.datadir.set(dir)
-
-                        self.casefile_prefix = ''
-                        # for niftidirs that are processed dicomdirs, there may be
-                        # multiple empty subdirectories. for now assume that the 
-                        # immediate subdir of the datadir is the best tag for the casefile
-                        # if there are multiple niftidirs, and the selected datadir itself is the
-                        # tag for a single nifti file
-                        # the casedir is a sub-directory path between the upper datadir,
-                        # and the parent of the dicom series dirs where the nifti's get stored
-                        if len(niftidirs) > 1:
-                            casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
-                            casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
-                            doload = self.config.AutoLoad
-                        elif len(niftidirs) == 1:
-                            self.casedir = niftidirs[0]
-                            self.datadir.set(os.path.split(dir)[0])
-                            casefiles = [re.split(r'/|\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
-                            casedirs = [d[len(self.datadir.get())+1:] for d in niftidirs]
-                            doload = True
-                        # may need a future sort
-                        if False:
-                            casefiles,casedirs = (list(t) for t in zip(*sorted(zip(casefiles,casedirs))))
-                        self.caselist['casetags'] = casefiles
-                        self.caselist['casedirs'] = casedirs
-                        self.w.config(width=max(20,len(casefiles[0])))
-                        self.casetype = 1
-
-                    # if dicom dirs, then preprocess only. could be a single case or multiple cases
-                    elif len(dcmdirs):
-                        dcmdirs = self.group_dcmdirs(dcmdirs)
-                        for c in dcmdirs.keys():
-                            case = Case(c,dcmdirs[c],self.config)
-                        return
+                # if dicom dirs, then preprocess only. could be a single case or multiple cases
+                elif len(dcmdirs):
+                    dcmdirs = self.group_dcmdirs(dcmdirs)
+                    for c in dcmdirs.keys():
+                        case = Case(c,dcmdirs[c],self.config)
+                    return
 
             if len(self.caselist['casetags']):
                 self.config.UIdataroot = self.casefile_prefix

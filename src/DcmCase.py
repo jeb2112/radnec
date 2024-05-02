@@ -100,7 +100,7 @@ class Case():
             dref = 't1'
         else:
             raise ValueError('No T1 data to register to')
-        s.dset[dref]['d'],tx = self.register(s.dset['ref']['d'],s.dset[dref]['d'],transform='Rigid')
+        s.dset[dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset[dref]['d'],transform='Rigid')
         if True:
             self.writenifti(s.dset[dref]['d'],os.path.join(self.config.UIlocaldir,self.case,dref+'_talairach.nii'),affine=self.affine)
             # self.writenifti(self.reference,os.path.join(self.config.UIlocaldir,self.case,'talairach.nii'),affine=self.affine)
@@ -137,9 +137,11 @@ class Study():
         self.date = None
         self.casedir = None
         self.dset = {'t1':{'d':None,'time':None,'affine':None,'ex':False},
+                     'zt1':{'d':None,'time':None,'affine':None,'ex':False},
                      't1+':{'d':None,'time':None,'affine':None,'ex':False,'mask':None},
                      'zt1+':{'d':None,'time':None,'affine':None,'ex':False},
                      'flair':{'d':None,'time':None,'affine':None,'ex':False},
+                     'zflair':{'d':None,'time':None,'affine':None,'ex':False},
                      'flair+':{'d':None,'time':None,'affine':None,'ex':False},
                      'zflair+':{'d':None,'time':None,'affine':None,'ex':False},
                      'cbv':{'d':None,'time':None,'affine':None,'ex':False},
@@ -457,6 +459,7 @@ class DcmStudy(Study):
         for dt in ['t1+','flair+']:
             if self.dset[dt]['ex']:   
                 self.dset['z'+dt]['d'] = np.copy(self.n4bias(self.dset[dt]['d']))
+                self.dset['z'+dt]['ex'] = True
                 # self.dbias[dt] = self.n4bias(self.dset[dt]['d'])
 
         # if necessary clip any negative values introduced by the processing
@@ -469,7 +472,8 @@ class DcmStudy(Study):
                 # self.dset[dt]['d'] = self.rescale(self.dset[dt]['d'])
 
         # normal brain stats
-        # self.normalstats(study)
+        self.normalstats()
+            
 
         # save nifti files for future use
         if False:
@@ -493,11 +497,11 @@ class DcmStudy(Study):
         X={}
         vset = {}
         for dt2 in [('flair','t1'),('flair+','t1+')]:
-            if self.dset[dt2[0]]['ex'] and self.dset[dt2[1]]['ex']:
+            if self.dset['z'+dt2[0]]['ex'] and self.dset['z'+dt2[1]]['ex']:
                 region_of_support = np.where(self.dset[dt2[0]]['d']*self.dset[dt2[1]]['d'] >0)
                 # vset = np.zeros_like(region_of_support,dtype='float')
                 for dt in dt2:
-                    vset[dt] = np.ravel(self.dset[dt]['d'][region_of_support])
+                    vset[dt] = np.ravel(self.dset['z'+dt]['d'][region_of_support])
                 X[dt2] = np.column_stack((vset[dt2[0]],vset[dt2[1]]))
 
         np.random.seed(1)
@@ -521,6 +525,8 @@ class DcmStudy(Study):
                 if False:
                     plt.show(block=False)
 
+                self.dset['z'+dt]['d'] = ( self.dset['z'+dt]['d'] - self.params[dt]['mean']) / self.params[dt]['std']
+                self.writenifti(self.dset['z'+dt]['d'],os.path.join(self.localstudydir,'z'+dt+'.nii'),affine=self.dset[dt]['affine'])
         plt.savefig(os.path.join(self.localcasedir,'scatterplot_normal.png'))
 
         return
