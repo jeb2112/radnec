@@ -30,7 +30,7 @@ class CreateROIFrame(CreateFrame):
 
         self.buttonpress_id = None # temp var for keeping track of button press event
         self.finalROI_overlay_value = tk.BooleanVar(value=False)
-        self.enhancingROI_overlay_value = tk.BooleanVar(value=False)
+        self.overlay_value = tk.BooleanVar(value=False)
         roidict = {'ET':{'t12':None,'flair':None,'bc':None},'T2 hyper':{'t12':None,'flair':None,'bc':None}}
         self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all']}
@@ -57,12 +57,12 @@ class CreateROIFrame(CreateFrame):
         self.overlaytype_button.grid(row=0,column=2,sticky='w')
 
         # ROI buttons
-        enhancingROI_label = ttk.Label(self.frame,text='overlay on/off')
-        enhancingROI_label.grid(row=1,column=0,sticky='e')
-        enhancingROI_overlay = ttk.Checkbutton(self.frame,text='',
-                                               variable=self.enhancingROI_overlay_value,
-                                               command=self.enhancingROI_overlay_callback)
-        enhancingROI_overlay.grid(row=1,column=1,sticky='w')
+        overlay_label = ttk.Label(self.frame,text='overlay on/off')
+        overlay_label.grid(row=1,column=0,sticky='e')
+        overlay_button = ttk.Checkbutton(self.frame,text='',
+                                               variable=self.overlay_value,
+                                               command=self.overlay_button_callback)
+        overlay_button.grid(row=1,column=1,sticky='w')
 
         # enhancing layer choice
         if False:
@@ -92,51 +92,21 @@ class CreateROIFrame(CreateFrame):
     # ROI methods
     ############# 
 
-    # methods for BLAST layer options menu
-    def layer_callback(self,layer=None,updateslice=True,updatedata=True,overlay=True):
+    def overlay_button_callback(self,updateslice=True):
 
-        # if in the opposite mode, then switch same as if the checkbutton was used. 
-        # but don't run the checkbutton callback because
-        # don't yet have logic to check if the existing overlay is correct or
-        # needs to be redone.
-        # also if in ROI mode, then copy the relevant data back for BLAST mode.
-        if self.finalROI_overlay_value.get() == True:
-            self.updateData()
-            self.finalROI_overlay_value.set(False)
-        self.enhancingROI_overlay_value.set(True)
-        self.ui.dataselection = 'seg_raw_fusion_d'
+        if self.overlay_value.get() == True:
+            self.ui.dataselection = 'overlay'
 
-        self.ui.sliceviewerframe.updatewl_fusion()
+            # self.ui.sliceviewerframe.updatewl_fusion()
 
-        if layer is None:
-            layer = self.layer.get()
-        else:
-            self.layer.set(layer)
-        self.ui.currentlayer = layer
-        roi = self.ui.get_currentroi()
-
-        # when switching layers, raise/lower the corresponding sliders
-        # slider values switch but no need to run re-blast immediately. 
-        self.updatesliders()
-        for s in ['t12','flair','bc']:
-            if layer == 'T2 hyper':
-                self.sliders[layer][s].lift()
-                self.sliders['ET'][s].lower()
-            # self.t2slider.configure(state='active')
-            # self.updatebcsize(self.bct2size.get(),blast=False)
-            else:
-                self.sliders[layer][s].lift()
-                self.sliders['T2 hyper'][s].lower()
-                # self.t2slider.configure(state='disabled')
-                # self.t1slider.configure(state='active')
-
-        # generate a new overlay
-        # TODO: check for existing instead of automatically re-generating
-        # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
-        if overlay:
-            self.ui.data['seg_raw_fusion'] = generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],layer=layer,
-                                                                    overlay_intensity=self.config.OverlayIntensity)
-            self.ui.data['seg_raw_fusion_d'] = copy.deepcopy(self.ui.data['seg_raw_fusion'])
+            # generate a new overlay
+            for s in self.ui.data:
+                self.ui.data[s].dset['overlay']['d'] = generate_overlay(
+                    self.ui.data[s].dset['flair+']['d'],
+                    self.ui.data[s].dset['zflair+']['d']*self.ui.data[s].dset['ET']['d'],
+                    overlay_intensity=self.config.OverlayIntensity)
+                self.ui.data[s].dset['overlay']['ex'] = True
+                # self.ui.data['overlay_d'] = copy.deepcopy(self.ui.data['overlay']),
 
         if updateslice:
             self.ui.updateslice()
@@ -148,7 +118,7 @@ class CreateROIFrame(CreateFrame):
         if roi == 0:
             return
         # if in the opposite mode, then switch
-        self.enhancingROI_overlay_value.set(False)
+        self.overlay_value.set(False)
         self.finalROI_overlay_value.set(True)
         self.ui.dataselection = 'seg_fusion_d'
 
@@ -208,7 +178,7 @@ class CreateROIFrame(CreateFrame):
             self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
             self.ui.updateslice()
         else:
-            self.enhancingROI_overlay_value.set(False)
+            self.overlay_value.set(False)
             self.ui.dataselection = 'seg_fusion_d'
             # handle the case of switching manually to ROI mode with only one of ET T2 hyper selected.
             # eg the INDIGO case there won't be any ET. for now just a temp workaround.
@@ -222,28 +192,18 @@ class CreateROIFrame(CreateFrame):
                     self.layerROI_callback(layer='ET')
             self.ui.updateslice(wl=True)
 
-    def enhancingROI_overlay_callback(self,event=None):
+    def overlay_callback(self,event=None):
         # if currently in roi mode, copy relevant data back to blast mode
-        if self.finalROI_overlay_value.get() == True:
-            self.updateData()
-
-        if self.enhancingROI_overlay_value.get() == False:
+        if self.overlay_value.get() == False:
             self.ui.dataselection = 'raw'
             self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
             self.ui.updateslice()
-
         else:
-            self.finalROI_overlay_value.set(False)
-            self.ui.dataselection = 'seg_raw_fusion_d'
+            self.ui.dataselection = 'overlay_fusion_d'
             self.ui.updateslice(wl=True)
 
-    def enhancingROI_callback(self,event=None):
-        self.finalROI_overlay_value.set(False)
-        self.enhancingROI_overlay_value.set(True)
-        self.ui.runblast()
-
     def selectROI(self,event=None):
-        if self.enhancingROI_overlay_value.get(): # only activate cursor in BLAST mode
+        if self.overlay_value.get(): # only activate cursor in BLAST mode
             self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.ROIclick)
             self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
             # lock pan and zoom
@@ -309,7 +269,7 @@ class CreateROIFrame(CreateFrame):
             self.ui.data['seg_raw'] = self.ui.data['blast']['T2 hyper'].astype('int')
 
     def updateData(self):
-        for k in ['seg_fusion_d','seg_fusion','seg_raw_fusion','seg_raw_fusion_d','seg_raw','blast']:
+        for k in ['overlay_fusion','overlay_fusion_d','seg_raw']:
             self.ui.data[k] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[k])
         self.updatesliders()
 
@@ -319,7 +279,7 @@ class CreateROIFrame(CreateFrame):
         self.currentroi.set(0)
         self.ui.roi = [0]
         self.ui.roiframe.finalROI_overlay_value.set(False)
-        self.ui.roiframe.enhancingROI_overlay_value.set(False)
+        self.ui.roiframe.overlay_value.set(False)
         self.ui.roiframe.layertype.set('blast')
         self.ui.roiframe.layer.set('ET')
         self.ui.dataselection='t1+'

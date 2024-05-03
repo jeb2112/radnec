@@ -264,19 +264,15 @@ class CreateSliceViewerFrame(CreateFrame):
         slicesag = self.currentsagslice.get()
         slicecor = self.currentcorslice.get()
         self.ui.set_currentslice()
-        self.ui.dataselection = self.basedisplay_keys[self.basedisplay.get()]
-        if blast: # option for previewing enhancing in 2d
-            self.ui.runblast(currentslice=slice)
-        # if self.ui.roiframe.layer.get() == 'ET':
-        #     self.ax_img.set(data=self.ui.data[self.ui.dataselection][0,slice,:,:])
-        # else:
+        if False: #shouldn't be needed here
+            self.ui.dataselection = self.basedisplay_keys[self.basedisplay.get()]
         self.ax_img.set(data=self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection]['d'][slice])
         self.ax2_img.set(data=self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection]['d'][slice])
         # add current slice overlay
         self.update_labels()
 
         # self.vslicenumberlabel['text'] = '{}'.format(slice)
-        if self.ui.dataselection in['seg_raw_fusion_d','seg_fusion_d']:
+        if self.ui.dataselection in['overlay','overlay_d']:
             self.ax_img.set(cmap='viridis')
             self.ax2_img.set(cmap='viridis')
         else:
@@ -286,12 +282,9 @@ class CreateSliceViewerFrame(CreateFrame):
             self.updatewl(ax=1)
         if wl:   
             # possible latency problem here
-            if self.ui.dataselection == 'seg_raw_fusion_d':
+            if self.ui.dataselection == 'overlay':
                 # self.ui.roiframe.layer_callback(updateslice=False,updatedata=False,layer=layer)
-                self.ui.roiframe.layer_callback(layer=layer)
-            elif self.ui.dataselection == 'seg_fusion_d':
-                # self.ui.roiframe.layerROI_callback(updateslice=False,updatedata=False,layer=layer)
-                self.ui.roiframe.layerROI_callback(layer=layer)
+                self.ui.roiframe.layer_callback()
             elif self.ui.dataselection == 'raw':
                 self.clipwl_raw()
 

@@ -85,7 +85,7 @@ class BlastGui(object):
                 self.roiframe.updateROI()
                 self.roiframe.finalROI_overlay_value.set(True)
                 self.roiframe.update_layermenu_options('seg')
-                self.roiframe.enhancingROI_overlay_value.set(False)
+                self.roiframe.overlay_value.set(False)
                 self.currentroi = 0
                 self.roiframe.currentroi.set(0)
                 self.roiframe.update_roinumber_options()

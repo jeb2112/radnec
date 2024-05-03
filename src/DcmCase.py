@@ -67,6 +67,13 @@ class Case():
             studies.append(dstudies[0])
         self.studies = studies
 
+        # temporary. load ET mask
+        # this will be implemented later with a DL model
+        for s in self.studies:
+            s.dset['ET']['d'],_ = s.loadnifti(os.path.join(self.config.UIlocaldir,self.case,'objectmask_ET.nii.gz'))
+            s.dset['ET']['affine'] = s.dset['t1+']['affine']
+            s.dset['ET']['ex'] = True
+
         return
 
     # resample,register,bias correction
@@ -151,6 +158,7 @@ class Study():
                      'zflair':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
                      'flair+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
                      'zflair+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
+                     'overlay':{'d':None,'ex':False},
                      'cbv':{'d':None,'time':None,'affine':None,'ex':False},
                      'ref':{'d':None,'affine':None,'ex':False},
                      'ET':{'d':None,'affine':None,'ex':False},
@@ -199,15 +207,10 @@ class NiftiStudy(Study):
 
     def loaddata(self):
         files = os.listdir(self.studydir)
-        for dt in self.dtag:
-            dt_files = [f for f in files if dt in f.lower()]
-            if len(dt_files) > 0:
-                if len(dt_files) > 1:
-                    # by convention '_processed' is the final output from dcm preprocess()
-                    dt_file = next((f for f in dt_files if re.search('_processed',f.lower())),None)
-                elif len(dt_files) == 1:
-                    dt_file = dt_files[0]
-
+        for dt in self.dtag: 
+            # by convention '_processed' is the final output from dcm preprocess()
+            dt_file = dt + '_processed.nii.gz'
+            if dt_file in files:
                 self.dset[dt]['d'],self.dset[dt]['affine'] = self.loadnifti(dt_file)
                 if dt in ['t1+','flair+']:
                     self.dset[dt]['max'] = np.max(self.dset[dt]['d'])
