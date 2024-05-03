@@ -173,6 +173,9 @@ class BlastGui(object):
             self.message.set(msg)
         self.sliceviewerframe.messagelabel['text'] = msg
 
+    def set_dataselection(self):
+        self.dataselection = self.sliceviewerframe.basedisplay.get()
+
     def resetUI(self):
         self.normalslice = None
         self.currentslice = None

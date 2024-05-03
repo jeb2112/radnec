@@ -66,4 +66,4 @@ class Config(object):
         self.maxZ = 4
 
         # default 'z-score' or 'CBV' overlay
-        self.OverlayType = 0
+        self.OverlayType = 'z'

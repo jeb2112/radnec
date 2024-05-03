@@ -32,7 +32,7 @@ class CreateROIFrame(CreateFrame):
         self.finalROI_overlay_value = tk.BooleanVar(value=False)
         self.overlay_value = tk.BooleanVar(value=False)
         roidict = {'ET':{'t12':None,'flair':None,'bc':None},'T2 hyper':{'t12':None,'flair':None,'bc':None}}
-        self.overlaytype = tk.IntVar(value=self.config.OverlayType)
+        self.overlaytype = tk.StringVar(value=self.config.OverlayType)
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layerROI = tk.StringVar(value='ET')
@@ -49,10 +49,10 @@ class CreateROIFrame(CreateFrame):
         # overlay type
         overlaytype_label = ttk.Label(self.frame, text='overlay type: ')
         overlaytype_label.grid(row=0,column=0,padx=(50,0),sticky='e')
-        self.overlaytype_button = ttk.Radiobutton(self.frame,text='z-score',variable=self.overlaytype,value=0,
+        self.overlaytype_button = ttk.Radiobutton(self.frame,text='z-score',variable=self.overlaytype,value='z',
                                                     command=Command(self.ui.updateslice,wl=True))
         self.overlaytype_button.grid(row=0,column=1,sticky='w')
-        self.overlaytype_button = ttk.Radiobutton(self.frame,text='CBV',variable=self.overlaytype,value=1,
+        self.overlaytype_button = ttk.Radiobutton(self.frame,text='CBV',variable=self.overlaytype,value='cbv',
                                                     command=Command(self.ui.updateslice,wl=True))
         self.overlaytype_button.grid(row=0,column=2,sticky='w')
 
@@ -95,18 +95,32 @@ class CreateROIFrame(CreateFrame):
     def overlay_button_callback(self,updateslice=True):
 
         if self.overlay_value.get() == True:
-            self.ui.dataselection = 'overlay'
+            ovly = self.overlaytype.get()
+            ovly_str = ovly + 'overlay'
+            base = self.ui.sliceviewerframe.basedisplay.get()
+            if ovly == 'z':
+                ovly_data = ovly + base
+            else:
+                ovly_data = ovly
 
             # self.ui.sliceviewerframe.updatewl_fusion()
 
             # generate a new overlay
             for s in self.ui.data:
-                self.ui.data[s].dset['overlay']['d'] = generate_overlay(
-                    self.ui.data[s].dset['flair+']['d'],
-                    self.ui.data[s].dset['zflair+']['d']*self.ui.data[s].dset['ET']['d'],
-                    overlay_intensity=self.config.OverlayIntensity)
-                self.ui.data[s].dset['overlay']['ex'] = True
-                # self.ui.data['overlay_d'] = copy.deepcopy(self.ui.data['overlay']),
+                if not self.ui.data[s].dset[ovly_str]['ex'] or self.ui.data[s].dset[ovly_str]['base'] != base:
+
+                    self.ui.data[s].dset[ovly_str]['d'] = generate_overlay(
+                        self.ui.data[s].dset[base]['d'],
+                        self.ui.data[s].dset[ovly_data]['d']*self.ui.data[s].dset['ET']['d'],
+                        image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],overlay_wl=None,
+                        overlay_intensity=self.config.OverlayIntensity)
+                    self.ui.data[s].dset[ovly_str]['ex'] = True
+                    self.ui.data[s].dset[ovly_str]['base'] = base
+                    # self.ui.data['overlay_d'] = copy.deepcopy(self.ui.data['overlay']),
+            self.ui.dataselection = ovly_str
+
+        else:
+            self.ui.set_dataselection()
 
         if updateslice:
             self.ui.updateslice()

@@ -51,7 +51,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.windowlabel = None
         self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
-        self.basedisplay = tk.IntVar(value=1)
+        self.basedisplay = tk.StringVar(value='t1+')
         # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
         # window/level values for T1,T2
@@ -87,19 +87,19 @@ class CreateSliceViewerFrame(CreateFrame):
         self.normal_frame.grid(row=3,column=0,sticky='NW')
         basedisplay_label = ttk.Label(self.normal_frame, text='base image: ')
         basedisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
-        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.basedisplay,value=0,
+        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.basedisplay,value='t1',
                                                     command=self.updateslice)
         self.basedisplay_button.grid(column=1,row=0,sticky='w')
-        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.basedisplay,value=1,
+        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.basedisplay,value='t1+',
                                                     command=self.updateslice)
         self.basedisplay_button.grid(column=2,row=0,sticky='w')
-        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.basedisplay,value=2,
+        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.basedisplay,value='flair',
                                                     command=self.updateslice)
         self.basedisplay_button.grid(column=3,row=0,sticky='w')
-        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='FLAIR+',variable=self.basedisplay,value=3,
+        self.basedisplay_button = ttk.Radiobutton(self.normal_frame,text='FLAIR+',variable=self.basedisplay,value='flair+',
                                                     command=self.updateslice)
         self.basedisplay_button.grid(column=4,row=0,sticky='w')
-        self.basedisplay_keys = ['t1','t1+','flair','flair+']
+        # self.basedisplay_keys = ['t1','t1+','flair','flair+']
 
         # overlay type contour mask
         if False:
@@ -176,8 +176,8 @@ class CreateSliceViewerFrame(CreateFrame):
         self.fig,self.axs = plt.subplot_mosaic([['A','B'],['A','B']],
                                      width_ratios=[self.ui.current_panelsize,self.ui.current_panelsize],
                                      figsize=figsize,dpi=self.ui.dpi)
-        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
-        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
+        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
+        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
         self.ax_img.format_cursor_data = self.make_cursordata_format()
         self.ax2_img.format_cursor_data = self.make_cursordata_format()
 
@@ -216,11 +216,13 @@ class CreateSliceViewerFrame(CreateFrame):
         figtrans={}
         for a in ['A','B']:
             figtrans[a] = self.axs[a].transData + self.axs[a].transAxes.inverted()
-        self.xyfig['Im_A']= figtrans['A'].transform((5,25))
-        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),self.dim[1]-10))
-        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),self.dim[1]-10))
-        self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),self.dim[1]-10))
-        self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),self.dim[1]-10))
+        self.xyfig['Im_A']= figtrans['A'].transform((5,self.dim[1]-20))
+        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),5))
+        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),5))
+        self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),5))
+        self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),5))
+        self.xyfig['date_A'] = figtrans['A'].transform((5,self.dim[1]-10))
+        self.xyfig['date_B'] = figtrans['B'].transform((5,self.dim[1]-10))
         self.figtrans = figtrans
 
         # figure canvas
@@ -264,8 +266,11 @@ class CreateSliceViewerFrame(CreateFrame):
         slicesag = self.currentsagslice.get()
         slicecor = self.currentcorslice.get()
         self.ui.set_currentslice()
-        if False: #shouldn't be needed here
-            self.ui.dataselection = self.basedisplay_keys[self.basedisplay.get()]
+        if 'overlay' in self.ui.dataselection:
+            # recalculate?
+            a=1
+        else: 
+            self.ui.dataselection = self.basedisplay.get()
         self.ax_img.set(data=self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection]['d'][slice])
         self.ax2_img.set(data=self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection]['d'][slice])
         # add current slice overlay
@@ -280,7 +285,7 @@ class CreateSliceViewerFrame(CreateFrame):
             self.updatewl(ax=0)
             self.ax2_img.set(cmap='gray')
             self.updatewl(ax=1)
-        if wl:   
+        if wl:   # not sure if needed
             # possible latency problem here
             if self.ui.dataselection == 'overlay':
                 # self.ui.roiframe.layer_callback(updateslice=False,updatedata=False,layer=layer)
@@ -298,12 +303,14 @@ class CreateSliceViewerFrame(CreateFrame):
                 except ValueError as e:
                     print(e)
         # convert data units to figure units
-        self.labels['Im_A'] = self.axs['labelA'].text(self.xyfig['Im_A'][0],1+self.xyfig['Im_A'][1],'Im:'+str(self.currentslice.get()),color='w')
+        self.labels['Im_A'] = self.axs['labelA'].text(self.xyfig['Im_A'][0],0+self.xyfig['Im_A'][1],'Im:'+str(self.currentslice.get()),color='w')
         self.labels['W_A'] = self.axs['labelA'].text(self.xyfig['W_A'][0],self.xyfig['W_A'][1],'W = '+'{:d}'.format(int(self.window[0])),color='w')
         self.labels['L_A'] = self.axs['labelA'].text(self.xyfig['L_A'][0],self.xyfig['L_A'][1],'L = '+'{:d}'.format(int(self.level[0])),color='w')
         self.labels['W_B'] = self.axs['labelB'].text(self.xyfig['W_B'][0],self.xyfig['W_B'][1],'W = '+'{:d}'.format(int(self.window[1])),color='w')
         self.labels['L_B'] = self.axs['labelB'].text(self.xyfig['L_B'][0],self.xyfig['L_B'][1],'L = '+'{:d}'.format(int(self.level[1])),color='w')
-        
+        self.labels['date_A'] = self.axs['labelA'].text(self.xyfig['date_A'][0],self.xyfig['date_A'][1],self.ui.data[self.ui.timepoints[0]].date,color='w')
+        self.labels['date_B'] = self.axs['labelB'].text(self.xyfig['date_B'][0],self.xyfig['date_B'][1],self.ui.data[self.ui.timepoints[1]].date,color='w')
+
     # TODO: latency problem for fusions. 
     # for now, don't allow to call this function if overlay is selected
     def updatewl(self,ax=0,lval=None,wval=None):
