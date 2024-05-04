@@ -54,7 +54,7 @@ class Config(object):
         self.WLClip = False
 
         # < 1 overlay by alpha compositing, == 1 replacement
-        self.OverlayIntensity = 0.6
+        self.OverlayIntensity = 1.0
 
         # image panel size
         self.PanelSize = 4 # inches at 100 dpi

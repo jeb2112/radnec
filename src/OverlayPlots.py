@@ -30,7 +30,7 @@ def hex_to_rgb(hex: str):
 
 
 def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, image_wl: np.ndarray = None, overlay_wl: np.ndarray = None,
-                     overlay_intensity: float = 0.5, colormap: str = 'viridis'):
+                     overlay_intensity: float = 1.0, colormap: str = 'viridis'):
     """
     image,overlay is 3d grayscale
 
@@ -60,9 +60,11 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, image_wl: np
         image = image / image.max() * 1
     image[:,:,:,3] = 1
 
+    # rescale overlay to provided window/level
     if overlay_wl is not None:
         overlay = overlay - (overlay_wl[1]-overlay_wl[0]/2)
         overlay = overlay / (overlay_wl[0])
+        overlay = np.clip(overlay,0,1)
     else:
         overlay = overlay - overlay.min()
         overlay = overlay / overlay.max() * 1

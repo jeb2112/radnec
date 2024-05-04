@@ -99,6 +99,11 @@ class CreateROIFrame(CreateFrame):
             ovly_str = ovly + 'overlay'
             base = self.ui.sliceviewerframe.basedisplay.get()
             if ovly == 'z':
+                # check for available data. or implement by deactivating button.
+                if False:
+                    if not self.ui.data[s].dset[base]['ex']:
+                        print('{} data not loaded'.format(base))
+                        return
                 ovly_data = ovly + base
             else:
                 ovly_data = ovly
@@ -112,10 +117,12 @@ class CreateROIFrame(CreateFrame):
                     self.ui.data[s].dset[ovly_str]['d'] = generate_overlay(
                         self.ui.data[s].dset[base]['d'],
                         self.ui.data[s].dset[ovly_data]['d']*self.ui.data[s].dset['ET']['d'],
-                        image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],overlay_wl=None,
+                        image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],
+                        overlay_wl = self.ui.sliceviewerframe.wl[ovly],
                         overlay_intensity=self.config.OverlayIntensity)
                     self.ui.data[s].dset[ovly_str]['ex'] = True
                     self.ui.data[s].dset[ovly_str]['base'] = base
+
                     # self.ui.data['overlay_d'] = copy.deepcopy(self.ui.data['overlay']),
             self.ui.dataselection = ovly_str
 
