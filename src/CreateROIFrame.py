@@ -49,19 +49,20 @@ class CreateROIFrame(CreateFrame):
         # overlay type
         overlaytype_label = ttk.Label(self.frame, text='overlay type: ')
         overlaytype_label.grid(row=0,column=0,padx=(50,0),sticky='e')
-        self.overlaytype_button = ttk.Radiobutton(self.frame,text='z-score',variable=self.overlaytype,value='z',
-                                                    command=Command(self.ui.updateslice,wl=True))
-        self.overlaytype_button.grid(row=0,column=1,sticky='w')
-        self.overlaytype_button = ttk.Radiobutton(self.frame,text='CBV',variable=self.overlaytype,value='cbv',
-                                                    command=Command(self.ui.updateslice,wl=True))
-        self.overlaytype_button.grid(row=0,column=2,sticky='w')
+        self.overlaytype_button = {}
+        self.overlaytype_button['z'] = ttk.Radiobutton(self.frame,text='z-score',variable=self.overlaytype,value='z',
+                                                    command=Command(self.overlay_callback))
+        self.overlaytype_button['z'].grid(row=0,column=1,sticky='w')
+        self.overlaytype_button['cbv'] = ttk.Radiobutton(self.frame,text='CBV',variable=self.overlaytype,value='cbv',
+                                                    command=Command(self.overlay_callback))
+        self.overlaytype_button['cbv'].grid(row=0,column=2,sticky='w')
 
         # ROI buttons
         overlay_label = ttk.Label(self.frame,text='overlay on/off')
         overlay_label.grid(row=1,column=0,sticky='e')
         overlay_button = ttk.Checkbutton(self.frame,text='',
                                                variable=self.overlay_value,
-                                               command=self.overlay_button_callback)
+                                               command=self.overlay_callback)
         overlay_button.grid(row=1,column=1,sticky='w')
 
         # enhancing layer choice
@@ -91,8 +92,8 @@ class CreateROIFrame(CreateFrame):
     #############
     # ROI methods
     ############# 
-
-    def overlay_button_callback(self,updateslice=True):
+        
+    def overlay_callback(self,updateslice=True,wl=False):
 
         if self.overlay_value.get() == True:
             ovly = self.overlaytype.get()
@@ -114,14 +115,23 @@ class CreateROIFrame(CreateFrame):
             for s in self.ui.data:
                 if not self.ui.data[s].dset[ovly_str]['ex'] or self.ui.data[s].dset[ovly_str]['base'] != base:
 
-                    self.ui.data[s].dset[ovly_str]['d'] = generate_overlay(
-                        self.ui.data[s].dset[base]['d'],
-                        self.ui.data[s].dset[ovly_data]['d']*self.ui.data[s].dset['ET']['d'],
-                        image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],
-                        overlay_wl = self.ui.sliceviewerframe.wl[ovly],
-                        overlay_intensity=self.config.OverlayIntensity)
-                    self.ui.data[s].dset[ovly_str]['ex'] = True
-                    self.ui.data[s].dset[ovly_str]['base'] = base
+                    # additional check if box not previously grayed out.
+                    # eg for cbv there might only be one DSC study, so just
+                    # use the base grayscale for the dummy overlay image
+                    if not self.ui.data[s].dset[ovly_data]['ex']:
+                        self.ui.data[s].dset[ovly_str]['d'] = np.copy(self.ui.data[s].dset[base]['d'])
+                        self.ui.data[s].dset[ovly_str]['ex'] = False
+                        self.ui.data[s].dset[ovly_str]['base'] = base
+                    else:
+
+                        self.ui.data[s].dset[ovly_str]['d'] = generate_overlay(
+                            self.ui.data[s].dset[base]['d'],
+                            self.ui.data[s].dset[ovly_data]['d']*self.ui.data[s].dset['ET']['d'],
+                            image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],
+                            overlay_wl = self.ui.sliceviewerframe.wl[ovly],
+                            overlay_intensity=self.config.OverlayIntensity)
+                        self.ui.data[s].dset[ovly_str]['ex'] = True
+                        self.ui.data[s].dset[ovly_str]['base'] = base
 
                     # self.ui.data['overlay_d'] = copy.deepcopy(self.ui.data['overlay']),
             self.ui.dataselection = ovly_str
@@ -211,16 +221,6 @@ class CreateROIFrame(CreateFrame):
                     self.layerROI_callback(layer='WT')
                 elif self.ui.roi[roi].data['ET'] is not None:
                     self.layerROI_callback(layer='ET')
-            self.ui.updateslice(wl=True)
-
-    def overlay_callback(self,event=None):
-        # if currently in roi mode, copy relevant data back to blast mode
-        if self.overlay_value.get() == False:
-            self.ui.dataselection = 'raw'
-            self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
-            self.ui.updateslice()
-        else:
-            self.ui.dataselection = 'overlay_fusion_d'
             self.ui.updateslice(wl=True)
 
     def selectROI(self,event=None):

@@ -54,11 +54,12 @@ class CreateSliceViewerFrame(CreateFrame):
         self.basedisplay = tk.StringVar(value='t1+')
         # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
-        # window/level values for T1,T2
+        # blast window/level values for T1,T2. replace with self.wl
         self.window = np.array([1.,1.],dtype='float')
         self.level = np.array([0.5,0.5],dtype='float')
-        # window/level values for overlays and images
-        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[12,6]}
+        # window/level values for overlays and images. hard-coded for now.
+        # RELCCBV raw units off scanner are [0,4095]
+        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[1023,511]}
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
@@ -283,16 +284,22 @@ class CreateSliceViewerFrame(CreateFrame):
                 self.ui.roiframe.overlay_button_callback(updateslice=False)
         else: 
             self.ui.dataselection = self.basedisplay.get()
-        # check for available data? or gray out button
+        # update the image data
         self.ax_img.set(data=self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection]['d'][slice])
         self.ax2_img.set(data=self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection]['d'][slice])
         # add current slice overlay
         self.update_labels(colorbar='overlay' in self.ui.dataselection)
 
-        # self.vslicenumberlabel['text'] = '{}'.format(slice)
         if 'overlay' in self.ui.dataselection:
-            self.ax_img.set(cmap='viridis')
-            self.ax2_img.set(cmap='viridis')
+            # need to check in case overlay only available for one study
+            if self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection]['ex']:   
+                self.ax_img.set(cmap='viridis')
+            else:
+                self.ax_img.set(cmap='gray')
+            if self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection]['ex']:   
+                self.ax2_img.set(cmap='viridis')
+            else:
+                self.ax2_img.set(cmap='gray')
         else:
             self.ax_img.set(cmap='gray')
             self.updatewl(ax=0)
@@ -338,7 +345,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.labels['date_A'] = self.axs['labelA'].text(self.xyfig['date_A'][0],self.xyfig['date_A'][1],self.ui.data[self.ui.timepoints[0]].date,color='w')
         self.labels['date_B'] = self.axs['labelB'].text(self.xyfig['date_B'][0],self.xyfig['date_B'][1],self.ui.data[self.ui.timepoints[1]].date,color='w')
 
-        # add colorbars 
+        # add colorbars. for now just one colorbar on axis 'A'
         if colorbar and True:
             self.axs['colorbar_A'] = self.fig.add_axes([self.xyfig['colorbar_A'][0],self.xyfig['colorbar_A'][1],.02,0.5])
             self.labels['colorbar_A'] = self.fig.colorbar(self.ax_img,cax=self.axs['colorbar_A'])
@@ -353,12 +360,13 @@ class CreateSliceViewerFrame(CreateFrame):
             # although colorbar is not called until the axesImage data are set_data'd to become the z-score values,
             # the axesImage retains the clim equal to the original gray scale values, and this is passed on to the colorbar
             # object for setting ticks and labels. however, the display of the new
-            # set_data is not according to these now fictitious clim values, ticks, and labels, but is correct and is according to 
+            # set_data is not in accordance with these now fictitious clim values, ticks, and labels, but is correct and is according to 
             # clim values ticks and labels that don't yet exist. In order to get these
             # correct clim values into existence, have to separately call set_clim on the axesImage scalar
             # mappable. Yet this does not then change the display of the scalar mappable in the slightest, which was correct
             # and remains correct. it only changes the ticks and labels of the colorbar.
-            self.ax_img.set_clim((self.wl['z'][1]-self.wl['z'][0]/2,self.wl['z'][1]+self.wl['z'][0]/2))
+            ovly_data = self.ui.roiframe.overlaytype.get()
+            self.ax_img.set_clim((self.wl[ovly_data][1]-self.wl[ovly_data][0]/2,self.wl[ovly_data][1]+self.wl[ovly_data][0]/2))
             plt.setp(plt.getp(self.labels['colorbar_A'].ax.axes,'yticklabels'),color='w')
             
 

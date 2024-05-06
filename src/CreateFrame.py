@@ -41,7 +41,7 @@ class Command():
         self.args = args
         self.kwargs = kwargs
 
-    def __call__(self,event):
+    def __call__(self):
         return self.callback(*self.args, **self.kwargs)
     
 class EventCallback():

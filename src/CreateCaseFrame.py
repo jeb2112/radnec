@@ -183,6 +183,14 @@ class CreateCaseFrame(CreateFrame):
         self.ui.sliceviewerframe.level = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/4]*2)
         self.ui.sliceviewerframe.window = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/2]*2)
         self.ui.sliceviewerframe.create_canvas()
+        if False: # cbv will have to display just one overlay if necessary
+            # update roiframe according to data loaded
+            for dt in ['cbv']:
+                if not(self.ui.data[0].dset[dt]['ex'] and self.ui.data[1].dset[dt]['ex']):
+                    self.ui.roiframe.overlaytype_button[dt]['state'] = 'disabled'
+                else:
+                    self.ui.roiframe.overlaytype_button[dt]['state'] = 'normal'
+    
 
         # create the label. 'seg' picks up the BraTS convention but may need to be more specific
         if False:
