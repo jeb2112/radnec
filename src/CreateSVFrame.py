@@ -221,16 +221,10 @@ class CreateSliceViewerFrame(CreateFrame):
             figtrans[a] = self.axs[a].transData + self.axs[a].transAxes.inverted()
         self.xyfig={}
 
-        # add dummy axis for colorbars. also after tight layout since it's interior
+        # position for dummy axis for colorbars. also after tight layout since it's interior
         if True:
             l,b,w,h = self.axs['A'].get_position().bounds
-            self.xyfig['colorbar_A'] = figtrans['A'].transform((l,b))
-            # _,ah = figtrans['A'].transform((w,h))
-            # self.axs['colorbar_A'] = self.fig.add_axes([al,ab,.02,0.75*h])
-            # self.fig.colorbar(self.ax_img,cax=self.axs['colorbarA'])
-            # self.axs['colorbar_A'].yaxis.set_ticks_position('left')
-            # self.axs['colorbar_A'].yaxis.set_label_position('left')
-
+            self.xyfig['colorbar_A'] = np.array([l,b+.25])
 
         # record the data to figure coords of each label for each axis
         self.xyfig['Im_A']= figtrans['A'].transform((5,self.dim[1]-20))
@@ -346,10 +340,26 @@ class CreateSliceViewerFrame(CreateFrame):
 
         # add colorbars 
         if colorbar and True:
-            self.axs['colorbar_A'] = self.fig.add_axes([self.xyfig['colorbar_A'][0],self.xyfig['colorbar_A'][1],.02,0.75])
+            self.axs['colorbar_A'] = self.fig.add_axes([self.xyfig['colorbar_A'][0],self.xyfig['colorbar_A'][1],.02,0.5])
             self.labels['colorbar_A'] = self.fig.colorbar(self.ax_img,cax=self.axs['colorbar_A'])
-            # self.axs['colorbar_A'].yaxis.set_ticks_position('left')
-            # self.axs['colorbar_A'].yaxis.set_label_position('left')
+            self.axs['colorbar_A'].yaxis.set_ticks_position('right')
+            self.axs['colorbar_A'].yaxis.set_label_position('right')
+            self.axs['colorbar_A'].yaxis.set_tick_params(color='w')
+            self.labels['colorbar_A'].outline.set_edgecolor('w')
+            # problems with updating the colorbar after set_data()
+            # this didn't do anything
+            if False:
+                self.labels['colorbar_A'].update_normal()
+            # although colorbar is not called until the axesImage data are set_data'd to become the z-score values,
+            # the axesImage retains the clim equal to the original gray scale values, and this is passed on to the colorbar
+            # object for setting ticks and labels. however, the display of the new
+            # set_data is not according to these now fictitious clim values, ticks, and labels, but is correct and is according to 
+            # clim values ticks and labels that don't yet exist. In order to get these
+            # correct clim values into existence, have to separately call set_clim on the axesImage scalar
+            # mappable. Yet this does not then change the display of the scalar mappable in the slightest, which was correct
+            # and remains correct. it only changes the ticks and labels of the colorbar.
+            self.ax_img.set_clim((self.wl['z'][1]-self.wl['z'][0]/2,self.wl['z'][1]+self.wl['z'][0]/2))
+            plt.setp(plt.getp(self.labels['colorbar_A'].ax.axes,'yticklabels'),color='w')
             
 
     # TODO: latency problem for fusions. 
