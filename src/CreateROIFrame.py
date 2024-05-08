@@ -18,6 +18,7 @@ from skimage.measure import find_contours
 from scipy.spatial.distance import dice
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
+from RangeSlider.RangeSlider import RangeSliderH
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
@@ -40,53 +41,103 @@ class CreateROIFrame(CreateFrame):
         self.currentroi = tk.IntVar(value=0)
         self.roilist = []
 
+        roidict = {'z':{'min':None,'max':None,'minmax':None},'cbv':{'min':None,'max':None,'minmax':None}}
+        self.thresholds = copy.deepcopy(roidict)
+        self.sliders = copy.deepcopy(roidict)
+        self.sliderlabels = copy.deepcopy(roidict)
+        self.thresholds['z']['min'] = tk.DoubleVar(value=self.ui.config.zmin)
+        self.thresholds['z']['max'] = tk.DoubleVar(value=self.ui.config.zmax)
+        self.thresholds['z']['inc'] = self.ui.config.zinc
+        self.thresholds['cbv']['min'] = tk.DoubleVar(value=self.ui.config.cbvmin)
+        self.thresholds['cbv']['max'] = tk.DoubleVar(value=self.ui.config.cbvmax)
+        self.thresholds['cbv']['inc'] = self.ui.config.cbvinc
+
+
         ########################
         # layout for the buttons
         ########################
 
-        self.frame.grid(row=2,column=1,rowspan=3,sticky='NEW')
+        self.frame.grid(row=2,column=1,rowspan=5,sticky='ne')
 
         # overlay type
         overlaytype_label = ttk.Label(self.frame, text='overlay type: ')
-        overlaytype_label.grid(row=0,column=0,padx=(50,0),sticky='e')
+        overlaytype_label.grid(row=0,column=2,padx=(50,0),sticky='e')
         self.overlaytype_button = {}
         self.overlaytype_button['z'] = ttk.Radiobutton(self.frame,text='z-score',variable=self.overlaytype,value='z',
                                                     command=Command(self.overlay_callback))
-        self.overlaytype_button['z'].grid(row=0,column=1,sticky='w')
+        self.overlaytype_button['z'].grid(row=0,column=3,sticky='w')
         self.overlaytype_button['cbv'] = ttk.Radiobutton(self.frame,text='CBV',variable=self.overlaytype,value='cbv',
                                                     command=Command(self.overlay_callback))
-        self.overlaytype_button['cbv'].grid(row=0,column=2,sticky='w')
+        self.overlaytype_button['cbv'].grid(row=0,column=4,sticky='w')
 
-        # ROI buttons
+        # on/off button
         overlay_label = ttk.Label(self.frame,text='overlay on/off')
-        overlay_label.grid(row=1,column=0,sticky='e')
+        overlay_label.grid(row=0,column=0,sticky='e')
         overlay_button = ttk.Checkbutton(self.frame,text='',
                                                variable=self.overlay_value,
                                                command=self.overlay_callback)
-        overlay_button.grid(row=1,column=1,sticky='w')
+        overlay_button.grid(row=0,column=1,sticky='w')
 
-        # enhancing layer choice
-        if False:
-            layerlabel = ttk.Label(self.frame,text='BLAST layer:')
-            layerlabel.grid(row=0,column=0,sticky='w')
-            self.layer.trace_add('write',lambda *args: self.layer.get())
-            self.layermenu = ttk.OptionMenu(self.frame,self.layer,self.layerlist['blast'][0],
-                                            *self.layerlist['blast'],command=self.layer_callback)
-            self.layermenu.config(width=7)
-            self.layermenu.grid(row=0,column=1,sticky='w')
 
-        # ROI segmentation layer choice
-            finalROI_overlay = ttk.Checkbutton(self.frame,text='',
-                                            variable=self.finalROI_overlay_value,
-                                            command=self.finalROI_overlay_callback)
-            finalROI_overlay.grid(row=1,column=3,sticky='w')
-            layerlabel = ttk.Label(self.frame,text='ROI layer:')
-            layerlabel.grid(row=0,column=2,sticky='w')
-            self.layerROI.trace_add('write',lambda *args: self.layerROI.get())
-            self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['blast'][0],
-                                            *self.layerlist['seg'],command=self.layerROI_callback)
-            self.layerROImenu.config(width=8)
-            self.layerROImenu.grid(row=0,column=3,sticky='w')
+
+        ########################
+        # layout for the sliders
+        ########################
+
+        self.zsliderframe = ttk.Frame(self.frame,padding='0')
+        self.zsliderframe.grid(column=0,row=2,columnspan=5,sticky='e')
+
+        # z-score sliders
+        zlabel = ttk.Label(self.zsliderframe, text='z-score (min,max)')
+        zlabel.grid(column=0,row=0,sticky='e')
+
+        self.sliders['z']['min'] = ttk.Scale(self.zsliderframe,from_=self.ui.config.zmin,to=4,variable=self.thresholds['z']['min'],state='normal',
+                                  length='1i',command=Command(self.updateslider,'z','min'),orient='horizontal')
+        self.sliders['z']['min'].grid(row=0,column=1,sticky='e')
+        self.sliderlabels['z']['min'] = ttk.Label(self.zsliderframe,text=self.thresholds['z']['min'].get())
+        self.sliderlabels['z']['min'].grid(row=0,column=2,sticky='e')
+
+        self.sliders['z']['max'] = ttk.Scale(self.zsliderframe,from_=self.ui.config.zmax-4,to=self.ui.config.zmax,variable=self.thresholds['z']['max'],state='normal',
+                                  length='1i',command=Command(self.updateslider,'z','max'),orient='horizontal')
+        self.sliders['z']['max'].grid(row=0,column=3,sticky='e')
+        self.sliderlabels['z']['max'] = ttk.Label(self.zsliderframe,text=self.thresholds['z']['max'].get())
+        self.sliderlabels['z']['max'].grid(row=0,column=4,sticky='e')
+
+        # combo slider not available in tkinter, this one breaks tkinter look
+        # self.sliders['z']['minmax'] = RangeSliderH(self.zsliderframe,[self.thresholds['z']['min'],self.thresholds['z']['max']],
+        #                                            max_val = self.thresholds['z']['max'].get(),padX=50)
+        # self.sliders['z']['minmax'].grid(row=0,column=1,sticky='e')
+
+
+        # cbv sliders. resolution hard-coded
+        cbvlabel = ttk.Label(self.zsliderframe, text='CBV (min,max)')
+        cbvlabel.grid(column=0,row=1,sticky='e')
+
+        self.sliders['cbv']['min'] = ttk.Scale(self.zsliderframe,from_=self.ui.config.cbvmin,to=self.ui.config.cbvmax/2,variable=self.thresholds['cbv']['min'],state='normal',
+                                  length='1i',command=Command(self.updateslider,'cbv','min'),orient='horizontal')
+        self.sliders['cbv']['min'].grid(row=1,column=1,sticky='e')
+        self.sliderlabels['cbv']['min'] = ttk.Label(self.zsliderframe,text=self.thresholds['cbv']['min'].get())
+        self.sliderlabels['cbv']['min'].grid(row=1,column=2,sticky='e')
+
+        self.sliders['cbv']['max'] = ttk.Scale(self.zsliderframe,from_=self.ui.config.cbvmax/2,to=self.ui.config.cbvmax,variable=self.thresholds['cbv']['max'],state='normal',
+                                  length='1i',command=Command(self.updateslider,'cbv','max'),orient='horizontal')
+        self.sliders['cbv']['max'].grid(row=1,column=3,sticky='e')
+        self.sliderlabels['cbv']['max'] = ttk.Label(self.zsliderframe,text=self.thresholds['cbv']['max'].get())
+        self.sliderlabels['cbv']['max'].grid(row=1,column=4,sticky='e')
+        self.slider_state()
+
+
+    def slider_state(self,s=None):
+        # if s is None:
+        s = self.overlaytype.get()
+        for m in ['min','max']:
+            for k in self.sliders.keys():
+                if k == s:
+                    self.sliders[k][m]['state']='normal'
+                else:
+                    self.sliders[k][m]['state'] = 'disabled'
+
+        return
 
 
     #############
@@ -96,6 +147,7 @@ class CreateROIFrame(CreateFrame):
     def overlay_callback(self,updateslice=True,wl=False):
 
         if self.overlay_value.get() == True:
+            self.slider_state()
             ovly = self.overlaytype.get()
             ovly_str = ovly + 'overlay'
             base = self.ui.sliceviewerframe.basedisplay.get()
@@ -113,7 +165,7 @@ class CreateROIFrame(CreateFrame):
 
             # generate a new overlay
             for s in self.ui.data:
-                if not self.ui.data[s].dset[ovly_str]['ex'] or self.ui.data[s].dset[ovly_str]['base'] != base:
+                if not self.ui.data[s].dset[ovly_str]['ex'] or self.ui.data[s].dset[ovly_str]['base'] != base or wl:
 
                     # additional check if box not previously grayed out.
                     # eg for cbv there might only be one DSC study, so just
@@ -141,6 +193,19 @@ class CreateROIFrame(CreateFrame):
 
         if updateslice:
             self.ui.updateslice()
+
+
+    def updateslider(self,layer,slider):
+        sval_min = self.sliders[layer]['min'].get()
+        sval_max = self.sliders[layer]['max'].get()
+        sval = np.round(self.sliders[layer][slider].get() / self.thresholds[layer]['inc']) * self.thresholds[layer]['inc']
+        try:
+            self.sliderlabels[layer][slider]['text'] = '{:.1f}'.format(sval)
+            self.ui.sliceviewerframe.wl[layer] = [sval_max-sval_min,(sval_max-sval_min)/2+sval_min]
+            self.overlay_callback(wl=True)
+        except KeyError as e:
+            print(e)
+
 
     # and ROI layer options menu
     def layerROI_callback(self,layer=None,updateslice=True,updatedata=True):

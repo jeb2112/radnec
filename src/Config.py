@@ -63,7 +63,12 @@ class Config(object):
         self.ImageDim = (155,240,240)
 
         # max/min z score in parameter space.
-        self.maxZ = 4
+        self.zmin = 0
+        self.zmax = 12
+        self.zinc = 0.1
+        self.cbvmin = 0
+        self.cbvmax = 2048
+        self.cbvinc = 100
 
         # default 'z-score' or 'CBV' overlay
         self.OverlayType = 'z'

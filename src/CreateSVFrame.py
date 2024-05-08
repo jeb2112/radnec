@@ -59,7 +59,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.level = np.array([0.5,0.5],dtype='float')
         # window/level values for overlays and images. hard-coded for now.
         # RELCCBV raw units off scanner are [0,4095]
-        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[1023,511]}
+        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023]}
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
@@ -348,7 +348,14 @@ class CreateSliceViewerFrame(CreateFrame):
         # add colorbars. for now just one colorbar on axis 'A'
         if colorbar and True:
             self.axs['colorbar_A'] = self.fig.add_axes([self.xyfig['colorbar_A'][0],self.xyfig['colorbar_A'][1],.02,0.5])
-            self.labels['colorbar_A'] = self.fig.colorbar(self.ax_img,cax=self.axs['colorbar_A'])
+            ovly = self.ui.roiframe.overlaytype.get()
+
+            ytick0 = int(self.wl[ovly][1]-self.wl[ovly][0]/2)
+            ytick1 = int(self.wl[ovly][1]+self.wl[ovly][0]/2)
+            ntick = 4
+            ytickinc = np.round(np.power(10,np.round(np.log10(ytick1-ytick0)))/ntick)
+            yticks = np.arange(ytick0,ytick1,ytickinc)
+            self.labels['colorbar_A'] = self.fig.colorbar(self.ax_img,cax=self.axs['colorbar_A'],ticks=yticks)
             self.axs['colorbar_A'].yaxis.set_ticks_position('right')
             self.axs['colorbar_A'].yaxis.set_label_position('right')
             self.axs['colorbar_A'].yaxis.set_tick_params(color='w')
