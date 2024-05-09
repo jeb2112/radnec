@@ -202,7 +202,7 @@ class CreateROIFrame(CreateFrame):
             self.ui.dataselection = ovly_str
 
         else:
-            self.sliderdummyframe.lift()
+            self.sliderframe['dummy'].lift()
             self.ui.set_dataselection()
 
         if updateslice:

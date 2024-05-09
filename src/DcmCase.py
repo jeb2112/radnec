@@ -37,6 +37,8 @@ class Case():
         self.process_studydirs()
         self.process_timepoints()
 
+        if True:
+            self.segment()
 
 
     # load all studies of current case
@@ -69,10 +71,11 @@ class Case():
 
         # temporary. load ET mask
         # this will be implemented later with a DL model
-        for s in self.studies:
-            s.dset['ET']['d'],_ = s.loadnifti(os.path.join(self.config.UIlocaldir,self.case,'objectmask_ET.nii.gz'))
-            s.dset['ET']['affine'] = s.dset['t1+']['affine']
-            s.dset['ET']['ex'] = True
+        if False:
+            for s in self.studies:
+                s.dset['ET']['d'],_ = s.loadnifti(os.path.join(self.config.UIlocaldir,self.case,'objectmask_ET.nii.gz'))
+                s.dset['ET']['affine'] = s.dset['t1+']['affine']
+                s.dset['ET']['ex'] = True
 
         return
 
@@ -89,7 +92,7 @@ class Case():
         else:
             for i,s in enumerate(self.studies):
                 s.preprocess()
-            if True:
+            if False:
                 with open(pname,'wb') as fp:
                     pickle.dump(self.studies,fp)
 
@@ -141,6 +144,11 @@ class Case():
                 if s.dset[dt]['ex']:
                     s.writenifti(s.dset[dt]['d'],os.path.join(localstudydir,dt+'_processed.nii'),
                                                 type='float',affine=s.dset['ref']['affine'])
+                    
+    def segment(self):
+        for s in self.studies:
+            s.localstudydir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
+            s.segment()
 
 
 class Study():
@@ -150,6 +158,7 @@ class Study():
         self.case = case
         self.date = None
         self.casedir = None
+        self.localstudydir = None
         self.dset = {'t1':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
                      'zt1':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None},
                      't1+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None},
@@ -228,7 +237,6 @@ class DcmStudy(Study):
     def __init__(self,case,d,config):
         super().__init__(case,d)
         self.config = config
-        self.localstudydir = None
         self.localcasedir = os.path.join(self.config.UIlocaldir,self.case)
         # list of time attributes to check
         self.seriestimeattrs = ['AcquisitionTime']
@@ -478,7 +486,6 @@ class DcmStudy(Study):
 
         # normal brain stats and z-score images
         self.normalstats()
-            
 
         # save nifti files for future use
         if False:
@@ -538,9 +545,67 @@ class DcmStudy(Study):
 
         return
 
+    # tumour segmenation nnUNet
+    def segment(self,dpath=None):
+        print('segment tumour')
+        if dpath is None:
+            dpath = os.path.join(self.localstudydir,'nnunet')
+            if not os.path.exists(dpath):
+                os.mkdir(dpath)
+        for dt,suffix in zip(['t1+','flair+'],['0000','0003']):
+            l1str = 'ln -s ' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + ' '
+            l1str += os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')
+            os.system(l1str)
+            # self.writenifti(self.dset['z'+dt]['d'],os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii'))         
 
-    # skull extraction
-    # replace with hd-bet
+
+        if os.name == 'posix':
+            command = 'conda run -n ptorch nnUNetv2_predict '
+            command += ' -i ' + dpath
+            command += ' -o ' + dpath
+            command += ' -d137 -c 3d_fullres'
+            res = os.system(command)
+        elif os.name == 'nt':
+            # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
+            # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
+            # it is currently hard-coded to anaconda3/envs location rather than .conda/envs, but anaconda3 could be installed
+            # under either ProgramFiles or Users so check both
+            if os.path.isfile(os.path.expanduser('~')+'\\anaconda3\Scripts\\activate.bat'):
+                activatebatch = os.path.expanduser('~')+"\\anaconda3\Scripts\\activate.bat"
+            elif os.path.isfile("C:\Program Files\\anaconda3\Scripts\\activate.bat"):
+                activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
+            else:
+                raise FileNotFoundError('anaconda3/Scripts/activate.bat')
+            command1 = '\"'+activatebatch+'\" \"' + os.path.expanduser('~')+'\\anaconda3\envs\\hdbet\"'
+            command2 = 'python \"' + os.path.join(self.config.HDBETPath,'HD_BET','hd-bet')
+            command2 += '\" -i   \"' + tfile
+            cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
+            popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
+            for stdout_line in iter(popen.stdout.readline,""):
+                if stdout_line != '\n':
+                    print(stdout_line)
+            popen.stdout.close()
+            res = popen.wait()
+            if res:
+                raise subprocess.CalledProcessError(res,cstr)
+                print(res)
+        sfile = self.studytimeattrs['StudyDate'] + '.nii.gz'
+        segmentation,affine = self.loadnifti(sfile,dpath)
+        ET = np.zeros_like(segmentation)
+        ET[segmentation == 3] = 1
+        WT = np.zeros_like(segmentation)
+        WT[segmentation > 0] = 1
+        self.writenifti(ET,os.path.join(self.localstudydir,'ET_processed.nii'),affine=affine)
+        self.writenifti(WT,os.path.join(self.localstudydir,'WT_processed.nii'),affine=affine)
+        if False:
+            os.remove(os.path.join(dpath,sfile))
+
+        return 
+
+
+
+    # brain extraction
+    # now using hd-bet
     def extractbrain2(self,img_arr_input,affine=None,fname=None):
         print('extract brain')
         img_arr = copy.deepcopy(img_arr_input)
@@ -577,8 +642,6 @@ class DcmStudy(Study):
             if res:
                 raise subprocess.CalledProcessError(res,cstr)
                 print(res)
-
-
 
         img_arr,_ = self.loadnifti(fname+'_bet.nii.gz',dir=self.localstudydir)
         img_arr_mask,_ = self.loadnifti(fname+'_bet_mask.nii.gz',dir=self.localstudydir)
