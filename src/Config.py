@@ -67,7 +67,7 @@ class Config(object):
         self.zmax = 12
         self.zinc = 0.1
         self.cbvmin = 0
-        self.cbvmax = 2048
+        self.cbvmax = 2000
         self.cbvinc = 100
 
         # default 'z-score' or 'CBV' overlay

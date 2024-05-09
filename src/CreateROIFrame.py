@@ -45,11 +45,12 @@ class CreateROIFrame(CreateFrame):
         self.thresholds = copy.deepcopy(roidict)
         self.sliders = copy.deepcopy(roidict)
         self.sliderlabels = copy.deepcopy(roidict)
+        self.sliderframe = {}
         self.thresholds['z']['min'] = tk.DoubleVar(value=self.ui.config.zmin)
         self.thresholds['z']['max'] = tk.DoubleVar(value=self.ui.config.zmax)
         self.thresholds['z']['inc'] = self.ui.config.zinc
-        self.thresholds['cbv']['min'] = tk.DoubleVar(value=self.ui.config.cbvmin)
-        self.thresholds['cbv']['max'] = tk.DoubleVar(value=self.ui.config.cbvmax)
+        self.thresholds['cbv']['min'] = tk.IntVar(value=self.ui.config.cbvmin)
+        self.thresholds['cbv']['max'] = tk.IntVar(value=self.ui.config.cbvmax)
         self.thresholds['cbv']['inc'] = self.ui.config.cbvinc
 
 
@@ -83,24 +84,27 @@ class CreateROIFrame(CreateFrame):
         ########################
         # layout for the sliders
         ########################
+        self.sliderframe['dummy'] = ttk.Frame(self.frame,padding=0)
+        self.sliderframe['dummy'].grid(column=0,row=2,columnspan=5,sticky='news')
 
-        self.zsliderframe = ttk.Frame(self.frame,padding='0')
-        self.zsliderframe.grid(column=0,row=2,columnspan=5,sticky='e')
+        self.sliderframe['z'] = ttk.Frame(self.frame,padding='0')
+        self.sliderframe['z'].grid(column=0,row=2,columnspan=5,sticky='e')
+        self.sliderframe['z'].lower()
 
         # z-score sliders
-        zlabel = ttk.Label(self.zsliderframe, text='z-score (min,max)')
+        zlabel = ttk.Label(self.sliderframe['z'], text='z-score (min,max)')
         zlabel.grid(column=0,row=0,sticky='e')
 
-        self.sliders['z']['min'] = ttk.Scale(self.zsliderframe,from_=self.ui.config.zmin,to=4,variable=self.thresholds['z']['min'],state='normal',
-                                  length='1i',command=Command(self.updateslider,'z','min'),orient='horizontal')
+        self.sliders['z']['min'] = ttk.Scale(self.sliderframe['z'],from_=self.ui.config.zmin,to=self.ui.config.zmax/2,variable=self.thresholds['z']['min'],state='normal',
+                                  length='1i',command=Command(self.updatesliderlabel,'z','min'),orient='horizontal')
         self.sliders['z']['min'].grid(row=0,column=1,sticky='e')
-        self.sliderlabels['z']['min'] = ttk.Label(self.zsliderframe,text=self.thresholds['z']['min'].get())
+        self.sliderlabels['z']['min'] = ttk.Label(self.sliderframe['z'],text=self.thresholds['z']['min'].get())
         self.sliderlabels['z']['min'].grid(row=0,column=2,sticky='e')
 
-        self.sliders['z']['max'] = ttk.Scale(self.zsliderframe,from_=self.ui.config.zmax-4,to=self.ui.config.zmax,variable=self.thresholds['z']['max'],state='normal',
-                                  length='1i',command=Command(self.updateslider,'z','max'),orient='horizontal')
+        self.sliders['z']['max'] = ttk.Scale(self.sliderframe['z'],from_=self.ui.config.zmax/2,to=self.ui.config.zmax,variable=self.thresholds['z']['max'],state='normal',
+                                  length='1i',command=Command(self.updatesliderlabel,'z','max'),orient='horizontal')
         self.sliders['z']['max'].grid(row=0,column=3,sticky='e')
-        self.sliderlabels['z']['max'] = ttk.Label(self.zsliderframe,text=self.thresholds['z']['max'].get())
+        self.sliderlabels['z']['max'] = ttk.Label(self.sliderframe['z'],text=self.thresholds['z']['max'].get())
         self.sliderlabels['z']['max'].grid(row=0,column=4,sticky='e')
 
         # combo slider not available in tkinter, this one breaks tkinter look
@@ -110,23 +114,31 @@ class CreateROIFrame(CreateFrame):
 
 
         # cbv sliders. resolution hard-coded
-        cbvlabel = ttk.Label(self.zsliderframe, text='CBV (min,max)')
-        cbvlabel.grid(column=0,row=1,sticky='e')
+        self.sliderframe['cbv'] = ttk.Frame(self.frame,padding='0')
+        self.sliderframe['cbv'].grid(column=0,row=2,columnspan=5,sticky='e')
+        self.sliderframe['cbv'].lower()
 
-        self.sliders['cbv']['min'] = ttk.Scale(self.zsliderframe,from_=self.ui.config.cbvmin,to=self.ui.config.cbvmax/2,variable=self.thresholds['cbv']['min'],state='normal',
-                                  length='1i',command=Command(self.updateslider,'cbv','min'),orient='horizontal')
-        self.sliders['cbv']['min'].grid(row=1,column=1,sticky='e')
-        self.sliderlabels['cbv']['min'] = ttk.Label(self.zsliderframe,text=self.thresholds['cbv']['min'].get())
-        self.sliderlabels['cbv']['min'].grid(row=1,column=2,sticky='e')
+        cbvlabel = ttk.Label(self.sliderframe['cbv'], text='CBV (min,max)')
+        cbvlabel.grid(column=0,row=0,sticky='e')
 
-        self.sliders['cbv']['max'] = ttk.Scale(self.zsliderframe,from_=self.ui.config.cbvmax/2,to=self.ui.config.cbvmax,variable=self.thresholds['cbv']['max'],state='normal',
-                                  length='1i',command=Command(self.updateslider,'cbv','max'),orient='horizontal')
-        self.sliders['cbv']['max'].grid(row=1,column=3,sticky='e')
-        self.sliderlabels['cbv']['max'] = ttk.Label(self.zsliderframe,text=self.thresholds['cbv']['max'].get())
-        self.sliderlabels['cbv']['max'].grid(row=1,column=4,sticky='e')
-        self.slider_state()
+        self.sliders['cbv']['min'] = ttk.Scale(self.sliderframe['cbv'],from_=self.ui.config.cbvmin,to=self.ui.config.cbvmax/2,variable=self.thresholds['cbv']['min'],state='normal',
+                                  length='1i',command=Command(self.updatesliderlabel,'cbv','min'),orient='horizontal')
+        self.sliders['cbv']['min'].grid(row=0,column=1,sticky='e')
+        self.sliderlabels['cbv']['min'] = ttk.Label(self.sliderframe['cbv'],text=self.thresholds['cbv']['min'].get())
+        self.sliderlabels['cbv']['min'].grid(row=0,column=2,sticky='e')
 
+        self.sliders['cbv']['max'] = ttk.Scale(self.sliderframe['cbv'],from_=self.ui.config.cbvmax/2,to=self.ui.config.cbvmax,variable=self.thresholds['cbv']['max'],state='normal',
+                                  length='1i',command=Command(self.updatesliderlabel,'cbv','max'),orient='horizontal')
+        self.sliders['cbv']['max'].grid(row=0,column=3,sticky='e')
+        self.sliderlabels['cbv']['max'] = ttk.Label(self.sliderframe['cbv'],text=self.thresholds['cbv']['max'].get())
+        self.sliderlabels['cbv']['max'].grid(row=0,column=4,sticky='e')
+        self.sliderframe['dummy'].lift()
 
+        for k in self.sliders.keys():
+            for m in ['min','max']:
+                self.sliders[k][m].bind("<ButtonRelease-1>",Command(self.updateslider,k,m))
+
+    # use lift/lower instead
     def slider_state(self,s=None):
         # if s is None:
         s = self.overlaytype.get()
@@ -147,8 +159,9 @@ class CreateROIFrame(CreateFrame):
     def overlay_callback(self,updateslice=True,wl=False):
 
         if self.overlay_value.get() == True:
-            self.slider_state()
             ovly = self.overlaytype.get()
+            self.sliderframe[ovly].lift()
+            self.sliderframe['dummy'].lower(self.sliderframe[ovly])
             ovly_str = ovly + 'overlay'
             base = self.ui.sliceviewerframe.basedisplay.get()
             if ovly == 'z':
@@ -189,6 +202,7 @@ class CreateROIFrame(CreateFrame):
             self.ui.dataselection = ovly_str
 
         else:
+            self.sliderdummyframe.lift()
             self.ui.set_dataselection()
 
         if updateslice:
@@ -196,16 +210,21 @@ class CreateROIFrame(CreateFrame):
 
 
     def updateslider(self,layer,slider):
+        self.overlay_callback(wl=True)
+
+    def updatesliderlabel(self,layer,slider):
+        if layer == 'cbv':
+            pfstr = '{:.0f}'
+        else:
+            pfstr = '{:.1f}'
         sval_min = self.sliders[layer]['min'].get()
         sval_max = self.sliders[layer]['max'].get()
         sval = np.round(self.sliders[layer][slider].get() / self.thresholds[layer]['inc']) * self.thresholds[layer]['inc']
         try:
-            self.sliderlabels[layer][slider]['text'] = '{:.1f}'.format(sval)
+            self.sliderlabels[layer][slider]['text'] = pfstr.format(sval)
             self.ui.sliceviewerframe.wl[layer] = [sval_max-sval_min,(sval_max-sval_min)/2+sval_min]
-            self.overlay_callback(wl=True)
         except KeyError as e:
             print(e)
-
 
     # and ROI layer options menu
     def layerROI_callback(self,layer=None,updateslice=True,updatedata=True):
