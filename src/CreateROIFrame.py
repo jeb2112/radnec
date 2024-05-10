@@ -18,7 +18,6 @@ from skimage.measure import find_contours
 from scipy.spatial.distance import dice
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
-from RangeSlider.RangeSlider import RangeSliderH
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command

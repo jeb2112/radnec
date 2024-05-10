@@ -553,10 +553,13 @@ class DcmStudy(Study):
             if not os.path.exists(dpath):
                 os.mkdir(dpath)
         for dt,suffix in zip(['t1+','flair+'],['0000','0003']):
-            l1str = 'ln -s ' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + ' '
-            l1str += os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')
+            if os.name == 'posix':
+                l1str = 'ln -s ' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + ' '
+                l1str += os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')
+            elif os.name == 'nt':
+                l1str = 'copy  \"' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + '\" \"'
+                l1str += os.path.join(dpath,os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')) + '\"'
             os.system(l1str)
-            # self.writenifti(self.dset['z'+dt]['d'],os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii'))         
 
 
         if os.name == 'posix':
@@ -576,9 +579,15 @@ class DcmStudy(Study):
                 activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
             else:
                 raise FileNotFoundError('anaconda3/Scripts/activate.bat')
-            command1 = '\"'+activatebatch+'\" \"' + os.path.expanduser('~')+'\\anaconda3\envs\\hdbet\"'
-            command2 = 'python \"' + os.path.join(self.config.HDBETPath,'HD_BET','hd-bet')
-            command2 += '\" -i   \"' + tfile
+            if os.path.isdir(os.path.expanduser('~')+'\\anaconda3\envs\\pytorch117_310'):
+                envpath = os.path.expanduser('~')+'\\anaconda3\envs\\pytorch117_310'
+            elif os.path.isdir(os.path.expanduser('~')+'\\.conda\envs\\pytorch117_310'):
+                envpath = os.path.expanduser('~')+'\\.conda\envs\\pytorch117_310'
+            else:
+                raise FileNotFoundError('pytorch117_310')
+
+            command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
+            command2 = 'nnUNetv2_predict -i \"' + dpath + '\" -o \"' + dpath + '\" -d137 -c 3d_fullres'
             cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
             popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
             for stdout_line in iter(popen.stdout.readline,""):
@@ -589,6 +598,7 @@ class DcmStudy(Study):
             if res:
                 raise subprocess.CalledProcessError(res,cstr)
                 print(res)
+                
         sfile = self.studytimeattrs['StudyDate'] + '.nii.gz'
         segmentation,affine = self.loadnifti(sfile,dpath)
         ET = np.zeros_like(segmentation)
