@@ -281,7 +281,7 @@ class CreateSliceViewerFrame(CreateFrame):
         if 'overlay' in self.ui.dataselection:
             if self.basedisplay.get() != self.ui.data[0].dset[self.ui.dataselection]['base']:
                 # recalculate for new base image
-                self.ui.roiframe.overlay_button_callback(updateslice=False)
+                self.ui.roiframe.overlay_callback(updateslice=False)
         else: 
             self.ui.dataselection = self.basedisplay.get()
         # update the image data
