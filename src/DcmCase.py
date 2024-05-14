@@ -37,7 +37,9 @@ class Case():
         self.casedir = os.path.join(self.config.UIlocaldir,self.case)
         self.studydirs = studydirs
         self.studies = []
-        self.timepoints = [1,0]
+        # convention for two displayed images: the left image is more recent/index1, and right image is earlier/index0
+        # in future when more than two study/timepoints are available, self.timepoints will select for display
+        self.timepoints = [0,1]
 
 
         self.load_studydirs()
@@ -167,8 +169,8 @@ class Case():
 
         for dt in ['t1+','flair+']:
             region_of_support = np.where((self.studies[0].dset[dt]['d'] > 0) & (self.studies[1].dset[dt]['d'] > 0))
-            xdata = np.ravel(self.studies[0].dset[dt]['d_norm'][region_of_support]).reshape(-1,1)
-            ydata = np.ravel(self.studies[1].dset[dt]['d_norm'][region_of_support])
+            xdata = np.ravel(self.studies[self.timepoints[0]].dset[dt]['d_norm'][region_of_support]).reshape(-1,1)
+            ydata = np.ravel(self.studies[self.timepoints[1]].dset[dt]['d_norm'][region_of_support])
 
             xfit_range = plotdata['MR']['d_norm']
             xfit = np.arange(xfit_range[0],xfit_range[1],np.diff(xfit_range)[0]/100).reshape(-1,1)
@@ -192,14 +194,15 @@ class Case():
                 nsample = ydata.size
                 dof = nsample - m.n_features_in_
                 # TODO: one-side or two-side. 
-                alpha = 0.10
+                alpha = 0.05
                 t = scipy.stats.t.ppf(1-alpha, dof)
                 s_err = np.sqrt(np.sum(resid**2) / dof)                    # standard deviation of the error
                 ci = np.ravel(t * s_err * np.sqrt(1+1/nsample + (xfit - np.mean(xfit))**2 / np.sum((xfit - np.mean(xfit))**2)))
 
                 # plot regression
-                if False:
-                    plot_regression(xdata,ydata,resid,xfit,yfit,ci,rd[case],datadir,tag=mdl_tags[i],save=True)
+                if True:
+                    self.plot_regression(xdata,ydata,resid,xfit,yfit,ci,self.casedir,
+                                         tag='_'+dt+mdl_tags[i],save=True)
 
                 # create mask images for voxels beyond prediction interval
                 pts = np.vstack((xdata.flatten(),resid.flatten())).T
@@ -222,19 +225,62 @@ class Case():
                 reg_set_below = copy.deepcopy(reg_set)
                 reg_set_below[resid > 0] = False
 
-                mask_below = np.zeros_like(self.studies[0].dset[dt]['d'],dtype='uint8')
-                mask_below[region_of_support] = reg_set_below
-                self.studies[0].writenifti(mask_below,os.path.join(self.casedir,'regression_mask_below_{}.nii'.format(mdl_tags[i])),
-                                           affine=self.studies[0].dset['ref']['affine'])
+                if False:
+                    mask_below = np.zeros_like(self.studies[0].dset[dt]['d'],dtype='uint8')
+                    mask_below[region_of_support] = reg_set_below
+                    self.studies[0].writenifti(mask_below,os.path.join(self.casedir,'regression_mask_below_{}.nii'.format(mdl_tags[i])),
+                                            affine=self.studies[0].dset['ref']['affine'])
 
-                mask_above = np.zeros_like(mask_below)
-                mask_above[region_of_support] = reg_set_above
-                self.studies[0].writenifti(mask_above,os.path.join(self.casedir,'regression_mask_above_{}.nii'.format(mdl_tags[i])),
+                    mask_above = np.zeros_like(mask_below)
+                    mask_above[region_of_support] = reg_set_above
+                    self.studies[0].writenifti(mask_above,os.path.join(self.casedir,'regression_mask_above_{}.nii'.format(mdl_tags[i])),
+                                            affine=self.studies[0].dset['ref']['affine'])
+
+
+                mask = np.ones_like(self.studies[0].dset[dt]['d'],dtype='uint8')*2
+                mask[region_of_support] = reg_set_below * 1 + reg_set_above * 3 
+                mask[mask==0] = 2
+                self.studies[0].writenifti(mask,os.path.join(self.studies[self.timepoints[1]].localstudydir,'tempo'+dt+'_processed.nii'),
                                            affine=self.studies[0].dset['ref']['affine'])
 
 
         return
     
+    # regression scatter plots
+    def plot_regression(self,xdata,ydata,resid,xfit,yfit,ci,datadir,block=False,save=False,tag=''):
+        _,plotdata = self.get_data()
+        fig = plt.figure(11,figsize=(5,3))
+        fig.clf()
+        ax2 = plt.subplot(1,2,1)
+        ax2.cla()
+        ax2.plot(xfit,yfit*0,'b')
+        # this tuple is a string in json
+        plt.xlim(plotdata['MR']['d_norm'])
+        plt.xlabel('time 0')
+        plt.ylabel('residual')
+        ax2.fill_between(np.ravel(xfit), ci, -ci, color="#0277bd", edgecolor=None,alpha=0.5,zorder=2)
+        ax2.set_aspect('equal')
+        plt.scatter(xdata[::1000],resid[::1000],s=1,c='r',zorder=1)
+
+        ax3 = plt.subplot(1,2,2)
+        ax3.cla()
+        ax3.plot(xfit,yfit,'b')
+        plt.xlabel('time 0')
+        plt.ylabel('time 1')
+        ax3.fill_between(np.ravel(xfit), yfit + ci, yfit - ci, color="#0277bd", edgecolor=None,alpha=0.5,zorder=2)
+        ax3.set_aspect('equal')
+        plt.scatter(xdata[::1000],ydata[::1000],s=1,c='r',zorder=1)
+        plt.xlim(plotdata['MR']['d_norm'])
+        plt.ylim(plotdata['MR']['d_norm'])
+        plt.tight_layout()
+
+        if save:
+            plt.savefig(os.path.join(datadir,'regression{:s}.png'.format(tag)))
+        else:
+            plt.show(block=block)
+
+
+
     # some hard-coded range values. move to config
     def get_data(self):
 
@@ -275,12 +321,15 @@ class Study():
                      'zflair':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
                      'flair+':{'d':None,'d_norm':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
                      'zflair+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'zoverlay':{'d':None,'ex':False,'base':'flair+'},
-                     'cbvoverlay':{'d':None,'ex':False,'base':'t1+'},
+                     'overlay_z':{'d':None,'ex':False,'base':'flair+'},
+                     'overlay_cbv':{'d':None,'ex':False,'base':'t1+'},
                      'cbv':{'d':None,'time':None,'affine':None,'ex':False},
                      'ref':{'d':None,'affine':None,'ex':False},
                      'ET':{'d':None,'affine':None,'ex':False},
-                     'WT':{'d':None,'affine':None,'ex':False}
+                     'WT':{'d':None,'affine':None,'ex':False},
+                     'tempoflair+':{'d':None,'ex':False},
+                     'overlay_tempo':{'d':None,'ex':False,'base':'t1+'},
+                     'tempot1+':{'d':None,'ex':False},
                      }
         self.dtag = [k for k in self.dset.keys()]
         self.date = None

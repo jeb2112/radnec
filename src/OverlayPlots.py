@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import copy
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 from skimage.draw import line_aa
 
 color_cycle = (
@@ -28,8 +29,15 @@ def hex_to_rgb(hex: str):
     assert len(hex) == 6
     return tuple(int(hex[i:i + 2], 16) for i in (0, 2, 4))
 
+def get_cmap(colormap):
+    if colormap == 'tempo':
+        return ListedColormap(np.array([[0 ,1, 0, 1],[0, .5, 0, 1]]))
+    else:
+        return None
 
-def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, image_wl: np.ndarray = None, overlay_wl: np.ndarray = None,
+
+def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.ndarray = None, 
+                     image_wl: np.ndarray = None, overlay_wl: np.ndarray = None,
                      overlay_intensity: float = 1.0, colormap: str = 'viridis'):
     """
     image,overlay is 3d grayscale
@@ -42,8 +50,6 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, image_wl: np
     # create a copy of image
     image = np.copy(image)
     overlay = np.copy(overlay)
-    overlay_mask = np.where(overlay > 0)
-
 
     if len(image.shape) == 3:
         image = np.tile(image[:,:,:,np.newaxis], (1,1,1,4))
@@ -69,11 +75,23 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, image_wl: np
         overlay = overlay - overlay.min()
         overlay = overlay / overlay.max() * 1
 
-    cmap = plt.get_cmap(colormap)
+    if colormap in plt.colormaps():
+        cmap = plt.get_cmap(colormap)
+    else:
+        cmap = get_cmap(colormap)
 
-    overlay = cmap(overlay)
-    overlay[:,:,:,3] = overlay_intensity
-    image[overlay_mask] = overlay[overlay_mask]
+    overlay_cmap = cmap(overlay)
+    overlay_cmap[:,:,:,3] = overlay_intensity
+    if mask is None:
+        # general case for un-masked z-score or cbv
+        # mask_ros = np.where(overlay)
+
+        # special case for tempo
+        # ie any non-zero rgb value, plus alpha=1
+        mask_ros = np.where(np.sum(overlay_cmap,axis=3) > 1)
+    else:
+        mask_ros = np.where(mask)
+    image[mask_ros] = overlay_cmap[mask_ros]
                      
     return image.astype(np.float32)
 

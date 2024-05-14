@@ -52,14 +52,14 @@ class CreateSliceViewerFrame(CreateFrame):
         self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
         self.basedisplay = tk.StringVar(value='t1+')
-        # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
+        # self.overlay_type = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
         # blast window/level values for T1,T2. replace with self.wl
         self.window = np.array([1.,1.],dtype='float')
         self.level = np.array([0.5,0.5],dtype='float')
         # window/level values for overlays and images. hard-coded for now.
         # RELCCBV raw units off scanner are [0,4095]
-        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023]}
+        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023],'tempo':[2,2]}
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
@@ -107,14 +107,14 @@ class CreateSliceViewerFrame(CreateFrame):
 
         # overlay type contour mask
         if False:
-            overlaytype_label = ttk.Label(self.normal_frame, text='overlay type: ')
-            overlaytype_label.grid(row=1,column=0,padx=(50,0),sticky='e')
-            self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='z-score',variable=self.overlaytype,value=0,
+            overlay_type_label = ttk.Label(self.normal_frame, text='overlay type: ')
+            overlay_type_label.grid(row=1,column=0,padx=(50,0),sticky='e')
+            self.overlay_type_button = ttk.Radiobutton(self.normal_frame,text='z-score',variable=self.overlay_type,value=0,
                                                         command=Command(self.updateslice,wl=True))
-            self.overlaytype_button.grid(row=1,column=1,sticky='w')
-            self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='CBV',variable=self.overlaytype,value=1,
+            self.overlay_type_button.grid(row=1,column=1,sticky='w')
+            self.overlay_type_button = ttk.Radiobutton(self.normal_frame,text='CBV',variable=self.overlay_type,value=1,
                                                         command=Command(self.updateslice,wl=True))
-            self.overlaytype_button.grid(row=1,column=2,sticky='w')
+            self.overlay_type_button.grid(row=1,column=2,sticky='w')
 
         # messages text frame
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -290,14 +290,14 @@ class CreateSliceViewerFrame(CreateFrame):
         # add current slice overlay
         self.update_labels(colorbar='overlay' in self.ui.dataselection)
 
-        if 'overlay' in self.ui.dataselection:
+        if self.ui.roiframe.overlay_value.get():
             # need to check in case overlay only available for one study
             if self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection]['ex']:   
-                self.ax_img.set(cmap='viridis')
+                self.ax_img.set(cmap=self.ui.config.OverlayCmap[self.ui.roiframe.overlay_type.get()])
             else:
                 self.ax_img.set(cmap='gray')
             if self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection]['ex']:   
-                self.ax2_img.set(cmap='viridis')
+                self.ax2_img.set(cmap=self.ui.config.OverlayCmap[self.ui.roiframe.overlay_type.get()])
             else:
                 self.ax2_img.set(cmap='gray')
         else:
@@ -348,13 +348,21 @@ class CreateSliceViewerFrame(CreateFrame):
         # add colorbars. for now just one colorbar on axis 'A'
         if colorbar and True:
             self.axs['colorbar_A'] = self.fig.add_axes([self.xyfig['colorbar_A'][0],self.xyfig['colorbar_A'][1],.02,0.5])
-            ovly = self.ui.roiframe.overlaytype.get()
+            ovly = self.ui.roiframe.overlay_type.get()
 
-            ytick0 = int(self.wl[ovly][1]-self.wl[ovly][0]/2)
-            ytick1 = int(self.wl[ovly][1]+self.wl[ovly][0]/2)
+            # special case for tempo. not sure how to code yet.
+            if ovly == 'tempo':
+                ytick0 = int(self.wl[ovly][1]-self.wl[ovly][0]/2)-2
+                ytick1 = int(self.wl[ovly][1]+self.wl[ovly][0]/2)-2
+            else:
+                ytick0 = int(self.wl[ovly][1]-self.wl[ovly][0]/2)
+                ytick1 = int(self.wl[ovly][1]+self.wl[ovly][0]/2)
             ntick = 4
-            ytickinc = np.round(np.power(10,np.round(np.log10(ytick1-ytick0)))/ntick)
-            yticks = np.arange(ytick0,ytick1,ytickinc)
+            temp = np.power(10,np.round(np.log10(ytick1-ytick0)))/ntick
+            ytickinc = np.round(temp)
+            if ytickinc == 0:
+                ytickinc = np.ceil(temp)
+            yticks = np.arange(ytick0,ytick1+ytickinc/2,ytickinc)
             self.labels['colorbar_A'] = self.fig.colorbar(self.ax_img,cax=self.axs['colorbar_A'],ticks=yticks)
             self.axs['colorbar_A'].yaxis.set_ticks_position('right')
             self.axs['colorbar_A'].yaxis.set_label_position('right')
@@ -364,16 +372,19 @@ class CreateSliceViewerFrame(CreateFrame):
             # this didn't do anything
             if False:
                 self.labels['colorbar_A'].update_normal()
-            # although colorbar is not called until the axesImage data are set_data'd to become the z-score values,
+            # although colorbar is not called until the axesImage data are set_data'd to become (eg) the z-score values,
             # the axesImage retains the clim equal to the original gray scale values, and this is passed on to the colorbar
             # object for setting ticks and labels. however, the display of the new
             # set_data is not in accordance with these now fictitious clim values, ticks, and labels, but is correct and is according to 
             # clim values ticks and labels that don't yet exist. In order to get these
             # correct clim values into existence, have to separately call set_clim on the axesImage scalar
-            # mappable. Yet this does not then change the display of the scalar mappable in the slightest, which was correct
+            # mappable. Note this does not then change the display of the scalar mappable, which was correct
             # and remains correct. it only changes the ticks and labels of the colorbar.
-            ovly_data = self.ui.roiframe.overlaytype.get()
-            self.ax_img.set_clim((self.wl[ovly_data][1]-self.wl[ovly_data][0]/2,self.wl[ovly_data][1]+self.wl[ovly_data][0]/2))
+            # in addition, a further temporary arrangement for tempo
+            if ovly == 'tempo':
+                self.ax_img.set_clim((self.wl[ovly][1]-self.wl[ovly][0]/2-2,self.wl[ovly][1]+self.wl[ovly][0]/2-2))
+            else:
+                self.ax_img.set_clim((self.wl[ovly][1]-self.wl[ovly][0]/2,self.wl[ovly][1]+self.wl[ovly][0]/2))
             plt.setp(plt.getp(self.labels['colorbar_A'].ax.axes,'yticklabels'),color='w')
             
 

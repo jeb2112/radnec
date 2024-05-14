@@ -32,8 +32,10 @@ class CreateROIFrame(CreateFrame):
         self.buttonpress_id = None # temp var for keeping track of button press event
         self.finalROI_overlay_value = tk.BooleanVar(value=False)
         self.overlay_value = tk.BooleanVar(value=False)
+        self.mask_value = tk.BooleanVar(value=False)
         roidict = {'ET':{'t12':None,'flair':None,'bc':None},'T2 hyper':{'t12':None,'flair':None,'bc':None}}
-        self.overlaytype = tk.StringVar(value=self.config.OverlayType)
+        self.overlay_type = tk.StringVar(value=self.config.OverlayType)
+        self.mask_type = tk.StringVar(value=self.config.MaskType)
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layerROI = tk.StringVar(value='ET')
@@ -61,15 +63,18 @@ class CreateROIFrame(CreateFrame):
         self.frame.grid(row=2,column=1,rowspan=5,sticky='ne')
 
         # overlay type
-        overlaytype_label = ttk.Label(self.frame, text='overlay type: ')
-        overlaytype_label.grid(row=0,column=2,padx=(50,0),sticky='e')
-        self.overlaytype_button = {}
-        self.overlaytype_button['z'] = ttk.Radiobutton(self.frame,text='z-score',variable=self.overlaytype,value='z',
+        overlay_type_label = ttk.Label(self.frame, text='overlay type: ')
+        overlay_type_label.grid(row=0,column=2,padx=(50,0),sticky='e')
+        self.overlay_type_button = {}
+        self.overlay_type_button['z'] = ttk.Radiobutton(self.frame,text='z-score',variable=self.overlay_type,value='z',
                                                     command=Command(self.overlay_callback))
-        self.overlaytype_button['z'].grid(row=0,column=3,sticky='w')
-        self.overlaytype_button['cbv'] = ttk.Radiobutton(self.frame,text='CBV',variable=self.overlaytype,value='cbv',
+        self.overlay_type_button['z'].grid(row=0,column=3,sticky='w')
+        self.overlay_type_button['cbv'] = ttk.Radiobutton(self.frame,text='CBV',variable=self.overlay_type,value='cbv',
                                                     command=Command(self.overlay_callback))
-        self.overlaytype_button['cbv'].grid(row=0,column=4,sticky='w')
+        self.overlay_type_button['cbv'].grid(row=0,column=4,sticky='w')
+        self.overlay_type_button['tempo'] = ttk.Radiobutton(self.frame,text='TEMPO',variable=self.overlay_type,value='tempo',
+                                                    command=Command(self.overlay_callback))
+        self.overlay_type_button['tempo'].grid(row=0,column=5,sticky='w')
 
         # on/off button
         overlay_label = ttk.Label(self.frame,text='overlay on/off')
@@ -79,16 +84,36 @@ class CreateROIFrame(CreateFrame):
                                                command=self.overlay_callback)
         overlay_button.grid(row=0,column=1,sticky='w')
 
+        # layer mask
+        mask_type_label = ttk.Label(self.frame, text='mask: ')
+        mask_type_label.grid(row=1,column=2,padx=(50,0),sticky='e')
+        self.mask_type_button = {}
+        self.mask_type_button['ET'] = ttk.Radiobutton(self.frame,text='ET',variable=self.mask_type,value='ET',
+                                                    command=Command(self.overlay_callback))
+        self.mask_type_button['ET'].grid(row=1,column=3,sticky='w')
+        self.mask_type_button['WT'] = ttk.Radiobutton(self.frame,text='WT',variable=self.mask_type,value='WT',
+                                                    command=Command(self.overlay_callback))
+        self.mask_type_button['WT'].grid(row=1,column=4,sticky='w')
+
+        # on/off button
+        mask_label = ttk.Label(self.frame,text='mask on/off')
+        mask_label.grid(row=1,column=0,sticky='e')
+        mask_button = ttk.Checkbutton(self.frame,text='',
+                                               variable=self.mask_value,
+                                               command=self.overlay_callback)
+        mask_button.grid(row=1,column=1,sticky='w')
 
 
         ########################
         # layout for the sliders
         ########################
         self.sliderframe['dummy'] = ttk.Frame(self.frame,padding=0)
-        self.sliderframe['dummy'].grid(column=0,row=2,columnspan=5,sticky='news')
+        self.sliderframe['dummy'].grid(column=0,row=2,columnspan=6,sticky='news')
+        self.sliderframe['tempo'] = ttk.Frame(self.frame,padding=0)
+        self.sliderframe['tempo'].grid(column=0,row=2,columnspan=6,sticky='news')
 
         self.sliderframe['z'] = ttk.Frame(self.frame,padding='0')
-        self.sliderframe['z'].grid(column=0,row=2,columnspan=5,sticky='e')
+        self.sliderframe['z'].grid(column=0,row=2,columnspan=6,sticky='e')
         self.sliderframe['z'].lower()
 
         # z-score sliders
@@ -115,7 +140,7 @@ class CreateROIFrame(CreateFrame):
 
         # cbv sliders. resolution hard-coded
         self.sliderframe['cbv'] = ttk.Frame(self.frame,padding='0')
-        self.sliderframe['cbv'].grid(column=0,row=2,columnspan=5,sticky='e')
+        self.sliderframe['cbv'].grid(column=0,row=2,columnspan=6,sticky='e')
         self.sliderframe['cbv'].lower()
 
         cbvlabel = ttk.Label(self.sliderframe['cbv'], text='CBV (min,max)')
@@ -141,7 +166,7 @@ class CreateROIFrame(CreateFrame):
     # use lift/lower instead
     def slider_state(self,s=None):
         # if s is None:
-        s = self.overlaytype.get()
+        s = self.overlay_type.get()
         for m in ['min','max']:
             for k in self.sliders.keys():
                 if k == s:
@@ -159,20 +184,20 @@ class CreateROIFrame(CreateFrame):
     def overlay_callback(self,updateslice=True,wl=False):
 
         if self.overlay_value.get() == True:
-            ovly = self.overlaytype.get()
+            ovly = self.overlay_type.get()
             self.sliderframe[ovly].lift()
             self.sliderframe['dummy'].lower(self.sliderframe[ovly])
-            ovly_str = ovly + 'overlay'
+            ovly_str = 'overlay_' + ovly
             base = self.ui.sliceviewerframe.basedisplay.get()
-            if ovly == 'z':
+            if ovly == 'cbv':
+                ovly_data = ovly
+            else:
                 # check for available data. or implement by deactivating button.
                 if False:
                     if not self.ui.data[s].dset[base]['ex']:
                         print('{} data not loaded'.format(base))
                         return
                 ovly_data = ovly + base
-            else:
-                ovly_data = ovly
 
             # self.ui.sliceviewerframe.updatewl_fusion()
 
@@ -188,17 +213,24 @@ class CreateROIFrame(CreateFrame):
                         self.ui.data[s].dset[ovly_str]['ex'] = False
                         self.ui.data[s].dset[ovly_str]['base'] = base
                     else:
+                        if self.mask_value.get():
+                            mask = self.ui.data[s].dset[self.mask_type.get()]['d']
+                        elif self.overlay_type.get() == 'tempo': # special case for tempo
+                            mask = np.where(self.ui.data[s].dset[ovly_data]['d'] != 2)
+                        else:
+                            mask = None
 
                         self.ui.data[s].dset[ovly_str]['d'] = generate_overlay(
                             self.ui.data[s].dset[base]['d'],
-                            self.ui.data[s].dset[ovly_data]['d']*self.ui.data[s].dset['ET']['d'],
+                            self.ui.data[s].dset[ovly_data]['d'],
+                            mask,
                             image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],
                             overlay_wl = self.ui.sliceviewerframe.wl[ovly],
-                            overlay_intensity=self.config.OverlayIntensity)
+                            overlay_intensity=self.config.OverlayIntensity,
+                            colormap = self.config.OverlayCmap[ovly])
                         self.ui.data[s].dset[ovly_str]['ex'] = True
                         self.ui.data[s].dset[ovly_str]['base'] = base
 
-                    # self.ui.data['overlay_d'] = copy.deepcopy(self.ui.data['overlay']),
             self.ui.dataselection = ovly_str
 
         else:
@@ -252,7 +284,7 @@ class CreateROIFrame(CreateFrame):
         # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
-        if self.ui.sliceviewerframe.overlaytype.get() == 0:
+        if self.ui.sliceviewerframe.overlay_type.get() == 0:
             data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],contour=data['contour'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
         else:
