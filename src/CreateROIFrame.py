@@ -975,12 +975,12 @@ class CreateROIFrame(CreateFrame):
         self.ui.roiframe.enhancingROI_overlay_value.set(False)
         self.ui.roiframe.layertype.set('blast')
         self.ui.roiframe.layer.set('ET')
-        self.ui.dataselection='raw'
-        for l in ['ET','T2 hyper']:
-            for s in ['t12','flair','bc']:
-                self.thresholds[l][s].set(self.ui.config.thresholddefaults[s])
-                self.updatesliderlabel(l,s)
-        self.update_roinumber_options()
+        if self.ui.dataselection in ['t1+','flair+']:
+            for l in ['ET','T2 hyper']:
+                for s in ['t12','flair','bc']:
+                    self.thresholds[l][s].set(self.ui.config.thresholddefaults[s])
+                    self.updatesliderlabel(l,s)
+            self.update_roinumber_options()
 
     def append_roi(self,d):
         for k,v in d.items():

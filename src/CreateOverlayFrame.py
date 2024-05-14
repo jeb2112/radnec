@@ -57,7 +57,7 @@ class CreateOverlayFrame(CreateFrame):
         # layout for the buttons
         ########################
 
-        self.frame.grid(row=2,column=1,rowspan=5,sticky='ne')
+        self.frame.grid(row=2,column=4,rowspan=5,sticky='ne')
 
         # overlay type
         overlaytype_label = ttk.Label(self.frame, text='overlay type: ')

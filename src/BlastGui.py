@@ -15,6 +15,7 @@ from src.CreateBlastSVFrame import CreateBlastSVFrame
 from src.CreateCaseFrame import CreateCaseFrame
 from src.CreateROIFrame import CreateROIFrame
 from src.CreateOverlayFrame import CreateOverlayFrame
+from src.CreateFrame import CreateFrame
 from src.OverlayPlots import *
 
 # main gui class
@@ -122,14 +123,14 @@ class BlastGui(object):
         # slice viewer frame
         self.blastsliceviewerframe = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
         self.sliceviewerframe = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
+        self.set_frame(self.sliceviewerframe.normal_frame)
 
         # blast roi function
-        if False:
-            self.roiframe = CreateROIFrame(self.mainframe,ui=self,padding='0')
-        else:
-            self.roiframe = None
+        self.roiframe = CreateROIFrame(self.mainframe,ui=self,padding='0')
         # overlay function
         self.overlayframe = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
+        self.dummyoverlayframe = CreateFrame(self.mainframe,ui=self,gridparams = {'row':2,'column':4,'rowspan':5,'sticky':'news'})
+        self.set_frame(self.overlayframe.frame)
 
         # initialize default directory.
         if False:
@@ -148,6 +149,9 @@ class BlastGui(object):
     #############################
     ###### Utility methods ######
     #############################
+
+    def set_frame(self,frame):
+        frame.lift()
 
     def set_currentslice(self,val=None):
         self.currentslice = self.sliceviewerframe.currentslice.get()

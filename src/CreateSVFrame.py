@@ -85,6 +85,10 @@ class CreateSliceViewerFrame(CreateFrame):
         self.canvasframe.configure(style='canvasframe.TFrame')
         self.canvasframe.grid(row=1,column=0,columnspan=3,sticky='NW')
 
+        # dummy frame to hide base image selection
+        self.dummy_frame = ttk.Frame(self.parentframe,padding='0')
+        self.dummy_frame.grid(row=3,column=0,sticky='news')
+
         # t1/t2 base layer selection
         self.normal_frame = ttk.Frame(self.parentframe,padding='0')
         self.normal_frame.grid(row=3,column=0,sticky='NW')
@@ -116,7 +120,7 @@ class CreateSliceViewerFrame(CreateFrame):
                                                         command=Command(self.updateslice,wl=True))
             self.overlaytype_button.grid(row=1,column=2,sticky='w')
 
-        # messages text frame
+        # messages text box
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
         self.messagelabel.grid(row=2,column=0,columnspan=3,sticky='ew')
 
