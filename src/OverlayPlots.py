@@ -84,11 +84,7 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.nda
     overlay_cmap[:,:,:,3] = overlay_intensity
     if mask is None:
         # general case for un-masked z-score or cbv
-        # mask_ros = np.where(overlay)
-
-        # special case for tempo
-        # ie any non-zero rgb value, plus alpha=1
-        mask_ros = np.where(np.sum(overlay_cmap,axis=3) > 1)
+        mask_ros = np.where(overlay)
     else:
         mask_ros = np.where(mask)
     image[mask_ros] = overlay_cmap[mask_ros]

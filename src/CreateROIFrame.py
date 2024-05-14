@@ -215,8 +215,10 @@ class CreateROIFrame(CreateFrame):
                     else:
                         if self.mask_value.get():
                             mask = self.ui.data[s].dset[self.mask_type.get()]['d']
-                        elif self.overlay_type.get() == 'tempo': # special case for tempo
-                            mask = np.where(self.ui.data[s].dset[ovly_data]['d'] != 2)
+                        elif self.overlay_type.get() == 'tempo': # special case for tempo if no ET mask
+                            mask = np.zeros_like(self.ui.data[s].dset[ovly_data]['d'])
+                            # for tempo, the difference image has pixel values +/- 1
+                            mask[np.where(self.ui.data[s].dset[ovly_data]['d'] != 0)] = 1
                         else:
                             mask = None
 

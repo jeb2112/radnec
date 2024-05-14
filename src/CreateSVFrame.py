@@ -374,13 +374,12 @@ class CreateSliceViewerFrame(CreateFrame):
                 self.labels['colorbar_A'].update_normal()
             # although colorbar is not called until the axesImage data are set_data'd to become (eg) the z-score values,
             # the axesImage retains the clim equal to the original gray scale values, and this is passed on to the colorbar
-            # object for setting ticks and labels. however, the display of the new
-            # set_data is not in accordance with these now fictitious clim values, ticks, and labels, but is correct and is according to 
-            # clim values ticks and labels that don't yet exist. In order to get these
-            # correct clim values into existence, have to separately call set_clim on the axesImage scalar
-            # mappable. Note this does not then change the display of the scalar mappable, which was correct
+            # object for setting ticks and labels. have to separately recall set_clim on the axesImage scalar
+            # mappable to fix this. Note this does not then change the display of the scalar mappable, which was correct
             # and remains correct. it only changes the ticks and labels of the colorbar.
-            # in addition, a further temporary arrangement for tempo
+
+            # in addition, a further temporary arrangement for tempo until coded properly. the tempo nifti mask file
+            # is uint8 with background/zero == 2. have to reset to remove that offset of 2 here.
             if ovly == 'tempo':
                 self.ax_img.set_clim((self.wl[ovly][1]-self.wl[ovly][0]/2-2,self.wl[ovly][1]+self.wl[ovly][0]/2-2))
             else:

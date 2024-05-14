@@ -225,6 +225,7 @@ class Case():
                 reg_set_below = copy.deepcopy(reg_set)
                 reg_set_below[resid > 0] = False
 
+                # indivdual change masks
                 if False:
                     mask_below = np.zeros_like(self.studies[0].dset[dt]['d'],dtype='uint8')
                     mask_below[region_of_support] = reg_set_below
@@ -236,7 +237,9 @@ class Case():
                     self.studies[0].writenifti(mask_above,os.path.join(self.casedir,'regression_mask_above_{}.nii'.format(mdl_tags[i])),
                                             affine=self.studies[0].dset['ref']['affine'])
 
-
+                # for the combined mask, will have negative pixel changes indicated by a value less than background, so it will 
+                # map intuitively to a colorbar scale. but still using uint8, so make an offset of +2
+                # which will then be removed at display
                 mask = np.ones_like(self.studies[0].dset[dt]['d'],dtype='uint8')*2
                 mask[region_of_support] = reg_set_below * 1 + reg_set_above * 3 
                 mask[mask==0] = 2
@@ -415,6 +418,10 @@ class NiftiStudy(Study):
                     self.dset[dt]['min'] = np.min(self.dset[dt]['d'])
                     self.dset[dt[:-1]]['max'] = self.dset[dt]['max']
                     self.dset[dt[:-1]]['min'] = self.dset[dt]['min']
+                # special case for tempo. subtract offset of +2
+                if 'tempo' in dt:
+                    self.dset[dt]['d'] -= 2
+                    
                 self.dset[dt]['ex'] = True
         return
 
