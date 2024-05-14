@@ -10,9 +10,11 @@ from pstats import SortKey,Stats
 import matplotlib.pyplot as plt
 from importlib import metadata
 
-from src.CreateSVFrame import CreateSliceViewerFrame
+from src.CreateOverlaySVFrame import CreateOverlaySVFrame
+from src.CreateBlastSVFrame import CreateBlastSVFrame
 from src.CreateCaseFrame import CreateCaseFrame
 from src.CreateROIFrame import CreateROIFrame
+from src.CreateOverlayFrame import CreateOverlayFrame
 from src.OverlayPlots import *
 
 # main gui class
@@ -39,7 +41,7 @@ class BlastGui(object):
         self.blastImage = PhotoImage(file=self.logoImg)
         self.normalslice = None
         self.currentslice = None # tracks the current slice widget variable
-        self.dataselection = 'raw'
+        self.dataselection = 't1+'
 
         # data is a dict of studies
         self.data = {} 
@@ -60,17 +62,29 @@ class BlastGui(object):
 
         # hard-coded for debugging
         if self.debug:
+
+            # load a nifti case
+            if True:
+                self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
+                self.caseframe.datadirentry_callback()
+                self.caseframe.casename.set('M0001')
+                self.caseframe.case_callback()
+                self.overlayframe.overlay_value.set(True)
+                self.overlayframe.overlaytype.set('z')
+                self.overlayframe.overlay_callback()
+
             # 00005 75,105
             # 00002 53,81
-            self.caseframe.n4_check_value.set(0)
-            self.caseframe.casename.set('00006')
-            self.caseframe.case_callback()
-            if self.sliceviewerframe.slicevolume_norm.get() == 0:
-                self.sliceviewerframe.currentslice.set(53)
+            if False:
+                self.caseframe.n4_check_value.set(0)
+                self.caseframe.casename.set('00006')
+                self.caseframe.case_callback()
+                if self.sliceviewerframe.slicevolume_norm.get() == 0:
+                    self.sliceviewerframe.currentslice.set(53)
+                    self.updateslice()
+                    self.sliceviewerframe.normalslice_callback()
+                self.sliceviewerframe.currentslice.set(81)
                 self.updateslice()
-                self.sliceviewerframe.normalslice_callback()
-            self.sliceviewerframe.currentslice.set(81)
-            self.updateslice()
 
 
             # adjusted window/level
@@ -106,10 +120,16 @@ class BlastGui(object):
         self.caseframe = CreateCaseFrame(self.mainframe,ui=self)
 
         # slice viewer frame
-        self.sliceviewerframe = CreateSliceViewerFrame(self.mainframe,ui=self,padding='0')
+        self.blastsliceviewerframe = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
+        self.sliceviewerframe = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
 
-        # roi functions
-        self.roiframe = CreateROIFrame(self.mainframe,ui=self,padding='0')
+        # blast roi function
+        if False:
+            self.roiframe = CreateROIFrame(self.mainframe,ui=self,padding='0')
+        else:
+            self.roiframe = None
+        # overlay function
+        self.overlayframe = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
 
         # initialize default directory.
         if False:
@@ -188,7 +208,8 @@ class BlastGui(object):
         self.currentlayer = 0
         self.tstart = time.time()
         self.message = tk.StringVar(value='')
-        self.roiframe.resetROI()
+        if self.roiframe is not None:
+            self.roiframe.resetROI()
 
     def get_monitor_from_coord(self,x, y):
         monitors = screeninfo.get_monitors()
