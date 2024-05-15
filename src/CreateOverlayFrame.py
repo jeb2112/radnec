@@ -257,10 +257,10 @@ class CreateOverlayFrame(CreateFrame):
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
         if self.ui.sliceviewerframe.overlaytype.get() == 0:
-            data['seg_fusion'] = generate_overlay(self.ui.data[self.ui.base]['d'],data['seg'],contour=data['contour'],layer=layer,
+            data['seg_fusion'] = generate_overlay(self.ui.data[0].dset[self.ui.base]['d'],data['seg'],contour=data['contour'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
         else:
-            data['seg_fusion'] = generate_overlay(self.ui.data[self.ui.base],data['seg'],layer=layer,
+            data['seg_fusion'] = generate_overlay(self.ui.data[0].dset[self.ui.base],data['seg'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
 
         data['seg_fusion_d'] = copy.deepcopy(data['seg_fusion'])
@@ -291,38 +291,9 @@ class CreateOverlayFrame(CreateFrame):
         if mode == 'write':
             self.ui.set_currentroi()    
        
-    def finalROI_overlay_callback(self,event=None):
-        if self.finalROI_overlay_value.get() == False:
-            self.ui.dataselection = self.ui.base
-            self.ui.data[self.ui.base] = copy.deepcopy(self.ui.data[self.ui.base+'_copy'])
-            self.ui.updateslice()
-        else:
-            self.overlay_value.set(False)
-            self.ui.dataselection = 'seg_fusion_d'
-            # handle the case of switching manually to ROI mode with only one of ET T2 hyper selected.
-            # eg the INDIGO case there won't be any ET. for now just a temp workaround.
-            # but this might need to become the default behaviour for all cases, and if it's automatic
-            # it won't pass through this callback but will be handled elsewhere.
-            roi = self.ui.get_currentroi()
-            if self.ui.roi[roi].status is False:
-                if self.ui.roi[roi].data['WT'] is not None:
-                    self.layerROI_callback(layer='WT')
-                elif self.ui.roi[roi].data['ET'] is not None:
-                    self.layerROI_callback(layer='ET')
-            self.ui.updateslice(wl=True)
-
-    def selectROI(self,event=None):
-        if self.overlay_value.get(): # only activate cursor in BLAST mode
-            self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.ROIclick)
-            self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
-            # lock pan and zoom
-            # self.ui.sliceviewerframe.canvas.widgetlock(self.ui.sliceviewerframe)
-            # also if zoom or pan currently active, turn off
-            # if self.ui.sliceviewerframe.tbar.mode == _Mode.PAN or self.ui.sliceviewerframe.tbar.mode == _Mode.ZOOM:
-            #     self.ui.sliceviewerframe.tbar.mode = _Mode.NONE
-                # self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
-
-        return None
+    
+    def resetROI(self):
+        return
     
     def resetCursor(self,event=None):
         self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='watch')
@@ -352,79 +323,4 @@ class CreateOverlayFrame(CreateFrame):
             writer.Execute(img)
         return
         
-
-    def updateROIData(self):
-        # save current dataset into the current roi. 
-        for k,v in self.ui.data.items():
-            if k != 'raw':
-                self.ui.roi[self.ui.currentroi].data[k] = copy.deepcopy(self.ui.data[k])
-            else: # reference only
-                self.ui.roi[self.ui.currentroi].data[k] = self.ui.data[k]
-
-    # calculate the combined mask from separate layers
-    def updateBLAST(self,layer=None):
-        # record slider values
-        if layer is None:
-            layer = self.layer.get()
-
-        if all(self.ui.data['blast'][x] is not None for x in ['ET','T2 hyper']):
-            # self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*2 + (self.ui.data['blast']['T2 hyper'].astype('int'))
-            self.ui.data['seg_raw'] = (self.ui.data['blast']['T2 hyper'].astype('int'))
-            et = np.where(self.ui.data['blast']['ET'])
-            self.ui.data['seg_raw'][et] += 4
-        elif self.ui.data['blast']['ET'] is not None:
-            self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*4
-        elif self.ui.data['blast']['T2 hyper'] is not None:
-            self.ui.data['seg_raw'] = self.ui.data['blast']['T2 hyper'].astype('int')
-
-    def updateData(self):
-        for k in ['overlay_fusion','overlay_fusion_d','seg_raw']:
-            self.ui.data[k] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[k])
-        self.updatesliders()
-
-
-    # eliminate all ROIs, ie for loading another case
-    def resetROI(self):
-        self.currentroi.set(0)
-        self.ui.roi = [0]
-        self.ui.roiframe.finalROI_overlay_value.set(False)
-        self.ui.roiframe.overlay_value.set(False)
-        self.ui.roiframe.layertype.set('blast')
-        self.ui.roiframe.layer.set('ET')
-        self.ui.dataselection='t1+'
-
-    def append_roi(self,d):
-        for k,v in d.items():
-            if isinstance(v,dict):
-                self.append_roi(d)
-            else:
-                v.append(0)
-
-    def ROIstats(self):
-        
-        roi = self.ui.get_currentroi()
-        data = self.ui.roi[roi].data
-        for t in ['ET','TC','WT']:
-            # check for a complete segmentation
-            if t not in data.keys():
-                continue
-            elif data[t] is None:
-                continue
-            self.ui.roi[roi].stats['vol'][t] = len(np.where(data[t])[0])
-
-            if self.ui.data['label'] is not None:
-                sums = data['manual_'+t] + data[t]
-                subs = data['manual_'+t] - data[t]
-                        
-                TP = len(np.where(sums == 2)[0])
-                FP = len(np.where(subs == -1)[0])
-                TN = len(np.where(sums == 0)[0])
-                FN = len(np.where(subs == 1)[0])
-
-                self.ui.roi[roi].stats['spec'][t] = TN/(TN+FP)
-                self.ui.roi[roi].stats['sens'][t] = TP/(TP+FN)
-                self.ui.roi[roi].stats['dsc'][t] = 1-dice(data['manual_'+t].flatten(),data[t].flatten()) 
-
-                # Calculate volumes
-                self.ui.roi[roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
 

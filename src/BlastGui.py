@@ -43,7 +43,7 @@ class BlastGui(object):
         self.normalslice = None
         self.currentslice = None # tracks the current slice widget variable
         self.dataselection = 't1+' # current display, could be base image or overlay image
-        self.base = self.dataselection # tracks underlay only. not fully implemented yet
+        self.base = 't1+' # tracks basedisplay variable in sliceviewer. not fully implemented yet
 
         # function
         self.functionlist = {'overlay':0,'BLAST':1}
@@ -157,12 +157,16 @@ class BlastGui(object):
             self.mainframe.bind('<Configure>',s.resizer)
         self.mainframe.update()
 
+    # switching mode between BLAST segmentation and overlay
     def function_callback(self,event=None,update=False):
         f = self.function.get()
         self.set_frame(self.sliceviewerframes[f],frame='normal_frame')
         self.sliceviewerframe = self.sliceviewerframes[f]
         self.set_frame(self.roiframes[f])
         self.roiframe = self.roiframes[f]
+        # state of current data selection whether overlay or base
+        # for now just revert to a base display
+        self.dataselection = copy.copy(self.base)
         if update:
             self.sliceviewerframe.updateslice()
         return
