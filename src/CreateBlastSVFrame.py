@@ -386,21 +386,22 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
     # for now, just tack it onto the fusion toggle button
     def updatewl_fusion(self):
         if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
-            for ax in range(2):
+            # for ax in range(2):
+            for ax in ['t1+','flair+']:
                 vmin = self.level[ax] - self.window[ax]/2
                 vmax = self.level[ax] + self.window[ax]/2
-                self.ui.data['raw'][ax] = self.ui.caseframe.rescale(self.ui.data['raw_copy'][ax],vmin=vmin,vmax=vmax)
+                self.ui.data[ax]['d'] = self.ui.caseframe.rescale(self.ui.data[ax+'_copy']['d'],vmin=vmin,vmax=vmax)
 
     # clip the raw data to window and level settings
     def clipwl_raw(self):
-        for ax in range(2):
+        # for ax in range(2):
+        for ax in ['t1+','flair+']:
             vmin = self.level[ax] - self.window[ax]/2
             vmax = self.level[ax] + self.window[ax]/2
-            self.ui.data['raw'][ax] = self.ui.caseframe.rescale(self.ui.data['raw'][ax],vmin=vmin,vmax=vmax)
+            self.ui.data[ax]['d'] = self.ui.caseframe.rescale(self.ui.data[ax]['d'],vmin=vmin,vmax=vmax)
 
-    def restorewl_raw(self):
-        self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
-
+    def restorewl_raw(self,dt):
+        self.ui.data[dt]['d'] = copy.deepcopy(self.ui.data[dt+'_copy']['d'])
 
 
     def fitlin(self,x,a,b):
@@ -414,16 +415,18 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
 
         if self.slicevolume_norm.get() == 0:
             self.normalslice=self.ui.get_currentslice()
-            region_of_support = np.where(self.ui.data['raw'][0,self.normalslice]*self.ui.data['raw'][1,self.normalslice]>0) 
+            region_of_support = np.where(self.ui.data['t1+']['d'][self.normalslice]*self.ui.data['flair+']['d'][self.normalslice]>0) 
             vset = np.zeros_like(region_of_support,dtype='float')
-            for i in range(3):
-                vset[i] = np.ravel(self.ui.data['raw'][i,self.normalslice][region_of_support])
+            # for i in range(3):
+            for i,ax in enumerate(['t1+','flair_+']):
+                vset[i] = np.ravel(self.ui.data[ax]['d'][self.normalslice][region_of_support])
         else:
             self.normalslice = None
-            region_of_support = np.where(self.ui.data['raw'][0]*self.ui.data['raw'][1]*self.ui.data['raw'][2] >0)
+            region_of_support = np.where(self.ui.data['t1+']['d']*self.ui.data['flair+']['d'] >0)
             vset = np.zeros_like(region_of_support,dtype='float')
-            for i in range(3):
-                vset[i] = np.ravel(self.ui.data['raw'][i][region_of_support])
+            # for i in range(3):
+            for i,ax in enumerate(['t1+','flair_+']):
+                vset[i] = np.ravel(self.ui.data[ax]['d'][region_of_support])
             # t1channel_normal = self.ui.data['raw'][0][region_of_support]
             # flairchannel_normal = self.ui.data['raw'][1][region_of_support]
             # t2channel_normal = self.ui.data['raw'][2][region_of_support]

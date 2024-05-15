@@ -57,6 +57,11 @@ class CreateOverlayFrame(CreateFrame):
         # layout for the buttons
         ########################
 
+        # dummy frame to hide
+        self.dummy_frame = ttk.Frame(self.parentframe,padding='0')
+        self.dummy_frame.grid(row=2,column=5,sticky='news')
+
+        # actual frame
         self.frame.grid(row=2,column=4,rowspan=5,sticky='ne')
 
         # overlay type
@@ -252,10 +257,10 @@ class CreateOverlayFrame(CreateFrame):
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
         if self.ui.sliceviewerframe.overlaytype.get() == 0:
-            data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],contour=data['contour'],layer=layer,
+            data['seg_fusion'] = generate_overlay(self.ui.data[self.ui.base]['d'],data['seg'],contour=data['contour'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
         else:
-            data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],layer=layer,
+            data['seg_fusion'] = generate_overlay(self.ui.data[self.ui.base],data['seg'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
 
         data['seg_fusion_d'] = copy.deepcopy(data['seg_fusion'])
@@ -288,8 +293,8 @@ class CreateOverlayFrame(CreateFrame):
        
     def finalROI_overlay_callback(self,event=None):
         if self.finalROI_overlay_value.get() == False:
-            self.ui.dataselection = 'raw'
-            self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
+            self.ui.dataselection = self.ui.base
+            self.ui.data[self.ui.base] = copy.deepcopy(self.ui.data[self.ui.base+'_copy'])
             self.ui.updateslice()
         else:
             self.overlay_value.set(False)

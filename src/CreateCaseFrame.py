@@ -182,7 +182,8 @@ class CreateCaseFrame(CreateFrame):
         self.ui.sliceviewerframe.dim = np.shape(self.ui.data[0].dset[self.ui.dataselection]['d'])
         self.ui.sliceviewerframe.level = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/4]*2)
         self.ui.sliceviewerframe.window = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/2]*2)
-        self.ui.sliceviewerframe.create_canvas()
+        for s in self.ui.sliceviewerframes.values():     
+            s.create_canvas()
         if False: # cbv will have to display just one overlay if necessary
             # update roiframe according to data loaded
             for dt in ['cbv']:

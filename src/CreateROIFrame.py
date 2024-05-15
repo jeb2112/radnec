@@ -59,6 +59,11 @@ class CreateROIFrame(CreateFrame):
         # layout for the buttons
         ########################
 
+        # dummy frame to hide
+        self.dummy_frame = ttk.Frame(self.parentframe,padding='0')
+        self.dummy_frame.grid(row=2,column=4,sticky='news')
+
+        # actual frame
         self.frame.grid(row=2,column=4,rowspan=3,sticky='NE')
 
         # ROI buttons
@@ -240,9 +245,9 @@ class CreateROIFrame(CreateFrame):
         # TODO: check for existing instead of automatically re-generating
         # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
         if overlay:
-            self.ui.data['seg_raw_fusion'] = generate_overlay(self.ui.data['raw'],self.ui.data['seg_raw'],layer=layer,
+            self.ui.data['seg_raw_fusion']['d'] = generate_overlay(self.ui.data[self.ui.dataselection]['d'],self.ui.data['seg_raw']['d'],layer=layer,
                                                                     overlay_intensity=self.config.OverlayIntensity)
-            self.ui.data['seg_raw_fusion_d'] = copy.deepcopy(self.ui.data['seg_raw_fusion'])
+            self.ui.data['seg_raw_fusion_d']['d'] = copy.deepcopy(self.ui.data['seg_raw_fusion']['d'])
 
         if updateslice:
             self.ui.updateslice()
@@ -274,13 +279,13 @@ class CreateROIFrame(CreateFrame):
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
         if self.ui.sliceviewerframe.overlaytype.get() == 0:
-            data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],contour=data['contour'],layer=layer,
+            data['seg_fusion']['d'] = generate_overlay(self.ui.data[self.ui.dataselection]['d'],data['seg'],contour=data['contour'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
         else:
-            data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],layer=layer,
+            data['seg_fusion']['d'] = generate_overlay(self.ui.data[self.ui.dataselection]['d'],data['seg'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
 
-        data['seg_fusion_d'] = copy.deepcopy(data['seg_fusion'])
+        data['seg_fusion_d']['d'] = copy.deepcopy(data['seg_fusion']['d'])
 
         if updatedata:
             self.updateData()
@@ -503,8 +508,9 @@ class CreateROIFrame(CreateFrame):
        
     def finalROI_overlay_callback(self,event=None):
         if self.finalROI_overlay_value.get() == False:
-            self.ui.dataselection = 'raw'
-            self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
+            # base display, not data selection
+            self.ui.dataselection = self.ui.base
+            self.ui.data[self.ui.dataselection]['d'] = copy.deepcopy(self.ui.data[self.ui.base+'_copy']['d'])
             self.ui.updateslice()
         else:
             self.enhancingROI_overlay_value.set(False)
@@ -527,8 +533,9 @@ class CreateROIFrame(CreateFrame):
             self.updateData()
 
         if self.enhancingROI_overlay_value.get() == False:
-            self.ui.dataselection = 'raw'
-            self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
+            # base display, not data selection
+            self.ui.dataselection = 't1+'
+            self.ui.data['t1+']['d'] = copy.deepcopy(self.ui.data['t1+_copy']['d'])
             self.ui.updateslice()
 
         else:
@@ -600,10 +607,10 @@ class CreateROIFrame(CreateFrame):
         self.ROIstats()
         fusionstack = np.zeros((2,155,240,240))
         # note some duplicate calls to generate_overlay should be removed
-        fusionstack = generate_overlay(self.ui.data['raw'],self.ui.roi[roi].data['seg'],layer=self.ui.roiframe.layer.get(),
+        fusionstack = generate_overlay(self.ui.data[self.ui.dataselection]['d'],self.ui.roi[roi].data['seg'],layer=self.ui.roiframe.layer.get(),
                                                     overlay_intensity=self.config.OverlayIntensity)
-        self.ui.roi[roi].data['seg_fusion'] = fusionstack
-        self.ui.roi[roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[roi].data['seg_fusion'])
+        self.ui.roi[roi].data['seg_fusion']['d'] = fusionstack
+        self.ui.roi[roi].data['seg_fusion_d']['d'] = copy.deepcopy(self.ui.roi[roi].data['seg_fusion']['d'])
         # need to update ui data here??
         if False:
             self.updateData()
@@ -692,8 +699,8 @@ class CreateROIFrame(CreateFrame):
 
         # calculate tc
         if m == 'ET':
-            objectmask_closed = np.zeros(np.shape(self.ui.data['raw'])[1:])
-            objectmask_final = np.zeros(np.shape(self.ui.data['raw'])[1:])
+            objectmask_closed = np.zeros(np.shape(self.ui.data[self.ui.dataselection]['d'])[1:])
+            objectmask_final = np.zeros(np.shape(self.ui.data[self.ui.dataselection]['d'])[1:])
 
             # thisBB = BB.BoundingBox[objectnumber,:,:]
             thisBB = stats['bounding_boxes'][objectnumber]

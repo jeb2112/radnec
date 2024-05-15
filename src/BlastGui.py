@@ -15,7 +15,7 @@ from src.CreateBlastSVFrame import CreateBlastSVFrame
 from src.CreateCaseFrame import CreateCaseFrame
 from src.CreateROIFrame import CreateROIFrame
 from src.CreateOverlayFrame import CreateOverlayFrame
-from src.CreateFrame import CreateFrame
+from src.CreateFrame import Command
 from src.OverlayPlots import *
 
 # main gui class
@@ -42,7 +42,12 @@ class BlastGui(object):
         self.blastImage = PhotoImage(file=self.logoImg)
         self.normalslice = None
         self.currentslice = None # tracks the current slice widget variable
-        self.dataselection = 't1+'
+        self.dataselection = 't1+' # current display, could be base image or overlay image
+        self.base = self.dataselection # tracks underlay only. not fully implemented yet
+
+        # function
+        self.functionlist = {'overlay':0,'BLAST':1}
+        self.function = tk.StringVar(value='overlay')
 
         # data is a dict of studies
         self.data = {} 
@@ -70,9 +75,9 @@ class BlastGui(object):
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0001')
                 self.caseframe.case_callback()
-                self.overlayframe.overlay_value.set(True)
-                self.overlayframe.overlaytype.set('z')
-                self.overlayframe.overlay_callback()
+                self.roiframe.overlay_value.set(True)
+                self.roiframe.overlaytype.set('z')
+                self.roiframe.overlay_callback()
 
             # 00005 75,105
             # 00002 53,81
@@ -121,16 +126,22 @@ class BlastGui(object):
         self.caseframe = CreateCaseFrame(self.mainframe,ui=self)
 
         # slice viewer frame
-        self.blastsliceviewerframe = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
-        self.sliceviewerframe = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
-        self.set_frame(self.sliceviewerframe.normal_frame)
+        self.sliceviewerframes = {}
+        self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
+        self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
+        # self.set_frame(self.sliceviewerframes['overlay'],frame='normal_frame')
 
-        # blast roi function
-        self.roiframe = CreateROIFrame(self.mainframe,ui=self,padding='0')
-        # overlay function
-        self.overlayframe = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
-        self.dummyoverlayframe = CreateFrame(self.mainframe,ui=self,gridparams = {'row':2,'column':4,'rowspan':5,'sticky':'news'})
-        self.set_frame(self.overlayframe.frame)
+        # blast/overlay functions
+        self.roiframes = {}
+        self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
+        self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
+        # self.set_frame(self.roiframes['overlay'])
+        
+        # overlay/blast function mode
+        self.functionmenu = ttk.OptionMenu(self.mainframe,self.function,self.functionlist['overlay'],
+                                        *self.functionlist,command=Command(self.function_callback,update=True))
+        self.functionmenu.grid(row=0,column=4,sticky='e')
+        self.function_callback()
 
         # initialize default directory.
         if False:
@@ -142,16 +153,37 @@ class BlastGui(object):
             else:
                 self.mainframe.rowconfigure(row_num,weight=0)
         self.mainframe.columnconfigure(0,minsize=self.caseframe.frame.winfo_width(),weight=1)
-        self.mainframe.bind('<Configure>',self.sliceviewerframe.resizer)
+        for s in self.sliceviewerframes.values():
+            self.mainframe.bind('<Configure>',s.resizer)
         self.mainframe.update()
 
+    def function_callback(self,event=None,update=False):
+        f = self.function.get()
+        self.set_frame(self.sliceviewerframes[f],frame='normal_frame')
+        self.sliceviewerframe = self.sliceviewerframes[f]
+        self.set_frame(self.roiframes[f])
+        self.roiframe = self.roiframes[f]
+        if update:
+            self.sliceviewerframe.updateslice()
+        return
     
     #############################
     ###### Utility methods ######
     #############################
 
-    def set_frame(self,frame):
-        frame.lift()
+    def set_frame(self,frameobj,frame='frame'):
+        frameobj.frame.lift()
+        frameobj.dummy_frame.lower(belowThis=frameobj.frame)
+        # self.sliceviewerframe = frameobj
+    if False:
+        def set_sliceviewerframe(self,frameobj,frame='frame',above=None,below=None):
+            frameobj.frame.lift()
+            frameobj.dummy_frame.lower(belowThis=frameobj.frame)
+            self.sliceviewerframe = frameobj
+        def set_roiframe(self,frameobj,frame='frame',above=None,below=None):
+            frameobj.frame.lift()
+            frameobj.dummy_frame.lower(belowThis=frameobj.frame)
+            self.roiframe = frameobj
 
     def set_currentslice(self,val=None):
         self.currentslice = self.sliceviewerframe.currentslice.get()

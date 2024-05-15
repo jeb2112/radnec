@@ -240,7 +240,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         if 'overlay' in self.ui.dataselection:
             if self.basedisplay.get() != self.ui.data[0].dset[self.ui.dataselection]['base']:
                 # recalculate for new base image
-                self.ui.overlayframe.overlay_callback(updateslice=False)
+                self.ui.roiframe.overlay_callback(updateslice=False)
         else: 
             self.ui.dataselection = self.basedisplay.get()
         # update the image data
@@ -267,8 +267,8 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         if wl:   # not sure if needed
             # possible latency problem here
             if self.ui.dataselection == 'overlay':
-                # self.ui.overlayframe.layer_callback(updateslice=False,updatedata=False,layer=layer)
-                self.ui.overlayframe.layer_callback()
+                # self.ui.roiframe.layer_callback(updateslice=False,updatedata=False,layer=layer)
+                self.ui.roiframe.layer_callback()
             elif self.ui.dataselection == 'raw':
                 self.clipwl_raw()
 
@@ -308,7 +308,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         # add colorbars. for now just one colorbar on axis 'A'
         if colorbar and True:
             self.axs['colorbar_A'] = self.fig.add_axes([self.xyfig['colorbar_A'][0],self.xyfig['colorbar_A'][1],.02,0.5])
-            ovly = self.ui.overlayframe.overlaytype.get()
+            ovly = self.ui.roiframe.overlaytype.get()
 
             ytick0 = int(self.wl[ovly][1]-self.wl[ovly][0]/2)
             ytick1 = int(self.wl[ovly][1]+self.wl[ovly][0]/2)
@@ -332,29 +332,11 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
             # correct clim values into existence, have to separately call set_clim on the axesImage scalar
             # mappable. Yet this does not then change the display of the scalar mappable in the slightest, which was correct
             # and remains correct. it only changes the ticks and labels of the colorbar.
-            ovly_data = self.ui.overlayframe.overlaytype.get()
+            ovly_data = self.ui.roiframe.overlaytype.get()
             self.ax_img.set_clim((self.wl[ovly_data][1]-self.wl[ovly_data][0]/2,self.wl[ovly_data][1]+self.wl[ovly_data][0]/2))
             plt.setp(plt.getp(self.labels['colorbar_A'].ax.axes,'yticklabels'),color='w')
             
 
-    # color window/level scaling needs to be done separately for latency
-    # for now, just tack it onto the fusion toggle button
-    def updatewl_fusion(self):
-        if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
-            for ax in range(2):
-                vmin = self.level[ax] - self.window[ax]/2
-                vmax = self.level[ax] + self.window[ax]/2
-                self.ui.data['raw'][ax] = self.ui.caseframe.rescale(self.ui.data['raw_copy'][ax],vmin=vmin,vmax=vmax)
-
-    # clip the raw data to window and level settings
-    def clipwl_raw(self):
-        for ax in range(2):
-            vmin = self.level[ax] - self.window[ax]/2
-            vmax = self.level[ax] + self.window[ax]/2
-            self.ui.data['raw'][ax] = self.ui.caseframe.rescale(self.ui.data['raw'][ax],vmin=vmin,vmax=vmax)
-
-    def restorewl_raw(self):
-        self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
 
 
 
