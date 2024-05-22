@@ -173,16 +173,16 @@ class CreateCaseFrame(CreateFrame):
 
                             dset[dt]['d'],dset[dt]['affine'] = self.loadData(dt_file)
 
-        # update sliceviewer according to data loaded
-        for dt in ['t1','t1+','flair','flair+']:
-            if not(self.ui.data[0].dset[dt]['ex'] and self.ui.data[1].dset[dt]['ex']):
-                self.ui.sliceviewerframe.basedisplay_button[dt]['state'] = 'disabled'
-            else:
-                self.ui.sliceviewerframe.basedisplay_button[dt]['state'] = 'normal'
-        self.ui.sliceviewerframe.dim = np.shape(self.ui.data[0].dset[self.ui.dataselection]['d'])
-        self.ui.sliceviewerframe.level = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/4]*2)
-        self.ui.sliceviewerframe.window = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/2]*2)
-        for s in self.ui.sliceviewerframes.values():     
+        # update sliceviewers according to data loaded
+        for s in self.ui.sliceviewerframes.values():
+            for dt in ['t1','t1+','flair','flair+']:
+                if not(self.ui.data[0].dset[dt]['ex'] and self.ui.data[1].dset[dt]['ex']):
+                    s.basedisplay_button[dt]['state'] = 'disabled'
+                else:
+                    s.basedisplay_button[dt]['state'] = 'normal'
+            s.dim = np.shape(self.ui.data[0].dset[self.ui.dataselection]['d'])
+            s.level = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/4]*2)
+            s.window = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/2]*2)
             s.create_canvas()
         if False: # cbv will have to display just one overlay if necessary
             # update roiframe according to data loaded

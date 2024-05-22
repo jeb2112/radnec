@@ -78,6 +78,8 @@ class BlastGui(object):
                 self.roiframe.overlay_value.set(True)
                 self.roiframe.overlaytype.set('z')
                 self.roiframe.overlay_callback()
+                self.function.set('BLAST')
+                self.function_callback(update=True)
 
             # 00005 75,105
             # 00002 53,81
@@ -162,6 +164,7 @@ class BlastGui(object):
         f = self.function.get()
         self.set_frame(self.sliceviewerframes[f],frame='normal_frame')
         self.sliceviewerframe = self.sliceviewerframes[f]
+        self.sliceviewerframe.frame.lift()
         self.set_frame(self.roiframes[f])
         self.roiframe = self.roiframes[f]
         # state of current data selection whether overlay or base
@@ -176,8 +179,8 @@ class BlastGui(object):
     #############################
 
     def set_frame(self,frameobj,frame='frame'):
-        frameobj.frame.lift()
-        frameobj.dummy_frame.lower(belowThis=frameobj.frame)
+        frameobj.dummy_frame.lift()
+        getattr(frameobj,frame).lift()
         # self.sliceviewerframe = frameobj
     if False:
         def set_sliceviewerframe(self,frameobj,frame='frame',above=None,below=None):

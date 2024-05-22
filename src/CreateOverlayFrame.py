@@ -59,7 +59,7 @@ class CreateOverlayFrame(CreateFrame):
 
         # dummy frame to hide
         self.dummy_frame = ttk.Frame(self.parentframe,padding='0')
-        self.dummy_frame.grid(row=2,column=5,sticky='news')
+        self.dummy_frame.grid(row=2,column=4,rowspan=5,sticky='news')
 
         # actual frame
         self.frame.grid(row=2,column=4,rowspan=5,sticky='ne')
