@@ -57,6 +57,8 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         # window/level values for T1,T2
         self.window = np.array([1.,1.],dtype='float')
         self.level = np.array([0.5,0.5],dtype='float')
+        # window/level values for overlays and images. hard-coded for now.
+        self.wl = {'t1+':[600,300],'flair+':[600,300]}
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
@@ -280,10 +282,10 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.ui.set_currentslice()
         if blast: # option for previewing enhancing in 2d
             self.ui.runblast(currentslice=slice)
-        # if self.ui.roiframe.layer.get() == 'ET':
-        self.ax_img.set(data=self.ui.data[0].dset['t1+']['d'][slice,:,:])
-        # else:
-        #     self.ax_img.set(data=self.ui.data[self.ui.dataselection][2,slice,:,:])
+        if self.ui.roiframe.layer.get() == 'ET  ':
+            self.ax_img.set(data=self.ui.data[0].dset[self.ui.dataselection]['d'][slice,:,:])
+        else:
+            self.ax_img.set(data=self.ui.data[0].dset[self.ui.dataselection]['d'][slice,:,:])
         self.ax2_img.set(data=self.ui.data[0].dset['flair+']['d'][slice,:,:])
         # self.ax3_img.set(data=self.ui.data[0].dset[self.ui.base][self.sagcordisplay.get(),:,:,slicesag])
         # self.ax4_img.set(data=self.ui.data[0].dset[self.ui.base][self.sagcordisplay.get(),:,slicecor,:])
@@ -395,20 +397,24 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
             # for ax in range(2):
             for ax in ['t1+','flair+']:
-                vmin = self.level[ax] - self.window[ax]/2
-                vmax = self.level[ax] + self.window[ax]/2
-                self.ui.data[0].dset[ax]['d'] = self.ui.caseframe.rescale(self.ui.data[0].dset[ax+'_copy']['d'],vmin=vmin,vmax=vmax)
+                # vmin = self.level[ax] - self.window[ax]/2
+                # vmax = self.level[ax] + self.window[ax]/2
+                vmin = self.wl[ax][1] - self.wl[ax][0]/2
+                vmax = self.wl[ax][1] + self.wl[ax][0]/2
+                if False:
+                    self.ui.data[0].dset[ax]['d'] = self.ui.caseframe.rescale(self.ui.data[0].dset[ax+'_copy']['d'],vmin=vmin,vmax=vmax)
 
     # clip the raw data to window and level settings
     def clipwl_raw(self):
         # for ax in range(2):
         for ax in ['t1+','flair+']:
-            vmin = self.level[ax] - self.window[ax]/2
-            vmax = self.level[ax] + self.window[ax]/2
+            vmin = self.wl[ax][1] - self.wl[ax][0]/2
+            vmax = self.wl[ax][1] + self.wl[ax][0]/2
             self.ui.data[0].dset[ax]['d'] = self.ui.caseframe.rescale(self.ui.data[0].dset[ax]['d'],vmin=vmin,vmax=vmax)
 
     def restorewl_raw(self,dt):
-        self.ui.data[0].dset[dt]['d'] = copy.deepcopy(self.ui.data[0].dset[dt+'_copy']['d'])
+        if False:
+            self.ui.data[0].dset[dt]['d'] = copy.deepcopy(self.ui.data[0].dset[dt+'_copy']['d'])
 
 
     def fitlin(self,x,a,b):
@@ -432,7 +438,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
             region_of_support = np.where(self.ui.data[0].dset['t1+']['d']*self.ui.data[0].dset['flair+']['d'] >0)
             vset = np.zeros_like(region_of_support,dtype='float')
             # for i in range(3):
-            for i,ax in enumerate(['t1+','flair_+']):
+            for i,ax in enumerate(['t1+','flair+']):
                 vset[i] = np.ravel(self.ui.data[0].dset[ax]['d'][region_of_support])
             # t1channel_normal = self.ui.data['raw'][0][region_of_support]
             # flairchannel_normal = self.ui.data['raw'][1][region_of_support]
@@ -450,11 +456,11 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
             kmeans = KMeans(n_clusters=2,n_init='auto').fit(X[layer])
             background_cluster = np.argmin(np.power(kmeans.cluster_centers_[:,0],2)+np.power(kmeans.cluster_centers_[:,1],2))
 
-            # Calculate stats for brain cluster
-            self.ui.data[0]['blast']['params'][layer]['stdt12'] = np.std(X[layer][kmeans.labels_==background_cluster,1])
-            self.ui.data[0]['blast']['params'][layer]['stdflair'] = np.std(X[layer][kmeans.labels_==background_cluster,0])
-            self.ui.data[0]['blast']['params'][layer]['meant12'] = np.mean(X[layer][kmeans.labels_==background_cluster,1])
-            self.ui.data[0]['blast']['params'][layer]['meanflair'] = np.mean(X[layer][kmeans.labels_==background_cluster,0])
+            # Calculate stats for brain cluster. currently hard-coded to study #0
+            self.ui.blastdata['blast']['params'][layer]['stdt12'] = np.std(X[layer][kmeans.labels_==background_cluster,1])
+            self.ui.blastdata['blast']['params'][layer]['stdflair'] = np.std(X[layer][kmeans.labels_==background_cluster,0])
+            self.ui.blastdata['blast']['params'][layer]['meant12'] = np.mean(X[layer][kmeans.labels_==background_cluster,1])
+            self.ui.blastdata['blast']['params'][layer]['meanflair'] = np.mean(X[layer][kmeans.labels_==background_cluster,0])
 
             if False:
                 plt.figure(7)

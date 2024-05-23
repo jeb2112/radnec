@@ -172,7 +172,12 @@ class Study():
                      'cbv':{'d':None,'time':None,'affine':None,'ex':False},
                      'ref':{'d':None,'affine':None,'ex':False},
                      'ET':{'d':None,'affine':None,'ex':False},
-                     'WT':{'d':None,'affine':None,'ex':False}
+                     'WT':{'d':None,'affine':None,'ex':False},
+                     'seg_raw_fusion':{'d':None,'ex':False},
+                     'seg_raw_fusion_d':{'d':None,'ex':False},
+                     'seg_fusion':{'d':None,'ex':False},
+                     'seg_fusion_d':{'d':None,'ex':False},
+                     'seg_raw':{'d':None,'ex':False}
                      }
         self.dtag = [k for k in self.dset.keys()]
         self.date = None

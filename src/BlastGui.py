@@ -10,6 +10,7 @@ from pstats import SortKey,Stats
 import matplotlib.pyplot as plt
 from importlib import metadata
 
+from src import Blastbratsv3
 from src.CreateOverlaySVFrame import CreateOverlaySVFrame
 from src.CreateBlastSVFrame import CreateBlastSVFrame
 from src.CreateCaseFrame import CreateCaseFrame
@@ -174,6 +175,97 @@ class BlastGui(object):
             self.sliceviewerframe.updateslice()
         return
     
+
+
+    ##############
+    # BLAST method
+    ##############
+
+    def runblast(self,currentslice=None,layer=None):
+        if currentslice: # 2d in a single slice
+            currentslice=None # for now will run full 3d by default every update
+        else: # entire volume
+            self.root.config(cursor='watch')
+            self.root.update_idletasks()
+
+        if layer is None:   
+            layer = self.roiframe.layer.get()
+        clustersize = self.get_bcsize(layer=layer)
+        t12_threshold = self.roiframe.sliders[layer]['t12'].get()
+        flair_threshold = self.roiframe.sliders[layer]['flair'].get()
+
+        # if self.config.WLClip:
+        #     self.sliceviewerframe.clipwl_raw()
+
+        if False:
+            with Profile() as profile:
+                self.data['seg_raw'],self.data['seg_raw_fusion'] = self.blast.run_blast(self.data,
+                                                self.roiframe.t1slider.get(),
+                                                self.roiframe.t2slider.get(),self.roiframe.bcslider.get(),
+                                                currentslice=currentslice)
+                (
+                    Stats(profile)
+                    .strip_dirs()
+                    .sort_stats(SortKey.TIME)
+                    .print_stats(15)
+                )
+        else:
+            try:
+                retval = Blastbratsv3.run_blast(
+                                    self.data[0],
+                                    self.blastdata,
+                                    t12_threshold,
+                                    flair_threshold,
+                                    clustersize,layer,
+                                    currentslice=currentslice
+                                    )
+                if retval is not None:
+                    self.blastdata['blast'][layer],self.blastdata['blast']['gates']['brain '+layer],self.blastdata['blast']['gates'][layer] = retval
+                    self.update_blast(layer=layer)
+            except ValueError as e:
+                self.set_message(e)
+
+        # if self.config.WLClip:
+        #     self.sliceviewerframe.restorewl_raw()
+        #     self.sliceviewerframe.window = np.array([1.,1.],dtype='float')
+        #     self.sliceviewerframe.level = np.array([0.5,0.5],dtype='float')
+        #     self.updateslice()
+
+        self.data[0].dset['seg_raw_fusion']['d'] = generate_blast_overlay(self.data[0].dset[self.sliceviewerframe.basedisplay.get()]['d'],
+                                                       self.data[0].dset['seg_raw']['d'],layer=self.roiframe.layer.get(),
+                                                       overlay_intensity=self.config.OverlayIntensity)
+        self.data[0].dset['seg_raw_fusion_d']['d'] = copy.deepcopy(self.data[0].dset['seg_raw_fusion']['d'])
+            
+        if self.roiframe.finalROI_overlay_value.get() == True:
+            self.dataselection = 'seg_fusion_d'
+        else:
+            self.dataselection = 'seg_raw_fusion_d'
+                
+        if currentslice is None:
+            self.updateslice(wl=True,layer=layer)
+        else:
+            self.updateslice()
+        
+        # in this 2d preview mode, the enhancing lesion is only being calculated slice by slice
+        # nonetheless the latency is still measurable, so only want to update when button click
+        # is released. not using 2d preview anymore
+        if False:
+            if currentslice:
+                self.sliceviewerframe.vsliceslider['command'] = None
+                if self.roiframe.enhancingROI_overlay_value.get() == True:
+                    self.sliceviewerframe.vsliceslider.bind("<ButtonRelease-1>",self.sliceviewerframe.updateslice_blast)
+                elif self.roiframe.finalROI_overlay_value.get() == True:
+                    self.sliceviewerframe.vsliceslider.bind("<ButtonRelease-1>",self.sliceviewerframe.updateslice_roi)
+            else:
+                self.sliceviewerframe.vsliceslider.unbind("<ButtonRelease-1>")
+                self.sliceviewerframe.vsliceslider['command'] = self.updateslice
+        
+        self.root.config(cursor='arrow')
+        self.root.update_idletasks()
+
+        return None
+
+
     #############################
     ###### Utility methods ######
     #############################
@@ -216,6 +308,11 @@ class BlastGui(object):
     def get_currentroi(self):
         return self.currentroi
     
+    def get_bcsize(self,layer=None):
+        if layer is None:
+            layer = self.roiframe.layer.get()
+        return self.roiframe.thresholds[layer]['bc'].get()
+    
     def update_roidata(self):
         self.roiframe.updateROIData()
 
@@ -245,6 +342,14 @@ class BlastGui(object):
         self.dataselection = 't1+'
 
         self.data = {}
+        self.blastdata = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
+                            'T2 hyper':None,
+                            'ET':None,
+                            'params':{'ET':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
+                               'T2 hyper':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
+                               },
+                    },
+        }
     
         self.roi = [0] # dummy value for Roi indexing 1-based
         self.currentroi = 0 # tracks the currentroi widget variable

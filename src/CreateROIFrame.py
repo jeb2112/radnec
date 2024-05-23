@@ -245,9 +245,10 @@ class CreateROIFrame(CreateFrame):
         # TODO: check for existing instead of automatically re-generating
         # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
         if overlay:
-            self.ui.data['seg_raw_fusion']['d'] = generate_overlay(self.ui.data[self.ui.dataselection]['d'],self.ui.data['seg_raw']['d'],layer=layer,
+            self.ui.data[0].dset['seg_raw_fusion']['d'] = generate_blast_overlay(self.ui.data[0].dset[self.ui.sliceviewerframe.basedisplay.get()]['d'],
+                                                                           self.ui.data[0].dset['seg_raw']['d'],layer=layer,
                                                                     overlay_intensity=self.config.OverlayIntensity)
-            self.ui.data['seg_raw_fusion_d']['d'] = copy.deepcopy(self.ui.data['seg_raw_fusion']['d'])
+            self.ui.data[0].dset['seg_raw_fusion_d']['d'] = copy.deepcopy(self.ui.data[0].dset['seg_raw_fusion']['d'])
 
         if updateslice:
             self.ui.updateslice()
@@ -351,7 +352,7 @@ class CreateROIFrame(CreateFrame):
 
         # force recalc of gates
         layer = self.layer.get()
-        self.ui.data['blast']['gates'][layer] = None
+        self.ui.blastdata['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=currentslice)
         self.t1sliderlabel['text'] = '{:.1f}'.format(self.t1threshold.get())
 
@@ -366,7 +367,7 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_callback()
         # force recalc of gates
         layer = self.layer.get()
-        self.ui.data['blast']['gates'][layer] = None
+        self.ui.blastdata['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=currentslice)
         self.t2sliderlabel['text'] = '{:.1f}'.format(self.t2threshold.get())
         # ie not using this workflow presently
@@ -384,7 +385,7 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_callback()
         # force recalc of gates
         layer = self.layer.get()
-        self.ui.data['blast']['gates'][layer] = None
+        self.ui.blastdata['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=currentslice)
         self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
         # ie not using this workflow presently
@@ -402,7 +403,7 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_callback()
         # force recalc of gates
         layer = self.layer.get()
-        self.ui.data['blast']['gates'][layer] = None
+        self.ui.blastdata['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=currentslice)
         self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt2threshold.get())
         # ie not using this workflow presently
@@ -420,8 +421,8 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_callback()
         # layer = self.layer.get()
         if slider == 'bc':
-            self.ui.data['blast']['gates']['brain '+layer] = None
-        self.ui.data['blast']['gates'][layer] = None
+            self.ui.blastdata['blast']['gates']['brain '+layer] = None
+        self.ui.blastdata['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=True)
         self.updatesliderlabel(layer,slider)
 
@@ -440,7 +441,7 @@ class CreateROIFrame(CreateFrame):
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_callback()
         layer = self.layer.get()
-        self.ui.data['blast']['gates']['brain '+layer] = None
+        self.ui.blastdata['blast']['gates']['brain '+layer] = None
         self.ui.runblast(currentslice=True)
         self.updatebct1label()
         return
@@ -455,7 +456,7 @@ class CreateROIFrame(CreateFrame):
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_callback()
         layer = self.layer.get()
-        self.ui.data['blast']['gates']['brain '+layer] = None
+        self.ui.blastdata['blast']['gates']['brain '+layer] = None
         self.ui.runblast(currentslice=True)
         self.updatebct2label()
         return
@@ -470,7 +471,7 @@ class CreateROIFrame(CreateFrame):
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_callback()
         layer = self.layer.get()
-        self.ui.data['blast']['gates']['brain '+layer] = None
+        self.ui.blastdata['blast']['gates']['brain '+layer] = None
         self.ui.runblast(currentslice=True)
         self.updategmlabel()
         return
@@ -484,7 +485,7 @@ class CreateROIFrame(CreateFrame):
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_callback()
         layer = self.layer.get()
-        self.ui.data['blast']['gates']['brain '+layer] = None
+        self.ui.blastdata['blast']['gates']['brain '+layer] = None
         self.ui.runblast(currentslice=True)
         self.updatewmlabel()
         return
@@ -503,14 +504,15 @@ class CreateROIFrame(CreateFrame):
             else:
                 layer = 'ET'
         for s in ['t12','flair','bc']:
-            self.thresholds[layer][s].set(self.ui.data['blast']['params'][layer][s])
+            self.thresholds[layer][s].set(self.ui.blastdata['blast']['params'][layer][s])
             self.updatesliderlabel(layer,s)
        
     def finalROI_overlay_callback(self,event=None):
         if self.finalROI_overlay_value.get() == False:
             # base display, not data selection
             self.ui.dataselection = self.ui.base
-            self.ui.data[self.ui.dataselection]['d'] = copy.deepcopy(self.ui.data[self.ui.base+'_copy']['d'])
+            if False:
+                self.ui.data[self.ui.dataselection]['d'] = copy.deepcopy(self.ui.data[self.ui.base+'_copy']['d'])
             self.ui.updateslice()
         else:
             self.enhancingROI_overlay_value.set(False)
@@ -535,7 +537,8 @@ class CreateROIFrame(CreateFrame):
         if self.enhancingROI_overlay_value.get() == False:
             # base display, not data selection
             self.ui.dataselection = 't1+'
-            self.ui.data['t1+']['d'] = copy.deepcopy(self.ui.data['t1+_copy']['d'])
+            if False:
+                self.ui.data['t1+']['d'] = copy.deepcopy(self.ui.data['t1+_copy']['d'])
             self.ui.updateslice()
 
         else:
@@ -848,8 +851,8 @@ class CreateROIFrame(CreateFrame):
             bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT','blast','raw'))
             msdict['roi'+str(i)] = {}
             mdict = msdict['roi'+str(i)]
-            mdict['greengate_count'] = r.data['blast']['params']['ET']['flair']
-            mdict['redgate_count'] = r.data['blast']['params']['ET']['t12']
+            mdict['greengate_count'] = r.blastdata['blast']['params']['ET']['flair']
+            mdict['redgate_count'] = r.blastdata['blast']['params']['ET']['t12']
             if r.data['ET'] is None:
                 et = 0
             else: 
@@ -940,17 +943,17 @@ class CreateROIFrame(CreateFrame):
         if layer is None:
             layer = self.layer.get()
         for s in ['t12','flair','bc']:
-            self.ui.data['blast']['params'][layer][s] = self.thresholds[layer][s].get()
+            self.ui.blastdata['blast']['params'][layer][s] = self.thresholds[layer][s].get()
 
-        if all(self.ui.data['blast'][x] is not None for x in ['ET','T2 hyper']):
-            # self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*2 + (self.ui.data['blast']['T2 hyper'].astype('int'))
-            self.ui.data['seg_raw'] = (self.ui.data['blast']['T2 hyper'].astype('int'))
-            et = np.where(self.ui.data['blast']['ET'])
-            self.ui.data['seg_raw'][et] += 4
-        elif self.ui.data['blast']['ET'] is not None:
-            self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*4
-        elif self.ui.data['blast']['T2 hyper'] is not None:
-            self.ui.data['seg_raw'] = self.ui.data['blast']['T2 hyper'].astype('int')
+        if all(self.ui.blastdata['blast'][x] is not None for x in ['ET','T2 hyper']):
+            # self.ui.data['seg_raw'] = self.ui.blastdata['blast']['ET'].astype('int')*2 + (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
+            self.ui.data[0].dset['seg_raw']['d'] = (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
+            et = np.where(self.ui.blastdata['blast']['ET'])
+            self.ui.data[0].dset['seg_raw']['d'] += 4
+        elif self.ui.blastdata['blast']['ET'] is not None:
+            self.ui.data[0].dset['seg_raw']['d'] = self.ui.blastdata['blast']['ET'].astype('int')*4
+        elif self.ui.blastdata['blast']['T2 hyper'] is not None:
+            self.ui.data[0].dset['seg_raw']['d'] = self.ui.blastdata['blast']['T2 hyper'].astype('int')
 
     def updateData(self):
         for k in ['seg_fusion_d','seg_fusion','seg_raw_fusion','seg_raw_fusion_d','seg_raw','blast']:
