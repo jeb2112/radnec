@@ -438,7 +438,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
             region_of_support = np.where(self.ui.data[0].dset['t1+']['d']*self.ui.data[0].dset['flair+']['d'] >0)
             vset = np.zeros_like(region_of_support,dtype='float')
             # for i in range(3):
-            for i,ax in enumerate(['t1+','flair+']):
+            for i,ax in enumerate(['zt1+','zflair+']):
                 vset[i] = np.ravel(self.ui.data[0].dset[ax]['d'][region_of_support])
             # t1channel_normal = self.ui.data['raw'][0][region_of_support]
             # flairchannel_normal = self.ui.data['raw'][1][region_of_support]
@@ -449,7 +449,8 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         # X_net = np.column_stack((flair,t2))
         X={}
         X['ET'] = np.column_stack((vset[1],vset[0]))
-        X['T2 hyper'] = np.column_stack((vset[1],vset[2]))
+        # T2 hyper values will just be the same as ET since we do not have plain T2 available for rad nec.
+        X['T2 hyper'] = np.column_stack((vset[1],vset[0]))
 
         for i,layer in enumerate(['ET','T2 hyper']):
             np.random.seed(1)

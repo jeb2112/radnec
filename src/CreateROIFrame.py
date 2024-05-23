@@ -603,17 +603,21 @@ class CreateROIFrame(CreateFrame):
                     self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
             
         roi = self.ui.get_currentroi()
-        self.closeROI(self.ui.roi[roi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
+        # self.closeROI(self.ui.roi[roi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
+        self.closeROI(self.ui.data[0].dset['seg_raw']['d'],self.ui.get_currentslice(),do3d=do3d)
         # update layer menu
         self.update_layermenu_options(self.ui.roi[roi])
 
-        self.ROIstats()
-        fusionstack = np.zeros((2,155,240,240))
+        if False: # not ported yet
+            self.ROIstats()
+        # fusionstack = np.zeros((2,155,240,240))
         # note some duplicate calls to generate_overlay should be removed
-        fusionstack = generate_overlay(self.ui.data[self.ui.dataselection]['d'],self.ui.roi[roi].data['seg'],layer=self.ui.roiframe.layer.get(),
-                                                    overlay_intensity=self.config.OverlayIntensity)
-        self.ui.roi[roi].data['seg_fusion']['d'] = fusionstack
-        self.ui.roi[roi].data['seg_fusion_d']['d'] = copy.deepcopy(self.ui.roi[roi].data['seg_fusion']['d'])
+        fusionstack = generate_blast_overlay(self.ui.data[0].dset[self.ui.sliceviewerframe.basedisplay.get()]['d'],
+                                             self.ui.roi[roi].data['seg'],
+                                            layer=self.ui.roiframe.layer.get(),
+                                            overlay_intensity=self.config.OverlayIntensity)
+        self.ui.roi[roi].data['seg_fusion'] = fusionstack
+        self.ui.roi[roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[roi].data['seg_fusion'])
         # need to update ui data here??
         if False:
             self.updateData()
@@ -689,7 +693,8 @@ class CreateROIFrame(CreateFrame):
         mask = (metmaskstack & mlist[m]['threshold'] == mlist[m]['threshold']).astype('double')
 
         # TODO: 2d versus 3d connected components?
-        CC_labeled = cc3d.connected_components(mask,connectivity=26)
+        CC_labeled = cc3d.dust(mask,connectivity=6,threshold=100,in_place=False)
+        CC_labeled = cc3d.connected_components(CC_labeled,connectivity=6)
         stats = cc3d.statistics(CC_labeled)
 
         # objectnumber = CC_labeled(ypos,xpos,s.SliceNumber)
@@ -702,8 +707,8 @@ class CreateROIFrame(CreateFrame):
 
         # calculate tc
         if m == 'ET':
-            objectmask_closed = np.zeros(np.shape(self.ui.data[self.ui.dataselection]['d'])[1:])
-            objectmask_final = np.zeros(np.shape(self.ui.data[self.ui.dataselection]['d'])[1:])
+            objectmask_closed = np.zeros(np.shape(self.ui.data[0].dset[self.ui.dataselection]['d'])[1:])
+            objectmask_final = np.zeros(np.shape(self.ui.data[0].dset[self.ui.dataselection]['d'])[1:])
 
             # thisBB = BB.BoundingBox[objectnumber,:,:]
             thisBB = stats['bounding_boxes'][objectnumber]
@@ -949,7 +954,7 @@ class CreateROIFrame(CreateFrame):
             # self.ui.data['seg_raw'] = self.ui.blastdata['blast']['ET'].astype('int')*2 + (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
             self.ui.data[0].dset['seg_raw']['d'] = (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
             et = np.where(self.ui.blastdata['blast']['ET'])
-            self.ui.data[0].dset['seg_raw']['d'] += 4
+            self.ui.data[0].dset['seg_raw']['d'][et] += 4
         elif self.ui.blastdata['blast']['ET'] is not None:
             self.ui.data[0].dset['seg_raw']['d'] = self.ui.blastdata['blast']['ET'].astype('int')*4
         elif self.ui.blastdata['blast']['T2 hyper'] is not None:
