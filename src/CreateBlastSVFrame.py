@@ -52,7 +52,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
         self.sagcordisplay = tk.IntVar(value=0)
-        self.overlaytype = tk.IntVar(value=self.config.OverlayType)
+        self.overlaytype = tk.IntVar(value=self.config.BlastOverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
         # window/level values for T1,T2
         self.window = np.array([1.,1.],dtype='float')

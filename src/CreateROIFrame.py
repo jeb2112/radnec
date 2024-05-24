@@ -280,13 +280,14 @@ class CreateROIFrame(CreateFrame):
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
         if self.ui.sliceviewerframe.overlaytype.get() == 0:
-            data['seg_fusion']['d'] = generate_overlay(self.ui.data[self.ui.dataselection]['d'],data['seg'],contour=data['contour'],layer=layer,
+            data['seg_fusion'] = generate_blast_overlay(self.ui.data[0].dset[self.ui.dataselection]['d'],data['seg'],contour=data['contour'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
         else:
-            data['seg_fusion']['d'] = generate_overlay(self.ui.data[self.ui.dataselection]['d'],data['seg'],layer=layer,
+            data['seg_fusion'] = generate_blast_overlay(self.ui.data[0].dset[self.ui.sliceviewerframe.basedisplay.get()]['d'],
+                                                             data['seg'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
 
-        data['seg_fusion_d']['d'] = copy.deepcopy(data['seg_fusion']['d'])
+        data['seg_fusion_d'] = copy.deepcopy(data['seg_fusion'])
 
         if updatedata:
             self.updateData()
@@ -799,7 +800,7 @@ class CreateROIFrame(CreateFrame):
                                                     2*self.ui.roi[roi].data['TC']
             else:
                 self.ui.roi[roi].data['seg'] += 4*self.ui.roi[roi].data['ET'] + \
-                                                    2*self.ui.roi[roi].data['TC'] +\
+                                                    2*self.ui.roi[roi].data['TC'] + \
                                                     1*self.ui.roi[roi].data['WT']
                 self.ui.roi[roi].status = True # ROI has both compartments selected                                                    
 
@@ -961,8 +962,9 @@ class CreateROIFrame(CreateFrame):
             self.ui.data[0].dset['seg_raw']['d'] = self.ui.blastdata['blast']['T2 hyper'].astype('int')
 
     def updateData(self):
-        for k in ['seg_fusion_d','seg_fusion','seg_raw_fusion','seg_raw_fusion_d','seg_raw','blast']:
-            self.ui.data[k] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[k])
+        # to add later        'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
+        for dt in ['seg_fusion_d','seg_fusion']:
+            self.ui.data[0].dset[dt]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
         self.updatesliders()
 
     # eliminate one ROI if multiple ROIs in current case

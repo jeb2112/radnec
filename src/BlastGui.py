@@ -81,6 +81,10 @@ class BlastGui(object):
                 self.roiframe.overlay_callback()
                 self.function.set('BLAST')
                 self.function_callback(update=True)
+                self.sliceviewerframe.normalslice_callback()
+                self.sliceviewerframe.currentslice.set(55)
+                self.roiframe.createROI(75,75,55) # 00002
+                self.roiframe.ROIclick(event=None)
 
             # 00005 75,105
             # 00002 53,81

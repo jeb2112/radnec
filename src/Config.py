@@ -78,3 +78,6 @@ class Config(object):
 
         # default 'z-score' or 'CBV' overlay
         self.OverlayType = 'z'
+
+        # default BLAST overlay, contour or area
+        self.BlastOverlayType = 1
