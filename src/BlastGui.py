@@ -83,8 +83,10 @@ class BlastGui(object):
                 self.function_callback(update=True)
                 self.sliceviewerframe.normalslice_callback()
                 self.sliceviewerframe.currentslice.set(55)
-                self.roiframe.createROI(75,75,55) # 00002
-                self.roiframe.ROIclick(event=None)
+                # self.roiframe.thresholds['ET']['flair'].set(1.1)
+                # self.roiframe.thresholds['T2 hyper']['flair'].set(1.1)
+                # self.roiframe.createROI(75,75,55) # 00002
+                # self.roiframe.ROIclick(event=None)
 
             # 00005 75,105
             # 00002 53,81

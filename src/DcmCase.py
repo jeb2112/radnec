@@ -173,6 +173,10 @@ class Study():
                      'ref':{'d':None,'affine':None,'ex':False},
                      'ET':{'d':None,'affine':None,'ex':False},
                      'WT':{'d':None,'affine':None,'ex':False},
+                     'ETblast':{'d':None,'affine':None,'ex':False},
+                     'WTblast':{'d':None,'affine':None,'ex':False},
+                     'EThdbet':{'d':None,'affine':None,'ex':False},
+                     'WThdbet':{'d':None,'affine':None,'ex':False},
                      'seg_raw_fusion':{'d':None,'ex':False},
                      'seg_raw_fusion_d':{'d':None,'ex':False},
                      'seg_fusion':{'d':None,'ex':False},
@@ -232,6 +236,11 @@ class NiftiStudy(Study):
                     self.dset[dt]['min'] = np.min(self.dset[dt]['d'])
                     self.dset[dt[:-1]]['max'] = self.dset[dt]['max']
                     self.dset[dt[:-1]]['min'] = self.dset[dt]['min']
+                # for now, ET_processed is an HDBET segmentation, not a BLAST
+                # so store a copy separately
+                if dt in ['ET']:
+                    self.dset[dt+'hdbet']['d'] = np.copy(self.dset[dt]['d'])
+                    self.dset[dt+'hdbet']['ex'] = True
                 self.dset[dt]['ex'] = True
         return
 

@@ -52,6 +52,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
         self.basedisplay = tk.StringVar(value='t1+')
+        self.maskdisplay = tk.StringVar(value='hdbet')
         # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
         # blast window/level values for T1,T2. replace with self.wl
@@ -88,6 +89,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         # t1/t2 base layer selection
         self.normal_frame = ttk.Frame(self.parentframe,padding='0')
         self.normal_frame.grid(row=3,column=0,sticky='NW')
+
         basedisplay_label = ttk.Label(self.normal_frame, text='base image: ')
         basedisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
         self.basedisplay_button = {}
@@ -104,6 +106,19 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
                                                     command=self.updateslice)
         self.basedisplay_button['flair+'].grid(column=4,row=0,sticky='w')
         # self.basedisplay_keys = ['t1','t1+','flair','flair+']
+
+        # BLAST/HDBET mask selection
+        maskdisplay_label = ttk.Label(self.normal_frame, text='mask: ')
+        maskdisplay_label.grid(row=1,column=0,padx=(50,0),sticky='e')
+        self.maskdisplay_button = {}
+        self.maskdisplay_button['hdbet'] = ttk.Radiobutton(self.normal_frame,text='HDBET',variable=self.maskdisplay,value='hdbet',
+                                                    command=self.updatemask)
+        self.maskdisplay_button['hdbet'].grid(column=1,row=1,sticky='w')
+        self.maskdisplay_button['blast'] = ttk.Radiobutton(self.normal_frame,text='BLAST',variable=self.maskdisplay,value='blast',
+                                                    command=self.updatemask)
+        self.maskdisplay_button['blast'].grid(column=2,row=1,sticky='w')
+
+
 
         # overlay type contour mask
         if False:
@@ -274,6 +289,14 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
 
         self.canvas.draw()
     
+    def updatemask(self):
+
+        mask = self.maskdisplay.get()
+        for s in self.ui.data.keys():
+            self.ui.data[s].dset['ET']['d'] = self.ui.data[0].dset['ET'+mask]['d']
+        self.ui.roiframe.overlay_callback()
+
+
     def update_labels(self,colorbar=False):
 
         # handle colorbar separately, since it doesn't have an Artist.remove()

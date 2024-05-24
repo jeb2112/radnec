@@ -619,7 +619,7 @@ class CreateROIFrame(CreateFrame):
                                             overlay_intensity=self.config.OverlayIntensity)
         self.ui.roi[roi].data['seg_fusion'] = fusionstack
         self.ui.roi[roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[roi].data['seg_fusion'])
-        # need to update ui data here??
+        # need to update ui data here?? or just let it run from layerROI_callback below
         if False:
             self.updateData()
 
@@ -961,10 +961,19 @@ class CreateROIFrame(CreateFrame):
         elif self.ui.blastdata['blast']['T2 hyper'] is not None:
             self.ui.data[0].dset['seg_raw']['d'] = self.ui.blastdata['blast']['T2 hyper'].astype('int')
 
-    def updateData(self):
-        # to add later        'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
+    # copy certain results from the BLAST ROI to the main dataset
+    def updateData(self,updatemask=False):
+        # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
         for dt in ['seg_fusion_d','seg_fusion']:
             self.ui.data[0].dset[dt]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
+        for dt in ['ET','WT']:
+            self.ui.data[0].dset[dt+'blast']['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
+            self.ui.data[0].dset[dt+'blast']['ex'] = True
+            if updatemask:
+            # by this option, a BLAST segmentation could overwrite the current UI mask directly.
+            # otherwise, it will be done in separate step from the Overlay sliceviewer. 
+            # need a option checkbox on the GUI for this
+                self.ui.data[0].dset[dt]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
         self.updatesliders()
 
     # eliminate one ROI if multiple ROIs in current case

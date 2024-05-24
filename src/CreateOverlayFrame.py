@@ -168,6 +168,7 @@ class CreateOverlayFrame(CreateFrame):
             self.sliderframe['dummy'].lower(self.sliderframe[ovly])
             ovly_str = ovly + 'overlay'
             base = self.ui.sliceviewerframe.basedisplay.get()
+            mask = self.ui.sliceviewerframe.maskdisplay.get()
             if ovly == 'z':
                 # check for available data. or implement by deactivating button.
                 if False:
@@ -182,7 +183,9 @@ class CreateOverlayFrame(CreateFrame):
 
             # generate a new overlay
             for s in self.ui.data:
-                if not self.ui.data[s].dset[ovly_str]['ex'] or self.ui.data[s].dset[ovly_str]['base'] != base or wl:
+                if not self.ui.data[s].dset[ovly_str]['ex'] or \
+                    self.ui.data[s].dset[ovly_str]['base'] != base or \
+                    self.ui.data[s].dset[ovly_str]['mask'] != mask:
 
                     # additional check if box not previously grayed out.
                     # eg for cbv there might only be one DSC study, so just
@@ -191,6 +194,7 @@ class CreateOverlayFrame(CreateFrame):
                         self.ui.data[s].dset[ovly_str]['d'] = np.copy(self.ui.data[s].dset[base]['d'])
                         self.ui.data[s].dset[ovly_str]['ex'] = False
                         self.ui.data[s].dset[ovly_str]['base'] = base
+                        self.ui.data[s].dset[ovly_str]['mask'] = mask
                     else:
 
                         self.ui.data[s].dset[ovly_str]['d'] = generate_overlay(
@@ -201,6 +205,7 @@ class CreateOverlayFrame(CreateFrame):
                             overlay_intensity=self.config.OverlayIntensity)
                         self.ui.data[s].dset[ovly_str]['ex'] = True
                         self.ui.data[s].dset[ovly_str]['base'] = base
+                        self.ui.data[s].dset[ovly_str]['mask'] = mask
 
                     # self.ui.data['overlay_d'] = copy.deepcopy(self.ui.data['overlay']),
             self.ui.dataselection = ovly_str
