@@ -115,7 +115,8 @@ class CreateCaseFrame(CreateFrame):
         self.ui.set_casename(val=case)
         print('Loading case {}'.format(case))
         self.loadCase(files=files)
-        self.ui.dataselection = 't1+'
+        self.ui.chselection = 't1+'
+        self.ui.dataselection = 'raw'
         self.ui.sliceviewerframe.tbar.home()
         self.ui.updateslice()
 
@@ -159,30 +160,17 @@ class CreateCaseFrame(CreateFrame):
                 self.ui.data[i] = NiftiStudy(self.casename.get(),os.path.join(self.casedir,sname))
                 self.ui.data[i].loaddata()
                 self.ui.data[i].date = sname
-                if False:
-                    files = os.listdir(os.path.join(self.casedir,sname))
-                    files = self.get_imagefiles(files)
-                    for dt in ['t1','t1+','flair','flair+','cbv']:
-                        dt_files = [f for f in files if dt in f.lower()]
-                        if len(dt_files) > 0:
-                            if len(dt_files) > 1:
-                                # by convention '_processed' is the final output from dcm preprocess()
-                                dt_file = next((f for f in dt_files if re.search('_processed',f.lower())),None)
-                            elif len(dt_files) == 1:
-                                dt_file = dt_files[0]
-
-                            dset[dt]['d'],dset[dt]['affine'] = self.loadData(dt_file)
 
         # update sliceviewers according to data loaded
         for s in self.ui.sliceviewerframes.values():
-            for dt in ['t1','t1+','flair','flair+']:
-                if not(self.ui.data[0].dset[dt]['ex'] and self.ui.data[1].dset[dt]['ex']):
-                    s.basedisplay_button[dt]['state'] = 'disabled'
-                else:
-                    s.basedisplay_button[dt]['state'] = 'normal'
-            s.dim = np.shape(self.ui.data[0].dset[self.ui.dataselection]['d'])
-            s.level = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/4]*2)
-            s.window = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/2]*2)
+            for dt in self.ui.data[0].channels.values():
+                if (self.ui.data[0].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
+                    s.chdisplay_button[dt]['state'] = 'normal'
+                # else:
+                #     s.chdisplay_button[dt]['state'] = 'normal'
+            s.dim = np.shape(self.ui.data[0].dset['raw']['t1+']['d'])
+            s.level = np.array([self.ui.data[0].dset['raw']['t1+']['max']/4]*2)
+            s.window = np.array([self.ui.data[0].dset['raw']['t1+']['max']/2]*2)
             s.create_canvas()
         if False: # cbv will have to display just one overlay if necessary
             # update roiframe according to data loaded

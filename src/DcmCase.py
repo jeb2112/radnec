@@ -6,6 +6,7 @@ import glob
 import copy
 import re
 import logging
+import copy
 import subprocess
 import pickle
 import tkinter as tk
@@ -22,6 +23,11 @@ import ants
 
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice
+
+# convenience function
+def cp(item):
+    return copy.deepcopy(item)
+
 
 # a collection of multiple studies
 class Case():
@@ -153,36 +159,53 @@ class Case():
 
 class Study():
 
-    def __init__(self,case,d):
+    def __init__(self,case,d,channellist = None):
         self.studydir = d
         self.case = case
         self.date = None
         self.casedir = None
         self.localstudydir = None
-        self.dset = {'t1':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'zt1':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None},
-                     't1+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None},
-                     'zt1+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'flair':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'zflair':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'flair+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'zflair+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'zoverlay':{'d':None,'ex':False,'base':'flair+'},
-                     'cbvoverlay':{'d':None,'ex':False,'base':'t1+'},
-                     'cbv':{'d':None,'time':None,'affine':None,'ex':False},
-                     'ref':{'d':None,'affine':None,'ex':False},
-                     'ET':{'d':None,'affine':None,'ex':False},
+        if channellist is None:
+            self.channels = {0:'t1+',1:'flair'}
+        else:
+            self.channels = {k:v for k,v in enumerate(channellist)}
+
+        # list of attributes for each image volume
+        self.dprop = {'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0}
+        self.dset = {}
+        # reference image used for registrations
+        self.dset['ref'] = cp(self.dprop)
+        # main data 
+        self.dset['raw'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # cbv data, if available
+        self.dset['cbv'] = cp(self.dprop)
+        # blast segmentation
+        self.dset['seg_raw'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # z-scores of the raw data
+        self.dset['z'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of the z-scores within a masked ROI
+        self.dset['zoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of the CBV within a masked ROI
+        self.dset['cbvoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of the blast segmentation
+        self.dset['seg_raw_fusion'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # copy for display purposes which can be scaled for colormap. maybe not needed?
+        self.dset['seg_raw_fusion_d'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of the final ROI selected from blast segmentation
+        self.dset['seg_fusion'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # copy for colormap scaling
+        self.dset['seg_fusion_d'] = {v:cp(self.dprop) for v in self.channels.values()}
+
+        
+        # storage for masks derived from blast segmentation or nnUNet
+        self.mask =  {'ET':{'d':None,'affine':None,'ex':False},
                      'WT':{'d':None,'affine':None,'ex':False},
                      'ETblast':{'d':None,'affine':None,'ex':False},
                      'WTblast':{'d':None,'affine':None,'ex':False},
-                     'EThdbet':{'d':None,'affine':None,'ex':False},
-                     'WThdbet':{'d':None,'affine':None,'ex':False},
-                     'seg_raw_fusion':{'d':None,'ex':False},
-                     'seg_raw_fusion_d':{'d':None,'ex':False},
-                     'seg_fusion':{'d':None,'ex':False},
-                     'seg_fusion_d':{'d':None,'ex':False},
-                     'seg_raw':{'d':None,'ex':False}
-                     }
+                     'ETunet':{'d':None,'affine':None,'ex':False},
+                     'WTunet':{'d':None,'affine':None,'ex':False},
+                    }
+
         self.dtag = [k for k in self.dset.keys()]
         self.date = None
         return
@@ -218,30 +241,49 @@ class Study():
             os.system('gzip --force "{}"'.format(filename))
 
 
-
 class NiftiStudy(Study):
 
-    def __init__(self,case,d):
+    def __init__(self,case,d):    # convenience function
+
         super().__init__(case,d)
 
     def loaddata(self):
         files = os.listdir(self.studydir)
-        for dt in self.dtag: 
+        # load channels
+        for dt in self.channels.values(): 
             # by convention '_processed' is the final output from dcm preprocess()
             dt_file = dt + '_processed.nii.gz'
             if dt_file in files:
-                self.dset[dt]['d'],self.dset[dt]['affine'] = self.loadnifti(dt_file)
-                if dt in ['t1+','flair+']:
-                    self.dset[dt]['max'] = np.max(self.dset[dt]['d'])
-                    self.dset[dt]['min'] = np.min(self.dset[dt]['d'])
-                    self.dset[dt[:-1]]['max'] = self.dset[dt]['max']
-                    self.dset[dt[:-1]]['min'] = self.dset[dt]['min']
-                # for now, ET_processed is an HDBET segmentation, not a BLAST
-                # so store a copy separately
-                if dt in ['ET']:
-                    self.dset[dt+'hdbet']['d'] = np.copy(self.dset[dt]['d'])
-                    self.dset[dt+'hdbet']['ex'] = True
+                self.dset['raw'][dt]['d'],self.dset['raw'][dt]['affine'] = self.loadnifti(dt_file)
+                self.dset['raw'][dt]['max'] = np.max(self.dset['raw'][dt]['d'])
+                self.dset['raw'][dt]['min'] = np.min(self.dset['raw'][dt]['d'])
+                self.dset['raw'][dt]['ex'] = True
+            dt_file = 'z' + dt + '_processed.nii.gz'
+            if dt_file in files:
+                self.dset['z'][dt]['d'],_ = self.loadnifti(dt_file)
+                self.dset['z'][dt]['max'] = np.max(self.dset['z'][dt]['d'])
+                self.dset['z'][dt]['min'] = np.min(self.dset['z'][dt]['d'])
+                self.dset['z'][dt]['ex'] = True
+                # self.dset[dt[:-1]]['max'] = self.dset[dt]['max']
+                # self.dset[dt[:-1]]['min'] = self.dset[dt]['min']
+
+        # load other
+        for dt in ['cbv','ref']:
+            dt_file = dt + '_processed.nii.gz'
+            if dt_file in files:
+                self.dset[dt]['d'],_ = self.loadnifti(dt_file)
                 self.dset[dt]['ex'] = True
+
+        # load masks
+        for dt in ['ET','WT']:
+            dt_file = dt + '_processed.nii.gz'
+            if dt_file in files:
+                self.mask[dt]['d'],_ = self.loadnifti(dt_file)
+                self.mask[dt]['ex'] = True
+                # for now, ET_processed is an nnunet segmentation, not a BLAST
+                # so store a copy separately
+                self.mask[dt+'unet']['d'] = np.copy(self.mask[dt]['d'])
+                self.mask[dt+'unet']['ex'] = True
         return
 
 
@@ -257,7 +299,7 @@ class DcmStudy(Study):
         self.studytimeattrs = {'StudyDate':None,'StudyTime':None}
         self.date = None
         # params for z-score
-        self.params = {dt:{'mean':0,'std':0} for dt in ['t1','t1+','flair','flair+']}
+        self.params = {dt:{'mean':0,'std':0} for dt in ['t1','t1+','flair','flair']}
         # reference for talairach coords
         self.dset['ref']['d'],self.dset['ref']['affine'] = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',dir=os.path.join(self.config.UIdatadir,'mni152'))
         mask,_ = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a_mask.nii',dir=os.path.join(self.config.UIdatadir,'mni152'))
@@ -303,13 +345,10 @@ class DcmStudy(Study):
                 else:
                     dt = 't1+'
 
-            # if flair scans aren't designated pre/post, assume post
-            # this may change if a pre-contrast flair is added to protocol
+            # assuming flair scans aren't designated pre/post, and will generally
+            # be post, but never would be both.  
             elif any([f in ds0.SeriesDescription.lower() for f in ['flair','fluid']]):
-                if 'pre' in ds0.SeriesDescription.lower():
-                    dt = 'flair'
-                else:
-                    dt = 'flair+'
+                dt = 'flair'
 
             # not taking relcbv or relcbf, just relccbv
             # note this may be exported in a separate studydir, without a matching t1
@@ -414,7 +453,7 @@ class DcmStudy(Study):
 
         # resample to target matrix (t1+ for now)
         if True:
-            for dt in ['flair','flair+','cbv']:
+            for dt in ['flair','cbv']:
                 if self.dset[dt]['ex'] and self.dset['t1+']['ex']:
                     print('Resampling ' + dt + ' into target space...')
                     self.dset[dt]['d'],self.dset[dt]['affine'] = self.resamplet2(self.dset['t1+']['d'],self.dset[dt]['d'],
@@ -438,7 +477,7 @@ class DcmStudy(Study):
             # reference
             fixed_image = self.dset['t1+']['d']
 
-            for dt in ['t1pre','flair','flair+']:
+            for dt in ['t1pre','flair','t2']:
                 # fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
                 if self.dset[dt]['ex']:
                     moving_image = self.dset[dt]['d']
@@ -448,14 +487,14 @@ class DcmStudy(Study):
                                                 type='float',affine=self.ui.affine['t1'])
 
             # apply mask
-            for dt in ['t1','flair','flair+']:
+            for dt in ['t1','flair','t2']:
                 if self.dset[dt]['ex']:
                     self.dset[dt]['d'] = np.where(self.dset['t1+']['mask'],self.dset[dt]['d'],0)
 
 
         # attempt model extraction
         else:    
-            for dt in ['t1+','flair+','t1','flair']:
+            for dt in ['t1+','t2','t1','flair']:
                 if self.dset[dt]['ex']:
                     self.dset[dt]['d'],self.dset[dt]['mask'] = self.extractbrain2(self.dset[dt]['d'],affine=self.dset[dt]['affine'],fname=dt)
 
@@ -472,7 +511,7 @@ class DcmStudy(Study):
         if True:
             if self.dset['t1+']['ex']:
                 fixed_image = self.dset['t1+']['d']
-                for dt in ['t1','flair','flair+']:
+                for dt in ['t1','flair','t2']:
                     fname = os.path.join(self.localstudydir,dt+'_resampled.nii.gz')
                     if self.dset[dt]['ex']:
                         moving_image = self.dset[dt]['d']
@@ -486,13 +525,13 @@ class DcmStudy(Study):
 
         # bias correction.
         self.dbias = {} # working data for calculating z-scores
-        for dt in ['t1','t1+','flair','flair+']:
+        for dt in ['t1','t1+','flair','t2']:
             if self.dset[dt]['ex']:   
                 self.dset['z'+dt]['d'] = np.copy(self.n4bias(self.dset[dt]['d']))
                 self.dset['z'+dt]['ex'] = True
 
         # if necessary clip any negative values introduced by the processing
-        for dt in ['t1','t1+','flair','flair+']:
+        for dt in ['t1','t1+','flair','t2']:
             if self.dset[dt]['ex']:
                 if np.min(self.dset['z'+dt]['d']) < 0:
                     self.dset['z'+dt]['d'][self.dset['z'+dt]['d'] < 0] = 0
@@ -503,7 +542,7 @@ class DcmStudy(Study):
 
         # save nifti files for future use
         if False:
-            for dt in ['flair+','t1','t1+','flair']:
+            for dt in ['t2','t1','t1+','flair']:
                 if self.dset[dt]['ex']:
                     self.writenifti(self.dset[dt]['d'],os.path.join(self.localstudydir,dt+'_processed.nii'),
                                                 type='float',affine=self.dset['t1+']['affine'])
@@ -522,7 +561,7 @@ class DcmStudy(Study):
 
         X={}
         vset = {}
-        for dt2 in [('flair','t1'),('flair+','t1+')]:
+        for dt2 in [('flair','t1'),('flair','t2')]:
             if self.dset['z'+dt2[0]]['ex'] and self.dset['z'+dt2[1]]['ex']:
                 region_of_support = np.where(self.dset[dt2[0]]['d']*self.dset[dt2[1]]['d'] >0)
                 background = np.where(self.dset[dt2[0]]['d']*self.dset[dt2[1]]['d'] == 0)
@@ -566,7 +605,7 @@ class DcmStudy(Study):
             dpath = os.path.join(self.localstudydir,'nnunet')
             if not os.path.exists(dpath):
                 os.mkdir(dpath)
-        for dt,suffix in zip(['t1+','flair+'],['0000','0003']):
+        for dt,suffix in zip(['t1+','flair'],['0000','0003']):
             l1str = 'ln -s ' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + ' '
             l1str += os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')
             os.system(l1str)

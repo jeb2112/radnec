@@ -51,7 +51,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.windowlabel = None
         self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
-        self.basedisplay = tk.StringVar(value='t1+')
+        self.chdisplay = tk.StringVar(value='t1+')
         # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
         # blast window/level values for T1,T2. replace with self.wl
@@ -92,22 +92,22 @@ class CreateSliceViewerFrame(CreateFrame):
         # t1/t2 base layer selection
         self.normal_frame = ttk.Frame(self.parentframe,padding='0')
         self.normal_frame.grid(row=3,column=0,sticky='NW')
-        basedisplay_label = ttk.Label(self.normal_frame, text='base image: ')
-        basedisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
-        self.basedisplay_button = {}
-        self.basedisplay_button['t1'] = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.basedisplay,value='t1',
+        chdisplay_label = ttk.Label(self.normal_frame, text='base image: ')
+        chdisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
+        self.chdisplay_button = {}
+        self.chdisplay_button['t1'] = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.chdisplay,value='t1',
                                                     command=self.updateslice)
-        self.basedisplay_button['t1'].grid(column=1,row=0,sticky='w')
-        self.basedisplay_button['t1+'] = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.basedisplay,value='t1+',
+        self.chdisplay_button['t1'].grid(column=1,row=0,sticky='w')
+        self.chdisplay_button['t1+'] = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.chdisplay,value='t1+',
                                                     command=self.updateslice)
-        self.basedisplay_button['t1+'].grid(column=2,row=0,sticky='w')
-        self.basedisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.basedisplay,value='flair',
+        self.chdisplay_button['t1+'].grid(column=2,row=0,sticky='w')
+        self.chdisplay_button['t2'] = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.chdisplay,value='t2',
                                                     command=self.updateslice)
-        self.basedisplay_button['flair'].grid(column=3,row=0,sticky='w')
-        self.basedisplay_button['flair+'] = ttk.Radiobutton(self.normal_frame,text='FLAIR+',variable=self.basedisplay,value='flair+',
+        self.chdisplay_button['t2'].grid(column=3,row=0,sticky='w')
+        self.chdisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR+',variable=self.chdisplay,value='flair',
                                                     command=self.updateslice)
-        self.basedisplay_button['flair+'].grid(column=4,row=0,sticky='w')
-        # self.basedisplay_keys = ['t1','t1+','flair','flair+']
+        self.chdisplay_button['flair'].grid(column=4,row=0,sticky='w')
+        # self.chdisplay_keys = ['t1','t1+','flair','flair']
 
         # overlay type contour mask
         if False:

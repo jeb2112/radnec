@@ -35,8 +35,8 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
         return None
 
     # hard-coded indexing
-    t1 = data.dset['zt1+']['d']
-    flair = data.dset['zflair+']['d']
+    t1 = data.dset['z']['t1+']['d']
+    flair = data.dset['z']['flair']['d']
     # t2 = data['raw'][2]
     # t1_template = copy.deepcopy(t1)
 

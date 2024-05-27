@@ -58,7 +58,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.window = np.array([1.,1.],dtype='float')
         self.level = np.array([0.5,0.5],dtype='float')
         # window/level values for overlays and images. hard-coded for now.
-        self.wl = {'t1+':[600,300],'flair+':[600,300]}
+        self.wl = {'t1+':[600,300],'flair':[600,300]}
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
@@ -282,15 +282,16 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.ui.set_currentslice()
         if blast: # option for previewing enhancing in 2d
             self.ui.runblast(currentslice=slice)
-        if self.ui.roiframe.layer.get() == 'ET  ':
-            self.ax_img.set(data=self.ui.data[0].dset[self.ui.dataselection]['d'][slice,:,:])
+        if self.ui.roiframe.layer.get() == 'ET':
+            self.ax_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'][slice,:,:])
         else:
-            self.ax_img.set(data=self.ui.data[0].dset[self.ui.dataselection]['d'][slice,:,:])
-        self.ax2_img.set(data=self.ui.data[0].dset['flair+']['d'][slice,:,:])
+            self.ax_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'][slice,:,:])
+        # by convention, 2nd panel will always be flair, 1st panel could be t1,t1+ or t2
+        self.ax2_img.set(data=self.ui.data[0].dset[self.ui.dataselection]['flair']['d'][slice,:,:])
         # self.ax3_img.set(data=self.ui.data[0].dset[self.ui.base][self.sagcordisplay.get(),:,:,slicesag])
         # self.ax4_img.set(data=self.ui.data[0].dset[self.ui.base][self.sagcordisplay.get(),:,slicecor,:])
-        self.ax3_img.set(data=self.ui.data[0].dset[self.ui.base]['d'][:,:,slicesag])
-        self.ax4_img.set(data=self.ui.data[0].dset[self.ui.base]['d'][:,slicecor,:])
+        self.ax3_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'][:,:,slicesag])
+        self.ax4_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'][:,slicecor,:])
         # add current slice overlay
         self.update_labels()
 
@@ -396,7 +397,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
     def updatewl_fusion(self):
         if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
             # for ax in range(2):
-            for ax in ['t1+','flair+']:
+            for ax in ['t1+','flair']: # self.ui.channellist
                 # vmin = self.level[ax] - self.window[ax]/2
                 # vmax = self.level[ax] + self.window[ax]/2
                 vmin = self.wl[ax][1] - self.wl[ax][0]/2
@@ -407,7 +408,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
     # clip the raw data to window and level settings
     def clipwl_raw(self):
         # for ax in range(2):
-        for ax in ['t1+','flair+']:
+        for ax in ['t1+','flair']:
             vmin = self.wl[ax][1] - self.wl[ax][0]/2
             vmax = self.wl[ax][1] + self.wl[ax][0]/2
             self.ui.data[0].dset[ax]['d'] = self.ui.caseframe.rescale(self.ui.data[0].dset[ax]['d'],vmin=vmin,vmax=vmax)
@@ -426,20 +427,20 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         # Creates a matrix of voxels for normal brain slice
         # Gating Routine
 
-        if self.slicevolume_norm.get() == 0:
+        if self.slicevolume_norm.get() == 0: # probably not supporting this
             self.normalslice=self.ui.get_currentslice()
-            region_of_support = np.where(self.ui.data[0].dset['t1+']['d'][self.normalslice]*self.ui.data[0].dset['flair+']['d'][self.normalslice]>0) 
+            region_of_support = np.where(self.ui.data[0].dset['raw']['t1+']['d'][self.normalslice]*self.ui.data[0].dset['raw']['flair']['d'][self.normalslice]>0) 
             vset = np.zeros_like(region_of_support,dtype='float')
             # for i in range(3):
-            for i,ax in enumerate(['t1+','flair_+']):
-                vset[i] = np.ravel(self.ui.data[0].dset[ax]['d'][self.normalslice][region_of_support])
+            for i,ax in enumerate(['t1+','flair']):
+                vset[i] = np.ravel(self.ui.data[0].dset['raw'][ax]['d'][self.normalslice][region_of_support])
         else:
             self.normalslice = None
-            region_of_support = np.where(self.ui.data[0].dset['t1+']['d']*self.ui.data[0].dset['flair+']['d'] >0)
+            region_of_support = np.where(self.ui.data[0].dset['raw']['t1+']['d']*self.ui.data[0].dset['raw']['flair']['d'] >0)
             vset = np.zeros_like(region_of_support,dtype='float')
             # for i in range(3):
-            for i,ax in enumerate(['zt1+','zflair+']):
-                vset[i] = np.ravel(self.ui.data[0].dset[ax]['d'][region_of_support])
+            for i,ax in enumerate(['t1+','flair']):
+                vset[i] = np.ravel(self.ui.data[0].dset['z'][ax]['d'][region_of_support])
             # t1channel_normal = self.ui.data['raw'][0][region_of_support]
             # flairchannel_normal = self.ui.data['raw'][1][region_of_support]
             # t2channel_normal = self.ui.data['raw'][2][region_of_support]

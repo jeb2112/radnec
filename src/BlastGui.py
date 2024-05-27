@@ -43,8 +43,9 @@ class BlastGui(object):
         self.blastImage = PhotoImage(file=self.logoImg)
         self.normalslice = None
         self.currentslice = None # tracks the current slice widget variable
-        self.dataselection = 't1+' # current display, could be base image or overlay image
-        self.base = 't1+' # tracks basedisplay variable in sliceviewer. not fully implemented yet
+        self.dataselection = 'raw'
+        self.chselection = 't1+' # current display, could be base image or overlay image
+        self.base = 't1+' # tracks chdisplay variable in sliceviewer. not fully implemented yet
 
         # function
         self.functionlist = {'overlay':0,'BLAST':1}
@@ -176,7 +177,8 @@ class BlastGui(object):
         self.roiframe = self.roiframes[f]
         # state of current data selection whether overlay or base
         # for now just revert to a base display
-        self.dataselection = copy.copy(self.base)
+        self.dataselection = 'raw'
+        self.chselection = 't1+'
         if update:
             self.sliceviewerframe.updateslice()
         return
@@ -237,10 +239,17 @@ class BlastGui(object):
         #     self.sliceviewerframe.level = np.array([0.5,0.5],dtype='float')
         #     self.updateslice()
 
-        self.data[0].dset['seg_raw_fusion']['d'] = generate_blast_overlay(self.data[0].dset[self.sliceviewerframe.basedisplay.get()]['d'],
-                                                       self.data[0].dset['seg_raw']['d'],layer=self.roiframe.layer.get(),
-                                                       overlay_intensity=self.config.OverlayIntensity)
-        self.data[0].dset['seg_raw_fusion_d']['d'] = copy.deepcopy(self.data[0].dset['seg_raw_fusion']['d'])
+        chlist = [self.chselection]
+        if self.function.get() == 'BLAST':
+            chlist.append('flair')
+
+        for ch in chlist:
+            # seg_raw doesn't have 'flair' yet
+            self.data[0].dset['seg_raw_fusion'][ch]['d'] = generate_blast_overlay(self.data[0].dset['raw'][ch]['d'],
+                                                        self.data[0].dset['seg_raw'][self.chselection]['d'],layer=self.roiframe.layer.get(),
+                                                        overlay_intensity=self.config.OverlayIntensity)
+            self.data[0].dset['seg_raw_fusion'][ch]['ex'] = True
+            self.data[0].dset['seg_raw_fusion_d'][ch]['d'] = copy.deepcopy(self.data[0].dset['seg_raw_fusion'][ch]['d'])
             
         if self.roiframe.finalROI_overlay_value.get() == True:
             self.dataselection = 'seg_fusion_d'
@@ -339,13 +348,18 @@ class BlastGui(object):
             self.message.set(msg)
         self.sliceviewerframe.messagelabel['text'] = msg
 
+    # not sure if this will be needed
     def set_dataselection(self):
-        self.dataselection = self.sliceviewerframe.basedisplay.get()
+        self.dataselection = self.sliceviewerframe.chdisplay.get()
+
+    def set_chselection(self):
+        self.chselection = self.sliceviewerframe.chdisplay.get()
 
     def resetUI(self):
         self.normalslice = None
         self.currentslice = None
-        self.dataselection = 't1+'
+        self.dataselection = 'raw'
+        self.chselection = 't1+'
 
         self.data = {}
         self.blastdata = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},

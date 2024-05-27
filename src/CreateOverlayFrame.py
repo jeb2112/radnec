@@ -167,7 +167,7 @@ class CreateOverlayFrame(CreateFrame):
             self.sliderframe[ovly].lift()
             self.sliderframe['dummy'].lower(self.sliderframe[ovly])
             ovly_str = ovly + 'overlay'
-            base = self.ui.sliceviewerframe.basedisplay.get()
+            ch = self.ui.sliceviewerframe.chdisplay.get()
             mask = self.ui.sliceviewerframe.maskdisplay.get()
             if ovly == 'z':
                 # check for available data. or implement by deactivating button.
@@ -175,7 +175,7 @@ class CreateOverlayFrame(CreateFrame):
                     if not self.ui.data[s].dset[base]['ex']:
                         print('{} data not loaded'.format(base))
                         return
-                ovly_data = ovly + base
+                ovly_data = ovly + ch
             else:
                 ovly_data = ovly
 
@@ -183,29 +183,31 @@ class CreateOverlayFrame(CreateFrame):
 
             # generate a new overlay
             for s in self.ui.data:
-                if not self.ui.data[s].dset[ovly_str]['ex'] or \
-                    self.ui.data[s].dset[ovly_str]['base'] != base or \
-                    self.ui.data[s].dset[ovly_str]['mask'] != mask:
+                if not self.ui.data[s].dset[ovly_str][ch]['ex']:
+                    # self.ui.data[s].dset[ovly_str][ch]['base'] != ch or \
+                    # self.ui.data[s].dset[ovly_str][ch]['mask'] != mask:
 
                     # additional check if box not previously grayed out.
                     # eg for cbv there might only be one DSC study, so just
                     # use the base grayscale for the dummy overlay image
-                    if not self.ui.data[s].dset[ovly_data]['ex']:
-                        self.ui.data[s].dset[ovly_str]['d'] = np.copy(self.ui.data[s].dset[base]['d'])
-                        self.ui.data[s].dset[ovly_str]['ex'] = False
-                        self.ui.data[s].dset[ovly_str]['base'] = base
-                        self.ui.data[s].dset[ovly_str]['mask'] = mask
+                    if not self.ui.data[s].dset[ovly][ch]['ex']:
+                        self.ui.data[s].dset[ovly_str][ch]['d'] = np.copy(self.ui.data[s].dset['raw'][ch]['d'])
+                        self.ui.data[s].dset[ovly_str][ch]['ex'] = False
+                        # self.ui.data[s].dset[ovly_str][ch]['base'] = ch
+                        # self.ui.data[s].dset[ovly_str][ch]['mask'] = mask
                     else:
 
-                        self.ui.data[s].dset[ovly_str]['d'] = generate_overlay(
-                            self.ui.data[s].dset[base]['d'],
-                            self.ui.data[s].dset[ovly_data]['d']*self.ui.data[s].dset['ET']['d'],
+                        self.ui.data[s].dset[ovly_str][ch]['d'] = generate_overlay(
+                            self.ui.data[s].dset['raw'][ch]['d'],
+                            self.ui.data[s].dset[ovly][ch]['d']*self.ui.data[s].mask['ET']['d'],
                             image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],
                             overlay_wl = self.ui.sliceviewerframe.wl[ovly],
                             overlay_intensity=self.config.OverlayIntensity)
-                        self.ui.data[s].dset[ovly_str]['ex'] = True
-                        self.ui.data[s].dset[ovly_str]['base'] = base
-                        self.ui.data[s].dset[ovly_str]['mask'] = mask
+                        self.ui.data[s].dset[ovly_str][ch]['ex'] = True
+                        # these may be redundant now
+                        if False:
+                            self.ui.data[s].dset[ovly_str][ch]['base'] = ch
+                            self.ui.data[s].dset[ovly_str][ch]['mask'] = mask
 
                     # self.ui.data['overlay_d'] = copy.deepcopy(self.ui.data['overlay']),
             self.ui.dataselection = ovly_str

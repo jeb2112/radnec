@@ -51,8 +51,8 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.windowlabel = None
         self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
-        self.basedisplay = tk.StringVar(value='t1+')
-        self.maskdisplay = tk.StringVar(value='hdbet')
+        self.chdisplay = tk.StringVar(value='t1+')
+        self.maskdisplay = tk.StringVar(value='unet')
         # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
         # blast window/level values for T1,T2. replace with self.wl
@@ -90,30 +90,30 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.normal_frame = ttk.Frame(self.parentframe,padding='0')
         self.normal_frame.grid(row=3,column=0,sticky='NW')
 
-        basedisplay_label = ttk.Label(self.normal_frame, text='base image: ')
-        basedisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
-        self.basedisplay_button = {}
-        self.basedisplay_button['t1'] = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.basedisplay,value='t1',
+        chdisplay_label = ttk.Label(self.normal_frame, text='channel: ')
+        chdisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
+        self.chdisplay_button = {}
+        self.chdisplay_button['t1'] = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.chdisplay,value='t1',
+                                                    command=self.updateslice,state='disabled')
+        self.chdisplay_button['t1'].grid(column=1,row=0,sticky='w')
+        self.chdisplay_button['t1+'] = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.chdisplay,value='t1+',
                                                     command=self.updateslice)
-        self.basedisplay_button['t1'].grid(column=1,row=0,sticky='w')
-        self.basedisplay_button['t1+'] = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.basedisplay,value='t1+',
+        self.chdisplay_button['t1+'].grid(column=2,row=0,sticky='w')
+        self.chdisplay_button['t2'] = ttk.Radiobutton(self.normal_frame,text='T2',variable=self.chdisplay,value='t2',
+                                                    command=self.updateslice,state='disabled')
+        self.chdisplay_button['t2'].grid(column=3,row=0,sticky='w')
+        self.chdisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR+',variable=self.chdisplay,value='flair',
                                                     command=self.updateslice)
-        self.basedisplay_button['t1+'].grid(column=2,row=0,sticky='w')
-        self.basedisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.basedisplay,value='flair',
-                                                    command=self.updateslice)
-        self.basedisplay_button['flair'].grid(column=3,row=0,sticky='w')
-        self.basedisplay_button['flair+'] = ttk.Radiobutton(self.normal_frame,text='FLAIR+',variable=self.basedisplay,value='flair+',
-                                                    command=self.updateslice)
-        self.basedisplay_button['flair+'].grid(column=4,row=0,sticky='w')
-        # self.basedisplay_keys = ['t1','t1+','flair','flair+']
+        self.chdisplay_button['flair'].grid(column=4,row=0,sticky='w')
+        # self.chdisplay_keys = ['t1','t1+','flair','flair']
 
         # BLAST/HDBET mask selection
         maskdisplay_label = ttk.Label(self.normal_frame, text='mask: ')
         maskdisplay_label.grid(row=1,column=0,padx=(50,0),sticky='e')
         self.maskdisplay_button = {}
-        self.maskdisplay_button['hdbet'] = ttk.Radiobutton(self.normal_frame,text='HDBET',variable=self.maskdisplay,value='hdbet',
+        self.maskdisplay_button['unet'] = ttk.Radiobutton(self.normal_frame,text='UNet',variable=self.maskdisplay,value='unet',
                                                     command=self.updatemask)
-        self.maskdisplay_button['hdbet'].grid(column=1,row=1,sticky='w')
+        self.maskdisplay_button['unet'].grid(column=1,row=1,sticky='w')
         self.maskdisplay_button['blast'] = ttk.Radiobutton(self.normal_frame,text='BLAST',variable=self.maskdisplay,value='blast',
                                                     command=self.updatemask)
         self.maskdisplay_button['blast'].grid(column=2,row=1,sticky='w')
@@ -253,24 +253,24 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         slicecor = self.currentcorslice.get()
         self.ui.set_currentslice()
         if 'overlay' in self.ui.dataselection:
-            if self.basedisplay.get() != self.ui.data[0].dset[self.ui.dataselection]['base']:
+            if not self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['ex']:
                 # recalculate for new base image
                 self.ui.roiframe.overlay_callback(updateslice=False)
         else: 
-            self.ui.dataselection = self.basedisplay.get()
+            self.ui.chselection = self.chdisplay.get()
         # update the image data
-        self.ax_img.set(data=self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection]['d'][slice])
-        self.ax2_img.set(data=self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection]['d'][slice])
+        self.ax_img.set(data=self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection][self.ui.chselection]['d'][slice])
+        self.ax2_img.set(data=self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection][self.ui.chselection]['d'][slice])
         # add current slice overlay
         self.update_labels(colorbar='overlay' in self.ui.dataselection)
 
         if 'overlay' in self.ui.dataselection:
             # need to check in case overlay only available for one study
-            if self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection]['ex']:   
+            if self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection][self.ui.chselection]['ex']:   
                 self.ax_img.set(cmap='viridis')
             else:
                 self.ax_img.set(cmap='gray')
-            if self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection]['ex']:   
+            if self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection][self.ui.chselection]['ex']:   
                 self.ax2_img.set(cmap='viridis')
             else:
                 self.ax2_img.set(cmap='gray')
