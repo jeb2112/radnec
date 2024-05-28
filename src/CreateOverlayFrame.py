@@ -236,67 +236,6 @@ class CreateOverlayFrame(CreateFrame):
             self.ui.sliceviewerframe.wl[layer] = [sval_max-sval_min,(sval_max-sval_min)/2+sval_min]
         except KeyError as e:
             print(e)
-
-    # and ROI layer options menu
-    def layerROI_callback(self,layer=None,updateslice=True,updatedata=True):
-
-        roi = self.ui.get_currentroi()
-        if roi == 0:
-            return
-        # if in the opposite mode, then switch
-        self.overlay_value.set(False)
-        self.finalROI_overlay_value.set(True)
-        self.ui.dataselection = 'seg_fusion_d'
-
-        self.ui.sliceviewerframe.updatewl_fusion()
-
-        if layer is None:
-            layer = self.layerROI.get()
-        else:
-            self.layerROI.set(layer)
-        self.ui.currentROIlayer = self.layerROI.get()
-        
-        self.updatesliders()
-
-        # a convenience reference
-        data = self.ui.roi[roi].data
-        # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
-        # then also copied back to main ui data
-        # TODO: check mouse event, versus layer_callback called by statement
-        if self.ui.sliceviewerframe.overlaytype.get() == 0:
-            data['seg_fusion'] = generate_overlay(self.ui.data[0].dset[self.ui.base]['d'],data['seg'],contour=data['contour'],layer=layer,
-                                                        overlay_intensity=self.config.OverlayIntensity)
-        else:
-            data['seg_fusion'] = generate_overlay(self.ui.data[0].dset[self.ui.base],data['seg'],layer=layer,
-                                                        overlay_intensity=self.config.OverlayIntensity)
-
-        data['seg_fusion_d'] = copy.deepcopy(data['seg_fusion'])
-
-        if updatedata:
-            self.updateData()
-
-        if updateslice:
-            self.ui.updateslice()
-
-        return
-
-    def update_layermenu_options(self,roi):
-        roi = self.ui.get_currentroi()
-        if self.ui.roi[roi].data['WT'] is None:
-            layerlist = ['ET','TC']
-        elif self.ui.roi[roi].data['ET'] is None:
-            layerlist = ['WT']
-        else:
-            layerlist = self.layerlist['seg']
-        menu = self.layerROImenu['menu']
-        menu.delete(0,'end')
-        for s in layerlist:
-            menu.add_command(label=s,command = tk._setit(self.layerROI,s,self.layerROI_callback))
-        self.layerROI.set(layerlist[0])
-    
-    def set_currentroi(self,var,index,mode):
-        if mode == 'write':
-            self.ui.set_currentroi()    
        
     
     def resetROI(self):

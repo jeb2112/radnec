@@ -291,9 +291,10 @@ class CreateROIFrame(CreateFrame):
                                                         data['seg'],contour=data['contour'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
         else:
-            data['seg_fusion'] = generate_blast_overlay(self.ui.data[0].dset['raw'][self.ui.chselection]['d'],
-                                                             data['seg'],layer=layer,
-                                                        overlay_intensity=self.config.OverlayIntensity)
+            for ch in [self.ui.chselection,'flair']:
+                data['seg_fusion'][ch] = generate_blast_overlay(self.ui.data[0].dset['raw'][ch]['d'],
+                                                                data['seg'],layer=layer,
+                                                            overlay_intensity=self.config.OverlayIntensity)
 
         data['seg_fusion_d'] = copy.deepcopy(data['seg_fusion'])
 
@@ -621,11 +622,12 @@ class CreateROIFrame(CreateFrame):
             self.ROIstats()
         # fusionstack = np.zeros((2,155,240,240))
         # note some duplicate calls to generate_overlay should be removed
-        fusionstack = generate_blast_overlay(self.ui.data[0].dset['raw'][self.ui.chselection]['d'],
+        for ch in [self.ui.chselection,'flair']:
+            fusionstack = generate_blast_overlay(self.ui.data[0].dset['raw'][ch]['d'],
                                              self.ui.roi[roi].data['seg'],
                                             layer=self.ui.roiframe.layer.get(),
                                             overlay_intensity=self.config.OverlayIntensity)
-        self.ui.roi[roi].data['seg_fusion'] = fusionstack
+            self.ui.roi[roi].data['seg_fusion'][ch] = fusionstack
         self.ui.roi[roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[roi].data['seg_fusion'])
         # need to update ui data here?? or just let it run from layerROI_callback below
         if False:
@@ -807,7 +809,7 @@ class CreateROIFrame(CreateFrame):
                 self.ui.roi[roi].data['seg'] = 4*self.ui.roi[roi].data['ET'] + \
                                                     2*self.ui.roi[roi].data['TC']
             else:
-                self.ui.roi[roi].data['seg'] += 4*self.ui.roi[roi].data['ET'] + \
+                self.ui.roi[roi].data['seg'] = 4*self.ui.roi[roi].data['ET'] + \
                                                     2*self.ui.roi[roi].data['TC'] + \
                                                     1*self.ui.roi[roi].data['WT']
                 self.ui.roi[roi].status = True # ROI has both compartments selected                                                    
@@ -974,7 +976,8 @@ class CreateROIFrame(CreateFrame):
         # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
         layer = self.layer.get()
         for dt in ['seg_fusion_d','seg_fusion']:
-            self.ui.data[0].dset[dt][self.ui.chselection]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
+            for ch in [self.ui.chselection,'flair']:
+                self.ui.data[0].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt][ch])
         for dt in ['ET','WT']:
             self.ui.data[0].mask[dt+'blast']['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
             self.ui.data[0].mask[dt+'blast']['ex'] = True

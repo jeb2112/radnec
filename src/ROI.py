@@ -7,7 +7,9 @@ class ROI():
 
         # segmentation/contour masks
         self.data = {'WT':None,'ET':None,'TC':None,'contour':{'WT':None,'ET':None},
-                     'seg_fusion':None,'seg_fusion_d':None}
+                     'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
+                     'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
+                     'seg':None}
 
         # ROI selection coordinates
         self.coords = {'ET':{},'necrosis':{},'T2 hyper':{}}

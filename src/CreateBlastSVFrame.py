@@ -285,7 +285,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         # which data array to display. 'd' is general
         d = 'd'
         # special case arrangement for displaying BLAST overlays by layer type. slightly awkward.
-        if self.ui.roiframe.enhancingROI_overlay_value.get() or self.ui.roiframe.finalROI_overlay_value.get():
+        if self.ui.roiframe.enhancingROI_overlay_value.get():
             d = 'd'+self.ui.roiframe.layer.get()
         self.ax_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection][d][slice,:,:])
         # by convention, 2nd panel will always be flair, 1st panel could be t1,t1+ or t2
