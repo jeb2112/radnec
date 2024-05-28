@@ -333,8 +333,13 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
             self.axs['colorbar_A'] = self.fig.add_axes([self.xyfig['colorbar_A'][0],self.xyfig['colorbar_A'][1],.02,0.5])
             ovly = self.ui.roiframe.overlaytype.get()
 
-            ytick0 = int(self.wl[ovly][1]-self.wl[ovly][0]/2)
-            ytick1 = int(self.wl[ovly][1]+self.wl[ovly][0]/2)
+            # special case for tempo. not sure how to code yet.
+            if ovly == 'tempo':
+                ytick0 = int(self.wl[ovly][1]-self.wl[ovly][0]/2)-2
+                ytick1 = int(self.wl[ovly][1]+self.wl[ovly][0]/2)-2
+            else:
+                ytick0 = int(self.wl[ovly][1]-self.wl[ovly][0]/2)
+                ytick1 = int(self.wl[ovly][1]+self.wl[ovly][0]/2)
             ntick = 4
             ytickinc = np.round(np.power(10,np.round(np.log10(ytick1-ytick0)))/ntick)
             yticks = np.arange(ytick0,ytick1,ytickinc)
@@ -355,8 +360,14 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
             # correct clim values into existence, have to separately call set_clim on the axesImage scalar
             # mappable. Yet this does not then change the display of the scalar mappable in the slightest, which was correct
             # and remains correct. it only changes the ticks and labels of the colorbar.
-            ovly_data = self.ui.roiframe.overlaytype.get()
-            self.ax_img.set_clim((self.wl[ovly_data][1]-self.wl[ovly_data][0]/2,self.wl[ovly_data][1]+self.wl[ovly_data][0]/2))
+
+            # in addition, a further temporary arrangement for tempo until coded properly. the tempo nifti mask file
+            # is uint8 with background/zero == 2. have to reset to remove that offset of 2 here.
+            if ovly == 'tempo':
+                self.ax_img.set_clim((self.wl[ovly][1]-self.wl[ovly][0]/2-2,self.wl[ovly][1]+self.wl[ovly][0]/2-2))
+            else:
+                self.ax_img.set_clim((self.wl[ovly][1]-self.wl[ovly][0]/2,self.wl[ovly][1]+self.wl[ovly][0]/2))
+
             plt.setp(plt.getp(self.labels['colorbar_A'].ax.axes,'yticklabels'),color='w')
             
 

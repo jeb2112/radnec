@@ -68,10 +68,9 @@ class BlastGui(object):
 
         self.createGeneralLayout()
 
-        # hard-coded for debugging
+        # hard-coded entries for debugging
         if self.debug:
-
-            # load a nifti case
+            # load a nifti case for BLAST
             if True:
                 self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
                 self.caseframe.datadirentry_callback()
@@ -91,7 +90,20 @@ class BlastGui(object):
 
             # 00005 75,105
             # 00002 53,81
+            # load a tempo case
             if False:
+                self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
+                self.caseframe.datadirentry_callback()
+                self.caseframe.casename.set('M0001')
+                self.caseframe.case_callback()
+                self.roiframe.overlay_value.set(True)                
+                self.roiframe.overlay_type.set('tempo')
+                self.roiframe.overlay_callback()
+
+
+            if False:
+                # 00005 75,105
+                # 00002 53,81
                 self.caseframe.n4_check_value.set(0)
                 self.caseframe.casename.set('00006')
                 self.caseframe.case_callback()

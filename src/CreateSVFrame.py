@@ -59,7 +59,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.level = np.array([0.5,0.5],dtype='float')
         # window/level values for overlays and images. hard-coded for now.
         # RELCCBV raw units off scanner are [0,4095]
-        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023]}
+        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023],'tempo':[2,2]}
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
@@ -111,14 +111,14 @@ class CreateSliceViewerFrame(CreateFrame):
 
         # overlay type contour mask
         if False:
-            overlaytype_label = ttk.Label(self.normal_frame, text='overlay type: ')
-            overlaytype_label.grid(row=1,column=0,padx=(50,0),sticky='e')
-            self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='z-score',variable=self.overlaytype,value=0,
+            overlay_type_label = ttk.Label(self.normal_frame, text='overlay type: ')
+            overlay_type_label.grid(row=1,column=0,padx=(50,0),sticky='e')
+            self.overlay_type_button = ttk.Radiobutton(self.normal_frame,text='z-score',variable=self.overlay_type,value=0,
                                                         command=Command(self.updateslice,wl=True))
-            self.overlaytype_button.grid(row=1,column=1,sticky='w')
-            self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='CBV',variable=self.overlaytype,value=1,
+            self.overlay_type_button.grid(row=1,column=1,sticky='w')
+            self.overlay_type_button = ttk.Radiobutton(self.normal_frame,text='CBV',variable=self.overlay_type,value=1,
                                                         command=Command(self.updateslice,wl=True))
-            self.overlaytype_button.grid(row=1,column=2,sticky='w')
+            self.overlay_type_button.grid(row=1,column=2,sticky='w')
 
         # messages text box
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -173,8 +173,6 @@ class CreateSliceViewerFrame(CreateFrame):
             tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
         self.frame.configure(width=w,height=h)
      
-    
-
     # TODO: latency problem for fusions. 
     # for now, don't allow to call this function if overlay is selected
     def updatewl(self,ax=0,lval=None,wval=None):

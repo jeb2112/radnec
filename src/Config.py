@@ -1,5 +1,8 @@
 import os, sys
 import logging
+from matplotlib.colors import ListedColormap
+import matplotlib.cm as cm
+import numpy as np
 
 class Config(object):
     def __init__(self):
@@ -81,3 +84,9 @@ class Config(object):
 
         # default BLAST overlay, contour or area
         self.BlastOverlayType = 1
+        self.MaskType = 'ET'
+
+        # colormaps
+        self.OverlayCmap = {'z':'viridis','cbv':'viridis','tempo':'tempo'}
+        cmap_tempo = ListedColormap(np.array([[0 ,.5, 0, 1],[0,0,0,1],[0, 1, 0, 1]]))
+        cm.register_cmap(name='tempo',cmap=cmap_tempo)
