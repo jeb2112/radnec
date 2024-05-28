@@ -52,7 +52,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
         self.sagcordisplay = tk.IntVar(value=0)
-        self.overlaytype = tk.IntVar(value=self.config.BlastOverlayType)
+        self.overlay_type = tk.IntVar(value=self.config.BlastOverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
         # window/level values for T1,T2
         self.window = np.array([1.,1.],dtype='float')
@@ -105,14 +105,14 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.sagcordisplay_button.grid(column=6,row=0,sticky='w')
 
         # overlay type contour mask
-        overlaytype_label = ttk.Label(self.normal_frame, text='overlay type: ')
-        overlaytype_label.grid(row=1,column=4,padx=(50,0),sticky='e')
-        self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='C',variable=self.overlaytype,value=0,
+        overlay_type_label = ttk.Label(self.normal_frame, text='overlay type: ')
+        overlay_type_label.grid(row=1,column=4,padx=(50,0),sticky='e')
+        self.overlay_type_button = ttk.Radiobutton(self.normal_frame,text='C',variable=self.overlay_type,value=0,
                                                     command=Command(self.updateslice,wl=True))
-        self.overlaytype_button.grid(row=1,column=5,sticky='w')
-        self.overlaytype_button = ttk.Radiobutton(self.normal_frame,text='M',variable=self.overlaytype,value=1,
+        self.overlay_type_button.grid(row=1,column=5,sticky='w')
+        self.overlay_type_button = ttk.Radiobutton(self.normal_frame,text='M',variable=self.overlay_type,value=1,
                                                     command=Command(self.updateslice,wl=True))
-        self.overlaytype_button.grid(row=1,column=6,sticky='w')
+        self.overlay_type_button.grid(row=1,column=6,sticky='w')
 
         # messages text frame
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)

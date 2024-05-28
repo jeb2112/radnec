@@ -170,7 +170,7 @@ class CreateOverlayFrame(CreateFrame):
     # use lift/lower instead
     def slider_state(self,s=None):
         # if s is None:
-        s = self.overlaytype.get()
+        s = self.overlay_type.get()
         for m in ['min','max']:
             for k in self.sliders.keys():
                 if k == s:
@@ -188,21 +188,16 @@ class CreateOverlayFrame(CreateFrame):
     def overlay_callback(self,updateslice=True,wl=False):
 
         if self.overlay_value.get() == True:
-            ovly = self.overlaytype.get()
+            ovly = self.overlay_type.get()
             self.sliderframe[ovly].lift()
             self.sliderframe['dummy'].lower(self.sliderframe[ovly])
             ovly_str = ovly + 'overlay'
             ch = self.ui.sliceviewerframe.chdisplay.get()
             mask = self.ui.sliceviewerframe.maskdisplay.get()
-            if ovly == 'z':
-                # check for available data. or implement by deactivating button.
-                if False:
-                    if not self.ui.data[s].dset[base]['ex']:
-                        print('{} data not loaded'.format(base))
-                        return
-                ovly_data = ovly + ch
+            if ovly == 'tempo':
+                colormap = 'tempo'
             else:
-                ovly_data = ovly
+                colormap = 'viridis'
 
             # self.ui.sliceviewerframe.updatewl_fusion()
 
@@ -217,17 +212,19 @@ class CreateOverlayFrame(CreateFrame):
                     # use the base grayscale for the dummy overlay image
                     if not self.ui.data[s].dset[ovly][ch]['ex']:
                         self.ui.data[s].dset[ovly_str][ch]['d'] = np.copy(self.ui.data[s].dset['raw'][ch]['d'])
-                        self.ui.data[s].dset[ovly_str][ch]['ex'] = False
+                        self.ui.data[s].dset[ovly_str][ch]['ex'] = True
                         # self.ui.data[s].dset[ovly_str][ch]['base'] = ch
                         # self.ui.data[s].dset[ovly_str][ch]['mask'] = mask
                     else:
 
                         self.ui.data[s].dset[ovly_str][ch]['d'] = generate_overlay(
                             self.ui.data[s].dset['raw'][ch]['d'],
-                            self.ui.data[s].dset[ovly][ch]['d']*self.ui.data[s].mask['ET']['d'],
+                            self.ui.data[s].dset[ovly][ch]['d'],
+                            self.ui.data[s].mask['ET']['d'],
                             image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],
                             overlay_wl = self.ui.sliceviewerframe.wl[ovly],
-                            overlay_intensity=self.config.OverlayIntensity)
+                            overlay_intensity=self.config.OverlayIntensity,
+                            colormap = colormap)
                         self.ui.data[s].dset[ovly_str][ch]['ex'] = True
                         # these may be redundant now
                         if False:

@@ -344,10 +344,14 @@ class Study():
         self.dset['seg_raw'] = {v:cp(self.dprop) for v in self.channels.values()}
         # z-scores of the raw data
         self.dset['z'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # tempo regression differences of the raw data
+        self.dset['tempo'] = {v:cp(self.dprop) for v in self.channels.values()}
         # color overlay of the z-scores within a masked ROI
         self.dset['zoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
         # color overlay of the CBV within a masked ROI
         self.dset['cbvoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of the regression.
+        self.dset['tempooverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
         # color overlay of the blast segmentation. has different keys for separate layers
         self.dset['seg_raw_fusion'] = {v:cp(self.dprop_layer) for v in self.channels.values()}
         # copy for display purposes which can be scaled for colormap. maybe not needed?
@@ -459,17 +463,20 @@ class NiftiStudy(Study):
                 self.dset['z'][dt]['ex'] = True
                 # self.dset[dt[:-1]]['max'] = self.dset[dt]['max']
                 # self.dset[dt[:-1]]['min'] = self.dset[dt]['min']
+            dt_file = 'tempo' + dt + '_processed.nii.gz'
+            if dt_file in files:
+                self.dset['tempo'][dt]['d'],_ = self.loadnifti(dt_file)
+                # special case for tempo. subtract offset of +2
+                self.dset['tempo'][dt]['d'] -= 2
+                self.dset['tempo'][dt]['max'] = np.max(self.dset['tempo'][dt]['d'])
+                self.dset['tempo'][dt]['min'] = np.min(self.dset['tempo'][dt]['d'])
+                self.dset['tempo'][dt]['ex'] = True
 
         # load other
-        for dt in ['cbv','ref','tempo']:
+        for dt in ['cbv','ref']:
             dt_file = dt + '_processed.nii.gz'
             if dt_file in files:
-                self.dset[dt]['d'],_ = self.loadnifti(dt_file)
-
-                # special case for tempo. subtract offset of +2
-                if 'tempo' in dt:
-                    self.dset[dt]['d'] -= 2
-                    
+                self.dset[dt]['d'],_ = self.loadnifti(dt_file)                    
                 self.dset[dt]['ex'] = True
 
         # load masks

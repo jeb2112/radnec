@@ -47,7 +47,7 @@ class CreateROIFrame(CreateFrame):
         self.thresholds['T2 hyper']['flair'] = tk.DoubleVar(value=self.ui.config.T2default)
         self.thresholds['ET']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[0])
         self.thresholds['T2 hyper']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[1])
-        self.overlaytype = tk.IntVar(value=0)
+        self.overlay_type = tk.IntVar(value=0)
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layerROI = tk.StringVar(value='ET')
@@ -286,7 +286,7 @@ class CreateROIFrame(CreateFrame):
         # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
-        if self.ui.sliceviewerframe.overlaytype.get() == 0: # contour not updated lately
+        if self.ui.sliceviewerframe.overlay_type.get() == 0: # contour not updated lately
             data['seg_fusion'] = generate_blast_overlay(self.ui.data[0].dset['raw'][self.ui.chselection]['d'],
                                                         data['seg'],contour=data['contour'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
