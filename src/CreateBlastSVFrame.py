@@ -282,16 +282,16 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.ui.set_currentslice()
         if blast: # option for previewing enhancing in 2d
             self.ui.runblast(currentslice=slice)
-        if self.ui.roiframe.layer.get() == 'ET':
-            self.ax_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'][slice,:,:])
-        else:
-            self.ax_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'][slice,:,:])
+        # which data array to display. 'd' is general
+        d = 'd'
+        # special case arrangement for displaying BLAST overlays by layer type. slightly awkward.
+        if self.ui.roiframe.enhancingROI_overlay_value.get() or self.ui.roiframe.finalROI_overlay_value.get():
+            d = 'd'+self.ui.roiframe.layer.get()
+        self.ax_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection][d][slice,:,:])
         # by convention, 2nd panel will always be flair, 1st panel could be t1,t1+ or t2
-        self.ax2_img.set(data=self.ui.data[0].dset[self.ui.dataselection]['flair']['d'][slice,:,:])
-        # self.ax3_img.set(data=self.ui.data[0].dset[self.ui.base][self.sagcordisplay.get(),:,:,slicesag])
-        # self.ax4_img.set(data=self.ui.data[0].dset[self.ui.base][self.sagcordisplay.get(),:,slicecor,:])
-        self.ax3_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'][:,:,slicesag])
-        self.ax4_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'][:,slicecor,:])
+        self.ax2_img.set(data=self.ui.data[0].dset[self.ui.dataselection]['flair'][d][slice,:,:])
+        self.ax3_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection][d][:,:,slicesag])
+        self.ax4_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection][d][:,slicecor,:])
         # add current slice overlay
         self.update_labels()
 

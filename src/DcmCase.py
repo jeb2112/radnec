@@ -171,7 +171,11 @@ class Study():
             self.channels = {k:v for k,v in enumerate(channellist)}
 
         # list of attributes for each image volume
+        # 'd' is the main data array,
+        # 'ex' is existence as a convenience for checking whether populated
         self.dprop = {'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0}
+        # special case for blast overlay layers
+        self.dprop_layer = {'dET':None,'dT2 hyper':None,'ex':False}
         self.dset = {}
         # reference image used for registrations
         self.dset['ref'] = cp(self.dprop)
@@ -187,10 +191,10 @@ class Study():
         self.dset['zoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
         # color overlay of the CBV within a masked ROI
         self.dset['cbvoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
-        # color overlay of the blast segmentation
-        self.dset['seg_raw_fusion'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of the blast segmentation. has different keys for separate layers
+        self.dset['seg_raw_fusion'] = {v:cp(self.dprop_layer) for v in self.channels.values()}
         # copy for display purposes which can be scaled for colormap. maybe not needed?
-        self.dset['seg_raw_fusion_d'] = {v:cp(self.dprop) for v in self.channels.values()}
+        self.dset['seg_raw_fusion_d'] = {v:cp(self.dprop_layer) for v in self.channels.values()}
         # color overlay of the final ROI selected from blast segmentation
         self.dset['seg_fusion'] = {v:cp(self.dprop) for v in self.channels.values()}
         # copy for colormap scaling

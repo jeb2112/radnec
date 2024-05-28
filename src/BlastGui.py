@@ -245,11 +245,11 @@ class BlastGui(object):
 
         for ch in chlist:
             # seg_raw doesn't have 'flair' yet
-            self.data[0].dset['seg_raw_fusion'][ch]['d'] = generate_blast_overlay(self.data[0].dset['raw'][ch]['d'],
+            self.data[0].dset['seg_raw_fusion'][ch]['d'+layer] = generate_blast_overlay(self.data[0].dset['raw'][ch]['d'],
                                                         self.data[0].dset['seg_raw'][self.chselection]['d'],layer=self.roiframe.layer.get(),
                                                         overlay_intensity=self.config.OverlayIntensity)
             self.data[0].dset['seg_raw_fusion'][ch]['ex'] = True
-            self.data[0].dset['seg_raw_fusion_d'][ch]['d'] = copy.deepcopy(self.data[0].dset['seg_raw_fusion'][ch]['d'])
+            self.data[0].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.data[0].dset['seg_raw_fusion'][ch]['d'+layer])
             
         if self.roiframe.finalROI_overlay_value.get() == True:
             self.dataselection = 'seg_fusion_d'

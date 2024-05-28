@@ -243,17 +243,19 @@ class CreateROIFrame(CreateFrame):
 
         # generate a new overlay
         # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
+        # logic to use existing overlay or force a new one. might need fixing.
         if overlay:
             chlist = [self.ui.chselection , 'flair']
             for ch in chlist:
-                if not self.ui.data[0].dset['seg_raw_fusion'][ch]['ex']:
-                    # seg_raw doesn't have flair yet?
-                    self.ui.data[0].dset['seg_raw_fusion'][ch]['d'] = \
+                # note that this check does not cover both layers 'ET' and 'T2 Hyper' separately.
+                # they are assumed either both or neither to exist. probably needs to be fixed.
+                if not self.ui.data[0].dset['seg_raw_fusion'][ch]['ex'] or False:
+                    self.ui.data[0].dset['seg_raw_fusion'][ch]['d'+layer] = \
                         generate_blast_overlay(self.ui.data[0].dset['raw'][ch]['d'],
                                                 self.ui.data[0].dset['seg_raw'][self.ui.chselection]['d'],
                                                 layer=layer,overlay_intensity=self.config.OverlayIntensity)
                     self.ui.data[0].dset['seg_raw_fusion'][ch]['ex'] = True
-                    self.ui.data[0].dset['seg_raw_fusion_d'][ch]['d'] = copy.deepcopy(self.ui.data[0].dset['seg_raw_fusion'][self.ui.chselection]['d'])
+                    self.ui.data[0].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.ui.data[0].dset['seg_raw_fusion'][self.ui.chselection]['d'+layer])
 
         if updateslice:
             self.ui.updateslice()
@@ -285,11 +287,11 @@ class CreateROIFrame(CreateFrame):
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
         if self.ui.sliceviewerframe.overlaytype.get() == 0: # contour not updated lately
-            data['seg_fusion'] = generate_blast_overlay(self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'],
+            data['seg_fusion'] = generate_blast_overlay(self.ui.data[0].dset['raw'][self.ui.chselection]['d'],
                                                         data['seg'],contour=data['contour'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
         else:
-            data['seg_fusion'] = generate_blast_overlay(self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'],
+            data['seg_fusion'] = generate_blast_overlay(self.ui.data[0].dset['raw'][self.ui.chselection]['d'],
                                                              data['seg'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
 
@@ -619,7 +621,7 @@ class CreateROIFrame(CreateFrame):
             self.ROIstats()
         # fusionstack = np.zeros((2,155,240,240))
         # note some duplicate calls to generate_overlay should be removed
-        fusionstack = generate_blast_overlay(self.ui.data[0].dset[self.ui.sliceviewerframe.chdisplay.get()]['d'],
+        fusionstack = generate_blast_overlay(self.ui.data[0].dset['raw'][self.ui.chselection]['d'],
                                              self.ui.roi[roi].data['seg'],
                                             layer=self.ui.roiframe.layer.get(),
                                             overlay_intensity=self.config.OverlayIntensity)
@@ -970,6 +972,7 @@ class CreateROIFrame(CreateFrame):
     # copy certain results from the BLAST ROI to the main dataset
     def updateData(self,updatemask=False):
         # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
+        layer = self.layer.get()
         for dt in ['seg_fusion_d','seg_fusion']:
             self.ui.data[0].dset[dt][self.ui.chselection]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
         for dt in ['ET','WT']:
