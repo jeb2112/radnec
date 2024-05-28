@@ -959,9 +959,9 @@ class CreateROIFrame(CreateFrame):
 
         if all(self.ui.blastdata['blast'][x] is not None for x in ['ET','T2 hyper']):
             # self.ui.data['seg_raw'] = self.ui.blastdata['blast']['ET'].astype('int')*2 + (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
-            self.ui.data[0].dset['seg_raw']['d'] = (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
+            self.ui.data[0].dset['seg_raw'][self.ui.chselection]['d'] = (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
             et = np.where(self.ui.blastdata['blast']['ET'])
-            self.ui.data[0].dset['seg_raw']['d'][et] += 4
+            self.ui.data[0].dset['seg_raw'][self.ui.chselection]['d'][et] += 4
         elif self.ui.blastdata['blast']['ET'] is not None:
             self.ui.data[0].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata['blast']['ET'].astype('int')*4
         elif self.ui.blastdata['blast']['T2 hyper'] is not None:
