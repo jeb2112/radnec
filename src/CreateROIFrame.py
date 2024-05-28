@@ -613,7 +613,7 @@ class CreateROIFrame(CreateFrame):
             
         roi = self.ui.get_currentroi()
         # self.closeROI(self.ui.roi[roi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
-        self.closeROI(self.ui.data[0].dset['seg_raw']['d'],self.ui.get_currentslice(),do3d=do3d)
+        self.closeROI(self.ui.data[0].dset['seg_raw'][self.ui.chselection]['d'],self.ui.get_currentslice(),do3d=do3d)
         # update layer menu
         self.update_layermenu_options(self.ui.roi[roi])
 
@@ -716,8 +716,8 @@ class CreateROIFrame(CreateFrame):
 
         # calculate tc
         if m == 'ET':
-            objectmask_closed = np.zeros(np.shape(self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'])[1:])
-            objectmask_final = np.zeros(np.shape(self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'])[1:])
+            objectmask_closed = np.zeros(np.shape(self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'+m])[1:])
+            objectmask_final = np.zeros(np.shape(self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'+m])[1:])
 
             # thisBB = BB.BoundingBox[objectnumber,:,:]
             thisBB = stats['bounding_boxes'][objectnumber]
