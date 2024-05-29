@@ -93,10 +93,10 @@ class CreateOverlayFrame(CreateFrame):
         mask_type_label.grid(row=1,column=2,padx=(50,0),sticky='e')
         self.mask_type_button = {}
         self.mask_type_button['ET'] = ttk.Radiobutton(self.frame,text='ET',variable=self.mask_type,value='ET',
-                                                    command=Command(self.overlay_callback))
+                                                    command=Command(self.overlay_callback,redo=True))
         self.mask_type_button['ET'].grid(row=1,column=3,sticky='w')
         self.mask_type_button['WT'] = ttk.Radiobutton(self.frame,text='WT',variable=self.mask_type,value='WT',
-                                                    command=Command(self.overlay_callback))
+                                                    command=Command(self.overlay_callback,redo=True))
         self.mask_type_button['WT'].grid(row=1,column=4,sticky='w')
 
         # on/off button
@@ -104,7 +104,7 @@ class CreateOverlayFrame(CreateFrame):
         mask_label.grid(row=1,column=0,sticky='e')
         mask_button = ttk.Checkbutton(self.frame,text='',
                                                variable=self.mask_value,
-                                               command=self.overlay_callback)
+                                               command=Command(self.overlay_callback,redo=True))
         mask_button.grid(row=1,column=1,sticky='w')
 
 
@@ -185,7 +185,7 @@ class CreateOverlayFrame(CreateFrame):
     # ROI methods
     ############# 
         
-    def overlay_callback(self,updateslice=True,wl=False):
+    def overlay_callback(self,updateslice=True,wl=False,redo=False):
 
         if self.overlay_value.get() == True:
             ovly = self.overlay_type.get()
@@ -193,8 +193,8 @@ class CreateOverlayFrame(CreateFrame):
             self.sliderframe['dummy'].lower(self.sliderframe[ovly])
             ovly_str = ovly + 'overlay'
             ch = self.ui.sliceviewerframe.chdisplay.get()
-            mask = self.ui.sliceviewerframe.maskdisplay.get()
-            if ovly == 'tempo':
+            usemask = self.mask_value.get()
+            if ovly == 'tempo': # probably want an attribute for this
                 colormap = 'tempo'
             else:
                 colormap = 'viridis'
@@ -203,9 +203,7 @@ class CreateOverlayFrame(CreateFrame):
 
             # generate a new overlay
             for s in self.ui.data:
-                if not self.ui.data[s].dset[ovly_str][ch]['ex']:
-                    # self.ui.data[s].dset[ovly_str][ch]['base'] != ch or \
-                    # self.ui.data[s].dset[ovly_str][ch]['mask'] != mask:
+                if not self.ui.data[s].dset[ovly_str][ch]['ex'] or redo:
 
                     # additional check if box not previously grayed out.
                     # eg for cbv there might only be one DSC study, so just
@@ -216,11 +214,15 @@ class CreateOverlayFrame(CreateFrame):
                         # self.ui.data[s].dset[ovly_str][ch]['base'] = ch
                         # self.ui.data[s].dset[ovly_str][ch]['mask'] = mask
                     else:
+                        if usemask:
+                            mask = self.ui.data[s].mask[self.mask_type.get()]['d']
+                        else:
+                            mask = None
 
                         self.ui.data[s].dset[ovly_str][ch]['d'] = generate_overlay(
                             self.ui.data[s].dset['raw'][ch]['d'],
                             self.ui.data[s].dset[ovly][ch]['d'],
-                            self.ui.data[s].mask['ET']['d'],
+                            mask,
                             image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],
                             overlay_wl = self.ui.sliceviewerframe.wl[ovly],
                             overlay_intensity=self.config.OverlayIntensity,
@@ -236,7 +238,7 @@ class CreateOverlayFrame(CreateFrame):
 
         else:
             self.sliderframe['dummy'].lift()
-            # self.ui.set_dataselection()
+            self.ui.set_dataselection('raw')
 
         if updateslice:
             self.ui.updateslice()

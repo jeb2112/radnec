@@ -98,6 +98,8 @@ class BlastGui(object):
                 self.caseframe.case_callback()
                 self.roiframe.overlay_value.set(True)                
                 self.roiframe.overlay_type.set('tempo')
+                self.roiframe.mask_value.set(True)
+                self.sliceviewerframe.currentslice.set(55)
                 self.roiframe.overlay_callback()
 
 
@@ -361,8 +363,11 @@ class BlastGui(object):
         self.sliceviewerframe.messagelabel['text'] = msg
 
     # not sure if this will be needed
-    def set_dataselection(self):
-        self.dataselection = self.sliceviewerframe.chdisplay.get()
+    def set_dataselection(self,s=None):
+        if s is not None:
+            self.dataselection = s
+        else:
+            self.dataselection = 'raw'
 
     def set_chselection(self):
         self.chselection = self.sliceviewerframe.chdisplay.get()

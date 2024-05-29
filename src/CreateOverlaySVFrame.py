@@ -107,7 +107,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.chdisplay_button['flair'].grid(column=4,row=0,sticky='w')
         # self.chdisplay_keys = ['t1','t1+','flair','flair']
 
-        # BLAST/HDBET mask selection
+        # BLAST/UNet mask selection
         maskdisplay_label = ttk.Label(self.normal_frame, text='mask: ')
         maskdisplay_label.grid(row=1,column=0,padx=(50,0),sticky='e')
         self.maskdisplay_button = {}

@@ -466,7 +466,13 @@ class NiftiStudy(Study):
             dt_file = 'tempo' + dt + '_processed.nii.gz'
             if dt_file in files:
                 self.dset['tempo'][dt]['d'],_ = self.loadnifti(dt_file)
-                # special case for tempo. subtract offset of +2. or leave for cmap scaling
+                # awkward special case for tempo. the mask is logically -1,0,1
+                # for areas of reduction, neutral or enhancement. 
+                # in generating an overlay, need to have the 0 to overlay only non-zero pixels
+                # but for colormap, this has to be mapped into [0,0.5,1]
+                # but for uint8 file, it is being stored as [1,2,3]
+                # so the values have to be juggled a couple different ways
+                # here subtract offset of +2 to place in -1,0,1 range
                 self.dset['tempo'][dt]['d'] -= 2
                 self.dset['tempo'][dt]['max'] = np.max(self.dset['tempo'][dt]['d'])
                 self.dset['tempo'][dt]['min'] = np.min(self.dset['tempo'][dt]['d'])
