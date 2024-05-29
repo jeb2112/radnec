@@ -466,7 +466,7 @@ class NiftiStudy(Study):
             dt_file = 'tempo' + dt + '_processed.nii.gz'
             if dt_file in files:
                 self.dset['tempo'][dt]['d'],_ = self.loadnifti(dt_file)
-                # special case for tempo. subtract offset of +2
+                # special case for tempo. subtract offset of +2. or leave for cmap scaling
                 self.dset['tempo'][dt]['d'] -= 2
                 self.dset['tempo'][dt]['max'] = np.max(self.dset['tempo'][dt]['d'])
                 self.dset['tempo'][dt]['min'] = np.min(self.dset['tempo'][dt]['d'])

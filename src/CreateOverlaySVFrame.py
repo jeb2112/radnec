@@ -60,7 +60,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.level = np.array([0.5,0.5],dtype='float')
         # window/level values for overlays and images. hard-coded for now.
         # RELCCBV raw units off scanner are [0,4095]
-        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023],'tempo':[2,2]}
+        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023],'tempo':[2,0]}
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
@@ -253,7 +253,9 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         slicecor = self.currentcorslice.get()
         self.ui.set_currentslice()
         if 'overlay' in self.ui.dataselection:
-            if not self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['ex']:
+            # if at least one overlay is existing, don't recalculate
+            if not (self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['ex'] or \
+                    self.ui.data[1].dset[self.ui.dataselection][self.ui.chselection]['ex']):
                 # recalculate for new base image
                 self.ui.roiframe.overlay_callback(updateslice=False)
         else: 
@@ -266,12 +268,18 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
 
         if 'overlay' in self.ui.dataselection:
             # need to check in case overlay only available for one study
-            if self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection][self.ui.chselection]['ex']:   
-                self.ax_img.set(cmap='viridis')
+            if self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection][self.ui.chselection]['ex']:  
+                if 'tempo' in self.ui.dataselection: # better an attribute for cmap
+                    self.ax_img.set(cmap='tempo')
+                else: 
+                    self.ax_img.set(cmap='viridis')
             else:
                 self.ax_img.set(cmap='gray')
             if self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection][self.ui.chselection]['ex']:   
-                self.ax2_img.set(cmap='viridis')
+                if 'tempo' in self.ui.dataselection:
+                    self.ax2_img.set(cmap='tempo')
+                else:
+                    self.ax2_img.set(cmap='viridis')
             else:
                 self.ax2_img.set(cmap='gray')
         else:
@@ -335,8 +343,8 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
 
             # special case for tempo. not sure how to code yet.
             if ovly == 'tempo':
-                ytick0 = int(self.wl[ovly][1]-self.wl[ovly][0]/2)-2
-                ytick1 = int(self.wl[ovly][1]+self.wl[ovly][0]/2)-2
+                ytick0 = int(self.wl[ovly][1]-self.wl[ovly][0]/2)+0
+                ytick1 = int(self.wl[ovly][1]+self.wl[ovly][0]/2)+0
             else:
                 ytick0 = int(self.wl[ovly][1]-self.wl[ovly][0]/2)
                 ytick1 = int(self.wl[ovly][1]+self.wl[ovly][0]/2)
@@ -344,7 +352,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
             ytickinc = np.round(np.power(10,np.round(np.log10(ytick1-ytick0)))/ntick)
             if ytickinc == 0:
                 ytickinc = 1
-            yticks = np.arange(ytick0,ytick1,ytickinc)
+            yticks = np.arange(ytick0,ytick1+ytickinc,ytickinc)
             self.labels['colorbar_A'] = self.fig.colorbar(self.ax_img,cax=self.axs['colorbar_A'],ticks=yticks)
             self.axs['colorbar_A'].yaxis.set_ticks_position('right')
             self.axs['colorbar_A'].yaxis.set_label_position('right')
@@ -364,9 +372,9 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
             # and remains correct. it only changes the ticks and labels of the colorbar.
 
             # in addition, a further temporary arrangement for tempo until coded properly. the tempo nifti mask file
-            # is uint8 with background/zero == 2. have to reset to remove that offset of 2 here.
+            # is uint8 with background/zero == 2. have to reset to remove that offset of 2 here, or elsewhere.
             if ovly == 'tempo':
-                self.ax_img.set_clim((self.wl[ovly][1]-self.wl[ovly][0]/2-2,self.wl[ovly][1]+self.wl[ovly][0]/2-2))
+                self.ax_img.set_clim((self.wl[ovly][1]-self.wl[ovly][0]/2-0,self.wl[ovly][1]+self.wl[ovly][0]/2-0))
             else:
                 self.ax_img.set_clim((self.wl[ovly][1]-self.wl[ovly][0]/2,self.wl[ovly][1]+self.wl[ovly][0]/2))
 

@@ -171,11 +171,20 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.nda
         image = image / image.max() * 1
     image[:,:,:,3] = 1
 
+
+    if mask is None:
+        # general case for un-masked z-score or cbv
+        mask_ros = np.where(overlay)
+    else:
+        mask_ros = np.where( (mask != 0) & (overlay != 0) )
+
+
     # rescale overlay to provided window/level
     if overlay_wl is not None:
         overlay = overlay - (overlay_wl[1]-overlay_wl[0]/2)
         overlay = overlay / (overlay_wl[0])
-        overlay = np.clip(overlay,0,1)
+        if False:
+            overlay = np.clip(overlay,0,1)
     else:
         overlay = overlay - overlay.min()
         overlay = overlay / overlay.max() * 1
@@ -187,11 +196,7 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.nda
 
     overlay_cmap = cmap(overlay)
     overlay_cmap[:,:,:,3] = overlay_intensity
-    if mask is None:
-        # general case for un-masked z-score or cbv
-        mask_ros = np.where(overlay)
-    else:
-        mask_ros = np.where(mask)
+
     image[mask_ros] = overlay_cmap[mask_ros]
                      
     return image.astype(np.float32)

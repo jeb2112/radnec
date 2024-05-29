@@ -212,7 +212,7 @@ class CreateOverlayFrame(CreateFrame):
                     # use the base grayscale for the dummy overlay image
                     if not self.ui.data[s].dset[ovly][ch]['ex']:
                         self.ui.data[s].dset[ovly_str][ch]['d'] = np.copy(self.ui.data[s].dset['raw'][ch]['d'])
-                        self.ui.data[s].dset[ovly_str][ch]['ex'] = True
+                        self.ui.data[s].dset[ovly_str][ch]['ex'] = False
                         # self.ui.data[s].dset[ovly_str][ch]['base'] = ch
                         # self.ui.data[s].dset[ovly_str][ch]['mask'] = mask
                     else:
@@ -236,7 +236,7 @@ class CreateOverlayFrame(CreateFrame):
 
         else:
             self.sliderframe['dummy'].lift()
-            self.ui.set_dataselection()
+            # self.ui.set_dataselection()
 
         if updateslice:
             self.ui.updateslice()
