@@ -245,7 +245,7 @@ class CreateOverlayFrame(CreateFrame):
 
 
     def updateslider(self,layer,slider):
-        self.overlay_callback(wl=True)
+        self.overlay_callback(wl=True,redo=True)
 
     def updatesliderlabel(self,layer,slider):
         if layer == 'cbv':

@@ -338,8 +338,10 @@ class Study():
         self.dset['ref'] = cp(self.dprop)
         # main data 
         self.dset['raw'] = {v:cp(self.dprop) for v in self.channels.values()}
-        # cbv data, if available
+        # cbv data, if available. this is not channel-specific so just create references for dummy channels
         self.dset['cbv'] = cp(self.dprop)
+        for v in self.channels.values():
+            self.dset['cbv'][v] = self.dset['cbv'] 
         # blast segmentation
         self.dset['seg_raw'] = {v:cp(self.dprop) for v in self.channels.values()}
         # z-scores of the raw data
