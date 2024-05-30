@@ -461,10 +461,10 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
             background_cluster = np.argmin(np.power(kmeans.cluster_centers_[:,0],2)+np.power(kmeans.cluster_centers_[:,1],2))
 
             # Calculate stats for brain cluster. currently hard-coded to study #0
-            self.ui.blastdata['blast']['params'][layer]['stdt12'] = np.std(X[layer][kmeans.labels_==background_cluster,1])
-            self.ui.blastdata['blast']['params'][layer]['stdflair'] = np.std(X[layer][kmeans.labels_==background_cluster,0])
-            self.ui.blastdata['blast']['params'][layer]['meant12'] = np.mean(X[layer][kmeans.labels_==background_cluster,1])
-            self.ui.blastdata['blast']['params'][layer]['meanflair'] = np.mean(X[layer][kmeans.labels_==background_cluster,0])
+            self.ui.blastdata[s]['blast']['params'][layer]['stdt12'] = np.std(X[layer][kmeans.labels_==background_cluster,1])
+            self.ui.blastdata[s]['blast']['params'][layer]['stdflair'] = np.std(X[layer][kmeans.labels_==background_cluster,0])
+            self.ui.blastdata[s]['blast']['params'][layer]['meant12'] = np.mean(X[layer][kmeans.labels_==background_cluster,1])
+            self.ui.blastdata[s]['blast']['params'][layer]['meanflair'] = np.mean(X[layer][kmeans.labels_==background_cluster,0])
 
             if False:
                 plt.figure(7)
@@ -485,9 +485,9 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
             self.ui.runblast(currentslice=None,layer=layer)
 
             # activate thresholds only after normal slice stats are available
-            for s in ['t12','flair','bc']:
-                self.ui.roiframe.sliders[layer][s]['state']='normal'
-                self.ui.roiframe.sliders[layer][s].bind("<ButtonRelease-1>",Command(self.ui.roiframe.updateslider,layer,s))
+            for sl in ['t12','flair','bc']:
+                self.ui.roiframe.sliders[layer][sl]['state']='normal'
+                self.ui.roiframe.sliders[layer][sl].bind("<ButtonRelease-1>",Command(self.ui.roiframe.updateslider,layer,sl))
         # since we finish the on the T2 hyper layer, have this slider disabled to begin with
         # self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
 

@@ -365,7 +365,7 @@ class CreateROIFrame(CreateFrame):
 
         # force recalc of gates
         layer = self.layer.get()
-        self.ui.blastdata['blast']['gates'][layer] = None
+        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=currentslice)
         self.t1sliderlabel['text'] = '{:.1f}'.format(self.t1threshold.get())
 
@@ -380,7 +380,7 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_callback()
         # force recalc of gates
         layer = self.layer.get()
-        self.ui.blastdata['blast']['gates'][layer] = None
+        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=currentslice)
         self.t2sliderlabel['text'] = '{:.1f}'.format(self.t2threshold.get())
         # ie not using this workflow presently
@@ -398,7 +398,7 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_callback()
         # force recalc of gates
         layer = self.layer.get()
-        self.ui.blastdata['blast']['gates'][layer] = None
+        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=currentslice)
         self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
         # ie not using this workflow presently
@@ -416,7 +416,7 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_callback()
         # force recalc of gates
         layer = self.layer.get()
-        self.ui.blastdata['blast']['gates'][layer] = None
+        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=currentslice)
         self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt2threshold.get())
         # ie not using this workflow presently
@@ -434,8 +434,8 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_callback()
         # layer = self.layer.get()
         if slider == 'bc':
-            self.ui.blastdata['blast']['gates']['brain '+layer] = None
-        self.ui.blastdata['blast']['gates'][layer] = None
+            self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
+        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
         self.ui.runblast(currentslice=True)
         self.updatesliderlabel(layer,slider)
 
@@ -454,7 +454,7 @@ class CreateROIFrame(CreateFrame):
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_callback()
         layer = self.layer.get()
-        self.ui.blastdata['blast']['gates']['brain '+layer] = None
+        self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
         self.ui.runblast(currentslice=True)
         self.updatebct1label()
         return
@@ -469,7 +469,7 @@ class CreateROIFrame(CreateFrame):
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_callback()
         layer = self.layer.get()
-        self.ui.blastdata['blast']['gates']['brain '+layer] = None
+        self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
         self.ui.runblast(currentslice=True)
         self.updatebct2label()
         return
@@ -477,34 +477,6 @@ class CreateROIFrame(CreateFrame):
     def updatebct2label(self,event=None):
         bct2size = self.ui.get_bct2size()
         self.bct2sliderlabel['text'] = '{:.1f}'.format(bct2size)
-
-    def updategmthreshold(self,event=None):
-        self.enhancingROI_overlay_value.set(True)
-        if self.finalROI_overlay_value.get() == True:
-            self.finalROI_overlay_value.set(False)
-            self.enhancingROI_overlay_callback()
-        layer = self.layer.get()
-        self.ui.blastdata['blast']['gates']['brain '+layer] = None
-        self.ui.runblast(currentslice=True)
-        self.updategmlabel()
-        return
-
-    def updategmlabel(self,event=None):
-        self.gmsliderlabel['text'] = '{:.1f}'.format(self.gmthreshold.get())
-
-    def updatewmthreshold(self,event=None):
-        self.enhancingROI_overlay_value.set(True)
-        if self.finalROI_overlay_value.get() == True:
-            self.finalROI_overlay_value.set(False)
-            self.enhancingROI_overlay_callback()
-        layer = self.layer.get()
-        self.ui.blastdata['blast']['gates']['brain '+layer] = None
-        self.ui.runblast(currentslice=True)
-        self.updatewmlabel()
-        return
-
-    def updatewmlabel(self,event=None):
-        self.wmsliderlabel['text'] = '{:.1f}'.format(self.wmthreshold.get())
 
     def updatesliders(self):
         if self.enhancingROI_overlay_value.get() == True:
@@ -516,9 +488,9 @@ class CreateROIFrame(CreateFrame):
                 layer = 'T2 hyper'
             else:
                 layer = 'ET'
-        for s in ['t12','flair','bc']:
-            self.thresholds[layer][s].set(self.ui.blastdata['blast']['params'][layer][s])
-            self.updatesliderlabel(layer,s)
+        for sl in ['t12','flair','bc']:
+            self.thresholds[layer][sl].set(self.ui.blastdata[self.ui.s]['blast']['params'][layer][sl])
+            self.updatesliderlabel(layer,sl)
        
     def finalROI_overlay_callback(self,event=None):
         if self.finalROI_overlay_value.get() == False:
@@ -802,8 +774,8 @@ class CreateROIFrame(CreateFrame):
             # step 3. TC contouring
             if do3d:
                 objectmask_contoured = {}
-                for s in range(self.config.ImageDim[0]):
-                    objectmask_contoured[s] = find_contours(objectmask_final[s,:,:])
+                for sl in range(self.config.ImageDim[0]):
+                    objectmask_contoured[sl] = find_contours(objectmask_final[sl,:,:])
                 self.ui.roi[roi].data['contour']['TC'] = objectmask_contoured
  
             # update combined seg mask
@@ -832,8 +804,8 @@ class CreateROIFrame(CreateFrame):
                 self.ui.roi[roi].status = True # ROI has both compartments selected
             # WT contouring
             objectmask_contoured = {}
-            for s in range(self.config.ImageDim[0]):
-                objectmask_contoured[s] = find_contours(self.ui.roi[roi].data['WT'][s,:,:])
+            for sl in range(self.config.ImageDim[0]):
+                objectmask_contoured[sl] = find_contours(self.ui.roi[roi].data['WT'][sl,:,:])
             self.ui.roi[roi].data['contour']['WT'] = objectmask_contoured
 
 
@@ -864,43 +836,9 @@ class CreateROIFrame(CreateFrame):
 
         sdict = {}
         bdict = {}
-        msdict = {} 
         for i,r in enumerate(self.ui.roi[1:]): # skip dummy 
             sdict['roi'+str(i)] = r.stats
             bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT','blast','raw'))
-            msdict['roi'+str(i)] = {}
-            mdict = msdict['roi'+str(i)]
-            mdict['greengate_count'] = r.blastdata['blast']['params']['ET']['flair']
-            mdict['redgate_count'] = r.blastdata['blast']['params']['ET']['t12']
-            if r.data['ET'] is None:
-                et = 0
-            else: 
-                et = r.data['ET']
-            mdict['objectmask'] = et
-            if r.data['TC'] is None:
-                tc = 0
-            else:
-                tc = r.data['TC']
-            mdict['objectmask_filled'] = tc
-            mdict['centreimage'] = 0
-            mdict['specificity_et'] = r.stats['spec']['ET']
-            mdict['sensitivity_et'] = r.stats['sens']['ET']
-            mdict['dicecoefficient_et'] = r.stats['dsc']['ET']
-            mdict['specificity_tc'] = r.stats['spec']['TC']
-            mdict['sensitivity_tc'] = r.stats['sens']['TC']
-            mdict['dicecoefficient_tc'] = r.stats['dsc']['TC']
-            mdict['specificity_wt'] = r.stats['spec']['WT']
-            mdict['sensitivity_wt'] = r.stats['sens']['WT']
-            mdict['dicecoefficient_wt'] = r.stats['dsc']['WT']
-            mdict['objectmask_filled_volume'] = r.stats['vol']['TC']
-            mdict['cumulative_elapsed_time'] = r.stats['elapsed_time']
-            mdict['b'] = 0
-            mdict['b2'] = 0
-            if self.ui.data['label'] is not None:
-                mdict['manualmasket'] = r.data['manual_ET']
-                mdict['manualmasktc'] = r.data['manual_TC']
-                mdict['manualmask_et_volume'] = r.stats['vol']['manual_ET']
-                mdict['manualmask_tc_volume'] = r.stats['vol']['manual_TC']
 
         with open(filename,'ab') as fp:
             pickle.dump((sdict,bdict),fp)
@@ -908,9 +846,6 @@ class CreateROIFrame(CreateFrame):
         filename = filename[:-3] + 'mat'
         with open(filename,'ab') as fp:
             savemat(filename,sdict,bdict)
-        filename = filename[:-4] + '_origvarnames.mat'
-        with open(filename,'ab') as fp:
-            savemat(filename,msdict)
 
     # for now output only segmentations so uint8
     def WriteImage(self,img_arr,filename,header=None,norm=False,type='uint8',affine=None):
@@ -935,26 +870,15 @@ class CreateROIFrame(CreateFrame):
             writer.Execute(img)
         return
         
-    # def updateROI(self):
-    #     # rerun segmentation
-    #     self.ROIclick()
-    #     self.ROIstats()
-    #     # save current dataset into the current roi. 
-    #     for k,v in self.ui.roi[self.ui.currentroi].data.items():
-    #         if k != 'raw':
-    #             v = copy.deepcopy(self.ui.data[k])
-    #         else: # reference only
-    #             v = self.ui.data[k]
-
-    #     # self.ui.roi[self.ui.currentroi].data = copy.deepcopy(self.ui.data)
 
     def updateROIData(self):
-        # save current dataset into the current roi. 
-        for k,v in self.ui.data.items():
-            if k != 'raw':
-                self.ui.roi[self.ui.currentroi].data[k] = copy.deepcopy(self.ui.data[k])
-            else: # reference only
-                self.ui.roi[self.ui.currentroi].data[k] = self.ui.data[k]
+        # copy an existing ROI and overlay from current dataset back into the current roi. 
+        # not sure if still needed though
+        for k in ['raw','seg_fusion']:
+            if k == 'raw': # refernece only
+                self.ui.roi[self.ui.currentroi].data[k] = self.ui.data[self.ui.s].dset[k]
+            else: 
+                self.ui.roi[self.ui.currentroi].data[k] = copy.deepcopy(self.ui.data[self.ui.s].dset[k])
 
     # calculate the combined mask from separate layers
     def updateBLAST(self,layer=None):
@@ -963,17 +887,17 @@ class CreateROIFrame(CreateFrame):
         if layer is None:
             layer = self.layer.get()
         for sl in ['t12','flair','bc']:
-            self.ui.blastdata['blast']['params'][layer][sl] = self.thresholds[layer][sl].get()
+            self.ui.blastdata[s]['blast']['params'][layer][sl] = self.thresholds[layer][sl].get()
 
-        if all(self.ui.blastdata['blast'][x] is not None for x in ['ET','T2 hyper']):
+        if all(self.ui.blastdata[s]['blast'][x] is not None for x in ['ET','T2 hyper']):
             # self.ui.data['seg_raw'] = self.ui.blastdata['blast']['ET'].astype('int')*2 + (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
-            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
-            et = np.where(self.ui.blastdata['blast']['ET'])
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = (self.ui.blastdata[s]['blast']['T2 hyper'].astype('int'))
+            et = np.where(self.ui.blastdata[s]['blast']['ET'])
             self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'][et] += 4
-        elif self.ui.blastdata['blast']['ET'] is not None:
-            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata['blast']['ET'].astype('int')*4
-        elif self.ui.blastdata['blast']['T2 hyper'] is not None:
-            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata['blast']['T2 hyper'].astype('int')
+        elif self.ui.blastdata[s]['blast']['ET'] is not None:
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['ET'].astype('int')*4
+        elif self.ui.blastdata[s]['blast']['T2 hyper'] is not None:
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['T2 hyper'].astype('int')
 
     # copy certain results from the BLAST ROI to the main dataset
     def updateData(self,updatemask=False):
@@ -1021,9 +945,9 @@ class CreateROIFrame(CreateFrame):
         self.ui.roiframe.layer.set('ET')
         if self.ui.chselection in ['t1+','flair']:
             for l in ['ET','T2 hyper']:
-                for s in ['t12','flair','bc']:
-                    self.thresholds[l][s].set(self.ui.config.thresholddefaults[s])
-                    self.updatesliderlabel(l,s)
+                for sl in ['t12','flair','bc']:
+                    self.thresholds[l][sl].set(self.ui.config.thresholddefaults[sl])
+                    self.updatesliderlabel(l,sl)
             self.update_roinumber_options()
 
     def append_roi(self,d):

@@ -54,6 +54,16 @@ class BlastGui(object):
 
         # data is a dict of studies
         self.data = {} 
+        # additional data related to BLAST, per study
+        self.blastdatadict = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
+                            'T2 hyper':None,
+                            'ET':None,
+                            'params':{'ET':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
+                               'T2 hyper':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
+                               },
+                    },
+        }
+        self.blastdata = {0:copy.deepcopy(self.blastdatadict),1:copy.deepcopy(self.blastdatadict)}
         # time points to display (index of temporal order)
         self.timepoints = [1,0]
 
@@ -84,10 +94,12 @@ class BlastGui(object):
                 self.function_callback(update=True)
                 self.sliceviewerframe.normalslice_callback()
                 self.sliceviewerframe.currentslice.set(55)
-                # self.roiframe.thresholds['ET']['flair'].set(1.1)
-                # self.roiframe.thresholds['T2 hyper']['flair'].set(1.1)
-                # self.roiframe.createROI(75,75,55) # 00002
-                # self.roiframe.ROIclick(event=None)
+                # self.roiframe.thresholds['ET']['flair'].set(1.2)
+                # self.roiframe.updatesliderlabel('ET','flair')
+                self.roiframe.thresholds['T2 hyper']['flair'].set(1.2)
+                self.roiframe.updateslider('T2 hyper','flair')
+                self.roiframe.createROI(75,75,55) # 00002
+                self.roiframe.ROIclick(event=None)
 
 
             # load a tempo case
@@ -159,8 +171,8 @@ class BlastGui(object):
             else:
                 self.mainframe.rowconfigure(row_num,weight=0)
         self.mainframe.columnconfigure(0,minsize=self.caseframe.frame.winfo_width(),weight=1)
-        for s in self.sliceviewerframes.values():
-            self.mainframe.bind('<Configure>',s.resizer)
+        for sv in self.sliceviewerframes.values():
+            self.mainframe.bind('<Configure>',sv.resizer)
         self.mainframe.update()
 
     # switching mode between BLAST segmentation and overlay
@@ -225,14 +237,14 @@ class BlastGui(object):
             try:
                 retval = Blastbratsv3.run_blast(
                                     self.data[s],
-                                    self.blastdata,
+                                    self.blastdata[s],
                                     t12_threshold,
                                     flair_threshold,
                                     clustersize,layer,
                                     currentslice=currentslice
                                     )
                 if retval is not None:
-                    self.blastdata['blast'][layer],self.blastdata['blast']['gates']['brain '+layer],self.blastdata['blast']['gates'][layer] = retval
+                    self.blastdata[s]['blast'][layer],self.blastdata[s]['blast']['gates']['brain '+layer],self.blastdata[s]['blast']['gates'][layer] = retval
                     self.update_blast(layer=layer)
             except ValueError as e:
                 self.set_message(e)
@@ -372,14 +384,7 @@ class BlastGui(object):
         self.chselection = 't1+'
 
         self.data = {}
-        self.blastdata = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
-                            'T2 hyper':None,
-                            'ET':None,
-                            'params':{'ET':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
-                               'T2 hyper':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
-                               },
-                    },
-        }
+        self.blastdata = {0:copy.deepcopy(self.blastdatadict),1:copy.deepcopy(self.blastdatadict)}
     
         self.roi = [0] # dummy value for Roi indexing 1-based
         self.currentroi = 0 # tracks the currentroi widget variable
