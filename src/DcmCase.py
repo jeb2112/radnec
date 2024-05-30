@@ -457,6 +457,7 @@ class NiftiStudy(Study):
                 self.dset['raw'][dt]['max'] = np.max(self.dset['raw'][dt]['d'])
                 self.dset['raw'][dt]['min'] = np.min(self.dset['raw'][dt]['d'])
                 self.dset['raw'][dt]['ex'] = True
+            # z-scores
             dt_file = 'z' + dt + '_processed.nii.gz'
             if dt_file in files:
                 self.dset['z'][dt]['d'],_ = self.loadnifti(dt_file)
@@ -465,6 +466,7 @@ class NiftiStudy(Study):
                 self.dset['z'][dt]['ex'] = True
                 # self.dset[dt[:-1]]['max'] = self.dset[dt]['max']
                 # self.dset[dt[:-1]]['min'] = self.dset[dt]['min']
+            # tempo subtractions
             dt_file = 'tempo' + dt + '_processed.nii.gz'
             if dt_file in files:
                 self.dset['tempo'][dt]['d'],_ = self.loadnifti(dt_file)

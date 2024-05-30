@@ -229,15 +229,15 @@ class CreateROIFrame(CreateFrame):
         # when switching layers, raise/lower the corresponding sliders
         # slider values switch but no need to run re-blast immediately. 
         self.updatesliders()
-        for s in ['t12','flair','bc']:
+        for sl in ['t12','flair','bc']:
             if layer == 'T2 hyper':
-                self.sliders[layer][s].lift()
-                self.sliders['ET'][s].lower()
+                self.sliders[layer][sl].lift()
+                self.sliders['ET'][sl].lower()
             # self.t2slider.configure(state='active')
             # self.updatebcsize(self.bct2size.get(),blast=False)
             else:
-                self.sliders[layer][s].lift()
-                self.sliders['T2 hyper'][s].lower()
+                self.sliders[layer][sl].lift()
+                self.sliders['T2 hyper'][sl].lower()
                 # self.t2slider.configure(state='disabled')
                 # self.t1slider.configure(state='active')
 
@@ -245,17 +245,18 @@ class CreateROIFrame(CreateFrame):
         # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
         # logic to use existing overlay or force a new one. might need fixing.
         if overlay:
+            s = self.ui.s
             chlist = [self.ui.chselection , 'flair']
             for ch in chlist:
                 # note that this check does not cover both layers 'ET' and 'T2 Hyper' separately.
                 # they are assumed either both or neither to exist. probably needs to be fixed.
-                if not self.ui.data[0].dset['seg_raw_fusion'][ch]['ex'] or False:
-                    self.ui.data[0].dset['seg_raw_fusion'][ch]['d'+layer] = \
-                        generate_blast_overlay(self.ui.data[0].dset['raw'][ch]['d'],
-                                                self.ui.data[0].dset['seg_raw'][self.ui.chselection]['d'],
+                if not self.ui.data[s].dset['seg_raw_fusion'][ch]['ex'] or False:
+                    self.ui.data[s].dset['seg_raw_fusion'][ch]['d'+layer] = \
+                        generate_blast_overlay(self.ui.data[s].dset['raw'][ch]['d'],
+                                                self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'],
                                                 layer=layer,overlay_intensity=self.config.OverlayIntensity)
-                    self.ui.data[0].dset['seg_raw_fusion'][ch]['ex'] = True
-                    self.ui.data[0].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.ui.data[0].dset['seg_raw_fusion'][self.ui.chselection]['d'+layer])
+                    self.ui.data[s].dset['seg_raw_fusion'][ch]['ex'] = True
+                    self.ui.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.ui.data[s].dset['seg_raw_fusion'][self.ui.chselection]['d'+layer])
 
         if updateslice:
             self.ui.updateslice()
@@ -287,12 +288,12 @@ class CreateROIFrame(CreateFrame):
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
         if self.ui.sliceviewerframe.overlay_type.get() == 0: # contour not updated lately
-            data['seg_fusion'] = generate_blast_overlay(self.ui.data[0].dset['raw'][self.ui.chselection]['d'],
+            data['seg_fusion'] = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][self.ui.chselection]['d'],
                                                         data['seg'],contour=data['contour'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
         else:
             for ch in [self.ui.chselection,'flair']:
-                data['seg_fusion'][ch] = generate_blast_overlay(self.ui.data[0].dset['raw'][ch]['d'],
+                data['seg_fusion'][ch] = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
                                                                 data['seg'],layer=layer,
                                                             overlay_intensity=self.config.OverlayIntensity)
 
@@ -616,7 +617,7 @@ class CreateROIFrame(CreateFrame):
             
         roi = self.ui.get_currentroi()
         # self.closeROI(self.ui.roi[roi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
-        self.closeROI(self.ui.data[0].dset['seg_raw'][self.ui.chselection]['d'],self.ui.get_currentslice(),do3d=do3d)
+        self.closeROI(self.ui.data[self.ui.s].dset['seg_raw'][self.ui.chselection]['d'],self.ui.get_currentslice(),do3d=do3d)
         # update layer menu
         self.update_layermenu_options(self.ui.roi[roi])
 
@@ -625,7 +626,7 @@ class CreateROIFrame(CreateFrame):
         # fusionstack = np.zeros((2,155,240,240))
         # note some duplicate calls to generate_overlay should be removed
         for ch in [self.ui.chselection,'flair']:
-            fusionstack = generate_blast_overlay(self.ui.data[0].dset['raw'][ch]['d'],
+            fusionstack = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
                                              self.ui.roi[roi].data['seg'],
                                             layer=self.ui.roiframe.layer.get(),
                                             overlay_intensity=self.config.OverlayIntensity)
@@ -720,8 +721,8 @@ class CreateROIFrame(CreateFrame):
 
         # calculate tc
         if m == 'ET':
-            objectmask_closed = np.zeros(np.shape(self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'+m])[1:])
-            objectmask_final = np.zeros(np.shape(self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['d'+m])[1:])
+            objectmask_closed = np.zeros(np.shape(self.ui.data[self.ui.s].dset[self.ui.dataselection][self.ui.chselection]['d'+m])[1:])
+            objectmask_final = np.zeros(np.shape(self.ui.data[self.ui.s].dset[self.ui.dataselection][self.ui.chselection]['d'+m])[1:])
 
             # thisBB = BB.BoundingBox[objectnumber,:,:]
             thisBB = stats['bounding_boxes'][objectnumber]
@@ -957,38 +958,40 @@ class CreateROIFrame(CreateFrame):
 
     # calculate the combined mask from separate layers
     def updateBLAST(self,layer=None):
+        s = self.ui.s
         # record slider values
         if layer is None:
             layer = self.layer.get()
-        for s in ['t12','flair','bc']:
-            self.ui.blastdata['blast']['params'][layer][s] = self.thresholds[layer][s].get()
+        for sl in ['t12','flair','bc']:
+            self.ui.blastdata['blast']['params'][layer][sl] = self.thresholds[layer][sl].get()
 
         if all(self.ui.blastdata['blast'][x] is not None for x in ['ET','T2 hyper']):
             # self.ui.data['seg_raw'] = self.ui.blastdata['blast']['ET'].astype('int')*2 + (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
-            self.ui.data[0].dset['seg_raw'][self.ui.chselection]['d'] = (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
             et = np.where(self.ui.blastdata['blast']['ET'])
-            self.ui.data[0].dset['seg_raw'][self.ui.chselection]['d'][et] += 4
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'][et] += 4
         elif self.ui.blastdata['blast']['ET'] is not None:
-            self.ui.data[0].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata['blast']['ET'].astype('int')*4
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata['blast']['ET'].astype('int')*4
         elif self.ui.blastdata['blast']['T2 hyper'] is not None:
-            self.ui.data[0].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata['blast']['T2 hyper'].astype('int')
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata['blast']['T2 hyper'].astype('int')
 
     # copy certain results from the BLAST ROI to the main dataset
     def updateData(self,updatemask=False):
+        s = self.ui.s
         # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
         layer = self.layer.get()
         for dt in ['seg_fusion_d','seg_fusion']:
             for ch in [self.ui.chselection,'flair']:
-                self.ui.data[0].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt][ch])
+                self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt][ch])
         for dt in ['ET','WT']:
-            self.ui.data[0].mask[dt+'blast']['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
-            self.ui.data[0].mask[dt+'blast']['ex'] = True
+            self.ui.data[s].mask[dt+'blast']['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
+            self.ui.data[s].mask[dt+'blast']['ex'] = True
             self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
             if updatemask and False:
             # by this option, a BLAST segmentation could overwrite the current UI mask directly.
             # otherwise, it will be done in separate step from the Overlay sliceviewer. 
             # need a further checkbox on the GUI for this auto option
-                self.ui.data[0].mask[dt]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
+                self.ui.data[s].mask[dt]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
         self.updatesliders()
 
     # eliminate one ROI if multiple ROIs in current case

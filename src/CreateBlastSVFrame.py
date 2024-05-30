@@ -276,6 +276,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
 
     # TODO: different bindings and callbacks need some organization
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
+        s = self.ui.s # local reference
         slice=self.currentslice.get()
         slicesag = self.currentsagslice.get()
         slicecor = self.currentcorslice.get()
@@ -287,11 +288,11 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         # special case arrangement for displaying BLAST overlays by layer type. slightly awkward.
         if self.ui.roiframe.enhancingROI_overlay_value.get():
             d = 'd'+self.ui.roiframe.layer.get()
-        self.ax_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection][d][slice,:,:])
+        self.ax_img.set(data=self.ui.data[s].dset[self.ui.dataselection][self.ui.chselection][d][slice,:,:])
         # by convention, 2nd panel will always be flair, 1st panel could be t1,t1+ or t2
-        self.ax2_img.set(data=self.ui.data[0].dset[self.ui.dataselection]['flair'][d][slice,:,:])
-        self.ax3_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection][d][:,:,slicesag])
-        self.ax4_img.set(data=self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection][d][:,slicecor,:])
+        self.ax2_img.set(data=self.ui.data[s].dset[self.ui.dataselection]['flair'][d][slice,:,:])
+        self.ax3_img.set(data=self.ui.data[s].dset[self.ui.dataselection][self.ui.chselection][d][:,:,slicesag])
+        self.ax4_img.set(data=self.ui.data[s].dset[self.ui.dataselection][self.ui.chselection][d][:,slicecor,:])
         # add current slice overlay
         self.update_labels()
 
@@ -411,7 +412,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         for ax in ['t1+','flair']:
             vmin = self.wl[ax][1] - self.wl[ax][0]/2
             vmax = self.wl[ax][1] + self.wl[ax][0]/2
-            self.ui.data[0].dset[ax]['d'] = self.ui.caseframe.rescale(self.ui.data[0].dset[ax]['d'],vmin=vmin,vmax=vmax)
+            self.ui.data[self.ui.s].dset[ax]['d'] = self.ui.caseframe.rescale(self.ui.data[self.ui.s].dset[ax]['d'],vmin=vmin,vmax=vmax)
 
     def restorewl_raw(self,dt):
         if False:
@@ -426,21 +427,22 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         # do kmeans
         # Creates a matrix of voxels for normal brain slice
         # Gating Routine
+        s = self.ui.s # local ref
 
         if self.slicevolume_norm.get() == 0: # probably not supporting this
             self.normalslice=self.ui.get_currentslice()
-            region_of_support = np.where(self.ui.data[0].dset['raw']['t1+']['d'][self.normalslice]*self.ui.data[0].dset['raw']['flair']['d'][self.normalslice]>0) 
+            region_of_support = np.where(self.ui.data[s].dset['raw']['t1+']['d'][self.normalslice]*self.ui.data[s].dset['raw']['flair']['d'][self.normalslice]>0) 
             vset = np.zeros_like(region_of_support,dtype='float')
             # for i in range(3):
             for i,ax in enumerate(['t1+','flair']):
-                vset[i] = np.ravel(self.ui.data[0].dset['raw'][ax]['d'][self.normalslice][region_of_support])
+                vset[i] = np.ravel(self.ui.data[s].dset['raw'][ax]['d'][self.normalslice][region_of_support])
         else:
             self.normalslice = None
-            region_of_support = np.where(self.ui.data[0].dset['raw']['t1+']['d']*self.ui.data[0].dset['raw']['flair']['d'] >0)
+            region_of_support = np.where(self.ui.data[s].dset['raw']['t1+']['d']*self.ui.data[s].dset['raw']['flair']['d'] >0)
             vset = np.zeros_like(region_of_support,dtype='float')
             # for i in range(3):
             for i,ax in enumerate(['t1+','flair']):
-                vset[i] = np.ravel(self.ui.data[0].dset['z'][ax]['d'][region_of_support])
+                vset[i] = np.ravel(self.ui.data[s].dset['z'][ax]['d'][region_of_support])
             # t1channel_normal = self.ui.data['raw'][0][region_of_support]
             # flairchannel_normal = self.ui.data['raw'][1][region_of_support]
             # t2channel_normal = self.ui.data['raw'][2][region_of_support]

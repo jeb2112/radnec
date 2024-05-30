@@ -253,7 +253,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         slicecor = self.currentcorslice.get()
         self.ui.set_currentslice()
         if 'overlay' in self.ui.dataselection:
-            # if at least one overlay is existing, don't recalculate
+            # if at least one overlay is existing, don't recalculate. hard-coded two studies
             if not (self.ui.data[0].dset[self.ui.dataselection][self.ui.chselection]['ex'] or \
                     self.ui.data[1].dset[self.ui.dataselection][self.ui.chselection]['ex']):
                 # recalculate for new base image

@@ -43,6 +43,7 @@ class BlastGui(object):
         self.blastImage = PhotoImage(file=self.logoImg)
         self.normalslice = None
         self.currentslice = None # tracks the current slice widget variable
+        self.s = 0 # tracks the current study number in caseframe widget
         self.dataselection = 'raw'
         self.chselection = 't1+' # current display, could be base image or overlay image
         self.base = 't1+' # tracks chdisplay variable in sliceviewer. not fully implemented yet
@@ -88,8 +89,7 @@ class BlastGui(object):
                 # self.roiframe.createROI(75,75,55) # 00002
                 # self.roiframe.ROIclick(event=None)
 
-            # 00005 75,105
-            # 00002 53,81
+
             # load a tempo case
             if False:
                 self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
@@ -102,24 +102,6 @@ class BlastGui(object):
                 self.sliceviewerframe.currentslice.set(55)
                 self.roiframe.overlay_callback()
 
-
-            if False:
-                # 00005 75,105
-                # 00002 53,81
-                self.caseframe.n4_check_value.set(0)
-                self.caseframe.casename.set('00006')
-                self.caseframe.case_callback()
-                if self.sliceviewerframe.slicevolume_norm.get() == 0:
-                    self.sliceviewerframe.currentslice.set(53)
-                    self.updateslice()
-                    self.sliceviewerframe.normalslice_callback()
-                self.sliceviewerframe.currentslice.set(81)
-                self.updateslice()
-
-
-            # adjusted window/level
-            # self.sliceviewerframe.window=np.array([.6,1],dtype='float')
-            # self.sliceviewerframe.level = np.array([.3,.5])
 
             # create roi. might be a bug arising from this automation that isn't seen manually
             if False:
@@ -195,6 +177,11 @@ class BlastGui(object):
         self.chselection = 't1+'
         if update:
             self.sliceviewerframe.updateslice()
+        # if blast activate study menu
+        if f == 'BLAST':
+            self.caseframe.s.configure(state='enable')
+        else:
+            self.caseframe.s.configure(state='disabled')
         return
     
 
@@ -209,6 +196,9 @@ class BlastGui(object):
         else: # entire volume
             self.root.config(cursor='watch')
             self.root.update_idletasks()
+
+        # current study
+        s = self.caseframe.s.current()
 
         if layer is None:   
             layer = self.roiframe.layer.get()
@@ -234,7 +224,7 @@ class BlastGui(object):
         else:
             try:
                 retval = Blastbratsv3.run_blast(
-                                    self.data[0],
+                                    self.data[s],
                                     self.blastdata,
                                     t12_threshold,
                                     flair_threshold,
@@ -259,11 +249,11 @@ class BlastGui(object):
 
         for ch in chlist:
             # seg_raw doesn't have 'flair' yet
-            self.data[0].dset['seg_raw_fusion'][ch]['d'+layer] = generate_blast_overlay(self.data[0].dset['raw'][ch]['d'],
-                                                        self.data[0].dset['seg_raw'][self.chselection]['d'],layer=self.roiframe.layer.get(),
+            self.data[s].dset['seg_raw_fusion'][ch]['d'+layer] = generate_blast_overlay(self.data[s].dset['raw'][ch]['d'],
+                                                        self.data[s].dset['seg_raw'][self.chselection]['d'],layer=self.roiframe.layer.get(),
                                                         overlay_intensity=self.config.OverlayIntensity)
-            self.data[0].dset['seg_raw_fusion'][ch]['ex'] = True
-            self.data[0].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.data[0].dset['seg_raw_fusion'][ch]['d'+layer])
+            self.data[s].dset['seg_raw_fusion'][ch]['ex'] = True
+            self.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.data[s].dset['seg_raw_fusion'][ch]['d'+layer])
             
         if self.roiframe.finalROI_overlay_value.get() == True:
             self.dataselection = 'seg_fusion_d'
@@ -371,6 +361,9 @@ class BlastGui(object):
 
     def set_chselection(self):
         self.chselection = self.sliceviewerframe.chdisplay.get()
+
+    def set_studynumber(self,val=None):
+        self.s = self.caseframe.s.current()
 
     def resetUI(self):
         self.normalslice = None

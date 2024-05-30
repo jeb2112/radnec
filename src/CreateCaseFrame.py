@@ -9,7 +9,7 @@ import tkinter as tk
 import nibabel as nb
 from nibabel.processing import resample_from_to
 import pydicom as pd
-from tkinter import ttk,StringVar,DoubleVar,PhotoImage
+from tkinter import ttk,StringVar,IntVar,PhotoImage
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg,NavigationToolbar2Tk
 import matplotlib
@@ -42,14 +42,23 @@ class CreateCaseFrame(CreateFrame):
         self.datadir.set(self.fd.dir)
         self.filenames = None
         self.casename = StringVar()
+        self.studynumber = IntVar(value=0)
         self.casefile_prefix = None
         self.casedir_prefix = 'M' # simple convention to identify root dir of a case
         self.caselist = {'casetags':[],'casedirs':[]} # list of case directories in self.datadir, and short-form tags
+        self.studylist = {'studytags':[],'studynumbers':[0,1]}
         self.processed = False
         self.pp = None
 
         # case selection
         self.frame.grid(row=0,column=0,columnspan=3,sticky='ew')
+        # select case pulldown menu
+        caselabel = ttk.Label(self.frame, text='Case: ')
+        caselabel.grid(row=0,column=0,sticky='we')
+        # self.casename.trace_add('write',self.case_callback)
+        self.w = ttk.Combobox(self.frame,width=8,textvariable=self.casename,values=self.caselist['casetags'])
+        self.w.grid(row=0,column=1)
+        self.w.bind("<<ComboboxSelected>>",self.case_callback)
 
         # select directory
         self.fdbicon = PhotoImage(file=os.path.join(self.config.UIResourcesPath,'folder_icon_16.png'))
@@ -65,12 +74,14 @@ class CreateCaseFrame(CreateFrame):
         # event currently a dummy arg since not being used in datadirentry_callback
         self.datadirentry.bind('<Return>',lambda event=None:self.datadirentry_callback(event=event))
         self.datadirentry.grid(row=0,column=4,columnspan=5)
-        caselabel = ttk.Label(self.frame, text='Case: ')
-        caselabel.grid(column=0,row=0,sticky='we')
-        # self.casename.trace_add('write',self.case_callback)
-        self.w = ttk.Combobox(self.frame,width=8,textvariable=self.casename,values=self.caselist['casetags'])
-        self.w.grid(column=1,row=0)
-        self.w.bind("<<ComboboxSelected>>",self.case_callback)
+
+        # optional study list for blast mode
+        studylabel = ttk.Label(self.frame,text='Study: ')
+        studylabel.grid(row=0,column=9,sticky='we')
+        self.s = ttk.Combobox(self.frame,width=8,textvariable=self.studynumber,values=self.studylist['studytags'],state='disabled')
+        self.s.grid(row=0,column=10)
+        self.s.bind("<<ComboboxSelected>>",self.study_callback)
+        self.studynumber.trace_add('write',lambda *args: self.ui.set_studynumber())
 
 
     # callback for file dialog 
@@ -120,6 +131,14 @@ class CreateCaseFrame(CreateFrame):
         self.ui.sliceviewerframe.tbar.home()
         self.ui.updateslice()
 
+    def study_callback(self,event=None):
+        self.ui.chselection = 't1+'
+        self.ui.dataselection = 'raw'
+        self.ui.sliceviewerframe.tbar.home()
+        self.ui.updateslice()
+
+        return
+
     def loadCase(self,case=None,files=None):
 
         # reset and reinitialize
@@ -153,25 +172,31 @@ class CreateCaseFrame(CreateFrame):
             dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},
                     'flair':{'d':None,'ex':False},'ref':{'d':None,'mask':None,'ex':False}}
             studies = [f for f in os.listdir(self.casedir) if os.path.isdir(os.path.join(self.casedir,f)) ]
-            # by convention, study dir name is the date of the study
+            # by convention, study dir name is the date of the study. this will be used in place
+            # of accession number
             for i,sname in enumerate(studies):
                 # won't use date string as a key
                 # self.ui.timepoints = studies
                 self.ui.data[i] = NiftiStudy(self.casename.get(),os.path.join(self.casedir,sname))
                 self.ui.data[i].loaddata()
                 self.ui.data[i].date = sname
+                # separately collecting them in a list here
+                self.studylist['studytags'].append(sname)
+            self.s['values'] = self.studylist['studytags']
+            self.s.current(0)
 
         # update sliceviewers according to data loaded
-        for s in self.ui.sliceviewerframes.values():
-            for dt in self.ui.data[0].channels.values():
-                if (self.ui.data[0].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
-                    s.chdisplay_button[dt]['state'] = 'normal'
+        s = self.ui.s
+        for sv in self.ui.sliceviewerframes.values():
+            for dt in self.ui.data[s].channels.values():
+                if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
+                    sv.chdisplay_button[dt]['state'] = 'normal'
                 # else:
                 #     s.chdisplay_button[dt]['state'] = 'normal'
-            s.dim = np.shape(self.ui.data[0].dset['raw']['t1+']['d'])
-            s.level = np.array([self.ui.data[0].dset['raw']['t1+']['max']/4]*2)
-            s.window = np.array([self.ui.data[0].dset['raw']['t1+']['max']/2]*2)
-            s.create_canvas()
+            sv.dim = np.shape(self.ui.data[s].dset['raw']['t1+']['d'])
+            sv.level = np.array([self.ui.data[s].dset['raw']['t1+']['max']/4]*2)
+            sv.window = np.array([self.ui.data[s].dset['raw']['t1+']['max']/2]*2)
+            sv.create_canvas()
 
         # update roiframes according to data loaded
         if False: # cbv will have to display just one overlay if necessary
