@@ -470,11 +470,11 @@ class NiftiStudy(Study):
                 self.dset['tempo'][dt]['d'],_ = self.loadnifti(dt_file)
                 # awkward special case for tempo. the mask is logically -1,0,1
                 # for areas of reduction, neutral or enhancement. 
-                # in generating an overlay, need to have the 0 to overlay only non-zero pixels
+                # in generating an overlay, need to have neutral==0 to overlay only non-zero pixels
                 # but for colormap, this has to be mapped into [0,0.5,1]
                 # but for uint8 file, it is being stored as [1,2,3]
                 # so the values have to be juggled a couple different ways
-                # here subtract offset of +2 to place in -1,0,1 range
+                # here subtract offset of +2 to place the original uint8 in a [-1,0,1] range
                 self.dset['tempo'][dt]['d'] -= 2
                 self.dset['tempo'][dt]['max'] = np.max(self.dset['tempo'][dt]['d'])
                 self.dset['tempo'][dt]['min'] = np.min(self.dset['tempo'][dt]['d'])
@@ -497,6 +497,15 @@ class NiftiStudy(Study):
                 # so store a copy separately
                 self.mask[dt+'unet']['d'] = np.copy(self.mask[dt]['d'])
                 self.mask[dt+'unet']['ex'] = True
+            # check additionally for a blast mask
+            dt_file = dt+'blast_processed.nii.gz'
+            if dt_file in files:
+                self.mask[dt+'blast']['d'],_ = self.loadnifti(dt_file)
+                self.mask[dt+'blast']['ex'] = True
+            else:
+                self.mask[dt+'blast']['d'] = np.ones_like(self.mask['ET']['d'])
+                self.mask[dt+'blast']['ex'] = False
+
         return
 
 

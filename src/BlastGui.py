@@ -71,7 +71,7 @@ class BlastGui(object):
         # hard-coded entries for debugging
         if self.debug:
             # load a nifti case for BLAST
-            if False:
+            if True:
                 self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0001')
@@ -91,7 +91,7 @@ class BlastGui(object):
             # 00005 75,105
             # 00002 53,81
             # load a tempo case
-            if True:
+            if False:
                 self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0001')

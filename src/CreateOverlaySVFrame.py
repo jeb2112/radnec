@@ -115,7 +115,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
                                                     command=self.updatemask)
         self.maskdisplay_button['unet'].grid(column=1,row=1,sticky='w')
         self.maskdisplay_button['blast'] = ttk.Radiobutton(self.normal_frame,text='BLAST',variable=self.maskdisplay,value='blast',
-                                                    command=self.updatemask)
+                                                    command=self.updatemask,state='disabled')
         self.maskdisplay_button['blast'].grid(column=2,row=1,sticky='w')
 
 
@@ -301,8 +301,9 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
 
         mask = self.maskdisplay.get()
         for s in self.ui.data.keys():
-            self.ui.data[s].dset['ET']['d'] = self.ui.data[0].dset['ET'+mask]['d']
-        self.ui.roiframe.overlay_callback()
+            self.ui.data[s].mask['ET']['d'] = self.ui.data[s].mask['ET'+mask]['d']
+            self.ui.data[s].mask['WT']['d'] = self.ui.data[s].mask['WT'+mask]['d']
+        self.ui.roiframe.overlay_callback(redo=True)
 
 
     def update_labels(self,colorbar=False):

@@ -172,6 +172,8 @@ class CreateCaseFrame(CreateFrame):
             s.level = np.array([self.ui.data[0].dset['raw']['t1+']['max']/4]*2)
             s.window = np.array([self.ui.data[0].dset['raw']['t1+']['max']/2]*2)
             s.create_canvas()
+
+        # update roiframes according to data loaded
         if False: # cbv will have to display just one overlay if necessary
             # update roiframe according to data loaded
             for dt in ['cbv']:

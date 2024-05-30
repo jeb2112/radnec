@@ -304,6 +304,8 @@ class CreateROIFrame(CreateFrame):
         if updateslice:
             self.ui.updateslice()
 
+        # update mask button state
+
         return
 
     def update_layermenu_options(self,roi):
@@ -981,10 +983,11 @@ class CreateROIFrame(CreateFrame):
         for dt in ['ET','WT']:
             self.ui.data[0].mask[dt+'blast']['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
             self.ui.data[0].mask[dt+'blast']['ex'] = True
-            if updatemask:
+            self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
+            if updatemask and False:
             # by this option, a BLAST segmentation could overwrite the current UI mask directly.
             # otherwise, it will be done in separate step from the Overlay sliceviewer. 
-            # need a option checkbox on the GUI for this
+            # need a further checkbox on the GUI for this auto option
                 self.ui.data[0].mask[dt]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
         self.updatesliders()
 
