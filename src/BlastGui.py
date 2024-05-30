@@ -63,12 +63,14 @@ class BlastGui(object):
                                },
                     },
         }
+        # hard-coded for two studies
         self.blastdata = {0:copy.deepcopy(self.blastdatadict),1:copy.deepcopy(self.blastdatadict)}
         # time points to display (index of temporal order)
         self.timepoints = [1,0]
 
         self.affine = {'t1pre':None,'t1':None,'t2':None,'flair':None}
-        self.roi = [0] # dummy value for Roi indexing 1-based
+        # self.roi = [0] # dummy value for Roi indexing 1-based
+        self.roi = {0:[0],1:[0]} # dummy value for Roi indexing 1-based. hard-coded for two studies
         self.currentroi = 0 # tracks the currentroi widget variable
         self.currentlayer = 0
         self.OS = sys.platform
@@ -98,8 +100,9 @@ class BlastGui(object):
                 # self.roiframe.updatesliderlabel('ET','flair')
                 self.roiframe.thresholds['T2 hyper']['flair'].set(1.2)
                 self.roiframe.updateslider('T2 hyper','flair')
-                self.roiframe.createROI(75,75,55) # 00002
-                self.roiframe.ROIclick(event=None)
+                if True:
+                    self.roiframe.createROI(65,65,55) # 00002
+                    self.roiframe.ROIclick(event=None)
 
 
             # load a tempo case
@@ -386,7 +389,8 @@ class BlastGui(object):
         self.data = {}
         self.blastdata = {0:copy.deepcopy(self.blastdatadict),1:copy.deepcopy(self.blastdatadict)}
     
-        self.roi = [0] # dummy value for Roi indexing 1-based
+        # self.roi = [0] # dummy value for Roi indexing 1-based
+        self.roi = {0:[0],1:[0]} # dummy value for Roi indexing 1-based
         self.currentroi = 0 # tracks the currentroi widget variable
         self.currentlayer = 0
         self.tstart = time.time()

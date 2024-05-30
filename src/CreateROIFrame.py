@@ -283,7 +283,7 @@ class CreateROIFrame(CreateFrame):
         self.updatesliders()
 
         # a convenience reference
-        data = self.ui.roi[roi].data
+        data = self.ui.roi[self.ui.s][roi].data
         # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
@@ -311,9 +311,9 @@ class CreateROIFrame(CreateFrame):
 
     def update_layermenu_options(self,roi):
         roi = self.ui.get_currentroi()
-        if self.ui.roi[roi].data['WT'] is None:
+        if self.ui.roi[self.ui.s][roi].data['WT'] is None:
             layerlist = ['ET','TC']
-        elif self.ui.roi[roi].data['ET'] is None:
+        elif self.ui.roi[self.ui.s][roi].data['ET'] is None:
             layerlist = ['WT']
         else:
             layerlist = self.layerlist['seg']
@@ -338,7 +338,7 @@ class CreateROIFrame(CreateFrame):
     
     def update_roinumber_options(self,n=None):
         if n is None:
-            n = len(self.ui.roi)
+            n = len(self.ui.roi[self.ui.s])
         menu = self.roinumbermenu['menu']
         menu.delete(0,'end')
         # 1-based indexing
@@ -507,10 +507,10 @@ class CreateROIFrame(CreateFrame):
             # but this might need to become the default behaviour for all cases, and if it's automatic
             # it won't pass through this callback but will be handled elsewhere.
             roi = self.ui.get_currentroi()
-            if self.ui.roi[roi].status is False:
-                if self.ui.roi[roi].data['WT'] is not None:
+            if self.ui.roi[self.ui.s][roi].status is False:
+                if self.ui.roi[self.ui.s][roi].data['WT'] is not None:
                     self.layerROI_callback(layer='WT')
-                elif self.ui.roi[roi].data['ET'] is not None:
+                elif self.ui.roi[self.ui.s][roi].data['ET'] is not None:
                     self.layerROI_callback(layer='ET')
             self.ui.updateslice(wl=True)
 
@@ -580,7 +580,7 @@ class CreateROIFrame(CreateFrame):
                 # otherwise if only 1 segmentation is present and the mouse click is for that
                 # same compartment, it will be updated.
                 if roi > 0:
-                    if self.ui.roi[roi].data['ET'] is not None and self.ui.roi[roi].data['WT'] is not None:
+                    if self.ui.roi[self.ui.s][roi].data['ET'] is not None and self.ui.roi[self.ui.s][roi].data['WT'] is not None:
                         self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
                     else:
                         self.updateROI(event)
@@ -588,10 +588,9 @@ class CreateROIFrame(CreateFrame):
                     self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
             
         roi = self.ui.get_currentroi()
-        # self.closeROI(self.ui.roi[roi].data['seg_raw'],self.ui.get_currentslice(),do3d=do3d)
         self.closeROI(self.ui.data[self.ui.s].dset['seg_raw'][self.ui.chselection]['d'],self.ui.get_currentslice(),do3d=do3d)
         # update layer menu
-        self.update_layermenu_options(self.ui.roi[roi])
+        self.update_layermenu_options(self.ui.roi[self.ui.s][roi])
 
         if False: # not ported yet
             self.ROIstats()
@@ -599,11 +598,11 @@ class CreateROIFrame(CreateFrame):
         # note some duplicate calls to generate_overlay should be removed
         for ch in [self.ui.chselection,'flair']:
             fusionstack = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
-                                             self.ui.roi[roi].data['seg'],
+                                             self.ui.roi[self.ui.s][roi].data['seg'],
                                             layer=self.ui.roiframe.layer.get(),
                                             overlay_intensity=self.config.OverlayIntensity)
-            self.ui.roi[roi].data['seg_fusion'][ch] = fusionstack
-        self.ui.roi[roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[roi].data['seg_fusion'])
+            self.ui.roi[self.ui.s][roi].data['seg_fusion'][ch] = fusionstack
+        self.ui.roi[self.ui.s][roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data['seg_fusion'])
         # need to update ui data here?? or just let it run from layerROI_callback below
         if False:
             self.updateData()
@@ -620,7 +619,7 @@ class CreateROIFrame(CreateFrame):
         # however, the preferred workflow may be to switch to ROI mode automatically after 1st BLAST
         # segmentation is selected, then manually jump back to BLAST mode for the 2nd selection
         roi = self.ui.get_currentroi()
-        if self.ui.roi[roi].status:
+        if self.ui.roi[self.ui.s][roi].status:
             self.finalROI_overlay_value.set(True)
             self.enhancingROI_overlay_value.set(False)
             self.ui.dataselection = 'seg_fusion_d'
@@ -630,7 +629,7 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_value.set(True)
             self.ui.dataselection = 'seg_raw_fusion_d'
             self.ui.sliceviewerframe.updateslice()
-            if self.ui.roi[roi].data['WT'] is None:
+            if self.ui.roi[self.ui.s][roi].data['WT'] is None:
                 self.layer_callback(layer='T2 hyper')
             else:
                 self.layer_callback(layer='ET')
@@ -643,14 +642,14 @@ class CreateROIFrame(CreateFrame):
         # roi.data['blast_params'][compartment]['t1'] = self.t1slider.get()
         # roi.data['blast_params'][compartment]['t2'] = self.t2slider.get()
         # roi.data['blast_params'][compartment]['bc'] = self.ui.get_bcsize()
-        self.ui.roi.append(roi)
+        self.ui.roi[self.ui.s].append(roi)
         self.currentroi.set(self.currentroi.get() + 1)
         self.updateROIData()
         self.update_roinumber_options()
 
     def updateROI(self,event):
         compartment = self.layer.get()
-        roi = self.ui.roi[self.ui.get_currentroi()]
+        roi = self.ui.roi[self.ui.s][self.ui.get_currentroi()]
         # roi.data['blast_params'][compartment]['t1'] = self.t1slider.get()
         # roi.data['blast_params'][compartment]['t2'] = self.t2slider.get()
         # roi.data['blast_params'][compartment]['bc'] = self.ui.get_bcsize()
@@ -665,10 +664,11 @@ class CreateROIFrame(CreateFrame):
 
         # process matching ROI to selected BLAST layer
         m = self.layer.get()
+        s = self.ui.s
         roi = self.ui.get_currentroi()
-        xpos = self.ui.roi[roi].coords[m]['x']
-        ypos = self.ui.roi[roi].coords[m]['y']
-        roislice = self.ui.roi[roi].coords[m]['slice']
+        xpos = self.ui.roi[s][roi].coords[m]['x']
+        ypos = self.ui.roi[s][roi].coords[m]['y']
+        roislice = self.ui.roi[s][roi].coords[m]['slice']
 
         if m == 'T2 hyper': # difference in naming convention between BLAST and final segmentation
             m = 'WT'
@@ -689,7 +689,7 @@ class CreateROIFrame(CreateFrame):
         # objectmask = ismember(CC_labeled,objectnumber)
         objectmask = (CC_labeled == objectnumber).astype('double')
         # currently there is no additional processing on ET or WT
-        self.ui.roi[roi].data[m] = objectmask.astype('uint8')
+        self.ui.roi[s][roi].data[m] = objectmask.astype('uint8')
 
         # calculate tc
         if m == 'ET':
@@ -763,50 +763,50 @@ class CreateROIFrame(CreateFrame):
                 seed[-1,:,:] = 0
                 objectmask_filled = reconstruction(seed,objectmask_filled,method='erosion')
                 objectmask_final = objectmask_filled.astype('int')
-                self.ui.roi[roi].data['TC'] = objectmask_final.astype('uint8')
+                self.ui.roi[s][roi].data['TC'] = objectmask_final.astype('uint8')
             else:
                 se2 = square(mlist[m]['dcube'])
                 objectmask_filled = binary_dilation(objectmask_closed[currentslice,:,:],se2)
                 objectmask_filled = flood_fill(objectmask_filled,(ypos,xpos),True)
                 objectmask_final[currentslice,:,:] = objectmask_filled.astype('int')     
-                self.ui.roi[roi].data['TC'] = objectmask_final.astype('uint8')
+                self.ui.roi[s][roi].data['TC'] = objectmask_final.astype('uint8')
 
             # step 3. TC contouring
             if do3d:
                 objectmask_contoured = {}
                 for sl in range(self.config.ImageDim[0]):
                     objectmask_contoured[sl] = find_contours(objectmask_final[sl,:,:])
-                self.ui.roi[roi].data['contour']['TC'] = objectmask_contoured
+                self.ui.roi[s][roi].data['contour']['TC'] = objectmask_contoured
  
             # update combined seg mask
             # nnunet convention for labels
-            if self.ui.roi[roi].data['WT'] is None:
-                self.ui.roi[roi].data['seg'] = 4*self.ui.roi[roi].data['ET'] + \
-                                                    2*self.ui.roi[roi].data['TC']
+            if self.ui.roi[s][roi].data['WT'] is None:
+                self.ui.roi[s][roi].data['seg'] = 4*self.ui.roi[s][roi].data['ET'] + \
+                                                    2*self.ui.roi[s][roi].data['TC']
             else:
-                self.ui.roi[roi].data['seg'] = 4*self.ui.roi[roi].data['ET'] + \
-                                                    2*self.ui.roi[roi].data['TC'] + \
-                                                    1*self.ui.roi[roi].data['WT']
-                self.ui.roi[roi].status = True # ROI has both compartments selected                                                    
+                self.ui.roi[s][roi].data['seg'] = 4*self.ui.roi[s][roi].data['ET'] + \
+                                                    2*self.ui.roi[s][roi].data['TC'] + \
+                                                    1*self.ui.roi[s][roi].data['WT']
+                self.ui.roi[s][roi].status = True # ROI has both compartments selected                                                    
 
         elif m == 'WT':
             # update combined seg mask
             # nnunet convention for labels
-            if self.ui.roi[roi].data['ET'] is None:
-                self.ui.roi[roi].data['seg'] = 1*self.ui.roi[roi].data['WT']
+            if self.ui.roi[s][roi].data['ET'] is None:
+                self.ui.roi[s][roi].data['seg'] = 1*self.ui.roi[s][roi].data['WT']
             else:
                 # update WT based on smoothing for TC
-                self.ui.roi[roi].data['WT'] = self.ui.roi[roi].data['WT'] | self.ui.roi[roi].data['TC']
+                self.ui.roi[s][roi].data['WT'] = self.ui.roi[s][roi].data['WT'] | self.ui.roi[s][roi].data['TC']
                 # if 'ET' exists but 'WT' didn't, then have to rebuild the combined mask because of the dummy +1
-                self.ui.roi[roi].data['seg'] = 4*self.ui.roi[roi].data['ET'] + \
-                                                    2*self.ui.roi[roi].data['TC'] + \
-                                                    1*self.ui.roi[roi].data['WT']
-                self.ui.roi[roi].status = True # ROI has both compartments selected
+                self.ui.roi[s][roi].data['seg'] = 4*self.ui.roi[s][roi].data['ET'] + \
+                                                    2*self.ui.roi[s][roi].data['TC'] + \
+                                                    1*self.ui.roi[s][roi].data['WT']
+                self.ui.roi[s][roi].status = True # ROI has both compartments selected
             # WT contouring
             objectmask_contoured = {}
             for sl in range(self.config.ImageDim[0]):
-                objectmask_contoured[sl] = find_contours(self.ui.roi[roi].data['WT'][sl,:,:])
-            self.ui.roi[roi].data['contour']['WT'] = objectmask_contoured
+                objectmask_contoured[sl] = find_contours(self.ui.roi[s][roi].data['WT'][sl,:,:])
+            self.ui.roi[s][roi].data['contour']['WT'] = objectmask_contoured
 
 
         return None
@@ -826,8 +826,8 @@ class CreateROIFrame(CreateFrame):
                 if len(self.roilist) > 1:
                     roisuffix = '_roi'+roi
                 outputfilename = fileroot + '_blast_' + img + roisuffix + '.nii'
-                if self.ui.roi[int(roi)].data[img] is not None:
-                    self.WriteImage(self.ui.roi[int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
+                if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
+                    self.WriteImage(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
         # manual outputs. for now these have only one roi
         if self.ui.data['label'] is not None:
             for img in ['manual_ET','manual_TC','manual_WT']:
@@ -836,7 +836,7 @@ class CreateROIFrame(CreateFrame):
 
         sdict = {}
         bdict = {}
-        for i,r in enumerate(self.ui.roi[1:]): # skip dummy 
+        for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
             sdict['roi'+str(i)] = r.stats
             bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT','blast','raw'))
 
@@ -876,9 +876,9 @@ class CreateROIFrame(CreateFrame):
         # not sure if still needed though
         for k in ['raw','seg_fusion']:
             if k == 'raw': # refernece only
-                self.ui.roi[self.ui.currentroi].data[k] = self.ui.data[self.ui.s].dset[k]
+                self.ui.roi[self.ui.s][self.ui.currentroi].data[k] = self.ui.data[self.ui.s].dset[k]
             else: 
-                self.ui.roi[self.ui.currentroi].data[k] = copy.deepcopy(self.ui.data[self.ui.s].dset[k])
+                self.ui.roi[self.ui.s][self.ui.currentroi].data[k] = copy.deepcopy(self.ui.data[self.ui.s].dset[k])
 
     # calculate the combined mask from separate layers
     def updateBLAST(self,layer=None):
@@ -906,9 +906,9 @@ class CreateROIFrame(CreateFrame):
         layer = self.layer.get()
         for dt in ['seg_fusion_d','seg_fusion']:
             for ch in [self.ui.chselection,'flair']:
-                self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt][ch])
+                self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt][ch])
         for dt in ['ET','WT']:
-            self.ui.data[s].mask[dt+'blast']['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
+            self.ui.data[s].mask[dt+'blast']['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt])
             self.ui.data[s].mask[dt+'blast']['ex'] = True
             self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
             if updatemask and False:
@@ -920,9 +920,9 @@ class CreateROIFrame(CreateFrame):
 
     # eliminate one ROI if multiple ROIs in current case
     def clearROI(self):
-        n = len(self.ui.roi)
+        n = len(self.ui.roi[self.ui.s])
         if n>1:    
-            self.ui.roi.pop(self.ui.currentroi)
+            self.ui.roi[self.ui.s].pop(self.ui.currentroi)
             n -= 1
             if self.ui.currentroi > 1 or n==1:
                 # new current roi is decremented as an arbitrary choice
@@ -938,7 +938,7 @@ class CreateROIFrame(CreateFrame):
     # eliminate all ROIs, ie for loading another case
     def resetROI(self):
         self.currentroi.set(0)
-        self.ui.roi = [0]
+        self.ui.roi[self.ui.s] = [0]
         self.ui.roiframe.finalROI_overlay_value.set(False)
         self.ui.roiframe.enhancingROI_overlay_value.set(False)
         self.ui.roiframe.layertype.set('blast')
@@ -960,14 +960,15 @@ class CreateROIFrame(CreateFrame):
     def ROIstats(self):
         
         roi = self.ui.get_currentroi()
-        data = self.ui.roi[roi].data
+        s = self.ui.s
+        data = self.ui.roi[s][roi].data
         for t in ['ET','TC','WT']:
             # check for a complete segmentation
             if t not in data.keys():
                 continue
             elif data[t] is None:
                 continue
-            self.ui.roi[roi].stats['vol'][t] = len(np.where(data[t])[0])
+            self.ui.roi[s][roi].stats['vol'][t] = len(np.where(data[t])[0])
 
             if self.ui.data['label'] is not None:
                 sums = data['manual_'+t] + data[t]
@@ -978,10 +979,10 @@ class CreateROIFrame(CreateFrame):
                 TN = len(np.where(sums == 0)[0])
                 FN = len(np.where(subs == 1)[0])
 
-                self.ui.roi[roi].stats['spec'][t] = TN/(TN+FP)
-                self.ui.roi[roi].stats['sens'][t] = TP/(TP+FN)
-                self.ui.roi[roi].stats['dsc'][t] = 1-dice(data['manual_'+t].flatten(),data[t].flatten()) 
+                self.ui.roi[s][roi].stats['spec'][t] = TN/(TN+FP)
+                self.ui.roi[s][roi].stats['sens'][t] = TP/(TP+FN)
+                self.ui.roi[s][roi].stats['dsc'][t] = 1-dice(data['manual_'+t].flatten(),data[t].flatten()) 
 
                 # Calculate volumes
-                self.ui.roi[roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
+                self.ui.roi[s][roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
 
