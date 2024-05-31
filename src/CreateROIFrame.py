@@ -18,21 +18,36 @@ from skimage.measure import find_contours
 from scipy.spatial.distance import dice
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
+if os.name == 'posix':
+    from cucim.skimage.morphology import binary_closing as cucim_binary_closing
+elif os.name == 'nt':
+    from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
+import cupy as cp
+import cc3d
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
 from src.ROI import ROI
 
-# contains various ROI methods and variables
+# contains various ROI methods and variables for 'BLAST' mode
 class CreateROIFrame(CreateFrame):
     def __init__(self,frame,ui=None,padding='10'):
         super().__init__(frame,ui=ui,padding=padding)
 
         self.buttonpress_id = None # temp var for keeping track of button press event
         self.finalROI_overlay_value = tk.BooleanVar(value=False)
-        self.overlay_value = tk.BooleanVar(value=False)
+        self.enhancingROI_overlay_value = tk.BooleanVar(value=False)
         roidict = {'ET':{'t12':None,'flair':None,'bc':None},'T2 hyper':{'t12':None,'flair':None,'bc':None}}
-        self.overlaytype = tk.StringVar(value=self.config.OverlayType)
+        self.thresholds = copy.deepcopy(roidict)
+        self.sliders = copy.deepcopy(roidict)
+        self.sliderlabels = copy.deepcopy(roidict)
+        self.thresholds['ET']['t12'] = tk.DoubleVar(value=self.ui.config.T1default)
+        self.thresholds['T2 hyper']['t12'] = tk.DoubleVar(value=self.ui.config.T2default)
+        self.thresholds['ET']['flair'] = tk.DoubleVar(value=self.ui.config.T2default)
+        self.thresholds['T2 hyper']['flair'] = tk.DoubleVar(value=self.ui.config.T2default)
+        self.thresholds['ET']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[0])
+        self.thresholds['T2 hyper']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[1])
+        self.overlay_type = tk.IntVar(value=0)
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layerROI = tk.StringVar(value='ET')
@@ -40,199 +55,199 @@ class CreateROIFrame(CreateFrame):
         self.currentroi = tk.IntVar(value=0)
         self.roilist = []
 
-        roidict = {'z':{'min':None,'max':None,'minmax':None},'cbv':{'min':None,'max':None,'minmax':None}}
-        self.thresholds = copy.deepcopy(roidict)
-        self.sliders = copy.deepcopy(roidict)
-        self.sliderlabels = copy.deepcopy(roidict)
-        self.sliderframe = {}
-        self.thresholds['z']['min'] = tk.DoubleVar(value=self.ui.config.zmin)
-        self.thresholds['z']['max'] = tk.DoubleVar(value=self.ui.config.zmax)
-        self.thresholds['z']['inc'] = self.ui.config.zinc
-        self.thresholds['cbv']['min'] = tk.IntVar(value=self.ui.config.cbvmin)
-        self.thresholds['cbv']['max'] = tk.IntVar(value=self.ui.config.cbvmax)
-        self.thresholds['cbv']['inc'] = self.ui.config.cbvinc
-
-
         ########################
         # layout for the buttons
         ########################
 
-        self.frame.grid(row=2,column=1,rowspan=5,sticky='ne')
+        # dummy frame to hide
+        self.dummy_frame = ttk.Frame(self.parentframe,padding='0')
+        self.dummy_frame.grid(row=2,column=4,sticky='news')
 
-        # overlay type
-        overlaytype_label = ttk.Label(self.frame, text='overlay type: ')
-        overlaytype_label.grid(row=0,column=2,padx=(50,0),sticky='e')
-        self.overlaytype_button = {}
-        self.overlaytype_button['z'] = ttk.Radiobutton(self.frame,text='z-score',variable=self.overlaytype,value='z',
-                                                    command=Command(self.overlay_callback))
-        self.overlaytype_button['z'].grid(row=0,column=3,sticky='w')
-        self.overlaytype_button['cbv'] = ttk.Radiobutton(self.frame,text='CBV',variable=self.overlaytype,value='cbv',
-                                                    command=Command(self.overlay_callback))
-        self.overlaytype_button['cbv'].grid(row=0,column=4,sticky='w')
+        # actual frame
+        self.frame.grid(row=2,column=4,rowspan=3,sticky='NE')
 
-        # on/off button
-        overlay_label = ttk.Label(self.frame,text='overlay on/off')
-        overlay_label.grid(row=0,column=0,sticky='e')
-        overlay_button = ttk.Checkbutton(self.frame,text='',
-                                               variable=self.overlay_value,
-                                               command=self.overlay_callback)
-        overlay_button.grid(row=0,column=1,sticky='w')
+        # ROI buttons for raw BLAST segmentation
+        enhancingROI_label = ttk.Label(self.frame,text='overlay on/off')
+        enhancingROI_label.grid(row=1,column=0,sticky='e')
+        enhancingROI_overlay = ttk.Checkbutton(self.frame,text='',
+                                               variable=self.enhancingROI_overlay_value,
+                                               command=self.enhancingROI_overlay_callback)
+        enhancingROI_overlay.grid(row=1,column=1,sticky='w')
 
+        layerlabel = ttk.Label(self.frame,text='BLAST layer:')
+        layerlabel.grid(row=0,column=0,sticky='w')
+        self.layer.trace_add('write',lambda *args: self.layer.get())
+        self.layermenu = ttk.OptionMenu(self.frame,self.layer,self.layerlist['blast'][0],
+                                        *self.layerlist['blast'],command=self.layer_callback)
+        self.layermenu.config(width=7)
+        self.layermenu.grid(row=0,column=1,sticky='w')
 
+        # ROI buttons for final smoothed segmentation
+        finalROI_overlay = ttk.Checkbutton(self.frame,text='',
+                                           variable=self.finalROI_overlay_value,
+                                           command=self.finalROI_overlay_callback)
+        finalROI_overlay.grid(row=1,column=3,sticky='w')
+        layerlabel = ttk.Label(self.frame,text='ROI layer:')
+        layerlabel.grid(row=0,column=2,sticky='w')
+        self.layerROI.trace_add('write',lambda *args: self.layerROI.get())
+        self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['blast'][0],
+                                           *self.layerlist['seg'],command=self.layerROI_callback)
+        self.layerROImenu.config(width=8)
+        self.layerROImenu.grid(row=0,column=3,sticky='w')
+
+        # for multiple roi's, n'th roi number choice
+        roinumberlabel = ttk.Label(self.frame,text='ROI number:')
+        roinumberlabel.grid(row=0,column=4,sticky='w')
+        self.currentroi.trace_add('write',self.set_currentroi)
+        self.roinumbermenu = ttk.OptionMenu(self.frame,self.currentroi,*self.roilist,command=self.roinumber_callback)
+        self.roinumbermenu.config(width=2)
+        self.roinumbermenu.grid(row=0,column=5,sticky='w')
+        self.roinumbermenu.configure(state='disabled')
+
+        # select ROI button
+        selectROI = ttk.Button(self.frame,text='select ROI',command = self.selectROI)
+        selectROI.grid(row=1,column=4,sticky='w')
+
+        # save ROI button
+        saveROI = ttk.Button(self.frame,text='save ROI',command = self.saveROI)
+        saveROI.grid(row=1,column=6,sticky='w')
+
+        # clear ROI button
+        clearROI = ttk.Button(self.frame,text='clear ROI',command = self.clearROI)
+        clearROI.grid(row=1,column=5,sticky='w')
+        self.frame.update()
 
         ########################
         # layout for the sliders
         ########################
-        self.sliderframe['dummy'] = ttk.Frame(self.frame,padding=0)
-        self.sliderframe['dummy'].grid(column=0,row=2,columnspan=5,sticky='news')
 
-        self.sliderframe['z'] = ttk.Frame(self.frame,padding='0')
-        self.sliderframe['z'].grid(column=0,row=2,columnspan=5,sticky='e')
-        self.sliderframe['z'].lower()
+        # frame for all sliders
+        self.t1sliderframe = ttk.Frame(self.frame,padding='0')
+        self.t1sliderframe.grid(column=0,row=3,columnspan=7,sticky='e')
 
-        # z-score sliders
-        zlabel = ttk.Label(self.sliderframe['z'], text='z-score (min,max)')
-        zlabel.grid(column=0,row=0,sticky='e')
+        # t1 slider
+        t1label = ttk.Label(self.t1sliderframe, text='T1/T2')
+        t1label.grid(column=0,row=0,sticky='w')
 
-        self.sliders['z']['min'] = ttk.Scale(self.sliderframe['z'],from_=self.ui.config.zmin,to=self.ui.config.zmax/2,variable=self.thresholds['z']['min'],state='normal',
-                                  length='1i',command=Command(self.updatesliderlabel,'z','min'),orient='horizontal')
-        self.sliders['z']['min'].grid(row=0,column=1,sticky='e')
-        self.sliderlabels['z']['min'] = ttk.Label(self.sliderframe['z'],text=self.thresholds['z']['min'].get())
-        self.sliderlabels['z']['min'].grid(row=0,column=2,sticky='e')
+        self.sliders['ET']['t12'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['ET']['t12'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'ET','t12'),orient='horizontal')
+        self.sliders['ET']['t12'].grid(row=0,column=1,sticky='e')
+        self.sliderlabels['ET']['t12'] = ttk.Label(self.t1sliderframe,text=self.thresholds['ET']['t12'].get())
+        self.sliderlabels['ET']['t12'].grid(row=0,column=2,sticky='e')
 
-        self.sliders['z']['max'] = ttk.Scale(self.sliderframe['z'],from_=self.ui.config.zmax/2,to=self.ui.config.zmax,variable=self.thresholds['z']['max'],state='normal',
-                                  length='1i',command=Command(self.updatesliderlabel,'z','max'),orient='horizontal')
-        self.sliders['z']['max'].grid(row=0,column=3,sticky='e')
-        self.sliderlabels['z']['max'] = ttk.Label(self.sliderframe['z'],text=self.thresholds['z']['max'].get())
-        self.sliderlabels['z']['max'].grid(row=0,column=4,sticky='e')
+        # t2 slider
+        t2label = ttk.Label(self.t1sliderframe, text='T1/T2')
+        t2label.grid(row=0,column=0,sticky='w')
+        self.sliders['T2 hyper']['t12'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['T2 hyper']['t12'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'T2 hyper','t12'),orient='horizontal')
+        self.sliders['T2 hyper']['t12'].grid(row=0,column=1,sticky='e')
+        self.sliderlabels['T2 hyper']['t12'] = ttk.Label(self.t1sliderframe,text=self.thresholds['T2 hyper']['t12'].get())
+        self.sliderlabels['T2 hyper']['t12'].grid(row=0,column=2,sticky='e')
 
-        # combo slider not available in tkinter, this one breaks tkinter look
-        # self.sliders['z']['minmax'] = RangeSliderH(self.zsliderframe,[self.thresholds['z']['min'],self.thresholds['z']['max']],
-        #                                            max_val = self.thresholds['z']['max'].get(),padX=50)
-        # self.sliders['z']['minmax'].grid(row=0,column=1,sticky='e')
+        #flairt1 slider
+        flairt1label = ttk.Label(self.t1sliderframe, text='flair')
+        flairt1label.grid(row=1,column=0,sticky='w')
+        self.sliders['ET']['flair'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['ET']['flair'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'ET','flair'),orient='horizontal')
+        self.sliders['ET']['flair'].grid(row=1,column=1,sticky='e')
+        self.sliderlabels['ET']['flair'] = ttk.Label(self.t1sliderframe,text=self.thresholds['ET']['flair'].get())
+        self.sliderlabels['ET']['flair'].grid(row=1,column=2,sticky='e')
 
+        #flairt2 slider
+        flairt2label = ttk.Label(self.t1sliderframe, text='flair')
+        flairt2label.grid(row=1,column=0,sticky='w')
+        self.sliders['T2 hyper']['flair'] = ttk.Scale(self.t1sliderframe,from_=-4,to=4,variable=self.thresholds['T2 hyper']['flair'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'T2 hyper','flair'),orient='horizontal')
+        self.sliders['T2 hyper']['flair'].grid(row=1,column=1,sticky='e')
+        self.sliderlabels['T2 hyper']['flair'] = ttk.Label(self.t1sliderframe,text=self.thresholds['T2 hyper']['flair'].get())
+        self.sliderlabels['T2 hyper']['flair'].grid(row=1,column=2,sticky='e')
 
-        # cbv sliders. resolution hard-coded
-        self.sliderframe['cbv'] = ttk.Frame(self.frame,padding='0')
-        self.sliderframe['cbv'].grid(column=0,row=2,columnspan=5,sticky='e')
-        self.sliderframe['cbv'].lower()
-
-        cbvlabel = ttk.Label(self.sliderframe['cbv'], text='CBV (min,max)')
-        cbvlabel.grid(column=0,row=0,sticky='e')
-
-        self.sliders['cbv']['min'] = ttk.Scale(self.sliderframe['cbv'],from_=self.ui.config.cbvmin,to=self.ui.config.cbvmax/2,variable=self.thresholds['cbv']['min'],state='normal',
-                                  length='1i',command=Command(self.updatesliderlabel,'cbv','min'),orient='horizontal')
-        self.sliders['cbv']['min'].grid(row=0,column=1,sticky='e')
-        self.sliderlabels['cbv']['min'] = ttk.Label(self.sliderframe['cbv'],text=self.thresholds['cbv']['min'].get())
-        self.sliderlabels['cbv']['min'].grid(row=0,column=2,sticky='e')
-
-        self.sliders['cbv']['max'] = ttk.Scale(self.sliderframe['cbv'],from_=self.ui.config.cbvmax/2,to=self.ui.config.cbvmax,variable=self.thresholds['cbv']['max'],state='normal',
-                                  length='1i',command=Command(self.updatesliderlabel,'cbv','max'),orient='horizontal')
-        self.sliders['cbv']['max'].grid(row=0,column=3,sticky='e')
-        self.sliderlabels['cbv']['max'] = ttk.Label(self.sliderframe['cbv'],text=self.thresholds['cbv']['max'].get())
-        self.sliderlabels['cbv']['max'].grid(row=0,column=4,sticky='e')
-        self.sliderframe['dummy'].lift()
-
-        for k in self.sliders.keys():
-            for m in ['min','max']:
-                self.sliders[k][m].bind("<ButtonRelease-1>",Command(self.updateslider,k,m))
-
-    # use lift/lower instead
-    def slider_state(self,s=None):
-        # if s is None:
-        s = self.overlaytype.get()
-        for m in ['min','max']:
-            for k in self.sliders.keys():
-                if k == s:
-                    self.sliders[k][m]['state']='normal'
-                else:
-                    self.sliders[k][m]['state'] = 'disabled'
-
-        return
+        #braint1 cluster slider
+        bclabel = ttk.Label(self.t1sliderframe,text='b.c.')
+        bclabel.grid(row=2,column=0,sticky='w')
+        self.sliders['ET']['bc'] = ttk.Scale(self.t1sliderframe,from_=0,to=4,variable=self.thresholds['ET']['bc'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'ET','bc'),orient='horizontal')
+        self.sliders['ET']['bc'].grid(row=2,column=1,sticky='e')
+        self.sliderlabels['ET']['bc'] = ttk.Label(self.t1sliderframe,text=self.thresholds['ET']['bc'].get())
+        self.sliderlabels['ET']['bc'].grid(row=2,column=2,sticky='e')
+ 
+        #braint2 cluster slider
+        self.sliders['T2 hyper']['bc'] = ttk.Scale(self.t1sliderframe,from_=0,to=4,variable=self.thresholds['T2 hyper']['bc'],state='disabled',
+                                  length='3i',command=Command(self.updatesliderlabel,'T2 hyper','bc'),orient='horizontal')
+        self.sliders['T2 hyper']['bc'].grid(row=2,column=1,sticky='e')
+        self.sliderlabels['T2 hyper']['bc'] = ttk.Label(self.t1sliderframe,text=self.thresholds['T2 hyper']['bc'].get())
+        self.sliderlabels['T2 hyper']['bc'].grid(row=2,column=2,sticky='e')
 
 
     #############
     # ROI methods
     ############# 
-        
-    def overlay_callback(self,updateslice=True,wl=False):
 
-        if self.overlay_value.get() == True:
-            ovly = self.overlaytype.get()
-            self.sliderframe[ovly].lift()
-            self.sliderframe['dummy'].lower(self.sliderframe[ovly])
-            ovly_str = ovly + 'overlay'
-            base = self.ui.sliceviewerframe.basedisplay.get()
-            if ovly == 'z':
-                # check for available data. or implement by deactivating button.
-                if False:
-                    if not self.ui.data[s].dset[base]['ex']:
-                        print('{} data not loaded'.format(base))
-                        return
-                ovly_data = ovly + base
-            else:
-                ovly_data = ovly
+    # main method for handling ET versus WT selection in BLAST raw segmentation
+    def layer_callback(self,layer=None,updateslice=True,updatedata=True,overlay=True):
 
-            # self.ui.sliceviewerframe.updatewl_fusion()
+        # if in the opposite mode, then switch same as if the checkbutton was used. 
+        # but don't run the checkbutton callback because
+        # don't yet have logic to check if the existing overlay is correct or
+        # needs to be redone.
+        # also if in ROI mode, then copy the relevant data back for BLAST mode.
+        if self.finalROI_overlay_value.get() == True:
+            self.updateData()
+            self.finalROI_overlay_value.set(False)
+        self.enhancingROI_overlay_value.set(True)
+        self.ui.dataselection = 'seg_raw_fusion_d'
 
-            # generate a new overlay
-            for s in self.ui.data:
-                if not self.ui.data[s].dset[ovly_str]['ex'] or self.ui.data[s].dset[ovly_str]['base'] != base or wl:
+        self.ui.sliceviewerframe.updatewl_fusion()
 
-                    # additional check if box not previously grayed out.
-                    # eg for cbv there might only be one DSC study, so just
-                    # use the base grayscale for the dummy overlay image
-                    if not self.ui.data[s].dset[ovly_data]['ex']:
-                        self.ui.data[s].dset[ovly_str]['d'] = np.copy(self.ui.data[s].dset[base]['d'])
-                        self.ui.data[s].dset[ovly_str]['ex'] = False
-                        self.ui.data[s].dset[ovly_str]['base'] = base
-                    else:
-
-                        self.ui.data[s].dset[ovly_str]['d'] = generate_overlay(
-                            self.ui.data[s].dset[base]['d'],
-                            self.ui.data[s].dset[ovly_data]['d']*self.ui.data[s].dset['ET']['d'],
-                            image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],
-                            overlay_wl = self.ui.sliceviewerframe.wl[ovly],
-                            overlay_intensity=self.config.OverlayIntensity)
-                        self.ui.data[s].dset[ovly_str]['ex'] = True
-                        self.ui.data[s].dset[ovly_str]['base'] = base
-
-                    # self.ui.data['overlay_d'] = copy.deepcopy(self.ui.data['overlay']),
-            self.ui.dataselection = ovly_str
-
+        if layer is None:
+            layer = self.layer.get()
         else:
-            self.sliderframe['dummy'].lift()
-            self.ui.set_dataselection()
+            self.layer.set(layer)
+        roi = self.ui.get_currentroi()
+
+        # when switching layers, raise/lower the corresponding sliders
+        # slider values switch but no need to run re-blast immediately. 
+        self.updatesliders()
+        for sl in ['t12','flair','bc']:
+            if layer == 'T2 hyper':
+                self.sliders[layer][sl].lift()
+                self.sliders['ET'][sl].lower()
+            # self.t2slider.configure(state='active')
+            # self.updatebcsize(self.bct2size.get(),blast=False)
+            else:
+                self.sliders[layer][sl].lift()
+                self.sliders['T2 hyper'][sl].lower()
+                # self.t2slider.configure(state='disabled')
+                # self.t1slider.configure(state='active')
+
+        # generate a new overlay
+        # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
+        # logic to use existing overlay or force a new one. might need fixing.
+        if overlay:
+            s = self.ui.s
+            chlist = [self.ui.chselection , 'flair']
+            for ch in chlist:
+                # note that this check does not cover both layers 'ET' and 'T2 Hyper' separately.
+                # they are assumed either both or neither to exist. probably needs to be fixed.
+                if not self.ui.data[s].dset['seg_raw_fusion'][ch]['ex'] or False:
+                    self.ui.data[s].dset['seg_raw_fusion'][ch]['d'+layer] = \
+                        generate_blast_overlay(self.ui.data[s].dset['raw'][ch]['d'],
+                                                self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'],
+                                                layer=layer,overlay_intensity=self.config.OverlayIntensity)
+                    self.ui.data[s].dset['seg_raw_fusion'][ch]['ex'] = True
+                    self.ui.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.ui.data[s].dset['seg_raw_fusion'][self.ui.chselection]['d'+layer])
 
         if updateslice:
             self.ui.updateslice()
 
-
-    def updateslider(self,layer,slider):
-        self.overlay_callback(wl=True)
-
-    def updatesliderlabel(self,layer,slider):
-        if layer == 'cbv':
-            pfstr = '{:.0f}'
-        else:
-            pfstr = '{:.1f}'
-        sval_min = self.sliders[layer]['min'].get()
-        sval_max = self.sliders[layer]['max'].get()
-        sval = np.round(self.sliders[layer][slider].get() / self.thresholds[layer]['inc']) * self.thresholds[layer]['inc']
-        try:
-            self.sliderlabels[layer][slider]['text'] = pfstr.format(sval)
-            self.ui.sliceviewerframe.wl[layer] = [sval_max-sval_min,(sval_max-sval_min)/2+sval_min]
-        except KeyError as e:
-            print(e)
-
-    # and ROI layer options menu
+    # main method for handling ET,TC,WT selection in final ROI smoothed segmentation
     def layerROI_callback(self,layer=None,updateslice=True,updatedata=True):
 
         roi = self.ui.get_currentroi()
         if roi == 0:
             return
         # if in the opposite mode, then switch
-        self.overlay_value.set(False)
+        self.enhancingROI_overlay_value.set(False)
         self.finalROI_overlay_value.set(True)
         self.ui.dataselection = 'seg_fusion_d'
 
@@ -247,16 +262,19 @@ class CreateROIFrame(CreateFrame):
         self.updatesliders()
 
         # a convenience reference
-        data = self.ui.roi[roi].data
+        data = self.ui.roi[self.ui.s][roi].data
         # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
         # then also copied back to main ui data
         # TODO: check mouse event, versus layer_callback called by statement
-        if self.ui.sliceviewerframe.overlaytype.get() == 0:
-            data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],contour=data['contour'],layer=layer,
+        if self.ui.sliceviewerframe.overlay_type.get() == 0: # contour not updated lately
+            data['seg_fusion'] = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][self.ui.chselection]['d'],
+                                                        data['seg'],contour=data['contour'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
         else:
-            data['seg_fusion'] = generate_overlay(self.ui.data['raw'],data['seg'],layer=layer,
-                                                        overlay_intensity=self.config.OverlayIntensity)
+            for ch in [self.ui.chselection,'flair']:
+                data['seg_fusion'][ch] = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
+                                                                data['seg'],layer=layer,
+                                                            overlay_intensity=self.config.OverlayIntensity)
 
         data['seg_fusion_d'] = copy.deepcopy(data['seg_fusion'])
 
@@ -268,11 +286,12 @@ class CreateROIFrame(CreateFrame):
 
         return
 
+    # update ROI layers that can be displayed according to availability
     def update_layermenu_options(self,roi):
         roi = self.ui.get_currentroi()
-        if self.ui.roi[roi].data['WT'] is None:
+        if self.ui.roi[self.ui.s][roi].data['WT'] is None:
             layerlist = ['ET','TC']
-        elif self.ui.roi[roi].data['ET'] is None:
+        elif self.ui.roi[self.ui.s][roi].data['ET'] is None:
             layerlist = ['WT']
         else:
             layerlist = self.layerlist['seg']
@@ -281,33 +300,222 @@ class CreateROIFrame(CreateFrame):
         for s in layerlist:
             menu.add_command(label=s,command = tk._setit(self.layerROI,s,self.layerROI_callback))
         self.layerROI.set(layerlist[0])
+
+    # methods for roi number choice menu
+    def roinumber_callback(self,item=None):
+        if self.enhancingROI_overlay_value.get() == True:
+            self.enhancingROI_overlay_value.set(False)
+            self.finalROI_overlay_value.set(True)
+            self.finalROI_overlay_callback()
+
+        self.ui.set_currentroi()
+        # reference or copy
+        self.layerROI_callback(updatedata=True)
+        self.ui.updateslice()
+        return
     
+    def update_roinumber_options(self,n=None):
+        if n is None:
+            n = len(self.ui.roi[self.ui.s])
+        menu = self.roinumbermenu['menu']
+        menu.delete(0,'end')
+        # 1-based indexing
+        for s in [str(i) for i in range(1,n)]:
+            menu.add_command(label=s,command = tk._setit(self.currentroi,s,self.roinumber_callback))
+        self.roilist = [str(i) for i in range(1,n)]
+        if n>1:
+            self.roinumbermenu.configure(state='active')
+        else:
+            self.roinumbermenu.configure(state='disabled')
+            self.finalROI_overlay_value.set(False)
+
     def set_currentroi(self,var,index,mode):
         if mode == 'write':
             self.ui.set_currentroi()    
+
+    # callbacks for the BLAST threshold slider bars
+
+    def updatet1threshold(self,event=None,currentslice=True):
+        self.enhancingROI_overlay_value.set(True)
+        # for now, this event reverts to BLAST preview mode and will not directly reprocess the final segmentation
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+            self.enhancingROI_overlay_callback()
+
+        # force recalc of gates
+        layer = self.layer.get()
+        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
+        self.ui.runblast(currentslice=currentslice)
+        self.t1sliderlabel['text'] = '{:.1f}'.format(self.t1threshold.get())
+
+    # updates the text field showing the value during slider drag
+    def updatet1label(self,event=None):
+        self.t1sliderlabel['text'] = '{:.1f}'.format(self.t1threshold.get())
+
+    def updatet2threshold(self,event=None,currentslice=True):
+        self.enhancingROI_overlay_value.set(True)
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+            self.enhancingROI_overlay_callback()
+        # force recalc of gates
+        layer = self.layer.get()
+        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
+        self.ui.runblast(currentslice=currentslice)
+        self.t2sliderlabel['text'] = '{:.1f}'.format(self.t2threshold.get())
+        # ie not using this workflow presently
+        if self.finalROI_overlay_value.get() == True:
+            self.ROIclick(do3d=True)
+        return
+    
+    def updatet2label(self,event=None):
+        self.t2sliderlabel['text'] = '{:.1f}'.format(self.t2threshold.get())
+
+    def updateflairt1threshold(self,event=None,currentslice=True):
+        self.enhancingROI_overlay_value.set(True)
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+            self.enhancingROI_overlay_callback()
+        # force recalc of gates
+        layer = self.layer.get()
+        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
+        self.ui.runblast(currentslice=currentslice)
+        self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
+        # ie not using this workflow presently
+        if self.finalROI_overlay_value.get() == True:
+            self.ROIclick(do3d=True)
+        return
+    
+    def updateflairt1label(self,event=None):
+        self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
+
+    def updateflairt2threshold(self,event=None,currentslice=True):
+        self.enhancingROI_overlay_value.set(True)
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+            self.enhancingROI_overlay_callback()
+        # force recalc of gates
+        layer = self.layer.get()
+        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
+        self.ui.runblast(currentslice=currentslice)
+        self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt2threshold.get())
+        # ie not using this workflow presently
+        if self.finalROI_overlay_value.get() == True:
+            self.ROIclick(do3d=True)
+        return
+    
+    def updateflairt1label(self,event=None):
+        self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
+
+    def updateslider(self,layer,slider,event=None):
+        self.enhancingROI_overlay_value.set(True)
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+            self.enhancingROI_overlay_callback()
+        # layer = self.layer.get()
+        if slider == 'bc':
+            self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
+        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
+        self.ui.runblast(currentslice=True)
+        self.updatesliderlabel(layer,slider)
+
+    def updatesliderlabel(self,layer,slider):
+        # if 'T2 hyper' in self.sliderlabels.keys() and 'T2 hyper' in self.sliders.keys():
+        try:
+            self.sliderlabels[layer][slider]['text'] = '{:.1f}'.format(self.sliders[layer][slider].get())
+        except KeyError as e:
+            print(e)
+        # else:
+        #     a=1
+
+    def updatebct1size(self,event=None):
+        self.enhancingROI_overlay_value.set(True)
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+            self.enhancingROI_overlay_callback()
+        layer = self.layer.get()
+        self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
+        self.ui.runblast(currentslice=True)
+        self.updatebct1label()
+        return
+
+    def updatebct1label(self,event=None):
+        bct1size = self.ui.get_bct1size()
+        self.bct1sliderlabel['text'] = '{:.1f}'.format(bct1size)
+
+    def updatebct2size(self,event=None):
+        self.enhancingROI_overlay_value.set(True)
+        if self.finalROI_overlay_value.get() == True:
+            self.finalROI_overlay_value.set(False)
+            self.enhancingROI_overlay_callback()
+        layer = self.layer.get()
+        self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
+        self.ui.runblast(currentslice=True)
+        self.updatebct2label()
+        return
+
+    def updatebct2label(self,event=None):
+        bct2size = self.ui.get_bct2size()
+        self.bct2sliderlabel['text'] = '{:.1f}'.format(bct2size)
+
+    # switch to show sliders and values according to current layer being displayed
+    def updatesliders(self):
+        if self.enhancingROI_overlay_value.get() == True:
+            layer = self.layer.get()
+        elif self.finalROI_overlay_value.get() == True:
+            # ie display slider values that were used for current ROI
+            layer = self.layerROI.get()
+            if layer == 'WT':
+                layer = 'T2 hyper'
+            else:
+                layer = 'ET'
+        for sl in ['t12','flair','bc']:
+            self.thresholds[layer][sl].set(self.ui.blastdata[self.ui.s]['blast']['params'][layer][sl])
+            self.updatesliderlabel(layer,sl)
        
+    # callback for final smoothed ROI on/off selection
     def finalROI_overlay_callback(self,event=None):
         if self.finalROI_overlay_value.get() == False:
+            # base display, not data selection
             self.ui.dataselection = 'raw'
-            self.ui.data['raw'] = copy.deepcopy(self.ui.data['raw_copy'])
+            if False: # no longer needed?
+                self.ui.data[self.ui.dataselection][self.ui.chselection]['d'] = copy.deepcopy(self.ui.data[self.ui.chselection+'_copy']['d'])
             self.ui.updateslice()
         else:
-            self.overlay_value.set(False)
+            self.enhancingROI_overlay_value.set(False)
             self.ui.dataselection = 'seg_fusion_d'
             # handle the case of switching manually to ROI mode with only one of ET T2 hyper selected.
             # eg the INDIGO case there won't be any ET. for now just a temp workaround.
             # but this might need to become the default behaviour for all cases, and if it's automatic
             # it won't pass through this callback but will be handled elsewhere.
             roi = self.ui.get_currentroi()
-            if self.ui.roi[roi].status is False:
-                if self.ui.roi[roi].data['WT'] is not None:
+            if self.ui.roi[self.ui.s][roi].status is False:
+                if self.ui.roi[self.ui.s][roi].data['WT'] is not None:
                     self.layerROI_callback(layer='WT')
-                elif self.ui.roi[roi].data['ET'] is not None:
+                elif self.ui.roi[self.ui.s][roi].data['ET'] is not None:
                     self.layerROI_callback(layer='ET')
             self.ui.updateslice(wl=True)
 
+    # callback for raw BLAST segmentation on/off selection
+    def enhancingROI_overlay_callback(self,event=None):
+        # if currently in roi mode, copy relevant data back to blast mode
+        if self.finalROI_overlay_value.get() == True:
+            self.updateData()
+
+        if self.enhancingROI_overlay_value.get() == False:
+            # base display, not data selection
+            self.ui.dataselection = 'raw'
+            if False:
+                self.ui.data['raw'][self.ui.chselection]['d'] = copy.deepcopy(self.ui.data['t1+_copy']['d'])
+            self.ui.updateslice()
+
+        else:
+            self.finalROI_overlay_value.set(False)
+            self.ui.dataselection = 'seg_raw_fusion_d'
+            self.ui.updateslice(wl=True)
+
+    # creates a ROI selection button press event
     def selectROI(self,event=None):
-        if self.overlay_value.get(): # only activate cursor in BLAST mode
+        if self.enhancingROI_overlay_value.get(): # only activate cursor in BLAST mode
             self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.ROIclick)
             self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
             # lock pan and zoom
@@ -318,11 +526,284 @@ class CreateROIFrame(CreateFrame):
                 # self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
         return None
-    
-    def resetCursor(self,event=None):
+        
+    # processes a ROI selection button press event
+    def ROIclick(self,event=None,do3d=True):
+        if event:
+            if event.button > 1: # ROI selection on left mouse only
+                return
+            if self.enhancingROI_overlay_value.get() == False: # no selection if BLAST mode not active
+                return
+            
+        # self.ui.sliceviewerframe.canvas.widgetlock.release(self.ui.sliceviewerframe)
         self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='watch')
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
+        if event:
+            # print(event.xdata,event.ydata)
+            # need check for inbounds
+            # convert coords from dummy label axis
+            s = event.inaxes.format_coord(event.xdata,event.ydata)
+            event.xdata,event.ydata = map(float,re.findall(r"(?:\d*\.\d+)",s))
+            if event.xdata < 0 or event.ydata < 0:
+                return None
+            # elif self.ui.data['raw'][0,self.ui.get_currentslice(),int(event.x),int(event.y)] == 0:
+            #     print('Clicked in background')
+            #     return
+            else:
+                roi = self.ui.get_currentroi()
+                # if current roi has segmentations for both compartments, start a new ROI
+                # otherwise if only 1 segmentation is present and the mouse click is for that
+                # same compartment, it will be updated.
+                if roi > 0:
+                    if self.ui.roi[self.ui.s][roi].data['ET'] is not None and self.ui.roi[self.ui.s][roi].data['WT'] is not None:
+                        self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
+                    else:
+                        self.updateROI(event)
+                else:
+                    self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
+            
+        roi = self.ui.get_currentroi()
+        self.closeROI(self.ui.data[self.ui.s].dset['seg_raw'][self.ui.chselection]['d'],self.ui.get_currentslice(),do3d=do3d)
+        # update layer menu
+        self.update_layermenu_options(self.ui.roi[self.ui.s][roi])
+
+        if False: # not ported yet
+            self.ROIstats()
+        # fusionstack = np.zeros((2,155,240,240))
+        # note some duplicate calls to generate_overlay should be removed
+        for ch in [self.ui.chselection,'flair']:
+            fusionstack = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
+                                             self.ui.roi[self.ui.s][roi].data['seg'],
+                                            layer=self.ui.roiframe.layer.get(),
+                                            overlay_intensity=self.config.OverlayIntensity)
+            self.ui.roi[self.ui.s][roi].data['seg_fusion'][ch] = fusionstack
+        self.ui.roi[self.ui.s][roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data['seg_fusion'])
+        # need to update ui data here?? or just let it run from layerROI_callback below
+        if False:
+            self.updateData()
+
+        # if triggered by a button event
+        if self.buttonpress_id:
+            self.ui.sliceviewerframe.canvas.callbacks.disconnect(self.buttonpress_id)
+            self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='')
+            self.buttonpress_id = None
+        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='arrow')
+        self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
+
+        # currently this logic stays in BLAST mode if both ET and t2 hyper are not yet selected.
+        # however, the preferred workflow may be to switch to ROI mode automatically after 1st BLAST
+        # segmentation is selected, then manually jump back to BLAST mode for the 2nd selection
+        roi = self.ui.get_currentroi()
+        if self.ui.roi[self.ui.s][roi].status:
+            self.finalROI_overlay_value.set(True)
+            self.enhancingROI_overlay_value.set(False)
+            self.ui.dataselection = 'seg_fusion_d'
+            self.layerROI_callback(layer='ET')
+        else:
+            self.finalROI_overlay_value.set(False)
+            self.enhancingROI_overlay_value.set(True)
+            self.ui.dataselection = 'seg_raw_fusion_d'
+            self.ui.sliceviewerframe.updateslice()
+            if self.ui.roi[self.ui.s][roi].data['WT'] is None:
+                self.layer_callback(layer='T2 hyper')
+            else:
+                self.layer_callback(layer='ET')
+
+        return None
     
+    # records button press coords in a new ROI object
+    def createROI(self,x,y,slice):
+        compartment = self.layer.get()
+        roi = ROI(x,y,slice,compartment=compartment)
+        self.ui.roi[self.ui.s].append(roi)
+        self.currentroi.set(self.currentroi.get() + 1)
+        self.updateROIData()
+        self.update_roinumber_options()
+
+    # adds button press coords for second layer (ie 'WT' after 'ET')
+    def updateROI(self,event):
+        compartment = self.layer.get()
+        roi = self.ui.roi[self.ui.s][self.ui.get_currentroi()]
+        roi.coords[compartment]['x'] = int(event.xdata)
+        roi.coords[compartment]['y'] = int(event.ydata)
+        roi.coords[compartment]['slice'] = self.ui.get_currentslice()
+        self.updateROIData()
+
+    # main method for creating a smoothed final ROI from a raw BLAST segmentation
+    # needs tidyup
+    def closeROI(self,metmaskstack,currentslice,do3d=True):
+
+        # process matching ROI to selected BLAST layer
+        m = self.layer.get()
+        s = self.ui.s
+        roi = self.ui.get_currentroi()
+        xpos = self.ui.roi[s][roi].coords[m]['x']
+        ypos = self.ui.roi[s][roi].coords[m]['y']
+        roislice = self.ui.roi[s][roi].coords[m]['slice']
+
+        if m == 'T2 hyper': # difference in naming convention between BLAST and final segmentation
+            m = 'WT'
+        # a quick config for ET, WT smoothing
+        mlist = {'ET':{'threshold':4,'dball':10,'dcube':2},
+                    'WT':{'threshold':1,'dball':10,'dcube':2}}
+        mask = (metmaskstack & mlist[m]['threshold'] == mlist[m]['threshold']).astype('double')
+
+        # dust operation gets rid of a lot of small noise elements in the raw BLAST segmentation
+        # connectivity = 6 is the minimum, again to filter out noise and tenuously connected regions
+        CC_labeled = cc3d.dust(mask,connectivity=6,threshold=100,in_place=False)
+        CC_labeled = cc3d.connected_components(CC_labeled,connectivity=6)
+        stats = cc3d.statistics(CC_labeled)
+
+        objectnumber = CC_labeled[roislice,ypos,xpos]
+        objectmask = (CC_labeled == objectnumber).astype('double')
+        # other than cc3d, currently there is no additional processing on ET or WT
+        self.ui.roi[s][roi].data[m] = objectmask.astype('uint8')
+
+        
+        if m == 'ET': # calculate TC, a smoothed/filled version of ET
+            objectmask_closed = np.zeros(np.shape(self.ui.data[self.ui.s].dset[self.ui.dataselection][self.ui.chselection]['d'+m])[1:])
+            objectmask_final = np.zeros(np.shape(self.ui.data[self.ui.s].dset[self.ui.dataselection][self.ui.chselection]['d'+m])[1:])
+
+            # thisBB = BB.BoundingBox[objectnumber,:,:]
+            thisBB = stats['bounding_boxes'][objectnumber]
+
+            # step 1. binary closing
+            # for 3d closing, gpu is faster. use cucim library
+            if do3d:
+                se = ball(mlist[m]['dball'])
+                start = time.time()
+                objectmask_cp = cp.array(objectmask)
+                se_cp = cp.array(se)
+                # TODO: iterate binary_closing?
+                if os.name == 'posix':
+                    close_object_cucim = cucim_binary_closing(objectmask_cp,footprint=se_cp)
+                    objectmask_closed = np.array(close_object_cucim.get())
+                elif os.name == 'nt':
+                    close_object_cupy = cupy_binary_closing(objectmask_cp,se_cp)
+                    objectmask_closed = np.array(close_object_cupy.get())            
+                end = time.time()
+                print('binary closing time = {:.2f} sec'.format(end-start))
+                # use cupy library.
+                if False:
+                    start = time.time()
+                    objectmask_cp = cp.array(objectmask)
+                    se_cp = cp.array(se)
+                    close_object_cupy = cupy_binary_closing(objectmask_cp,se_cp)
+                    close_object = np.array(close_object_cupy.get())
+                    end = time.time()
+                    print('time = {}'.format(end-start))
+            else:
+                # 2d preview mode. not sure if this is going to be useful might phase it out
+                # cpu only. use skimage library
+                # if a final 3d seg already exists, use it?
+                # if self.ui.data[m] is not None:
+                #     objectmask_final = self.ui.data[m]
+                # else:
+                se = disk(mlist[m]['dball'])
+                start = time.time()
+                close_object = binary_closing(objectmask[currentslice,:,:],se)
+                end = time.time()
+                print('binary closing time = {}'.format(end-start))
+                # use scipy
+                if False:
+                    start = time.time()
+                    close_object_scipy = scipy_binary_closing(objectmask,structure=se)
+                    end = time.time()
+                    print('binary closing time = {}'.format(end-start))
+                objectmask_closed[currentslice,:,:] = close_object
+
+            # step 2. flood fill
+            # for small kernel, don't need gpu
+            # TODO: does ET need anything further. otherwise, tc has dilation that et does not
+            if do3d:
+                se2 = cube(mlist[m]['dcube'])
+                objectmask_filled = binary_dilation(objectmask_closed,se2)
+                seed = np.ones_like(objectmask_filled)*255
+                seed[:,:,0] = 0
+                seed[:,:,-1] = 0
+                seed[:,0,:] = 0
+                seed[:,-1,:] = 0
+                seed[0,:,:] = 0
+                seed[-1,:,:] = 0
+                objectmask_filled = reconstruction(seed,objectmask_filled,method='erosion')
+                objectmask_final = objectmask_filled.astype('int')
+                self.ui.roi[s][roi].data['TC'] = objectmask_final.astype('uint8')
+            else: # 2d mode probably not used anymore
+                se2 = square(mlist[m]['dcube'])
+                objectmask_filled = binary_dilation(objectmask_closed[currentslice,:,:],se2)
+                objectmask_filled = flood_fill(objectmask_filled,(ypos,xpos),True)
+                objectmask_final[currentslice,:,:] = objectmask_filled.astype('int')     
+                self.ui.roi[s][roi].data['TC'] = objectmask_final.astype('uint8')
+
+            # step 3. TC contouring option. not recently updated.
+            if do3d:
+                objectmask_contoured = {}
+                for sl in range(self.config.ImageDim[0]):
+                    objectmask_contoured[sl] = find_contours(objectmask_final[sl,:,:])
+                self.ui.roi[s][roi].data['contour']['TC'] = objectmask_contoured
+ 
+            # create a combined seg mask from the three layers
+            # using nnunet convention for labels
+            if self.ui.roi[s][roi].data['WT'] is None:
+                self.ui.roi[s][roi].data['seg'] = 4*self.ui.roi[s][roi].data['ET'] + \
+                                                    2*self.ui.roi[s][roi].data['TC']
+            else:
+                self.ui.roi[s][roi].data['seg'] = 4*self.ui.roi[s][roi].data['ET'] + \
+                                                    2*self.ui.roi[s][roi].data['TC'] + \
+                                                    1*self.ui.roi[s][roi].data['WT']
+                self.ui.roi[s][roi].status = True # ie ROI has both compartments selected                                                    
+
+        elif m == 'WT': # WT gets no additional processing. just create a combined seg mask from the three layers
+                        # nnunet convention for labels
+            if self.ui.roi[s][roi].data['ET'] is None:
+                self.ui.roi[s][roi].data['seg'] = 1*self.ui.roi[s][roi].data['WT']
+            else:
+                # update WT based on smoothing for TC
+                self.ui.roi[s][roi].data['WT'] = self.ui.roi[s][roi].data['WT'] | self.ui.roi[s][roi].data['TC']
+                # if 'ET' exists but 'WT' didn't, then have to rebuild the combined mask because of the dummy +1
+                self.ui.roi[s][roi].data['seg'] = 4*self.ui.roi[s][roi].data['ET'] + \
+                                                    2*self.ui.roi[s][roi].data['TC'] + \
+                                                    1*self.ui.roi[s][roi].data['WT']
+                self.ui.roi[s][roi].status = True # ROI has both compartments selected
+            # WT contouring. not updated lately.
+            objectmask_contoured = {}
+            for sl in range(self.config.ImageDim[0]):
+                objectmask_contoured[sl] = find_contours(self.ui.roi[s][roi].data['WT'][sl,:,:])
+            self.ui.roi[s][roi].data['contour']['WT'] = objectmask_contoured
+
+        return None
+
+    # for exporting BLAST segmentations. not recently updated.
+    def saveROI(self,roi=None):
+        self.ui.endtime()
+        # Save ROI data
+        outputpath = self.ui.caseframe.casedir
+        fileroot = os.path.join(outputpath,self.ui.caseframe.casefile_prefix + self.ui.caseframe.casename.get())
+        filename = fileroot+'_stats.pkl'
+        # t1mprage template? need to save separately?
+
+        # BLAST outputs. combined ROI or separate? doing separate for now
+        roisuffix = ''
+        for img in ['seg','ET','TC','WT']:
+            for roi in self.roilist:
+                if len(self.roilist) > 1:
+                    roisuffix = '_roi'+roi
+                outputfilename = fileroot + '_blast_' + img + roisuffix + '.nii'
+                if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
+                    self.WriteImage(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
+
+        sdict = {}
+        bdict = {}
+        for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
+            sdict['roi'+str(i)] = r.stats
+            bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT','blast','raw'))
+
+        with open(filename,'ab') as fp:
+            pickle.dump((sdict,bdict),fp)
+        # matlab compatible output
+        filename = filename[:-3] + 'mat'
+        with open(filename,'ab') as fp:
+            savemat(filename,sdict,bdict)
 
     # for now output only segmentations so uint8
     def WriteImage(self,img_arr,filename,header=None,norm=False,type='uint8',affine=None):
@@ -348,45 +829,85 @@ class CreateROIFrame(CreateFrame):
         return
         
 
+    # back-copy an existing ROI and overlay from current dataset back into the current roi. 
+    # not sure if still needed though
     def updateROIData(self):
-        # save current dataset into the current roi. 
-        for k,v in self.ui.data.items():
-            if k != 'raw':
-                self.ui.roi[self.ui.currentroi].data[k] = copy.deepcopy(self.ui.data[k])
-            else: # reference only
-                self.ui.roi[self.ui.currentroi].data[k] = self.ui.data[k]
+        for k in ['raw','seg_fusion']:
+            if k == 'raw': # refernece only
+                self.ui.roi[self.ui.s][self.ui.currentroi].data[k] = self.ui.data[self.ui.s].dset[k]
+            else: 
+                self.ui.roi[self.ui.s][self.ui.currentroi].data[k] = copy.deepcopy(self.ui.data[self.ui.s].dset[k])
 
     # calculate the combined mask from separate layers
     def updateBLAST(self,layer=None):
+        s = self.ui.s
         # record slider values
         if layer is None:
             layer = self.layer.get()
+        for sl in ['t12','flair','bc']:
+            self.ui.blastdata[s]['blast']['params'][layer][sl] = self.thresholds[layer][sl].get()
 
-        if all(self.ui.data['blast'][x] is not None for x in ['ET','T2 hyper']):
-            # self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*2 + (self.ui.data['blast']['T2 hyper'].astype('int'))
-            self.ui.data['seg_raw'] = (self.ui.data['blast']['T2 hyper'].astype('int'))
-            et = np.where(self.ui.data['blast']['ET'])
-            self.ui.data['seg_raw'][et] += 4
-        elif self.ui.data['blast']['ET'] is not None:
-            self.ui.data['seg_raw'] = self.ui.data['blast']['ET'].astype('int')*4
-        elif self.ui.data['blast']['T2 hyper'] is not None:
-            self.ui.data['seg_raw'] = self.ui.data['blast']['T2 hyper'].astype('int')
+        if all(self.ui.blastdata[s]['blast'][x] is not None for x in ['ET','T2 hyper']):
+            # self.ui.data['seg_raw'] = self.ui.blastdata['blast']['ET'].astype('int')*2 + (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = (self.ui.blastdata[s]['blast']['T2 hyper'].astype('int'))
+            et = np.where(self.ui.blastdata[s]['blast']['ET'])
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'][et] += 4
+        elif self.ui.blastdata[s]['blast']['ET'] is not None:
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['ET'].astype('int')*4
+        elif self.ui.blastdata[s]['blast']['T2 hyper'] is not None:
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['T2 hyper'].astype('int')
 
-    def updateData(self):
-        for k in ['overlay_fusion','overlay_fusion_d','seg_raw']:
-            self.ui.data[k] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[k])
+    # forward-copy certain results from the BLAST ROI to the main dataset
+    # may need further work
+    def updateData(self,updatemask=False):
+        s = self.ui.s
+        # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
+        layer = self.layer.get()
+        for dt in ['seg_fusion_d','seg_fusion']:
+            for ch in [self.ui.chselection,'flair']:
+                self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt][ch])
+        for dt in ['ET','WT']:
+            self.ui.data[s].mask[dt+'blast']['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt])
+            self.ui.data[s].mask[dt+'blast']['ex'] = True
+            self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
+            if updatemask and False:
+                # by this option, a BLAST segmentation could overwrite the current UI mask directly as a convenience.
+                # otherwise, it will be done in separate step from the Overlay sliceviewer. 
+                # would better need a further checkbox on the GUI for this auto option
+                self.ui.data[s].mask[dt]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
         self.updatesliders()
 
+    # eliminate latest ROI if there are multiple ROIs in current case
+    def clearROI(self):
+        n = len(self.ui.roi[self.ui.s])
+        if n>1:    
+            self.ui.roi[self.ui.s].pop(self.ui.currentroi)
+            n -= 1
+            if self.ui.currentroi > 1 or n==1:
+                # new current roi is decremented as an arbitrary choice
+                # or if all rois are now gone
+                self.currentroi.set(self.currentroi.get()-1)
+            self.update_roinumber_options()
+            if n > 1:
+                self.roinumber_callback()
+            if n==1:
+                self.resetROI()
+                self.ui.updateslice()
 
     # eliminate all ROIs, ie for loading another case
     def resetROI(self):
         self.currentroi.set(0)
-        self.ui.roi = [0]
+        self.ui.roi[self.ui.s] = [0]
         self.ui.roiframe.finalROI_overlay_value.set(False)
-        self.ui.roiframe.overlay_value.set(False)
+        self.ui.roiframe.enhancingROI_overlay_value.set(False)
         self.ui.roiframe.layertype.set('blast')
         self.ui.roiframe.layer.set('ET')
-        self.ui.dataselection='t1+'
+        if self.ui.chselection in ['t1+','flair']:
+            for l in ['ET','T2 hyper']:
+                for sl in ['t12','flair','bc']:
+                    self.thresholds[l][sl].set(self.ui.config.thresholddefaults[sl])
+                    self.updatesliderlabel(l,sl)
+            self.update_roinumber_options()
 
     def append_roi(self,d):
         for k,v in d.items():
@@ -395,17 +916,19 @@ class CreateROIFrame(CreateFrame):
             else:
                 v.append(0)
 
+    # not recently updated.
     def ROIstats(self):
         
         roi = self.ui.get_currentroi()
-        data = self.ui.roi[roi].data
+        s = self.ui.s
+        data = self.ui.roi[s][roi].data
         for t in ['ET','TC','WT']:
             # check for a complete segmentation
             if t not in data.keys():
                 continue
             elif data[t] is None:
                 continue
-            self.ui.roi[roi].stats['vol'][t] = len(np.where(data[t])[0])
+            self.ui.roi[s][roi].stats['vol'][t] = len(np.where(data[t])[0])
 
             if self.ui.data['label'] is not None:
                 sums = data['manual_'+t] + data[t]
@@ -416,10 +939,10 @@ class CreateROIFrame(CreateFrame):
                 TN = len(np.where(sums == 0)[0])
                 FN = len(np.where(subs == 1)[0])
 
-                self.ui.roi[roi].stats['spec'][t] = TN/(TN+FP)
-                self.ui.roi[roi].stats['sens'][t] = TP/(TP+FN)
-                self.ui.roi[roi].stats['dsc'][t] = 1-dice(data['manual_'+t].flatten(),data[t].flatten()) 
+                self.ui.roi[s][roi].stats['spec'][t] = TN/(TN+FP)
+                self.ui.roi[s][roi].stats['sens'][t] = TP/(TP+FN)
+                self.ui.roi[s][roi].stats['dsc'][t] = 1-dice(data['manual_'+t].flatten(),data[t].flatten()) 
 
                 # Calculate volumes
-                self.ui.roi[roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
+                self.ui.roi[s][roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
 

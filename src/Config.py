@@ -1,5 +1,8 @@
 import os, sys
 import logging
+from matplotlib.colors import ListedColormap
+import matplotlib.cm as cm
+import numpy as np
 
 class Config(object):
     def __init__(self):
@@ -53,6 +56,12 @@ class Config(object):
         # autoclip to window/level
         self.WLClip = False
 
+        # default BLAST slider values
+        self.T1default = 0.
+        self.T2default = 0.
+        self.BCdefault = (3.,0.)
+        self.thresholddefaults = {'t12':0,'flair':0,'bc':3}
+
         # < 1 overlay by alpha compositing, == 1 replacement
         self.OverlayIntensity = 1.0
 
@@ -72,3 +81,12 @@ class Config(object):
 
         # default 'z-score' or 'CBV' overlay
         self.OverlayType = 'z'
+
+        # default BLAST overlay, contour or area
+        self.BlastOverlayType = 1
+        self.MaskType = 'ET'
+
+        # colormaps
+        self.OverlayCmap = {'z':'viridis','cbv':'viridis','tempo':'tempo'}
+        cmap_tempo = ListedColormap(np.array([[0 ,.5, 0, 1],[0,0,0,1],[0, 1, 0, 1]]))
+        cm.register_cmap(name='tempo',cmap=cmap_tempo)

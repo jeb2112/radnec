@@ -9,7 +9,7 @@ import tkinter as tk
 import nibabel as nb
 from nibabel.processing import resample_from_to
 import pydicom as pd
-from tkinter import ttk,StringVar,DoubleVar,PhotoImage
+from tkinter import ttk,StringVar,IntVar,PhotoImage
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg,NavigationToolbar2Tk
 import matplotlib
@@ -42,14 +42,23 @@ class CreateCaseFrame(CreateFrame):
         self.datadir.set(self.fd.dir)
         self.filenames = None
         self.casename = StringVar()
+        self.studynumber = IntVar(value=0)
         self.casefile_prefix = None
         self.casedir_prefix = 'M' # simple convention to identify root dir of a case
         self.caselist = {'casetags':[],'casedirs':[]} # list of case directories in self.datadir, and short-form tags
+        self.studylist = {'studytags':[],'studynumbers':[0,1]}
         self.processed = False
         self.pp = None
 
         # case selection
         self.frame.grid(row=0,column=0,columnspan=3,sticky='ew')
+        # select case pulldown menu
+        caselabel = ttk.Label(self.frame, text='Case: ')
+        caselabel.grid(row=0,column=0,sticky='we')
+        # self.casename.trace_add('write',self.case_callback)
+        self.w = ttk.Combobox(self.frame,width=8,textvariable=self.casename,values=self.caselist['casetags'])
+        self.w.grid(row=0,column=1)
+        self.w.bind("<<ComboboxSelected>>",self.case_callback)
 
         # select directory
         self.fdbicon = PhotoImage(file=os.path.join(self.config.UIResourcesPath,'folder_icon_16.png'))
@@ -65,12 +74,14 @@ class CreateCaseFrame(CreateFrame):
         # event currently a dummy arg since not being used in datadirentry_callback
         self.datadirentry.bind('<Return>',lambda event=None:self.datadirentry_callback(event=event))
         self.datadirentry.grid(row=0,column=4,columnspan=5)
-        caselabel = ttk.Label(self.frame, text='Case: ')
-        caselabel.grid(column=0,row=0,sticky='we')
-        # self.casename.trace_add('write',self.case_callback)
-        self.w = ttk.Combobox(self.frame,width=8,textvariable=self.casename,values=self.caselist['casetags'])
-        self.w.grid(column=1,row=0)
-        self.w.bind("<<ComboboxSelected>>",self.case_callback)
+
+        # optional study list for blast mode
+        studylabel = ttk.Label(self.frame,text='Study: ')
+        studylabel.grid(row=0,column=9,sticky='we')
+        self.s = ttk.Combobox(self.frame,width=8,textvariable=self.studynumber,values=self.studylist['studytags'],state='disabled')
+        self.s.grid(row=0,column=10)
+        self.s.bind("<<ComboboxSelected>>",self.study_callback)
+        self.studynumber.trace_add('write',lambda *args: self.ui.set_studynumber())
 
 
     # callback for file dialog 
@@ -82,6 +93,7 @@ class CreateCaseFrame(CreateFrame):
         self.datadirentry_callback()
 
     # callback for loading by individual files
+    # probably not using anymore
     def datafileentry_callback(self):
     # def select_file(self):
         self.resetCase()
@@ -115,9 +127,21 @@ class CreateCaseFrame(CreateFrame):
         self.ui.set_casename(val=case)
         print('Loading case {}'.format(case))
         self.loadCase(files=files)
-        self.ui.dataselection = 't1+'
+        self.ui.chselection = 't1+'
+        self.ui.dataselection = 'raw'
         self.ui.sliceviewerframe.tbar.home()
         self.ui.updateslice()
+
+    def study_callback(self,event=None):
+        self.ui.chselection = 't1+'
+        self.ui.dataselection = 'raw'
+        self.ui.sliceviewerframe.tbar.home()
+        self.ui.roiframe.currentroi.set(len(self.ui.roi[self.ui.s])-1)
+        self.ui.roiframe.enhancingROI_overlay_value.set(False)
+        self.ui.roiframe.finalROI_overlay_value.set(False)
+        self.ui.updateslice()
+
+        return
 
     def loadCase(self,case=None,files=None):
 
@@ -134,7 +158,7 @@ class CreateCaseFrame(CreateFrame):
             raise ValueError('No cases to load')
 
         # if three image files are given load them directly
-        # mignt not need this anymore
+        # not currently using this.
         if files is not None:
             if len(files) != 3:
                 self.ui.set_message('Select three image files')
@@ -147,74 +171,44 @@ class CreateCaseFrame(CreateFrame):
             self.processed = True
             self.ui.affine['t1'] = affine
 
-        # check for nifti image files with matching filenames
+        # this is now the intended way to load data
         elif self.casetype <= 1:
             dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},
                     'flair':{'d':None,'ex':False},'ref':{'d':None,'mask':None,'ex':False}}
             studies = [f for f in os.listdir(self.casedir) if os.path.isdir(os.path.join(self.casedir,f)) ]
-            # by convention, study dir name is the date of the study
+            # by convention, study dir name is the date of the study. this will be used in place
+            # of accession number
             for i,sname in enumerate(studies):
                 # won't use date string as a key
                 # self.ui.timepoints = studies
                 self.ui.data[i] = NiftiStudy(self.casename.get(),os.path.join(self.casedir,sname))
                 self.ui.data[i].loaddata()
                 self.ui.data[i].date = sname
-                if False:
-                    files = os.listdir(os.path.join(self.casedir,sname))
-                    files = self.get_imagefiles(files)
-                    for dt in ['t1','t1+','flair','flair+','cbv']:
-                        dt_files = [f for f in files if dt in f.lower()]
-                        if len(dt_files) > 0:
-                            if len(dt_files) > 1:
-                                # by convention '_processed' is the final output from dcm preprocess()
-                                dt_file = next((f for f in dt_files if re.search('_processed',f.lower())),None)
-                            elif len(dt_files) == 1:
-                                dt_file = dt_files[0]
+                # separately collecting them in a list here
+                self.studylist['studytags'].append(sname)
+            self.s['values'] = self.studylist['studytags']
+            self.s.current(0)
 
-                            dset[dt]['d'],dset[dt]['affine'] = self.loadData(dt_file)
+        # update sliceviewers according to data loaded
+        s = self.ui.s
+        for sv in self.ui.sliceviewerframes.values():
+            for dt in self.ui.data[s].channels.values():
+                if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
+                    sv.chdisplay_button[dt]['state'] = 'normal'
+            sv.dim = np.shape(self.ui.data[s].dset['raw']['t1+']['d'])
+            # auto window/level is hard-coded here
+            sv.level = np.array([self.ui.data[s].dset['raw']['t1+']['max']/4]*2)
+            sv.window = np.array([self.ui.data[s].dset['raw']['t1+']['max']/2]*2)
+            sv.create_canvas()
 
-        # update sliceviewer according to data loaded
-        for dt in ['t1','t1+','flair','flair+']:
-            if not(self.ui.data[0].dset[dt]['ex'] and self.ui.data[1].dset[dt]['ex']):
-                self.ui.sliceviewerframe.basedisplay_button[dt]['state'] = 'disabled'
-            else:
-                self.ui.sliceviewerframe.basedisplay_button[dt]['state'] = 'normal'
-        self.ui.sliceviewerframe.dim = np.shape(self.ui.data[0].dset[self.ui.dataselection]['d'])
-        self.ui.sliceviewerframe.level = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/4]*2)
-        self.ui.sliceviewerframe.window = np.array([self.ui.data[0].dset[self.ui.dataselection]['max']/2]*2)
-        self.ui.sliceviewerframe.create_canvas()
+        # update roiframes according to data loaded
         if False: # cbv will have to display just one overlay if necessary
-            # update roiframe according to data loaded
             for dt in ['cbv']:
                 if not(self.ui.data[0].dset[dt]['ex'] and self.ui.data[1].dset[dt]['ex']):
-                    self.ui.roiframe.overlaytype_button[dt]['state'] = 'disabled'
+                    self.ui.roiframe.overlay_type_button[dt]['state'] = 'disabled'
                 else:
-                    self.ui.roiframe.overlaytype_button[dt]['state'] = 'normal'
+                    self.ui.roiframe.overlay_type_button[dt]['state'] = 'normal'
     
-
-        # create the label. 'seg' picks up the BraTS convention but may need to be more specific
-        if False:
-            if self.casetype <= 1:
-                seg_file = next((f for f in files if 'seg' in f),None)
-                if seg_file is not None and 'blast' not in seg_file:
-                    label = sitk.ReadImage(os.path.join(self.casedir,seg_file))
-                    img_arr = sitk.GetArrayFromImage(label)
-                    self.ui.data['label'] = img_arr
-                else:
-                    self.ui.data['label'] = None
-            else:
-                self.ui.data['label'] = None
-
-            # supplementary labels. brats and nnunet conventions are differnt.
-            if self.ui.data['label'] is not None:
-                if False: # nnunet
-                    self.ui.data['manual_ET'] = (self.ui.data['label'] == 3).astype('int') #enhancing tumor 
-                    self.ui.data['manual_TC'] = (self.ui.data['label'] >= 2).astype('int') #tumour core
-                    self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
-                else: # brats
-                    self.ui.data['manual_ET'] = (self.ui.data['label'] == 4).astype('int') #enhancing tumor 
-                    self.ui.data['manual_TC'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
-                    self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
 
     # probably don't need this anymore
     def loadData(self,dt_file,type=None):
@@ -384,9 +378,6 @@ class CreateCaseFrame(CreateFrame):
         else:
             raise ValueError('Not all directories match a case prefix')
 
-
-
-    
 
     def resetCase(self):
         self.filenames = None

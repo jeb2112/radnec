@@ -55,11 +55,13 @@ class EventCallback():
 
 # base for various frames
 class CreateFrame():
-    def __init__(self,frame,ui=None,padding='10',style=None):
+    def __init__(self,frame,ui=None,padding='10',style=None,gridparams=None):
         self.ui = ui
         self.parentframe = frame # parent
         self.frame = ttk.Frame(self.parentframe,padding=padding,style=style)
         self.config = self.ui.config
         self.padding = padding
         self.fstyle = ttk.Style()
+        if gridparams is not None:
+            self.frame.grid(**gridparams)
 

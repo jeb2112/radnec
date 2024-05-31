@@ -6,6 +6,7 @@ import glob
 import copy
 import re
 import logging
+import copy
 import subprocess
 import pickle
 import tkinter as tk
@@ -15,30 +16,47 @@ import pydicom as pd
 from pydicom.fileset import FileSet
 import matplotlib.pyplot as plt
 from matplotlib.artist import Artist
+from matplotlib.path import Path
 from cProfile import Profile
 from pstats import SortKey,Stats
 from enum import Enum
 import ants
 
+import scipy
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice
+from scipy.interpolate import splev, splrep
+from sklearn.linear_model import LinearRegression,RANSACRegressor
 
-# a collection of multiple studies
+
+# convenience function
+def cp(item):
+    return copy.deepcopy(item)
+
+
+# Classes and methods for loading a collection of multiple dicom studies as a case
+# and pre-processing to produce nifti output files which are then loaded into the
+# viewer.
+
+# a collection of dicom studies at several time points
 class Case():
     def __init__(self,casename,studydirs,config):
 
         self.config = config
         self.case = casename
+        self.casedir = os.path.join(self.config.UIlocaldir,self.case)
         self.studydirs = studydirs
         self.studies = []
+        # convention for two displayed images: the left image is more recent/index1, and right image is earlier/index0
+        # in future when more than two study/timepoints are available, self.timepoints will select for display
+        self.timepoints = [0,1]
 
 
         self.load_studydirs()
         self.process_studydirs()
         self.process_timepoints()
-
-        if True:
-            self.segment()
+        self.regression()
+        self.segment()
 
 
     # load all studies of current case
@@ -68,14 +86,6 @@ class Case():
                 dstudies.remove(ds)
             studies.append(dstudies[0])
         self.studies = studies
-
-        # temporary. load ET mask
-        # this will be implemented later with a DL model
-        if False:
-            for s in self.studies:
-                s.dset['ET']['d'],_ = s.loadnifti(os.path.join(self.config.UIlocaldir,self.case,'objectmask_ET.nii.gz'))
-                s.dset['ET']['affine'] = s.dset['t1+']['affine']
-                s.dset['ET']['ex'] = True
 
         return
 
@@ -135,49 +145,241 @@ class Case():
         self.write_all()
         return
 
-
+    # save all data to nifti files for future use
     def write_all(self):
-        # save nifti files for future use
         for s in self.studies:
             localstudydir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
             for dt in s.dtag:
                 if s.dset[dt]['ex']:
                     s.writenifti(s.dset[dt]['d'],os.path.join(localstudydir,dt+'_processed.nii'),
                                                 type='float',affine=s.dset['ref']['affine'])
-                    
+
+    # run nnunet segmentation                
     def segment(self):
         for s in self.studies:
             s.localstudydir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
             s.segment()
 
+    # assumes there are just two time points for now
+    # TODO: use self.ui.timepoints from gui to select time points
+    def regression(self):
+        for s in self.studies:
+            s.normalize(['t1+','flair+'])
 
+        _,plotdata = self.get_data()
+
+        for dt in ['t1+','flair+']:
+            region_of_support = np.where((self.studies[0].dset[dt]['d'] > 0) & (self.studies[1].dset[dt]['d'] > 0))
+            xdata = np.ravel(self.studies[self.timepoints[0]].dset[dt]['d_norm'][region_of_support]).reshape(-1,1)
+            ydata = np.ravel(self.studies[self.timepoints[1]].dset[dt]['d_norm'][region_of_support])
+
+            xfit_range = plotdata['MR']['d_norm']
+            xfit = np.arange(xfit_range[0],xfit_range[1],np.diff(xfit_range)[0]/100).reshape(-1,1)
+
+            mdl = LinearRegression()
+            mdl_ransac = RANSACRegressor(random_state=0,max_trials=1000)
+
+            mdls = [mdl_ransac]
+            mdl_tags = ['_ransac']
+            reg_image = {}
+
+            for i,m in enumerate(mdls):
+
+                m.fit(xdata,ydata)
+
+                yfit = m.predict(xfit)
+                yhat = m.predict(xdata)
+                resid = ydata - yhat
+                reg_image[mdl_tags[i]] = np.zeros_like(self.studies[0].dset[dt]['d'])
+                reg_image[mdl_tags[i]][region_of_support] = resid
+                nsample = ydata.size
+                dof = nsample - m.n_features_in_
+                # TODO: one-side or two-side. 
+                alpha = 0.05
+                t = scipy.stats.t.ppf(1-alpha, dof)
+                s_err = np.sqrt(np.sum(resid**2) / dof)                    # standard deviation of the error
+                ci = np.ravel(t * s_err * np.sqrt(1+1/nsample + (xfit - np.mean(xfit))**2 / np.sum((xfit - np.mean(xfit))**2)))
+
+                # plot regression
+                if True:
+                    self.plot_regression(xdata,ydata,resid,xfit,yfit,ci,self.casedir,
+                                         tag='_'+dt+mdl_tags[i],save=True)
+
+                # create mask images for voxels beyond prediction interval
+                pts = np.vstack((xdata.flatten(),resid.flatten())).T
+                # form ci polygon
+                xpts_ci = np.concatenate((xfit,np.flip(xfit)),axis=0)
+                ypts_ci = np.concatenate((-ci,np.flip(ci)),axis=0).reshape(-1,1) 
+                pts_ci = np.hstack((xpts_ci,ypts_ci))
+                pts_ci = np.concatenate((pts_ci,np.atleast_2d(pts_ci[0,:])),axis=0) # close path
+
+                reg_set = np.zeros_like(resid)
+                if False:
+                    # too slow for large dataset.
+                    ci_path = Path(pts_ci,closed=True)
+                    reg_set = ~(ci_path.contains_points(pts)).flatten()
+                else:
+                    # just use the residuals for scalar comparison
+                    reg_set[(resid > np.mean(ci)) | (resid < -np.mean(ci))] = True
+                reg_set_above = copy.deepcopy(reg_set)
+                reg_set_above[resid < 0] = False
+                reg_set_below = copy.deepcopy(reg_set)
+                reg_set_below[resid > 0] = False
+
+                # indivdual change masks
+                if False:
+                    mask_below = np.zeros_like(self.studies[0].dset[dt]['d'],dtype='uint8')
+                    mask_below[region_of_support] = reg_set_below
+                    self.studies[0].writenifti(mask_below,os.path.join(self.casedir,'regression_mask_below_{}.nii'.format(mdl_tags[i])),
+                                            affine=self.studies[0].dset['ref']['affine'])
+
+                    mask_above = np.zeros_like(mask_below)
+                    mask_above[region_of_support] = reg_set_above
+                    self.studies[0].writenifti(mask_above,os.path.join(self.casedir,'regression_mask_above_{}.nii'.format(mdl_tags[i])),
+                                            affine=self.studies[0].dset['ref']['affine'])
+
+                # for the combined mask, will have negative pixel changes indicated by a value less than background, so it will 
+                # map intuitively to a colorbar scale. but still using uint8, so make an offset of +2
+                # which will then be removed at display
+                mask = np.ones_like(self.studies[0].dset[dt]['d'],dtype='uint8')*2
+                mask[region_of_support] = reg_set_below * 1 + reg_set_above * 3 
+                mask[mask==0] = 2
+                self.studies[0].writenifti(mask,os.path.join(self.studies[self.timepoints[1]].localstudydir,'tempo'+dt+'_processed.nii'),
+                                           affine=self.studies[0].dset['ref']['affine'])
+
+
+        return
+    
+    # regression scatter plots
+    def plot_regression(self,xdata,ydata,resid,xfit,yfit,ci,datadir,block=False,save=False,tag=''):
+        _,plotdata = self.get_data()
+        fig = plt.figure(11,figsize=(5,3))
+        fig.clf()
+        ax2 = plt.subplot(1,2,1)
+        ax2.cla()
+        ax2.plot(xfit,yfit*0,'b')
+        # this tuple is a string in json
+        plt.xlim(plotdata['MR']['d_norm'])
+        plt.xlabel('time 0')
+        plt.ylabel('residual')
+        ax2.fill_between(np.ravel(xfit), ci, -ci, color="#0277bd", edgecolor=None,alpha=0.5,zorder=2)
+        ax2.set_aspect('equal')
+        plt.scatter(xdata[::1000],resid[::1000],s=1,c='r',zorder=1)
+
+        ax3 = plt.subplot(1,2,2)
+        ax3.cla()
+        ax3.plot(xfit,yfit,'b')
+        plt.xlabel('time 0')
+        plt.ylabel('time 1')
+        ax3.fill_between(np.ravel(xfit), yfit + ci, yfit - ci, color="#0277bd", edgecolor=None,alpha=0.5,zorder=2)
+        ax3.set_aspect('equal')
+        plt.scatter(xdata[::1000],ydata[::1000],s=1,c='r',zorder=1)
+        plt.xlim(plotdata['MR']['d_norm'])
+        plt.ylim(plotdata['MR']['d_norm'])
+        plt.tight_layout()
+
+        if save:
+            plt.savefig(os.path.join(datadir,'regression{:s}.png'.format(tag)))
+        else:
+            plt.show(block=block)
+
+
+
+    # temporary arrangement for some hard-coded range values. move to config probably
+    def get_data(self):
+
+        # default colors for plots
+        defcolors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        # some hard-coded limits for plots
+        plotdata  = {
+            "CT":
+                {
+                    "d":(0,200),
+                    "d_norm":(-2,2),
+                    "d_diff":(-50,50),
+                    "d_norm_diff":(-1,1)
+                },
+            "MR":
+                {
+                    "d":(0,500),
+                    "d_norm":(-2,2),
+                    "d_diff":(-100,100),
+                    "d_norm_diff":(-1,1)
+                }
+            }
+
+        return defcolors,plotdata
+
+# set of dicom series at one time point of a Case
+# base class for input dicom images or output nifti images
 class Study():
 
-    def __init__(self,case,d):
+    def __init__(self,case,d,channellist = None):
         self.studydir = d
         self.case = case
         self.date = None
-        self.casedir = None
         self.localstudydir = None
-        self.dset = {'t1':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'zt1':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None},
-                     't1+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None},
-                     'zt1+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'flair':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'zflair':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'flair+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'zflair+':{'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0},
-                     'zoverlay':{'d':None,'ex':False,'base':'flair+'},
-                     'cbvoverlay':{'d':None,'ex':False,'base':'t1+'},
-                     'cbv':{'d':None,'time':None,'affine':None,'ex':False},
-                     'ref':{'d':None,'affine':None,'ex':False},
-                     'ET':{'d':None,'affine':None,'ex':False},
-                     'WT':{'d':None,'affine':None,'ex':False}
-                     }
+        if channellist is None:
+            self.channels = {0:'t1+',1:'flair'}
+        else:
+            self.channels = {k:v for k,v in enumerate(channellist)}
+
+        ####################################
+        # main data structure for the viewer
+        ####################################
+
+        # list of attributes for each image volume. 'd' is the main data array,
+        # 'ex' is existence as a convenience for checking whether populated
+        self.dprop = {'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0}
+        # special case for blast overlay layers
+        self.dprop_layer = {'dET':None,'dT2 hyper':None,'ex':False}
+
+        # the dataset structure is a dict
+        self.dset = {}
+        # reference image used only for registration purposes
+        self.dset['ref'] = cp(self.dprop)
+        # main raw imaging data 
+        self.dset['raw'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # cbv data, if available. this is not channel-specific so just create references for dummy channels
+        self.dset['cbv'] = cp(self.dprop)
+        for v in self.channels.values():
+            self.dset['cbv'][v] = self.dset['cbv'] 
+        # raw blast segmentation
+        self.dset['seg_raw'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # z-scores of the 'raw' data
+        self.dset['z'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # tempo regression differences of the 'raw' data at two time points
+        self.dset['tempo'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of the z-scores
+        self.dset['zoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of the CBV
+        self.dset['cbvoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of the regression.
+        self.dset['tempooverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of the raw blast segmentation. has different keys for separate layers
+        self.dset['seg_raw_fusion'] = {v:cp(self.dprop_layer) for v in self.channels.values()}
+        # a copy for display purposes which can be scaled for colormap. maybe not needed?
+        self.dset['seg_raw_fusion_d'] = {v:cp(self.dprop_layer) for v in self.channels.values()}
+        # color overlay of the final smoothed ROI created from raw blast segmentation
+        self.dset['seg_fusion'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # copy for colormap scaling
+        self.dset['seg_fusion_d'] = {v:cp(self.dprop) for v in self.channels.values()}
+
+        
+        # storage for masks derived from blast segmentation or nnUNet
+        self.mask =  {'ET':{'d':None,'affine':None,'ex':False},
+                     'WT':{'d':None,'affine':None,'ex':False},
+                     'ETblast':{'d':None,'affine':None,'ex':False},
+                     'WTblast':{'d':None,'affine':None,'ex':False},
+                     'ETunet':{'d':None,'affine':None,'ex':False},
+                     'WTunet':{'d':None,'affine':None,'ex':False},
+                    }
+
         self.dtag = [k for k in self.dset.keys()]
         self.date = None
         return
     
+    # load a single nifti file
     def loadnifti(self,t1_file,dir=None,type=None):
         img_arr_t1 = None
         if dir is None:
@@ -197,7 +399,7 @@ class Study():
         return img_arr_t1,affine
 
 
-    # use uint8 for masks 
+    # write a single nifti file. use uint8 for masks 
     def writenifti(self,img_arr,filename,header=None,norm=False,type='float64',affine=None):
         img_arr_cp = copy.deepcopy(img_arr)
         if norm:
@@ -209,29 +411,111 @@ class Study():
             os.system('gzip --force "{}"'.format(filename))
 
 
+    # normalize histograms for regression
+    def normalize(self,dtag):
 
+        # hard-coded points on the cumulative density
+        slims = (.2,.8)
+
+        for dt in dtag:
+            norm_vals = {dt:{}}
+            region_of_support = np.where((self.dset[dt]['d'] > 0))
+            background = np.where((self.dset[dt]['d'] == 0))
+            # 'counts' is (uniquevals, counts)
+            norm_vals[dt]['counts'] = np.unique(np.round(self.dset[dt]['d'][region_of_support]).reshape(-1),
+                                                            return_counts=True)
+            # calculate normalized quantiles for each array
+            norm_vals[dt]['q'] = np.cumsum(norm_vals[dt]['counts'][1]) / len(region_of_support[0])
+            # smoothing spline
+            spl = splrep(norm_vals[dt]['counts'][0],norm_vals[dt]['q'],s=0.01)
+            norm_vals[dt]['spl_q'] = splev(norm_vals[dt]['counts'][0],spl)
+            # take 20th,80th quantiles for normalization
+            norm_vals[dt]['slim'] = np.array([np.argmin(norm_vals[dt]['spl_q'] < slims[0]),np.argmin(norm_vals[dt]['spl_q'] < slims[1])])
+            self.dset[dt]['d_norm'] = np.copy(self.dset[dt]['d'])
+            self.dset[dt]['d_norm'] -= norm_vals[dt]['counts'][0][norm_vals[dt]['slim'][0]]
+            self.dset[dt]['d_norm'] /= (norm_vals[dt]['counts'][0][norm_vals[dt]['slim'][1]] - norm_vals[dt]['counts'][0][norm_vals[dt]['slim'][0]])
+            if False:
+                self.dset[dt]['d_norm'] *= self.dset[dt]['mask']
+            else:
+                self.dset[dt]['d_norm'][background] = 0
+            if False:
+                writenifti(dset[dt][d+'_norm'],os.path.join(datadir,'t0',dt+'_bet_norm.nii'),affine=dset['t0']['affine'],type=float)
+
+        return
+
+# sub-class for handling the output nifti images and loading into viewer
 class NiftiStudy(Study):
 
-    def __init__(self,case,d):
+    def __init__(self,case,d):    # convenience function
+
         super().__init__(case,d)
 
     def loaddata(self):
         files = os.listdir(self.studydir)
-        for dt in self.dtag: 
+        # load channels
+        for dt in self.channels.values(): 
             # by convention '_processed' is the final output from dcm preprocess()
             dt_file = dt + '_processed.nii.gz'
             if dt_file in files:
-                self.dset[dt]['d'],self.dset[dt]['affine'] = self.loadnifti(dt_file)
-                if dt in ['t1+','flair+']:
-                    self.dset[dt]['max'] = np.max(self.dset[dt]['d'])
-                    self.dset[dt]['min'] = np.min(self.dset[dt]['d'])
-                    self.dset[dt[:-1]]['max'] = self.dset[dt]['max']
-                    self.dset[dt[:-1]]['min'] = self.dset[dt]['min']
+                self.dset['raw'][dt]['d'],self.dset['raw'][dt]['affine'] = self.loadnifti(dt_file)
+                self.dset['raw'][dt]['max'] = np.max(self.dset['raw'][dt]['d'])
+                self.dset['raw'][dt]['min'] = np.min(self.dset['raw'][dt]['d'])
+                self.dset['raw'][dt]['ex'] = True
+            # z-scores
+            dt_file = 'z' + dt + '_processed.nii.gz'
+            if dt_file in files:
+                self.dset['z'][dt]['d'],_ = self.loadnifti(dt_file)
+                self.dset['z'][dt]['max'] = np.max(self.dset['z'][dt]['d'])
+                self.dset['z'][dt]['min'] = np.min(self.dset['z'][dt]['d'])
+                self.dset['z'][dt]['ex'] = True
+                # self.dset[dt[:-1]]['max'] = self.dset[dt]['max']
+                # self.dset[dt[:-1]]['min'] = self.dset[dt]['min']
+            # tempo subtractions
+            dt_file = 'tempo' + dt + '_processed.nii.gz'
+            if dt_file in files:
+                self.dset['tempo'][dt]['d'],_ = self.loadnifti(dt_file)
+                # awkward special case for tempo. the mask is logically -1,0,1
+                # for areas of reduction, neutral or enhancement. 
+                # in generating an overlay, need to have neutral==0 to overlay only non-zero pixels
+                # but for colormap, this has to be mapped into [0,0.5,1]
+                # but for uint8 file, it is being stored as [1,2,3]
+                # so the values have to be juggled a couple different ways
+                # here subtract offset of +2 to place the original uint8 in a [-1,0,1] range
+                self.dset['tempo'][dt]['d'] -= 2
+                self.dset['tempo'][dt]['max'] = np.max(self.dset['tempo'][dt]['d'])
+                self.dset['tempo'][dt]['min'] = np.min(self.dset['tempo'][dt]['d'])
+                self.dset['tempo'][dt]['ex'] = True
+
+        # load other
+        for dt in ['cbv','ref']:
+            dt_file = dt + '_processed.nii.gz'
+            if dt_file in files:
+                self.dset[dt]['d'],_ = self.loadnifti(dt_file)                    
                 self.dset[dt]['ex'] = True
+
+        # load masks
+        for dt in ['ET','WT']:
+            dt_file = dt + '_processed.nii.gz'
+            if dt_file in files:
+                self.mask[dt]['d'],_ = self.loadnifti(dt_file)
+                self.mask[dt]['ex'] = True
+                # for now, ET_processed is an nnunet segmentation, not a BLAST
+                # so store a copy separately
+                self.mask[dt+'unet']['d'] = np.copy(self.mask[dt]['d'])
+                self.mask[dt+'unet']['ex'] = True
+            # check additionally for a blast mask
+            dt_file = dt+'blast_processed.nii.gz'
+            if dt_file in files:
+                self.mask[dt+'blast']['d'],_ = self.loadnifti(dt_file)
+                self.mask[dt+'blast']['ex'] = True
+            else:
+                self.mask[dt+'blast']['d'] = np.ones_like(self.mask['ET']['d'])
+                self.mask[dt+'blast']['ex'] = False
+
         return
 
 
-
+# other sub-class for the preprocessing pipeline
 class DcmStudy(Study):
 
     def __init__(self,case,d,config):
@@ -243,7 +527,7 @@ class DcmStudy(Study):
         self.studytimeattrs = {'StudyDate':None,'StudyTime':None}
         self.date = None
         # params for z-score
-        self.params = {dt:{'mean':0,'std':0} for dt in ['t1','t1+','flair','flair+']}
+        self.params = {dt:{'mean':0,'std':0} for dt in ['t1','t1+','flair','flair']}
         # reference for talairach coords
         self.dset['ref']['d'],self.dset['ref']['affine'] = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',dir=os.path.join(self.config.UIdatadir,'mni152'))
         mask,_ = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a_mask.nii',dir=os.path.join(self.config.UIdatadir,'mni152'))
@@ -289,13 +573,10 @@ class DcmStudy(Study):
                 else:
                     dt = 't1+'
 
-            # if flair scans aren't designated pre/post, assume post
-            # this may change if a pre-contrast flair is added to protocol
+            # assuming flair scans aren't designated pre/post, and will generally
+            # be post, but never would be both.  
             elif any([f in ds0.SeriesDescription.lower() for f in ['flair','fluid']]):
-                if 'pre' in ds0.SeriesDescription.lower():
-                    dt = 'flair'
-                else:
-                    dt = 'flair+'
+                dt = 'flair'
 
             # not taking relcbv or relcbf, just relccbv
             # note this may be exported in a separate studydir, without a matching t1
@@ -389,8 +670,8 @@ class DcmStudy(Study):
     # processing routines
     #####################
 
-    
-    # resampling, registration, bias correction
+    # main routine for the preprocessing pipeline
+    # eg resampling, registration, bias correction
     def preprocess(self):
 
         print('case = {},{}'.format(self.case,self.studydir))
@@ -400,7 +681,7 @@ class DcmStudy(Study):
 
         # resample to target matrix (t1+ for now)
         if True:
-            for dt in ['flair','flair+','cbv']:
+            for dt in ['flair','cbv']:
                 if self.dset[dt]['ex'] and self.dset['t1+']['ex']:
                     print('Resampling ' + dt + ' into target space...')
                     self.dset[dt]['d'],self.dset[dt]['affine'] = self.resamplet2(self.dset['t1+']['d'],self.dset[dt]['d'],
@@ -424,7 +705,7 @@ class DcmStudy(Study):
             # reference
             fixed_image = self.dset['t1+']['d']
 
-            for dt in ['t1pre','flair','flair+']:
+            for dt in ['t1pre','flair','t2']:
                 # fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
                 if self.dset[dt]['ex']:
                     moving_image = self.dset[dt]['d']
@@ -434,14 +715,14 @@ class DcmStudy(Study):
                                                 type='float',affine=self.ui.affine['t1'])
 
             # apply mask
-            for dt in ['t1','flair','flair+']:
+            for dt in ['t1','flair','t2']:
                 if self.dset[dt]['ex']:
                     self.dset[dt]['d'] = np.where(self.dset['t1+']['mask'],self.dset[dt]['d'],0)
 
 
         # attempt model extraction
         else:    
-            for dt in ['t1+','flair+','t1','flair']:
+            for dt in ['t1+','t2','t1','flair']:
                 if self.dset[dt]['ex']:
                     self.dset[dt]['d'],self.dset[dt]['mask'] = self.extractbrain2(self.dset[dt]['d'],affine=self.dset[dt]['affine'],fname=dt)
 
@@ -458,7 +739,7 @@ class DcmStudy(Study):
         if True:
             if self.dset['t1+']['ex']:
                 fixed_image = self.dset['t1+']['d']
-                for dt in ['t1','flair','flair+']:
+                for dt in ['t1','flair','t2']:
                     fname = os.path.join(self.localstudydir,dt+'_resampled.nii.gz')
                     if self.dset[dt]['ex']:
                         moving_image = self.dset[dt]['d']
@@ -472,13 +753,13 @@ class DcmStudy(Study):
 
         # bias correction.
         self.dbias = {} # working data for calculating z-scores
-        for dt in ['t1','t1+','flair','flair+']:
+        for dt in ['t1','t1+','flair','t2']:
             if self.dset[dt]['ex']:   
                 self.dset['z'+dt]['d'] = np.copy(self.n4bias(self.dset[dt]['d']))
                 self.dset['z'+dt]['ex'] = True
 
         # if necessary clip any negative values introduced by the processing
-        for dt in ['t1','t1+','flair','flair+']:
+        for dt in ['t1','t1+','flair','t2']:
             if self.dset[dt]['ex']:
                 if np.min(self.dset['z'+dt]['d']) < 0:
                     self.dset['z'+dt]['d'][self.dset['z'+dt]['d'] < 0] = 0
@@ -489,7 +770,7 @@ class DcmStudy(Study):
 
         # save nifti files for future use
         if False:
-            for dt in ['flair+','t1','t1+','flair']:
+            for dt in ['t2','t1','t1+','flair']:
                 if self.dset[dt]['ex']:
                     self.writenifti(self.dset[dt]['d'],os.path.join(self.localstudydir,dt+'_processed.nii'),
                                                 type='float',affine=self.dset['t1+']['affine'])
@@ -500,7 +781,8 @@ class DcmStudy(Study):
 
         return
 
-
+    # calculate stats to create z-score images
+    # duplicates normalslice_callback code in main viewer, should be combined
     def normalstats(self,event=None):
         print('normal stats')
         # do kmeans
@@ -508,7 +790,7 @@ class DcmStudy(Study):
 
         X={}
         vset = {}
-        for dt2 in [('flair','t1'),('flair+','t1+')]:
+        for dt2 in [('flair','t1'),('flair','t2')]:
             if self.dset['z'+dt2[0]]['ex'] and self.dset['z'+dt2[1]]['ex']:
                 region_of_support = np.where(self.dset[dt2[0]]['d']*self.dset[dt2[1]]['d'] >0)
                 background = np.where(self.dset[dt2[0]]['d']*self.dset[dt2[1]]['d'] == 0)
@@ -545,7 +827,7 @@ class DcmStudy(Study):
 
         return
 
-    # tumour segmenation nnUNet
+    # tumour segmenation by nnUNet
     def segment(self,dpath=None):
         print('segment tumour')
         if dpath is None:
@@ -613,9 +895,7 @@ class DcmStudy(Study):
         return 
 
 
-
-    # brain extraction
-    # now using hd-bet
+    # brain extraction from skull, currently using hd-bet
     def extractbrain2(self,img_arr_input,affine=None,fname=None):
         print('extract brain')
         img_arr = copy.deepcopy(img_arr_input)
@@ -670,6 +950,7 @@ class DcmStudy(Study):
         img_arr_t2 = np.ascontiguousarray(np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0)))
         return img_arr_t2,img_t2_res.affine
  
+    # ants N4 bias correction
     def n4bias(self,img_arr,shrinkFactor=4):
         print('N4 bias correction')
         data = copy.deepcopy(img_arr)
@@ -682,7 +963,7 @@ class DcmStudy(Study):
         img_arr_n4 = dataImage_n4.numpy()
         return img_arr_n4
 
-    # registration
+    # ants registration
     def register(self,img_arr_fixed,img_arr_moving,transform='Affine'):
         print('register fixed, moving')
 
@@ -694,7 +975,7 @@ class DcmStudy(Study):
 
         return img_arr_reg,mytx['fwdtransforms']
 
-    # transform
+    # apply registration transform to another volume
     def tx(self,img_arr_fixed,img_arr_moving,tx):
         print('transform fixed, moving')
 
