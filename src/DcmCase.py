@@ -34,7 +34,11 @@ def cp(item):
     return copy.deepcopy(item)
 
 
-# a collection of multiple studies
+# Classes and methods for loading a collection of multiple dicom studies as a case
+# and pre-processing to produce nifti output files which are then loaded into the
+# viewer.
+
+# a collection of dicom studies at several time points
 class Case():
     def __init__(self,casename,studydirs,config):
 
@@ -82,14 +86,6 @@ class Case():
                 dstudies.remove(ds)
             studies.append(dstudies[0])
         self.studies = studies
-
-        # temporary. load ET mask
-        # this will be implemented later with a DL model
-        if False:
-            for s in self.studies:
-                s.dset['ET']['d'],_ = s.loadnifti(os.path.join(self.config.UIlocaldir,self.case,'objectmask_ET.nii.gz'))
-                s.dset['ET']['affine'] = s.dset['t1+']['affine']
-                s.dset['ET']['ex'] = True
 
         return
 
@@ -149,9 +145,8 @@ class Case():
         self.write_all()
         return
 
-
+    # save all data to nifti files for future use
     def write_all(self):
-        # save nifti files for future use
         for s in self.studies:
             localstudydir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
             for dt in s.dtag:
@@ -290,7 +285,7 @@ class Case():
 
 
 
-    # some hard-coded range values. move to config
+    # temporary arrangement for some hard-coded range values. move to config probably
     def get_data(self):
 
         # default colors for plots
@@ -315,6 +310,8 @@ class Case():
 
         return defcolors,plotdata
 
+# set of dicom series at one time point of a Case
+# base class for input dicom images or output nifti images
 class Study():
 
     def __init__(self,case,d,channellist = None):
@@ -327,38 +324,43 @@ class Study():
         else:
             self.channels = {k:v for k,v in enumerate(channellist)}
 
-        # list of attributes for each image volume
-        # 'd' is the main data array,
+        ####################################
+        # main data structure for the viewer
+        ####################################
+
+        # list of attributes for each image volume. 'd' is the main data array,
         # 'ex' is existence as a convenience for checking whether populated
         self.dprop = {'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0}
         # special case for blast overlay layers
         self.dprop_layer = {'dET':None,'dT2 hyper':None,'ex':False}
+
+        # the dataset structure is a dict
         self.dset = {}
-        # reference image used for registrations
+        # reference image used only for registration purposes
         self.dset['ref'] = cp(self.dprop)
-        # main data 
+        # main raw imaging data 
         self.dset['raw'] = {v:cp(self.dprop) for v in self.channels.values()}
         # cbv data, if available. this is not channel-specific so just create references for dummy channels
         self.dset['cbv'] = cp(self.dprop)
         for v in self.channels.values():
             self.dset['cbv'][v] = self.dset['cbv'] 
-        # blast segmentation
+        # raw blast segmentation
         self.dset['seg_raw'] = {v:cp(self.dprop) for v in self.channels.values()}
-        # z-scores of the raw data
+        # z-scores of the 'raw' data
         self.dset['z'] = {v:cp(self.dprop) for v in self.channels.values()}
-        # tempo regression differences of the raw data
+        # tempo regression differences of the 'raw' data at two time points
         self.dset['tempo'] = {v:cp(self.dprop) for v in self.channels.values()}
-        # color overlay of the z-scores within a masked ROI
+        # color overlay of the z-scores
         self.dset['zoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
-        # color overlay of the CBV within a masked ROI
+        # color overlay of the CBV
         self.dset['cbvoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
         # color overlay of the regression.
         self.dset['tempooverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
-        # color overlay of the blast segmentation. has different keys for separate layers
+        # color overlay of the raw blast segmentation. has different keys for separate layers
         self.dset['seg_raw_fusion'] = {v:cp(self.dprop_layer) for v in self.channels.values()}
-        # copy for display purposes which can be scaled for colormap. maybe not needed?
+        # a copy for display purposes which can be scaled for colormap. maybe not needed?
         self.dset['seg_raw_fusion_d'] = {v:cp(self.dprop_layer) for v in self.channels.values()}
-        # color overlay of the final ROI selected from blast segmentation
+        # color overlay of the final smoothed ROI created from raw blast segmentation
         self.dset['seg_fusion'] = {v:cp(self.dprop) for v in self.channels.values()}
         # copy for colormap scaling
         self.dset['seg_fusion_d'] = {v:cp(self.dprop) for v in self.channels.values()}
@@ -377,6 +379,7 @@ class Study():
         self.date = None
         return
     
+    # load a single nifti file
     def loadnifti(self,t1_file,dir=None,type=None):
         img_arr_t1 = None
         if dir is None:
@@ -396,7 +399,7 @@ class Study():
         return img_arr_t1,affine
 
 
-    # use uint8 for masks 
+    # write a single nifti file. use uint8 for masks 
     def writenifti(self,img_arr,filename,header=None,norm=False,type='float64',affine=None):
         img_arr_cp = copy.deepcopy(img_arr)
         if norm:
@@ -440,6 +443,7 @@ class Study():
 
         return
 
+# sub-class for handling the output nifti images and loading into viewer
 class NiftiStudy(Study):
 
     def __init__(self,case,d):    # convenience function
@@ -511,7 +515,7 @@ class NiftiStudy(Study):
         return
 
 
-
+# other sub-class for the preprocessing pipeline
 class DcmStudy(Study):
 
     def __init__(self,case,d,config):
@@ -666,8 +670,8 @@ class DcmStudy(Study):
     # processing routines
     #####################
 
-    
-    # resampling, registration, bias correction
+    # main routine for the preprocessing pipeline
+    # eg resampling, registration, bias correction
     def preprocess(self):
 
         print('case = {},{}'.format(self.case,self.studydir))
@@ -777,7 +781,8 @@ class DcmStudy(Study):
 
         return
 
-
+    # calculate stats to create z-score images
+    # duplicates normalslice_callback code in main viewer, should be combined
     def normalstats(self,event=None):
         print('normal stats')
         # do kmeans
@@ -822,7 +827,7 @@ class DcmStudy(Study):
 
         return
 
-    # tumour segmenation nnUNet
+    # tumour segmenation by nnUNet
     def segment(self,dpath=None):
         print('segment tumour')
         if dpath is None:
@@ -880,9 +885,7 @@ class DcmStudy(Study):
         return 
 
 
-
-    # brain extraction
-    # now using hd-bet
+    # brain extraction from skull, currently using hd-bet
     def extractbrain2(self,img_arr_input,affine=None,fname=None):
         print('extract brain')
         img_arr = copy.deepcopy(img_arr_input)
@@ -937,6 +940,7 @@ class DcmStudy(Study):
         img_arr_t2 = np.ascontiguousarray(np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0)))
         return img_arr_t2,img_t2_res.affine
  
+    # ants N4 bias correction
     def n4bias(self,img_arr,shrinkFactor=4):
         print('N4 bias correction')
         data = copy.deepcopy(img_arr)
@@ -949,7 +953,7 @@ class DcmStudy(Study):
         img_arr_n4 = dataImage_n4.numpy()
         return img_arr_n4
 
-    # registration
+    # ants registration
     def register(self,img_arr_fixed,img_arr_moving,transform='Affine'):
         print('register fixed, moving')
 
@@ -961,7 +965,7 @@ class DcmStudy(Study):
 
         return img_arr_reg,mytx['fwdtransforms']
 
-    # transform
+    # apply registration transform to another volume
     def tx(self,img_arr_fixed,img_arr_moving,tx):
         print('transform fixed, moving')
 

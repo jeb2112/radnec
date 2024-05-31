@@ -34,23 +34,20 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
         print('No updates for point-in-polygon requested.')
         return None
 
-    # hard-coded indexing
+    # will need to add t1pre and t2 at some point
     t1 = data.dset['z']['t1+']['d']
     flair = data.dset['z']['flair']['d']
     # t2 = data['raw'][2]
-    # t1_template = copy.deepcopy(t1)
 
     # Change precision
     flair = flair.astype('double')
     t1 = t1.astype('double')
 
-    # Rescales images to values 0 to 1
-    # flairstack = rescale(flair)
-    # t1stack = rescale(t1)
+    # local copy
     flairstack = np.copy(flair)
     t1stack = np.copy(t1)
  
-    # currently don't have plain T2 in radnec, but maybe this
+    # dummy since currently don't have plain T2 in radnec, but maybe this
     # might be needed in future
     t2stack = copy.deepcopy(t1)
 
@@ -87,7 +84,6 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
 
     # find the gated pixels
     stack_shape = np.shape(t1)
-    fusion_stack_shape = (2,) + stack_shape + (3,)
 
     # begun blast processing 
     start = time.time()
@@ -100,7 +96,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
     flairchannel = flairstack[region_of_support]
     if layer == 'ET':
         t1t2verts = np.vstack((flairchannel.flatten(),t1channel.flatten())).T
-    else:
+    else: # ie WT
         t1t2verts = np.vstack((flairchannel.flatten(),t2channel.flatten())).T
     xy_layerverts = np.vstack((xv_gate,yv_gate)).T
     xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
@@ -110,7 +106,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
     brain_gate = blastdata['blast']['gates']['brain '+layer]
     layer_gate = blastdata['blast']['gates'][layer]
 
-    if use_gpu:
+    if use_gpu: # not updated, haven't got cudf installed in radnec env yet
         RGcoords = cudf.DataFrame({'x':t1t2verts[:,0],'y':t1t2verts[:,1]}).interleave_columns()
         RGseries = GeoSeries.from_points_xy(RGcoords)
         xy_layercoords = cudf.DataFrame({'x':xy_layerverts[:,0],'y':xy_layerverts[:,1]}).interleave_columns()
@@ -138,7 +134,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             brain_gate = np.zeros(np.shape(t1stack),dtype='uint8')
             brain_gate[region_of_support] = brain_path.contains_points(t1t2verts).flatten()
 
-    if True:
+    if False:
         plt.figure(7)
         if layer == 'ET':
             ax = plt.subplot(1,2,1)

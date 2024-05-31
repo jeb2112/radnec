@@ -93,6 +93,7 @@ class CreateCaseFrame(CreateFrame):
         self.datadirentry_callback()
 
     # callback for loading by individual files
+    # probably not using anymore
     def datafileentry_callback(self):
     # def select_file(self):
         self.resetCase()
@@ -157,7 +158,7 @@ class CreateCaseFrame(CreateFrame):
             raise ValueError('No cases to load')
 
         # if three image files are given load them directly
-        # mignt not need this anymore
+        # not currently using this.
         if files is not None:
             if len(files) != 3:
                 self.ui.set_message('Select three image files')
@@ -170,7 +171,7 @@ class CreateCaseFrame(CreateFrame):
             self.processed = True
             self.ui.affine['t1'] = affine
 
-        # check for nifti image files with matching filenames
+        # this is now the intended way to load data
         elif self.casetype <= 1:
             dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},
                     'flair':{'d':None,'ex':False},'ref':{'d':None,'mask':None,'ex':False}}
@@ -194,46 +195,20 @@ class CreateCaseFrame(CreateFrame):
             for dt in self.ui.data[s].channels.values():
                 if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
                     sv.chdisplay_button[dt]['state'] = 'normal'
-                # else:
-                #     s.chdisplay_button[dt]['state'] = 'normal'
             sv.dim = np.shape(self.ui.data[s].dset['raw']['t1+']['d'])
+            # auto window/level is hard-coded here
             sv.level = np.array([self.ui.data[s].dset['raw']['t1+']['max']/4]*2)
             sv.window = np.array([self.ui.data[s].dset['raw']['t1+']['max']/2]*2)
             sv.create_canvas()
 
         # update roiframes according to data loaded
         if False: # cbv will have to display just one overlay if necessary
-            # update roiframe according to data loaded
             for dt in ['cbv']:
                 if not(self.ui.data[0].dset[dt]['ex'] and self.ui.data[1].dset[dt]['ex']):
                     self.ui.roiframe.overlay_type_button[dt]['state'] = 'disabled'
                 else:
                     self.ui.roiframe.overlay_type_button[dt]['state'] = 'normal'
     
-
-        # create the label. 'seg' picks up the BraTS convention but may need to be more specific
-        if False:
-            if self.casetype <= 1:
-                seg_file = next((f for f in files if 'seg' in f),None)
-                if seg_file is not None and 'blast' not in seg_file:
-                    label = sitk.ReadImage(os.path.join(self.casedir,seg_file))
-                    img_arr = sitk.GetArrayFromImage(label)
-                    self.ui.data['label'] = img_arr
-                else:
-                    self.ui.data['label'] = None
-            else:
-                self.ui.data['label'] = None
-
-            # supplementary labels. brats and nnunet conventions are differnt.
-            if self.ui.data['label'] is not None:
-                if False: # nnunet
-                    self.ui.data['manual_ET'] = (self.ui.data['label'] == 3).astype('int') #enhancing tumor 
-                    self.ui.data['manual_TC'] = (self.ui.data['label'] >= 2).astype('int') #tumour core
-                    self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
-                else: # brats
-                    self.ui.data['manual_ET'] = (self.ui.data['label'] == 4).astype('int') #enhancing tumor 
-                    self.ui.data['manual_TC'] = ((self.ui.data['label'] == 1) | (self.ui.data['label'] == 4)).astype('int') #tumour core
-                    self.ui.data['manual_WT'] = (self.ui.data['label'] >= 1).astype('int') #whole tumour
 
     # probably don't need this anymore
     def loadData(self,dt_file,type=None):
@@ -403,9 +378,6 @@ class CreateCaseFrame(CreateFrame):
         else:
             raise ValueError('Not all directories match a case prefix')
 
-
-
-    
 
     def resetCase(self):
         self.filenames = None

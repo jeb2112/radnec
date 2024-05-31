@@ -41,18 +41,20 @@ class BlastGui(object):
 
         self.logoImg = os.path.join(self.config.UIResourcesPath,'sunnybrook.png')
         self.blastImage = PhotoImage(file=self.logoImg)
-        self.normalslice = None
-        self.currentslice = None # tracks the current slice widget variable
-        self.s = 0 # tracks the current study number in caseframe widget
-        self.dataselection = 'raw'
-        self.chselection = 't1+' # current display, could be base image or overlay image
-        self.base = 't1+' # tracks chdisplay variable in sliceviewer. not fully implemented yet
 
-        # function
+        self.normalslice = None # for 2d normal stats, probably not needed anymore
+        self.currentslice = None # tracks the current slice widget variable
+        self.s = 0 # convenience attribute, tracks the current study number in caseframe widget
+        # top level of data structure, could be raw data or overlay image
+        self.dataselection = 'raw'
+        # 2nd level of data structure is image channel, either as raw data or underlay data
+        self.chselection = 't1+' 
+
+        # viewer functions. overlay mode, or BLAST segmentation mode
         self.functionlist = {'overlay':0,'BLAST':1}
         self.function = tk.StringVar(value='overlay')
 
-        # data is a dict of studies
+        # data structure. data is a dict of studies. see DcmCase
         self.data = {} 
         # additional data related to BLAST, per study
         self.blastdatadict = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
@@ -63,16 +65,16 @@ class BlastGui(object):
                                },
                     },
         }
-        # hard-coded for two studies
+        # currently hard-coded for two studies
         self.blastdata = {0:copy.deepcopy(self.blastdatadict),1:copy.deepcopy(self.blastdatadict)}
-        # time points to display (index of temporal order)
+        # time points to display (index of temporal order, ie '1' is recent/current and displayed on left panel)
         self.timepoints = [1,0]
 
+        # affine is now a key in the main data structure so this attribute isn't needed
+        # affine is no longer used though, so can be removed entirely
         self.affine = {'t1pre':None,'t1':None,'t2':None,'flair':None}
-        # self.roi = [0] # dummy value for Roi indexing 1-based
-        self.roi = {0:[0],1:[0]} # dummy value for Roi indexing 1-based. hard-coded for two studies
+        self.roi = {0:[0],1:[0]} # a list of ROI's for each study. '0' is dummy value so the Roi indexing ends up as 1-based. hard-coded for two studies
         self.currentroi = 0 # tracks the currentroi widget variable
-        self.currentlayer = 0
         self.OS = sys.platform
         self.tstart = time.time()
 
@@ -83,7 +85,7 @@ class BlastGui(object):
 
         # hard-coded entries for debugging
         if self.debug:
-            # load a nifti case for BLAST
+            # load a nifti case for BLAST and create a ROI
             if True:
                 self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
                 self.caseframe.datadirentry_callback()
@@ -96,12 +98,10 @@ class BlastGui(object):
                 self.function_callback(update=True)
                 self.sliceviewerframe.normalslice_callback()
                 self.sliceviewerframe.currentslice.set(55)
-                # self.roiframe.thresholds['ET']['flair'].set(1.2)
-                # self.roiframe.updatesliderlabel('ET','flair')
                 self.roiframe.thresholds['T2 hyper']['flair'].set(1.2)
                 self.roiframe.updateslider('T2 hyper','flair')
                 if True:
-                    self.roiframe.createROI(65,65,55) # 00002
+                    self.roiframe.createROI(65,65,55) # case M00001
                     self.roiframe.ROIclick(event=None)
 
 
@@ -117,20 +117,6 @@ class BlastGui(object):
                 self.sliceviewerframe.currentslice.set(55)
                 self.roiframe.overlay_callback()
 
-
-            # create roi. might be a bug arising from this automation that isn't seen manually
-            if False:
-                # self.roiframe.createROI(132,102,75) # 00000
-                self.roiframe.createROI(155,99,87) # 00002
-                self.roiframe.ROIclick(event=None)
-                self.roiframe.updateROI()
-                self.roiframe.finalROI_overlay_value.set(True)
-                self.roiframe.update_layermenu_options('seg')
-                self.roiframe.overlay_value.set(False)
-                self.currentroi = 0
-                self.roiframe.currentroi.set(0)
-                self.roiframe.update_roinumber_options()
-                self.roiframe.roinumber_callback(item=None)
 
 
     #########
@@ -150,13 +136,11 @@ class BlastGui(object):
         self.sliceviewerframes = {}
         self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
         self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
-        # self.set_frame(self.sliceviewerframes['overlay'],frame='normal_frame')
 
         # blast/overlay functions
         self.roiframes = {}
         self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
         self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
-        # self.set_frame(self.roiframes['overlay'])
         
         # overlay/blast function mode
         self.functionmenu = ttk.OptionMenu(self.mainframe,self.function,self.functionlist['overlay'],
@@ -164,7 +148,7 @@ class BlastGui(object):
         self.functionmenu.grid(row=0,column=4,sticky='e')
         self.function_callback()
 
-        # initialize default directory.
+        # initialize default directory. no longer needed?
         if False:
             self.caseframe.datadirentry_callback()
 
@@ -192,7 +176,7 @@ class BlastGui(object):
         self.chselection = 't1+'
         if update:
             self.sliceviewerframe.updateslice()
-        # if blast activate study menu
+        # if blast, activate study menu
         if f == 'BLAST':
             self.caseframe.s.configure(state='enable')
         else:
@@ -263,7 +247,6 @@ class BlastGui(object):
             chlist.append('flair')
 
         for ch in chlist:
-            # seg_raw doesn't have 'flair' yet
             self.data[s].dset['seg_raw_fusion'][ch]['d'+layer] = generate_blast_overlay(self.data[s].dset['raw'][ch]['d'],
                                                         self.data[s].dset['seg_raw'][self.chselection]['d'],layer=self.roiframe.layer.get(),
                                                         overlay_intensity=self.config.OverlayIntensity)
@@ -304,10 +287,12 @@ class BlastGui(object):
     ###### Utility methods ######
     #############################
 
+    # raise frame to top and blank other frames with dummy
     def set_frame(self,frameobj,frame='frame'):
         frameobj.dummy_frame.lift()
         getattr(frameobj,frame).lift()
-        # self.sliceviewerframe = frameobj
+        
+    # this approach didn't work can be discarded
     if False:
         def set_sliceviewerframe(self,frameobj,frame='frame',above=None,below=None):
             frameobj.frame.lift()
@@ -392,7 +377,6 @@ class BlastGui(object):
         # self.roi = [0] # dummy value for Roi indexing 1-based
         self.roi = {0:[0],1:[0]} # dummy value for Roi indexing 1-based
         self.currentroi = 0 # tracks the currentroi widget variable
-        self.currentlayer = 0
         self.tstart = time.time()
         self.message = tk.StringVar(value='')
         if self.roiframe is not None:

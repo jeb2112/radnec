@@ -1,4 +1,4 @@
-
+# collectding various ROI stats and data
 class ROI():
     def __init__(self,xpos,ypos,slice,compartment='ET'):
 
@@ -24,5 +24,5 @@ class ROI():
         self.stats = {'spec':{'ET':0,'TC':0,'WT':0},
             'sens':{'ET':0,'TC':0,'WT':0},
             'dsc':{'ET':0,'TC':0,'WT':0},
-            'vol':{'ET':0,'TC':0,'WT':0,'manual_ET':0,'manual_TC':0,'manual_WT':0},
+            'vol':{'ET':0,'TC':0,'WT':0},
             'elapsed_time':0}

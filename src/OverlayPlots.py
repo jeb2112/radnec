@@ -6,38 +6,28 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from skimage.draw import line_aa
 
+# colors for ET,TC and WT layers
 color_cycle = (
     "000000",
     "4363d8",
     "f58231",
     "3cb44b",
-    "e6194B",
-    "911eb4",
-    "ffe119",
-    "bfef45",
-    "42d4f4",
-    "f032e6",
-    "000075",
-    "9A6324",
-    "808000",
-    "800000",
-    "469990",
 )
 
-# hard-coded convention
-# layerdict = {'ET':[3],'TC':[2],'WT':[1],'T2 hyper':[1],'all':[1,2,3],'both':[1,3]}
-layerdict = {'ET':[4],'TC':[2],'WT':[1],'T2 hyper':[1],'all':[1,2,4],'both':[1,4]}
-# need both integer indexing for the mask overlay and dict keyword indexing for contour overlay
+# hard-coded convention for layers. nnunet is 4,2,1, BraTS is 3,2,1.
 # this is a convenience definition for reverse lookup from integer back to dict keyword, for
 # 'all' and 'both' in contour overlay, but it's awkward
+
+# layerdict = {'ET':[3],'TC':[2],'WT':[1],'T2 hyper':[1],'all':[1,2,3],'both':[1,3]}
 # layersdict = {1:'WT',2:'TC',3:'ET'}
+layerdict = {'ET':[4],'TC':[2],'WT':[1],'T2 hyper':[1],'all':[1,2,4],'both':[1,4]}
 layersdict = {1:'WT',2:'TC',4:'ET'}
 
 def hex_to_rgb(hex: str):
     assert len(hex) == 6
     return tuple(int(hex[i:i + 2], 16) for i in (0, 2, 4))
 
-# blast overlay
+# create blast overlay for raw or final smoothed ROI
 def generate_blast_overlay(input_image: np.ndarray, segmentation: np.ndarray = None, contour: dict = None, layer: str = None,
                      mapping: dict = None,
                      color_cycle: Tuple[str, ...] = color_cycle,
@@ -104,7 +94,7 @@ def generate_blast_overlay(input_image: np.ndarray, segmentation: np.ndarray = N
                     else:
                         image[segmentation & l == l] += overlay
                     
-        # do contour overlay. not finished yet.
+        # do contour overlay. not finished yet or may be discarded even
         elif contour is not None:
 
             if l in layers:
@@ -131,23 +121,20 @@ def generate_blast_overlay(input_image: np.ndarray, segmentation: np.ndarray = N
     output_image = np.squeeze(output_image)
     return output_image.astype(np.float32)
 
-
+# a convenience method for the separate tempo colormap
 def get_cmap(colormap):
     if colormap == 'tempo':
         return ListedColormap(np.array([[0 ,1, 0, 1],[0, .5, 0, 1]]))
     else:
         return None
 
-# z-score overlay
-# def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, image_wl: np.ndarray = None, overlay_wl: np.ndarray = None,
-                     
+# create overlays for z-score, cbv, tempo                 
 def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.ndarray = None, 
                      image_wl: np.ndarray = None, overlay_wl: np.ndarray = None,
                      overlay_intensity: float = 1.0, colormap: str = 'viridis'):
     """
     image,overlay is 3d grayscale
-
-    overlay should also be pre-masked 
+    mask is generally a unet or blast segmentation
     image_wl is the current window/level for the usual uint16 grayscale image data as currently displayed
     overlay_wl is the desired range for the overlay.
     """

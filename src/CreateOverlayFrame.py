@@ -23,7 +23,7 @@ from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
 from src.ROI import ROI
 
-# contains various ROI methods and variables
+# contains various ROI methods and variables for 'overlay' mode
 class CreateOverlayFrame(CreateFrame):
     def __init__(self,frame,ui=None,padding='10'):
         super().__init__(frame,ui=ui,padding=padding)
@@ -136,12 +136,6 @@ class CreateOverlayFrame(CreateFrame):
         self.sliderlabels['z']['max'] = ttk.Label(self.sliderframe['z'],text=self.thresholds['z']['max'].get())
         self.sliderlabels['z']['max'].grid(row=0,column=4,sticky='e')
 
-        # combo slider not available in tkinter, this one breaks tkinter look
-        # self.sliders['z']['minmax'] = RangeSliderH(self.zsliderframe,[self.thresholds['z']['min'],self.thresholds['z']['max']],
-        #                                            max_val = self.thresholds['z']['max'].get(),padX=50)
-        # self.sliders['z']['minmax'].grid(row=0,column=1,sticky='e')
-
-
         # cbv sliders. resolution hard-coded
         self.sliderframe['cbv'] = ttk.Frame(self.frame,padding='0')
         self.sliderframe['cbv'].grid(column=0,row=2,columnspan=6,sticky='e')
@@ -167,7 +161,7 @@ class CreateOverlayFrame(CreateFrame):
             for m in ['min','max']:
                 self.sliders[k][m].bind("<ButtonRelease-1>",Command(self.updateslider,k,m))
 
-    # use lift/lower instead
+    # not using this. use lift/lower instead
     def slider_state(self,s=None):
         # if s is None:
         s = self.overlay_type.get()
@@ -185,6 +179,7 @@ class CreateOverlayFrame(CreateFrame):
     # ROI methods
     ############# 
         
+    # main callback for handling the overlays
     def overlay_callback(self,updateslice=True,wl=False,redo=False):
 
         if self.overlay_value.get() == True:
@@ -199,20 +194,20 @@ class CreateOverlayFrame(CreateFrame):
             else:
                 colormap = 'viridis'
 
+            # needed here?
             # self.ui.sliceviewerframe.updatewl_fusion()
 
             # generate a new overlay
             for s in self.ui.data:
                 if not self.ui.data[s].dset[ovly_str][ch]['ex'] or redo:
 
-                    # additional check if box not previously grayed out.
                     # eg for cbv there might only be one DSC study, so just
-                    # use the base grayscale for the dummy overlay image
+                    # use the base grayscale for a dummy overlay image
+                    # in the other study, and set the 'ex' False so the 
+                    # colormap can later be assigned 'gray'
                     if not self.ui.data[s].dset[ovly][ch]['ex']:
                         self.ui.data[s].dset[ovly_str][ch]['d'] = np.copy(self.ui.data[s].dset['raw'][ch]['d'])
                         self.ui.data[s].dset[ovly_str][ch]['ex'] = False
-                        # self.ui.data[s].dset[ovly_str][ch]['base'] = ch
-                        # self.ui.data[s].dset[ovly_str][ch]['mask'] = mask
                     else:
                         if usemask:
                             mask = self.ui.data[s].mask[self.mask_type.get()]['d']
@@ -228,12 +223,7 @@ class CreateOverlayFrame(CreateFrame):
                             overlay_intensity=self.config.OverlayIntensity,
                             colormap = colormap)
                         self.ui.data[s].dset[ovly_str][ch]['ex'] = True
-                        # these may be redundant now
-                        if False:
-                            self.ui.data[s].dset[ovly_str][ch]['base'] = ch
-                            self.ui.data[s].dset[ovly_str][ch]['mask'] = mask
 
-                    # self.ui.data['overlay_d'] = copy.deepcopy(self.ui.data['overlay']),
             self.ui.dataselection = ovly_str
 
         else:
@@ -269,7 +259,7 @@ class CreateOverlayFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='watch')
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
     
-
+    # not recently updated.
     # for now output only segmentations so uint8
     def WriteImage(self,img_arr,filename,header=None,norm=False,type='uint8',affine=None):
         img_arr_cp = copy.deepcopy(img_arr)

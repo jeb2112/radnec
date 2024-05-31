@@ -33,8 +33,11 @@ from src.CreateFrame import *
 
 
 ##############
-# Slice Viewer
+# Slice Viewer. 
 ##############
+
+# a base class with a few general methods which BLAST and overlay mode slice viewers inherit
+# still some redudancy between the three sliceviewer classes, some tidyup needed
 
 class CreateSliceViewerFrame(CreateFrame):
     def __init__(self,parentframe,ui=None,padding='10',style=None):

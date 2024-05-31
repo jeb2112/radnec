@@ -102,13 +102,13 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.chdisplay_button['t2'] = ttk.Radiobutton(self.normal_frame,text='T2',variable=self.chdisplay,value='t2',
                                                     command=self.updateslice,state='disabled')
         self.chdisplay_button['t2'].grid(column=3,row=0,sticky='w')
-        self.chdisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR+',variable=self.chdisplay,value='flair',
+        self.chdisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.chdisplay,value='flair',
                                                     command=self.updateslice)
         self.chdisplay_button['flair'].grid(column=4,row=0,sticky='w')
         # self.chdisplay_keys = ['t1','t1+','flair','flair']
 
-        # BLAST/UNet mask selection
-        maskdisplay_label = ttk.Label(self.normal_frame, text='mask: ')
+        # BLAST/UNet segmentation selection
+        maskdisplay_label = ttk.Label(self.normal_frame, text='segmentation: ')
         maskdisplay_label.grid(row=1,column=0,padx=(50,0),sticky='e')
         self.maskdisplay_button = {}
         self.maskdisplay_button['unet'] = ttk.Radiobutton(self.normal_frame,text='UNet',variable=self.maskdisplay,value='unet',
@@ -120,7 +120,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
 
 
 
-        # overlay type contour mask
+        # overlay type contour mask. no longer used
         if False:
             overlaytype_label = ttk.Label(self.normal_frame, text='overlay type: ')
             overlaytype_label.grid(row=1,column=0,padx=(50,0),sticky='e')
@@ -374,6 +374,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
 
             # in addition, a further temporary arrangement for tempo until coded properly. the tempo nifti mask file
             # is uint8 with background/zero == 2. have to reset to remove that offset of 2 here, or elsewhere.
+            # -0 means it is being removed elsewhere
             if ovly == 'tempo':
                 self.ax_img.set_clim((self.wl[ovly][1]-self.wl[ovly][0]/2-0,self.wl[ovly][1]+self.wl[ovly][0]/2-0))
             else:

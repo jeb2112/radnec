@@ -54,6 +54,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.sagcordisplay = tk.IntVar(value=0)
         self.overlay_type = tk.IntVar(value=self.config.BlastOverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
+        # window/level stuff will need further tidying up
         # window/level values for T1,T2
         self.window = np.array([1.,1.],dtype='float')
         self.level = np.array([0.5,0.5],dtype='float')
@@ -84,7 +85,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.canvasframe.configure(style='canvasframe.TFrame')
         self.canvasframe.grid(row=1,column=0,columnspan=3,sticky='NW')
 
-        # normal slice button
+        # normal stats button, 2d or 3d
         self.normal_frame = ttk.Frame(self.parentframe,padding='0')
         self.normal_frame.grid(row=3,column=0,sticky='NW')
         normalSlice = ttk.Button(self.normal_frame,text='normal',command=self.normalslice_callback)
@@ -105,6 +106,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.sagcordisplay_button.grid(column=6,row=0,sticky='w')
 
         # overlay type contour mask
+        # contour not recently updated and not currently running
         overlay_type_label = ttk.Label(self.normal_frame, text='overlay type: ')
         overlay_type_label.grid(row=1,column=4,padx=(50,0),sticky='e')
         self.overlay_type_button = ttk.Radiobutton(self.normal_frame,text='C',variable=self.overlay_type,value=0,
@@ -125,6 +127,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
             self.ui.root.bind('<Button-4>',self.mousewheel)
             self.ui.root.bind('<Button-5>',self.mousewheel)
 
+    # for dragging resizing of GUI window
     def resizer(self,event):
         if self.cw is None:
             return
@@ -201,7 +204,6 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         # ratio and transform, and with a simple offset of +1 in y also gets to the top half of 'A'
         # in figure coordinates.
         self.axs['labelA'] = self.fig.add_subplot(2,3,4)
-
         self.axs['labelB'] = self.fig.add_subplot(2,3,5)
         self.axs['labelC'] = self.fig.add_subplot(2,3,3)
         self.axs['labelD'] = self.fig.add_subplot(2,3,6)
@@ -231,10 +233,6 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),5))
         self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),5))
         self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),5))
-        # self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),self.dim[1]-10))
-        # self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),self.dim[1]-10))
-        # self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),self.dim[1]-10))
-        # self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),self.dim[1]-10))
         self.xyfig['Im_C'] = figtrans['C'].transform((5,self.dim[0]-15))
         self.xyfig['Im_D'] = figtrans['D'].transform((5,self.dim[0]-15))
         self.figtrans = figtrans
@@ -274,14 +272,14 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
 
         self.frame.update()
 
-    # TODO: different bindings and callbacks need some organization
+    # main callback for any changes in the display
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
         s = self.ui.s # local reference
         slice=self.currentslice.get()
         slicesag = self.currentsagslice.get()
         slicecor = self.currentcorslice.get()
         self.ui.set_currentslice()
-        if blast: # option for previewing enhancing in 2d
+        if blast: # option for previewing enhancing in 2d. probably not used anymore
             self.ui.runblast(currentslice=slice)
         # which data array to display. 'd' is general
         d = 'd'
@@ -296,7 +294,6 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         # add current slice overlay
         self.update_labels()
 
-        # self.vslicenumberlabel['text'] = '{}'.format(slice)
         if self.ui.dataselection in['seg_raw_fusion_d','seg_fusion_d']:
             self.ax_img.set(cmap='viridis')
             self.ax2_img.set(cmap='viridis')
@@ -341,6 +338,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.labels['Im_D'] = self.axs['labelD'].text(self.xyfig['Im_D'][0],self.xyfig['Im_D'][1],'Im:'+str(self.currentcorslice.get()),color='w')
 
     # special update for previewing BLAST enhancing lesion in 2d
+    # probably not used anymore
     def updateslice_blast(self,event=None):
         slice = self.currentslice.get()
         self.ui.set_currentslice()
@@ -349,7 +347,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.canvas.draw()
 
     # update for previewing final segmentation in 2d
-    # probably can't be implemented at this time.
+    # was never fully implemented and not used anymore. 
     def updateslice_roi(self,event=None):
         slice = self.currentslice.get()
         self.ui.set_currentslice(slice)
@@ -422,6 +420,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
     def fitlin(self,x,a,b):
         return a*x + b
 
+    # main method for BLAST stats in the normal image data
     def normalslice_callback(self,event=None):
         print('normal stats')
         # do kmeans
@@ -429,27 +428,23 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         # Gating Routine
         s = self.ui.s # local ref
 
-        if self.slicevolume_norm.get() == 0: # probably not supporting this
+        if self.slicevolume_norm.get() == 0: # 2d. probably not supporting this
             self.normalslice=self.ui.get_currentslice()
             region_of_support = np.where(self.ui.data[s].dset['raw']['t1+']['d'][self.normalslice]*self.ui.data[s].dset['raw']['flair']['d'][self.normalslice]>0) 
             vset = np.zeros_like(region_of_support,dtype='float')
             # for i in range(3):
             for i,ax in enumerate(['t1+','flair']):
                 vset[i] = np.ravel(self.ui.data[s].dset['raw'][ax]['d'][self.normalslice][region_of_support])
-        else:
+        else: # main 3d mode for stats
             self.normalslice = None
             region_of_support = np.where(self.ui.data[s].dset['raw']['t1+']['d']*self.ui.data[s].dset['raw']['flair']['d'] >0)
             vset = np.zeros_like(region_of_support,dtype='float')
             # for i in range(3):
             for i,ax in enumerate(['t1+','flair']):
                 vset[i] = np.ravel(self.ui.data[s].dset['z'][ax]['d'][region_of_support])
-            # t1channel_normal = self.ui.data['raw'][0][region_of_support]
-            # flairchannel_normal = self.ui.data['raw'][1][region_of_support]
-            # t2channel_normal = self.ui.data['raw'][2][region_of_support]
 
         # kmeans to calculate statistics for brain voxels
-        # X_et = np.column_stack((flair,t1))
-        # X_net = np.column_stack((flair,t2))
+        # awkward. indices here are hard-coded according to enumeration above.
         X={}
         X['ET'] = np.column_stack((vset[1],vset[0]))
         # T2 hyper values will just be the same as ET since we do not have plain T2 available for rad nec.
