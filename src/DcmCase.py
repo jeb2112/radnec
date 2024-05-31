@@ -63,13 +63,18 @@ class Case():
     def load_studydirs(self):
 
         for i,sd in enumerate(self.studydirs):
+            print('loading {}\n'.format(sd))
             self.studies.append(DcmStudy(self.case,sd,self.config))
             self.studies[i].loaddata()
         # sort studies by time and number of series
+        # self.studies = sorted(self.studies,key=lambda x:(x.studytimeattrs['StudyDate'],
+        #                                                  len([t for t in x.dset.keys() if not x.dset[t]['ex']])))
         self.studies = sorted(self.studies,key=lambda x:(x.studytimeattrs['StudyDate'],
-                                                         len([t for t in x.dset.keys() if not x.dset[t]['ex']])))
+                                                         len([t for t in x.dset['raw'].keys() if not x.dset['raw'][t]['ex']])))
         # combine studies with common date, for now any series in the study with fewer series, is 
         # copied to the study with more series, over-writes are not being checked yet but should be well-behaved
+        # some RELCCBV exports may have their own study number
+        # and need to be reconnected with the source T1 scan by study date tag??
         # TODO: actually check the times, so a later series only overwrites an earlier series according to temporal
         # relation, ie possible rescan
         dates = sorted(list(set([d.studytimeattrs['StudyDate'] for d in self.studies])))
@@ -77,12 +82,20 @@ class Case():
         for i,d in enumerate(dates):
             dstudies = [s for s in self.studies if s.studytimeattrs['StudyDate'] == d]
             for ds in dstudies[-1:0:-1]:
-                for series in ds.dset.keys():
-                    if ds.dset[series]['ex']:
-                        dstudies[0].dset[series]['d'] = np.copy(ds.dset[series]['d'])
-                        dstudies[0].dset[series]['affine'] = np.copy(ds.dset[series]['affine'])
-                        dstudies[0].dset[series]['time'] = ds.dset[series]['time']
-                        dstudies[0].dset[series]['ex'] = True
+                for dc in ['raw','cbv']:
+                    for series in list(ds.channels.values()):
+                        if ds.dset[dc][series]['ex']:
+                            dstudies[0].dset[dc][series]['d'] = np.copy(ds.dset[dc][series]['d'])
+                            dstudies[0].dset[dc][series]['affine'] = np.copy(ds.dset[dc][series]['affine'])
+                            dstudies[0].dset[dc][series]['time'] = np.copy(ds.dset[dc][series]['time'])
+                            dstudies[0].dset[dc][series]['ex'] = True
+                # for series in ['cbv']:
+                #     if ds.dset[series]['ex']:
+                #         dstudies[0].dset[series]['d'] = np.copy(ds.dset[series]['d'])
+                #         dstudies[0].dset[series]['affine'] = np.copy(ds.dset[series]['affine'])
+                #         dstudies[0].dset[series]['time'] = ds.dset[series]['time']
+                #         dstudies[0].dset[series]['ex'] = True
+
                 dstudies.remove(ds)
             studies.append(dstudies[0])
         self.studies = studies
@@ -102,7 +115,7 @@ class Case():
         else:
             for i,s in enumerate(self.studies):
                 s.preprocess()
-            if False:
+            if True:
                 with open(pname,'wb') as fp:
                     pickle.dump(self.studies,fp)
 
@@ -111,36 +124,40 @@ class Case():
     def process_timepoints(self):
         s = self.studies[0]
         # ant register can't handle this flip.
-        for dt in s.dtag:
-            if s.dset[dt]['ex']:
-                s.dset[dt]['d'] = np.flip(s.dset[dt]['d'],axis=1)
-        if s.dset['t1+']['ex']:
+        for dc in ['raw','cbv']:
+            for dt in list(s.channels.values()):
+                if s.dset[dc][dt]['ex']:
+                    s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
+        if s.dset['raw']['t1+']['ex']:
             dref = 't1+'
-        elif s.dset['t1']['ex']:
+        elif s.dset['raw']['t1']['ex']:
             dref = 't1'
         else:
             raise ValueError('No T1 data to register to')
-        s.dset[dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset[dref]['d'],transform='Rigid')
+        s.dset['raw'][dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset['raw'][dref]['d'],transform='Rigid')
         if False:
-            s.writenifti(s.dset[dref]['d'],os.path.join(self.config.UIlocaldir,self.case,dref+'_talairach.nii'),affine=s.dset['ref']['affine'])
+            s.writenifti(s.dset['raw'][dref]['d'],os.path.join(self.config.UIlocaldir,self.case,dref+'_talairach.nii'),affine=s.dset['ref']['affine'])
 
-        for dt in [dt for dt in s.dtag if dt != dref]:
-            if s.dset[dt]['ex']:
-                s.dset[dt]['d'] = s.tx(s.dset['ref']['d'],s.dset[dt]['d'],tx)
+        for dc in ['raw','cbv']:
+            for dt in [dt for dt in list(s.channels.values()) if dt != dref]:
+                if s.dset[dc][dt]['ex']:
+                    s.dset[dc][dt]['d'] = s.tx(s.dset['ref']['d'],s.dset[dc][dt]['d'],tx)
 
         # remainder of studies register to first study
         for s in self.studies[1:]:
-            for dt in s.dtag:
-                if s.dset[dt]['ex']:
-                    s.dset[dt]['d'] = np.flip(s.dset[dt]['d'],axis=1)
-            if s.dset['t1+']['ex']:
+            for dc in ['raw','cbv']:
+                for dt in list(s.channels.values()):
+                    if s.dset[dc][dt]['ex']:
+                        s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
+            if s.dset['raw']['t1+']['ex']:
                 dref = 't1+'
-                s.dset[dref]['d'],tx = s.register(self.studies[0].dset[dref]['d'],s.dset[dref]['d'],transform='Rigid')
+                s.dset['raw'][dref]['d'],tx = s.register(self.studies[0].dset['raw'][dref]['d'],s.dset['raw'][dref]['d'],transform='Rigid')
             else:
                 raise ValueError('No T1+ to register to')
-            for dt in [dt for dt in s.dtag if dt != dref]:
-                if s.dset[dt]['ex']:
-                    s.dset[dt]['d'] = s.tx(self.studies[0].dset[dref]['d'],s.dset[dt]['d'],tx)
+            for dc in ['raw','cbv']:
+                for dt in [dt for dt in list(s.channels.values()) if dt != dref]:
+                    if s.dset[dc][dt]['ex']:
+                        s.dset[dc][dt]['d'] = s.tx(self.studies[0].dset['raw'][dref]['d'],s.dset[dc][dt]['d'],tx)
 
         self.write_all()
         return
@@ -149,10 +166,11 @@ class Case():
     def write_all(self):
         for s in self.studies:
             localstudydir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
-            for dt in s.dtag:
-                if s.dset[dt]['ex']:
-                    s.writenifti(s.dset[dt]['d'],os.path.join(localstudydir,dt+'_processed.nii'),
-                                                type='float',affine=s.dset['ref']['affine'])
+            for dc in ['raw','cbv']:
+                for dt in list(s.channels.values()):
+                    if s.dset[dc][dt]['ex']:
+                        s.writenifti(s.dset[dc][dt]['d'],os.path.join(localstudydir,dt+'_processed.nii'),
+                                                    type='float',affine=s.dset['ref']['affine'])
 
     # run nnunet segmentation                
     def segment(self):
@@ -320,7 +338,7 @@ class Study():
         self.date = None
         self.localstudydir = None
         if channellist is None:
-            self.channels = {0:'t1+',1:'flair'}
+            self.channels = {0:'t1',1:'t1+',2:'t2',3:'flair'}
         else:
             self.channels = {k:v for k,v in enumerate(channellist)}
 
@@ -330,11 +348,11 @@ class Study():
 
         # list of attributes for each image volume. 'd' is the main data array,
         # 'ex' is existence as a convenience for checking whether populated
-        self.dprop = {'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0}
+        self.dprop = {'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None}
         # special case for blast overlay layers
         self.dprop_layer = {'dET':None,'dT2 hyper':None,'ex':False}
 
-        # the dataset structure is a dict
+        # the dataset structure could be its own class, but for now is just a dict
         self.dset = {}
         # reference image used only for registration purposes
         self.dset['ref'] = cp(self.dprop)
@@ -518,8 +536,12 @@ class NiftiStudy(Study):
 # other sub-class for the preprocessing pipeline
 class DcmStudy(Study):
 
-    def __init__(self,case,d,config):
-        super().__init__(case,d)
+    def __init__(self,case,d,config,**kwargs):
+        super().__init__(case,d,**kwargs)
+
+        # cbv data. for purposes of dicom processing, this will be treated as a 'flair' channel. 
+        self.dset['cbv'] = {v:cp(self.dprop) for v in self.channels.values()}
+
         self.config = config
         self.localcasedir = os.path.join(self.config.UIlocaldir,self.case)
         # list of time attributes to check
@@ -566,6 +588,7 @@ class DcmStudy(Study):
                 if hasattr(ds0,t):
                     self.studytimeattrs[t] = getattr(ds0,t)
 
+            dc = 'raw'
             if 't1' in ds0.SeriesDescription.lower():
                 # so far 'pre' is sufficient for t1
                 if 'pre' in ds0.SeriesDescription.lower():
@@ -582,24 +605,27 @@ class DcmStudy(Study):
             # note this may be exported in a separate studydir, without a matching t1
             # TODO: the matching t1 has to come from another studydir, based on time tags
             elif any([f in ds0.SeriesDescription.lower() for f in ['relccbv','perf']]):
-                dt = 'cbv'
+                dt = 'flair' # cbv will be stored arbitrarily as a flair channel for processing purposes
+                dc = 'cbv'
             else:
                 dt = None
                 continue
 
             if dt is not None:
-                self.dset[dt]['ex'] = True
-                self.dset[dt]['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
-                self.dset[dt]['affine'] = self.get_affine(ds0,dslice)
-                self.dset[dt]['d'][0,:,:] = ds0.pixel_array
-                for i,f in enumerate(files[1:]):
-                    data = pd.dcmread(os.path.join(dpath,f))
-                    self.dset[dt]['d'][i+1,:,:] = data.pixel_array
+                if dt in list(self.channels.values()):
+                    dref = self.dset[dc][dt]
+                    dref['ex'] = True
+                    dref['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                    dref['affine'] = self.get_affine(ds0,dslice)
+                    dref['d'][0,:,:] = ds0.pixel_array
+                    for i,f in enumerate(files[1:]):
+                        data = pd.dcmread(os.path.join(dpath,f))
+                        dref['d'][i+1,:,:] = data.pixel_array
 
-                for t in self.seriestimeattrs:
-                    if hasattr(ds0,t):
-                        self.dset[dt]['time'] = getattr(ds0,t)
-                        break
+                    for t in self.seriestimeattrs:
+                        if hasattr(ds0,t):
+                            dref['time'] = getattr(ds0,t)
+                            break
 
             # also create target affine with 1mm slices (not finished) 
             # t1+ will probably always have 1mm slices anyway, might not need anymore
@@ -681,88 +707,89 @@ class DcmStudy(Study):
 
         # resample to target matrix (t1+ for now)
         if True:
-            for dt in ['flair','cbv']:
-                if self.dset[dt]['ex'] and self.dset['t1+']['ex']:
-                    print('Resampling ' + dt + ' into target space...')
-                    self.dset[dt]['d'],self.dset[dt]['affine'] = self.resamplet2(self.dset['t1+']['d'],self.dset[dt]['d'],
-                                                                        self.dset['t1+']['affine'],self.dset[dt]['affine'])
-                    self.dset[dt]['d']= np.clip(self.dset[dt]['d'],0,None)
+            for dc in ['raw','cbv']:
+                for dt in ['flair','t1','t2']:
+                    if self.dset[dc][dt]['ex'] and self.dset['raw']['t1+']['ex']:
+                        print('Resampling ' + dt + ' into target space...')
+                        self.dset[dc][dt]['d'],self.dset[dc][dt]['affine'] = self.resamplet2(self.dset['raw']['t1+']['d'],self.dset[dc][dt]['d'],
+                                                                            self.dset['raw']['t1+']['affine'],self.dset[dc][dt]['affine'])
+                        self.dset[dc][dt]['d']= np.clip(self.dset[dc][dt]['d'],0,None)
 
 
         if False:
-            for t in ['t1pre','t1','t2','flair']:
-                if self.dset[t]['ex']:
-                    self.writenifti(self.dset[t]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
+            for dt in ['t1pre','t1','t2','flair']:
+                if self.dset['raw'][dt]['ex']:
+                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
                                         type='float',affine=self.ui.affine['t1'])
                     
 
         # skull strip
 
-        # optional. use mask. not sure if it will be needed 
-        if self.dset['t1+']['mask'] is not None:
+        # optional. use a provided mask. not implementing this for now
+        if False: 
+            if self.dset['raw']['t1+']['mask'] is not None:
 
-            # pre-registration. for now assuming mask is a T1post so register T1pre,T2,flair
-            # reference
-            fixed_image = self.dset['t1+']['d']
-
-            for dt in ['t1pre','flair','t2']:
-                # fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
-                if self.dset[dt]['ex']:
-                    moving_image = self.dset[dt]['d']
-                    self.dset[dt]['d'],_ = self.register(fixed_image,moving_image,transform='Rigid')
-                    if False:
-                        self.ui.roiframe.WriteImage(self.dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
-                                                type='float',affine=self.ui.affine['t1'])
-
-            # apply mask
-            for dt in ['t1','flair','t2']:
-                if self.dset[dt]['ex']:
-                    self.dset[dt]['d'] = np.where(self.dset['t1+']['mask'],self.dset[dt]['d'],0)
-
-
-        # attempt model extraction
-        else:    
-            for dt in ['t1+','t2','t1','flair']:
-                if self.dset[dt]['ex']:
-                    self.dset[dt]['d'],self.dset[dt]['mask'] = self.extractbrain2(self.dset[dt]['d'],affine=self.dset[dt]['affine'],fname=dt)
-
-            # could maybe just post-contrast mask for speed assuming no significant change
-            # in pose.
-            if False:
-                for dt in ['t1','flair']:
-                    if self.dset[dt]['ex']:
-                        self.dset[dt]['d'] *= self.dset[dt+'+']['mask']
-
-
-        # registration. some RELCCBV exports may have their own study number
-        # and need to be reconnected with the source T1 scan by study date tag
-        if True:
-            if self.dset['t1+']['ex']:
+                # pre-registration. for now assuming mask is a T1post so register T1pre,T2,flair
+                # reference
                 fixed_image = self.dset['t1+']['d']
-                for dt in ['t1','flair','t2']:
-                    fname = os.path.join(self.localstudydir,dt+'_resampled.nii.gz')
+
+                for dt in ['t1pre','flair','t2']:
+                    # fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
                     if self.dset[dt]['ex']:
                         moving_image = self.dset[dt]['d']
                         self.dset[dt]['d'],_ = self.register(fixed_image,moving_image,transform='Rigid')
                         if False:
-                            self.writenifti(self.dset[t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
+                            self.ui.roiframe.WriteImage(self.dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
+                                                    type='float',affine=self.ui.affine['t1'])
+
+                # apply mask
+                for dt in ['t1','flair','t2']:
+                    if self.dset[dt]['ex']:
+                        self.dset[dt]['d'] = np.where(self.dset['t1+']['mask'],self.dset[dt]['d'],0)
+
+
+        # attempt hd-bet model extraction
+        for dt in ['t1+','t2','t1','flair']:
+            if self.dset['raw'][dt]['ex']:
+                self.dset['raw'][dt]['d'],self.dset['raw'][dt]['mask'] = self.extractbrain2(self.dset['raw'][dt]['d'],
+                                                                                            affine=self.dset['raw'][dt]['affine'],fname=dt)
+
+        # could maybe just post-contrast mask for speed assuming no significant change
+        # in pose.
+        if False:
+            for dt in ['t1','flair']:
+                if self.dset[dt]['ex']:
+                    self.dset[dt]['d'] *= self.dset[dt+'+']['mask']
+
+
+        # registration. 
+        if True:
+            if self.dset['raw']['t1+']['ex']:
+                fixed_image = self.dset['raw']['t1+']['d']
+                for dt in ['t1','flair','t2']:
+                    fname = os.path.join(self.localstudydir,dt+'_resampled.nii.gz')
+                    if self.dset['raw'][dt]['ex']:
+                        moving_image = self.dset['raw'][dt]['d']
+                        self.dset['raw'][dt]['d'],_ = self.register(fixed_image,moving_image,transform='Rigid')
+                        if False:
+                            self.writenifti(self.dset['raw'][t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
                                                     type='float',affine=self.ui.affine['t1'])
             else:
                 print('No T1+ to register on, skipping...')
 
 
         # bias correction.
-        self.dbias = {} # working data for calculating z-scores
+        # self.dbias = {} # working data for calculating z-scores
         for dt in ['t1','t1+','flair','t2']:
-            if self.dset[dt]['ex']:   
-                self.dset['z'+dt]['d'] = np.copy(self.n4bias(self.dset[dt]['d']))
-                self.dset['z'+dt]['ex'] = True
+            if self.dset['raw'][dt]['ex']:   
+                self.dset['z'][dt]['d'] = np.copy(self.n4bias(self.dset['raw'][dt]['d']))
+                self.dset['z'][dt]['ex'] = True
 
         # if necessary clip any negative values introduced by the processing
         for dt in ['t1','t1+','flair','t2']:
-            if self.dset[dt]['ex']:
-                if np.min(self.dset['z'+dt]['d']) < 0:
-                    self.dset['z'+dt]['d'][self.dset['z'+dt]['d'] < 0] = 0
+            if self.dset['raw'][dt]['ex']:
+                if np.min(self.dset['z'][dt]['d']) < 0:
+                    self.dset['z'][dt]['d'][self.dset['z'][dt]['d'] < 0] = 0
                 # self.dset[dt]['d'] = self.rescale(self.dset[dt]['d'])
 
         # normal brain stats and z-score images
@@ -771,12 +798,12 @@ class DcmStudy(Study):
         # save nifti files for future use
         if False:
             for dt in ['t2','t1','t1+','flair']:
-                if self.dset[dt]['ex']:
-                    self.writenifti(self.dset[dt]['d'],os.path.join(self.localstudydir,dt+'_processed.nii'),
-                                                type='float',affine=self.dset['t1+']['affine'])
-            for dt in ['cbv']: # pending solution for registration
-                if self.dset[dt]['ex']:
-                    self.writenifti(self.dset[dt]['d'],os.path.join(self.localstudydir,dt+'_processed.nii'),
+                if self.dset['raw'][dt]['ex']:
+                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localstudydir,dt+'_processed.nii'),
+                                                type='float',affine=self.dset['raw']['t1+']['affine'])
+            for dt in ['flair']: # note cbv registration is done later
+                if self.dset['cbv'][dt]['ex']:
+                    self.writenifti(self.dset['cbv'][dt]['d'],os.path.join(self.localstudydir,'cbv_processed.nii'),
                                                 type='float',affine=self.dset['t1+']['affine'])
 
         return
@@ -791,12 +818,13 @@ class DcmStudy(Study):
         X={}
         vset = {}
         for dt2 in [('flair','t1'),('flair','t2')]:
-            if self.dset['z'+dt2[0]]['ex'] and self.dset['z'+dt2[1]]['ex']:
-                region_of_support = np.where(self.dset[dt2[0]]['d']*self.dset[dt2[1]]['d'] >0)
-                background = np.where(self.dset[dt2[0]]['d']*self.dset[dt2[1]]['d'] == 0)
+            if self.dset['z'][dt2[0]]['ex'] and self.dset['z'][dt2[1]]['ex']:
+                region_of_support = np.where(self.dset['raw'][dt2[0]]['d']*self.dset['raw'][dt2[1]]['d'] >0)
+                background = np.where(self.dset['raw'][dt2[0]]['d']*self.dset['raw'][dt2[1]]['d'] == 0)
                 # vset = np.zeros_like(region_of_support,dtype='float')
                 for dt in dt2:
-                    vset[dt] = np.ravel(self.dset['z'+dt]['d'][region_of_support])
+                    vset[dt] = np.ravel(self.dset['z'][dt]['d'][region_of_support])
+                # note hard-coded indexing here to match the ('flair',t12') tuple above
                 X[dt2] = np.column_stack((vset[dt2[0]],vset[dt2[1]]))
 
         np.random.seed(1)
@@ -820,9 +848,9 @@ class DcmStudy(Study):
                 if False:
                     plt.show(block=False)
 
-                self.dset['z'+dt]['d'] = ( self.dset['z'+dt]['d'] - self.params[dt]['mean']) / self.params[dt]['std']
-                self.dset['z'+dt]['d'][background] = 0
-                self.writenifti(self.dset['z'+dt]['d'],os.path.join(self.localstudydir,'z'+dt+'.nii'),affine=self.dset[dt]['affine'])
+                self.dset['z'][dt]['d'] = ( self.dset['z'][dt]['d'] - self.params[dt]['mean']) / self.params[dt]['std']
+                self.dset['z'][dt]['d'][background] = 0
+                self.writenifti(self.dset['z'][dt]['d'],os.path.join(self.localstudydir,'z'+dt+'.nii'),affine=self.dset['raw'][dt]['affine'])
         plt.savefig(os.path.join(self.localcasedir,'scatterplot_normal.png'))
 
         return
