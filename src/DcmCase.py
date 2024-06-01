@@ -124,31 +124,34 @@ class Case():
     def process_timepoints(self):
         s = self.studies[0]
         # ant register can't handle this flip.
-        for dc in ['raw','cbv']:
-            for dt in list(s.channels.values()):
-                if s.dset[dc][dt]['ex']:
-                    s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
+        if True:
+            for dc in ['raw','cbv']:
+                for dt in list(s.channels.values()):
+                    if s.dset[dc][dt]['ex']:
+                        s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
         if s.dset['raw']['t1+']['ex']:
             dref = 't1+'
         elif s.dset['raw']['t1']['ex']:
             dref = 't1'
         else:
             raise ValueError('No T1 data to register to')
+        # register the designated reference image to the talairach coords
         s.dset['raw'][dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset['raw'][dref]['d'],transform='Rigid')
         if False:
             s.writenifti(s.dset['raw'][dref]['d'],os.path.join(self.config.UIlocaldir,self.case,dref+'_talairach.nii'),affine=s.dset['ref']['affine'])
-
+        # apply that same registration transform to all remaining images in this study
         for dc in ['raw','cbv']:
             for dt in [dt for dt in list(s.channels.values()) if dt != dref]:
                 if s.dset[dc][dt]['ex']:
                     s.dset[dc][dt]['d'] = s.tx(s.dset['ref']['d'],s.dset[dc][dt]['d'],tx)
 
-        # remainder of studies register to first study
+        # repeat process for remainder of studies
         for s in self.studies[1:]:
-            for dc in ['raw','cbv']:
-                for dt in list(s.channels.values()):
-                    if s.dset[dc][dt]['ex']:
-                        s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
+            if True:
+                for dc in ['raw','cbv']:
+                    for dt in list(s.channels.values()):
+                        if s.dset[dc][dt]['ex']:
+                            s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
             if s.dset['raw']['t1+']['ex']:
                 dref = 't1+'
                 s.dset['raw'][dref]['d'],tx = s.register(self.studies[0].dset['raw'][dref]['d'],s.dset['raw'][dref]['d'],transform='Rigid')
@@ -169,7 +172,11 @@ class Case():
             for dc in ['raw','cbv']:
                 for dt in list(s.channels.values()):
                     if s.dset[dc][dt]['ex']:
-                        s.writenifti(s.dset[dc][dt]['d'],os.path.join(localstudydir,dt+'_processed.nii'),
+                        if dc == 'cbv':
+                            dstr = 'cbv_processed.nii'
+                        else:
+                            dstr = dt+'_processed.nii'
+                        s.writenifti(s.dset[dc][dt]['d'],os.path.join(localstudydir,dstr),
                                                     type='float',affine=s.dset['ref']['affine'])
 
     # run nnunet segmentation                
@@ -762,7 +769,8 @@ class DcmStudy(Study):
                     self.dset[dt]['d'] *= self.dset[dt+'+']['mask']
 
 
-        # registration. 
+        # preliminary registration. 
+        # TODO. cbv should be handled here as well.
         if True:
             if self.dset['raw']['t1+']['ex']:
                 fixed_image = self.dset['raw']['t1+']['d']
@@ -770,9 +778,9 @@ class DcmStudy(Study):
                     fname = os.path.join(self.localstudydir,dt+'_resampled.nii.gz')
                     if self.dset['raw'][dt]['ex']:
                         moving_image = self.dset['raw'][dt]['d']
-                        self.dset['raw'][dt]['d'],_ = self.register(fixed_image,moving_image,transform='Rigid')
+                        self.dset['raw'][dt]['d'],tx = self.register(fixed_image,moving_image,transform='Rigid')
                         if False:
-                            self.writenifti(self.dset['raw'][t]['d'],os.path.join(d,'img_'+t+'_registered.nii.gz'),
+                            self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localstudydir,'img_'+dt+'_registered.nii.gz'),
                                                     type='float',affine=self.ui.affine['t1'])
             else:
                 print('No T1+ to register on, skipping...')
