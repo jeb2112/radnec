@@ -125,7 +125,7 @@ class Case():
         s = self.studies[0]
         # ant register can't handle this flip.
         if True:
-            for dc in ['raw','cbv']:
+            for dc in ['raw','cbv','z']:
                 for dt in list(s.channels.values()):
                     if s.dset[dc][dt]['ex']:
                         s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
@@ -140,15 +140,18 @@ class Case():
         if False:
             s.writenifti(s.dset['raw'][dref]['d'],os.path.join(self.config.UIlocaldir,self.case,dref+'_talairach.nii'),affine=s.dset['ref']['affine'])
         # apply that same registration transform to all remaining images in this study
-        for dc in ['raw','cbv']:
-            for dt in [dt for dt in list(s.channels.values()) if dt != dref]:
-                if s.dset[dc][dt]['ex']:
-                    s.dset[dc][dt]['d'] = s.tx(s.dset['ref']['d'],s.dset[dc][dt]['d'],tx)
+        for dc in ['raw','cbv','z']:
+            for dt in list(s.channels.values()):
+                if dt == dref and dc == 'raw':
+                    continue
+                else:
+                    if s.dset[dc][dt]['ex']:
+                        s.dset[dc][dt]['d'] = s.tx(s.dset['ref']['d'],s.dset[dc][dt]['d'],tx)
 
         # repeat process for remainder of studies
         for s in self.studies[1:]:
             if True:
-                for dc in ['raw','cbv']:
+                for dc in ['raw','cbv','z']:
                     for dt in list(s.channels.values()):
                         if s.dset[dc][dt]['ex']:
                             s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
@@ -157,10 +160,13 @@ class Case():
                 s.dset['raw'][dref]['d'],tx = s.register(self.studies[0].dset['raw'][dref]['d'],s.dset['raw'][dref]['d'],transform='Rigid')
             else:
                 raise ValueError('No T1+ to register to')
-            for dc in ['raw','cbv']:
-                for dt in [dt for dt in list(s.channels.values()) if dt != dref]:
-                    if s.dset[dc][dt]['ex']:
-                        s.dset[dc][dt]['d'] = s.tx(self.studies[0].dset['raw'][dref]['d'],s.dset[dc][dt]['d'],tx)
+            for dc in ['raw','cbv','z']:
+                for dt in list(s.channels.values()) :
+                    if dt == dref and dc == 'raw':
+                        continue
+                    else:
+                        if s.dset[dc][dt]['ex']:
+                            s.dset[dc][dt]['d'] = s.tx(self.studies[0].dset['raw'][dref]['d'],s.dset[dc][dt]['d'],tx)
 
         self.write_all()
         return
@@ -169,11 +175,13 @@ class Case():
     def write_all(self):
         for s in self.studies:
             localstudydir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
-            for dc in ['raw','cbv']:
+            for dc in ['z','raw','cbv']:
                 for dt in list(s.channels.values()):
                     if s.dset[dc][dt]['ex']:
                         if dc == 'cbv':
                             dstr = 'cbv_processed.nii'
+                        elif dc == 'z':
+                            dstr = 'z' + dt + '_processed.nii'
                         else:
                             dstr = dt+'_processed.nii'
                         s.writenifti(s.dset[dc][dt]['d'],os.path.join(localstudydir,dstr),
@@ -813,7 +821,7 @@ class DcmStudy(Study):
 
         # if necessary clip any negative values introduced by the processing
         for dt in ['t1','t1+','flair','t2']:
-            if self.dset['raw'][dt]['ex']:
+            if self.dset['z'][dt]['ex']:
                 if np.min(self.dset['z'][dt]['d']) < 0:
                     self.dset['z'][dt]['d'][self.dset['z'][dt]['d'] < 0] = 0
                 # self.dset[dt]['d'] = self.rescale(self.dset[dt]['d'])
@@ -843,7 +851,7 @@ class DcmStudy(Study):
 
         X={}
         vset = {}
-        for dt2 in [('flair','t1'),('flair','t2')]:
+        for dt2 in [('flair','t1+'),('flair','t2')]:
             if self.dset['z'][dt2[0]]['ex'] and self.dset['z'][dt2[1]]['ex']:
                 region_of_support = np.where(self.dset['raw'][dt2[0]]['d']*self.dset['raw'][dt2[1]]['d'] >0)
                 background = np.where(self.dset['raw'][dt2[0]]['d']*self.dset['raw'][dt2[1]]['d'] == 0)
@@ -876,7 +884,8 @@ class DcmStudy(Study):
 
                 self.dset['z'][dt]['d'] = ( self.dset['z'][dt]['d'] - self.params[dt]['mean']) / self.params[dt]['std']
                 self.dset['z'][dt]['d'][background] = 0
-                self.writenifti(self.dset['z'][dt]['d'],os.path.join(self.localstudydir,'z'+dt+'.nii'),affine=self.dset['raw'][dt]['affine'])
+                if False:
+                    self.writenifti(self.dset['z'][dt]['d'],os.path.join(self.localstudydir,'z'+dt+'.nii'),affine=self.dset['raw'][dt]['affine'])
         plt.savefig(os.path.join(self.localcasedir,'scatterplot_normal.png'))
 
         return
