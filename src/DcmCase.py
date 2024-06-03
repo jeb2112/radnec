@@ -189,88 +189,90 @@ class Case():
     # TODO: use self.ui.timepoints from gui to select time points
     def regression(self):
         for s in self.studies:
-            s.normalize(['t1+','flair+'])
+            s.normalize(['t1','t2','t1+','flair'])
 
         _,plotdata = self.get_data()
 
-        for dt in ['t1+','flair+']:
-            region_of_support = np.where((self.studies[0].dset[dt]['d'] > 0) & (self.studies[1].dset[dt]['d'] > 0))
-            xdata = np.ravel(self.studies[self.timepoints[0]].dset[dt]['d_norm'][region_of_support]).reshape(-1,1)
-            ydata = np.ravel(self.studies[self.timepoints[1]].dset[dt]['d_norm'][region_of_support])
+        for dt in ['t1','t2','t1+','flair']:
+            # two studies hard-coded
+            if self.studies[0].dset['raw'][dt]['ex'] and self.studies[1].dset['raw'][dt]['ex']:
+                region_of_support = np.where((self.studies[0].dset['raw'][dt]['d'] > 0) & (self.studies[1].dset['raw'][dt]['d'] > 0))
+                xdata = np.ravel(self.studies[self.timepoints[0]].dset['raw'][dt]['d_norm'][region_of_support]).reshape(-1,1)
+                ydata = np.ravel(self.studies[self.timepoints[1]].dset['raw'][dt]['d_norm'][region_of_support])
 
-            xfit_range = plotdata['MR']['d_norm']
-            xfit = np.arange(xfit_range[0],xfit_range[1],np.diff(xfit_range)[0]/100).reshape(-1,1)
+                xfit_range = plotdata['MR']['d_norm']
+                xfit = np.arange(xfit_range[0],xfit_range[1],np.diff(xfit_range)[0]/100).reshape(-1,1)
 
-            mdl = LinearRegression()
-            mdl_ransac = RANSACRegressor(random_state=0,max_trials=1000)
+                mdl = LinearRegression()
+                mdl_ransac = RANSACRegressor(random_state=0,max_trials=1000)
 
-            mdls = [mdl_ransac]
-            mdl_tags = ['_ransac']
-            reg_image = {}
+                mdls = [mdl_ransac]
+                mdl_tags = ['_ransac']
+                reg_image = {}
 
-            for i,m in enumerate(mdls):
+                for i,m in enumerate(mdls):
 
-                m.fit(xdata,ydata)
+                    m.fit(xdata,ydata)
 
-                yfit = m.predict(xfit)
-                yhat = m.predict(xdata)
-                resid = ydata - yhat
-                reg_image[mdl_tags[i]] = np.zeros_like(self.studies[0].dset[dt]['d'])
-                reg_image[mdl_tags[i]][region_of_support] = resid
-                nsample = ydata.size
-                dof = nsample - m.n_features_in_
-                # TODO: one-side or two-side. 
-                alpha = 0.05
-                t = scipy.stats.t.ppf(1-alpha, dof)
-                s_err = np.sqrt(np.sum(resid**2) / dof)                    # standard deviation of the error
-                ci = np.ravel(t * s_err * np.sqrt(1+1/nsample + (xfit - np.mean(xfit))**2 / np.sum((xfit - np.mean(xfit))**2)))
+                    yfit = m.predict(xfit)
+                    yhat = m.predict(xdata)
+                    resid = ydata - yhat
+                    reg_image[mdl_tags[i]] = np.zeros_like(self.studies[0].dset['raw'][dt]['d'])
+                    reg_image[mdl_tags[i]][region_of_support] = resid
+                    nsample = ydata.size
+                    dof = nsample - m.n_features_in_
+                    # TODO: one-side or two-side. 
+                    alpha = 0.05
+                    t = scipy.stats.t.ppf(1-alpha, dof)
+                    s_err = np.sqrt(np.sum(resid**2) / dof)                    # standard deviation of the error
+                    ci = np.ravel(t * s_err * np.sqrt(1+1/nsample + (xfit - np.mean(xfit))**2 / np.sum((xfit - np.mean(xfit))**2)))
 
-                # plot regression
-                if True:
-                    self.plot_regression(xdata,ydata,resid,xfit,yfit,ci,self.casedir,
-                                         tag='_'+dt+mdl_tags[i],save=True)
+                    # plot regression
+                    if True:
+                        self.plot_regression(xdata,ydata,resid,xfit,yfit,ci,self.casedir,
+                                            tag='_'+dt+mdl_tags[i],save=True)
 
-                # create mask images for voxels beyond prediction interval
-                pts = np.vstack((xdata.flatten(),resid.flatten())).T
-                # form ci polygon
-                xpts_ci = np.concatenate((xfit,np.flip(xfit)),axis=0)
-                ypts_ci = np.concatenate((-ci,np.flip(ci)),axis=0).reshape(-1,1) 
-                pts_ci = np.hstack((xpts_ci,ypts_ci))
-                pts_ci = np.concatenate((pts_ci,np.atleast_2d(pts_ci[0,:])),axis=0) # close path
+                    # create mask images for voxels beyond prediction interval
+                    pts = np.vstack((xdata.flatten(),resid.flatten())).T
+                    # form ci polygon
+                    xpts_ci = np.concatenate((xfit,np.flip(xfit)),axis=0)
+                    ypts_ci = np.concatenate((-ci,np.flip(ci)),axis=0).reshape(-1,1) 
+                    pts_ci = np.hstack((xpts_ci,ypts_ci))
+                    pts_ci = np.concatenate((pts_ci,np.atleast_2d(pts_ci[0,:])),axis=0) # close path
 
-                reg_set = np.zeros_like(resid)
-                if False:
-                    # too slow for large dataset.
-                    ci_path = Path(pts_ci,closed=True)
-                    reg_set = ~(ci_path.contains_points(pts)).flatten()
-                else:
-                    # just use the residuals for scalar comparison
-                    reg_set[(resid > np.mean(ci)) | (resid < -np.mean(ci))] = True
-                reg_set_above = copy.deepcopy(reg_set)
-                reg_set_above[resid < 0] = False
-                reg_set_below = copy.deepcopy(reg_set)
-                reg_set_below[resid > 0] = False
+                    reg_set = np.zeros_like(resid)
+                    if False:
+                        # too slow for large dataset.
+                        ci_path = Path(pts_ci,closed=True)
+                        reg_set = ~(ci_path.contains_points(pts)).flatten()
+                    else:
+                        # just use the residuals for scalar comparison
+                        reg_set[(resid > np.mean(ci)) | (resid < -np.mean(ci))] = True
+                    reg_set_above = copy.deepcopy(reg_set)
+                    reg_set_above[resid < 0] = False
+                    reg_set_below = copy.deepcopy(reg_set)
+                    reg_set_below[resid > 0] = False
 
-                # indivdual change masks
-                if False:
-                    mask_below = np.zeros_like(self.studies[0].dset[dt]['d'],dtype='uint8')
-                    mask_below[region_of_support] = reg_set_below
-                    self.studies[0].writenifti(mask_below,os.path.join(self.casedir,'regression_mask_below_{}.nii'.format(mdl_tags[i])),
+                    # indivdual change masks
+                    if False:
+                        mask_below = np.zeros_like(self.studies[0].dset[dt]['d'],dtype='uint8')
+                        mask_below[region_of_support] = reg_set_below
+                        self.studies[0].writenifti(mask_below,os.path.join(self.casedir,'regression_mask_below_{}.nii'.format(mdl_tags[i])),
+                                                affine=self.studies[0].dset['ref']['affine'])
+
+                        mask_above = np.zeros_like(mask_below)
+                        mask_above[region_of_support] = reg_set_above
+                        self.studies[0].writenifti(mask_above,os.path.join(self.casedir,'regression_mask_above_{}.nii'.format(mdl_tags[i])),
+                                                affine=self.studies[0].dset['ref']['affine'])
+
+                    # for the combined mask, will have negative pixel changes indicated by a value less than background, so it will 
+                    # map intuitively to a colorbar scale. but still using uint8, so make an offset of +2
+                    # which will then be removed at display
+                    mask = np.ones_like(self.studies[0].dset['raw'][dt]['d'],dtype='uint8')*2
+                    mask[region_of_support] = reg_set_below * 1 + reg_set_above * 3 
+                    mask[mask==0] = 2
+                    self.studies[0].writenifti(mask,os.path.join(self.studies[self.timepoints[1]].localstudydir,'tempo'+dt+'_processed.nii'),
                                             affine=self.studies[0].dset['ref']['affine'])
-
-                    mask_above = np.zeros_like(mask_below)
-                    mask_above[region_of_support] = reg_set_above
-                    self.studies[0].writenifti(mask_above,os.path.join(self.casedir,'regression_mask_above_{}.nii'.format(mdl_tags[i])),
-                                            affine=self.studies[0].dset['ref']['affine'])
-
-                # for the combined mask, will have negative pixel changes indicated by a value less than background, so it will 
-                # map intuitively to a colorbar scale. but still using uint8, so make an offset of +2
-                # which will then be removed at display
-                mask = np.ones_like(self.studies[0].dset[dt]['d'],dtype='uint8')*2
-                mask[region_of_support] = reg_set_below * 1 + reg_set_above * 3 
-                mask[mask==0] = 2
-                self.studies[0].writenifti(mask,os.path.join(self.studies[self.timepoints[1]].localstudydir,'tempo'+dt+'_processed.nii'),
-                                           affine=self.studies[0].dset['ref']['affine'])
 
 
         return
@@ -354,8 +356,9 @@ class Study():
         ####################################
 
         # list of attributes for each image volume. 'd' is the main data array,
-        # 'ex' is existence as a convenience for checking whether populated
-        self.dprop = {'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None}
+        # 'ex' is existence as a convenience for checking whether populated. 'dref' is an optional image volume
+        # that may be associated with 'd' for any reason
+        self.dprop = {'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None,'dref':None}
         # special case for blast overlay layers
         self.dprop_layer = {'dET':None,'dT2 hyper':None,'ex':False}
 
@@ -443,28 +446,29 @@ class Study():
         slims = (.2,.8)
 
         for dt in dtag:
-            norm_vals = {dt:{}}
-            region_of_support = np.where((self.dset[dt]['d'] > 0))
-            background = np.where((self.dset[dt]['d'] == 0))
-            # 'counts' is (uniquevals, counts)
-            norm_vals[dt]['counts'] = np.unique(np.round(self.dset[dt]['d'][region_of_support]).reshape(-1),
-                                                            return_counts=True)
-            # calculate normalized quantiles for each array
-            norm_vals[dt]['q'] = np.cumsum(norm_vals[dt]['counts'][1]) / len(region_of_support[0])
-            # smoothing spline
-            spl = splrep(norm_vals[dt]['counts'][0],norm_vals[dt]['q'],s=0.01)
-            norm_vals[dt]['spl_q'] = splev(norm_vals[dt]['counts'][0],spl)
-            # take 20th,80th quantiles for normalization
-            norm_vals[dt]['slim'] = np.array([np.argmin(norm_vals[dt]['spl_q'] < slims[0]),np.argmin(norm_vals[dt]['spl_q'] < slims[1])])
-            self.dset[dt]['d_norm'] = np.copy(self.dset[dt]['d'])
-            self.dset[dt]['d_norm'] -= norm_vals[dt]['counts'][0][norm_vals[dt]['slim'][0]]
-            self.dset[dt]['d_norm'] /= (norm_vals[dt]['counts'][0][norm_vals[dt]['slim'][1]] - norm_vals[dt]['counts'][0][norm_vals[dt]['slim'][0]])
-            if False:
-                self.dset[dt]['d_norm'] *= self.dset[dt]['mask']
-            else:
-                self.dset[dt]['d_norm'][background] = 0
-            if False:
-                writenifti(dset[dt][d+'_norm'],os.path.join(datadir,'t0',dt+'_bet_norm.nii'),affine=dset['t0']['affine'],type=float)
+            if self.dset['raw'][dt]['ex']:
+                norm_vals = {dt:{}}
+                region_of_support = np.where((self.dset['raw'][dt]['d'] > 0))
+                background = np.where((self.dset['raw'][dt]['d'] == 0))
+                # 'counts' is (uniquevals, counts)
+                norm_vals[dt]['counts'] = np.unique(np.round(self.dset['raw'][dt]['d'][region_of_support]).reshape(-1),
+                                                                return_counts=True)
+                # calculate normalized quantiles for each array
+                norm_vals[dt]['q'] = np.cumsum(norm_vals[dt]['counts'][1]) / len(region_of_support[0])
+                # smoothing spline
+                spl = splrep(norm_vals[dt]['counts'][0],norm_vals[dt]['q'],s=0.01)
+                norm_vals[dt]['spl_q'] = splev(norm_vals[dt]['counts'][0],spl)
+                # take 20th,80th quantiles for normalization
+                norm_vals[dt]['slim'] = np.array([np.argmin(norm_vals[dt]['spl_q'] < slims[0]),np.argmin(norm_vals[dt]['spl_q'] < slims[1])])
+                self.dset['raw'][dt]['d_norm'] = np.copy(self.dset['raw'][dt]['d'])
+                self.dset['raw'][dt]['d_norm'] -= norm_vals[dt]['counts'][0][norm_vals[dt]['slim'][0]]
+                self.dset['raw'][dt]['d_norm'] /= (norm_vals[dt]['counts'][0][norm_vals[dt]['slim'][1]] - norm_vals[dt]['counts'][0][norm_vals[dt]['slim'][0]])
+                if False:
+                    self.dset[dt]['d_norm'] *= self.dset[dt]['mask']
+                else:
+                    self.dset['raw'][dt]['d_norm'][background] = 0
+                if False:
+                    writenifti(dset['raw'][dt][d+'_norm'],os.path.join(datadir,'t0',dt+'_bet_norm.nii'),affine=dset['t0']['affine'],type=float)
 
         return
 
@@ -608,10 +612,10 @@ class DcmStudy(Study):
             elif any([f in ds0.SeriesDescription.lower() for f in ['flair','fluid']]):
                 dt = 'flair'
 
-            # not taking relcbv or relcbf, just relccbv
+            # not taking relcbv or relcbf, just relccbv. could use 'perf' as well.
             # note this may be exported in a separate studydir, without a matching t1
             # TODO: the matching t1 has to come from another studydir, based on time tags
-            elif any([f in ds0.SeriesDescription.lower() for f in ['relccbv','perf']]):
+            elif any([f in ds0.SeriesDescription.lower() for f in ['relccbv']]):
                 dt = 'flair' # cbv will be stored arbitrarily as a flair channel for processing purposes
                 dc = 'cbv'
             else:
@@ -631,7 +635,7 @@ class DcmStudy(Study):
 
                     for t in self.seriestimeattrs:
                         if hasattr(ds0,t):
-                            dref['time'] = getattr(ds0,t)
+                            dref['time'] = float(getattr(ds0,t))
                             break
 
             # also create target affine with 1mm slices (not finished) 
@@ -769,7 +773,8 @@ class DcmStudy(Study):
                     self.dset[dt]['d'] *= self.dset[dt+'+']['mask']
 
 
-        # preliminary registration. 
+        # preliminary registration, within the study to t1+ image. probably this is minimal
+        # and skipping it shouldn't matter too much.
         # TODO. cbv should be handled here as well.
         if True:
             if self.dset['raw']['t1+']['ex']:
@@ -782,6 +787,19 @@ class DcmStudy(Study):
                         if False:
                             self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localstudydir,'img_'+dt+'_registered.nii.gz'),
                                                     type='float',affine=self.ui.affine['t1'])
+                # if t1+ image took place immediately after cbv it can be assumed no registration is 
+                # needed. 
+                if self.dset['cbv']['flair']['ex']:
+                    # flair_cbv_time = self.dset['cbv']['flair']['time'] - self.dset['raw']['flair']['time']
+                    cbv_t1post_time = self.dset['raw']['t1+']['time'] - self.dset['cbv']['flair']['time']
+                    if cbv_t1post_time > 0 and cbv_t1post_time < 600:
+                        print('CBV-t1post time: {:.0f}'.format(cbv_t1post_time))
+                        print('Not attempting pre-registration')
+                    else:
+                        print('CBV reference time uncertain, pre-registration is required')
+
+
+
             else:
                 print('No T1+ to register on, skipping...')
 
