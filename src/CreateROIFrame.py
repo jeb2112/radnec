@@ -849,13 +849,13 @@ class CreateROIFrame(CreateFrame):
 
         if all(self.ui.blastdata[s]['blast'][x] is not None for x in ['ET','T2 hyper']):
             # self.ui.data['seg_raw'] = self.ui.blastdata['blast']['ET'].astype('int')*2 + (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
-            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = (self.ui.blastdata[s]['blast']['T2 hyper'].astype('int'))
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = (self.ui.blastdata[s]['blast']['T2 hyper'].astype('uint8'))
             et = np.where(self.ui.blastdata[s]['blast']['ET'])
             self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'][et] += 4
         elif self.ui.blastdata[s]['blast']['ET'] is not None:
-            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['ET'].astype('int')*4
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['ET'].astype('uint8')*4
         elif self.ui.blastdata[s]['blast']['T2 hyper'] is not None:
-            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['T2 hyper'].astype('int')
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['T2 hyper'].astype('uint8')
 
     # forward-copy certain results from the BLAST ROI to the main dataset
     # may need further work

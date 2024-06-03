@@ -494,14 +494,14 @@ class NiftiStudy(Study):
             # by convention '_processed' is the final output from dcm preprocess()
             dt_file = dt + '_processed.nii.gz'
             if dt_file in files:
-                self.dset['raw'][dt]['d'],self.dset['raw'][dt]['affine'] = self.loadnifti(dt_file)
+                self.dset['raw'][dt]['d'],self.dset['raw'][dt]['affine'] = self.loadnifti(dt_file,type=np.float32)
                 self.dset['raw'][dt]['max'] = np.max(self.dset['raw'][dt]['d'])
                 self.dset['raw'][dt]['min'] = np.min(self.dset['raw'][dt]['d'])
                 self.dset['raw'][dt]['ex'] = True
             # z-scores
             dt_file = 'z' + dt + '_processed.nii.gz'
             if dt_file in files:
-                self.dset['z'][dt]['d'],_ = self.loadnifti(dt_file)
+                self.dset['z'][dt]['d'],_ = self.loadnifti(dt_file,type=np.float32)
                 self.dset['z'][dt]['max'] = np.max(self.dset['z'][dt]['d'])
                 self.dset['z'][dt]['min'] = np.min(self.dset['z'][dt]['d'])
                 self.dset['z'][dt]['ex'] = True

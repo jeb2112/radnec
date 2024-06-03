@@ -175,12 +175,10 @@ class CreateCaseFrame(CreateFrame):
         elif self.casetype <= 1:
             dset = {'t1pre':{'d':None,'ex':False},'t1':{'d':None,'ex':False},'t2':{'d':None,'ex':False},
                     'flair':{'d':None,'ex':False},'ref':{'d':None,'mask':None,'ex':False}}
-            studies = [f for f in os.listdir(self.casedir) if os.path.isdir(os.path.join(self.casedir,f)) ]
             # by convention, study dir name is the date of the study. this will be used in place
-            # of accession number
+            # of accession number. simple sort thus resolves studies in correct time order.
+            studies = sorted([f for f in os.listdir(self.casedir) if os.path.isdir(os.path.join(self.casedir,f)) ])
             for i,sname in enumerate(studies):
-                # won't use date string as a key
-                # self.ui.timepoints = studies
                 self.ui.data[i] = NiftiStudy(self.casename.get(),os.path.join(self.casedir,sname))
                 self.ui.data[i].loaddata()
                 self.ui.data[i].date = sname

@@ -86,7 +86,7 @@ class BlastGui(object):
         # hard-coded entries for debugging
         if self.debug:
             # load a nifti case for BLAST and create a ROI
-            if True:
+            if False:
                 self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0001')
@@ -117,6 +117,16 @@ class BlastGui(object):
                 self.sliceviewerframe.currentslice.set(55)
                 self.roiframe.overlay_callback()
 
+            # load an overlay case
+            if True:
+                self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002')
+                self.caseframe.datadirentry_callback()
+                self.caseframe.casename.set('M0002')
+                self.caseframe.case_callback()
+                self.roiframe.overlay_value.set(True)                
+                self.roiframe.mask_value.set(True)
+                self.sliceviewerframe.currentslice.set(123)
+                self.roiframe.overlay_callback()
 
 
     #########
