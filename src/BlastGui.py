@@ -86,8 +86,8 @@ class BlastGui(object):
         # hard-coded entries for debugging
         if self.debug:
             # load a nifti case for BLAST and create a ROI
-            if True:
-                self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
+            if False:
+                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0001')
                 self.caseframe.case_callback()
@@ -107,7 +107,7 @@ class BlastGui(object):
 
             # load a tempo case
             if False:
-                self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
+                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0001')
                 self.caseframe.case_callback()
@@ -117,6 +117,16 @@ class BlastGui(object):
                 self.sliceviewerframe.currentslice.set(55)
                 self.roiframe.overlay_callback()
 
+            # load an overlay case
+            if True:
+                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0002'))
+                self.caseframe.datadirentry_callback()
+                self.caseframe.casename.set('M0002')
+                self.caseframe.case_callback()
+                self.roiframe.overlay_value.set(True)                
+                self.roiframe.mask_value.set(True)
+                self.sliceviewerframe.currentslice.set(123)
+                self.roiframe.overlay_callback()
 
 
     #########
@@ -251,12 +261,12 @@ class BlastGui(object):
                                                         self.data[s].dset['seg_raw'][self.chselection]['d'],layer=self.roiframe.layer.get(),
                                                         overlay_intensity=self.config.OverlayIntensity)
             self.data[s].dset['seg_raw_fusion'][ch]['ex'] = True
-            self.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.data[s].dset['seg_raw_fusion'][ch]['d'+layer])
+            # self.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.data[s].dset['seg_raw_fusion'][ch]['d'+layer])
             
         if self.roiframe.finalROI_overlay_value.get() == True:
-            self.dataselection = 'seg_fusion_d'
+            self.dataselection = 'seg_fusion'
         else:
-            self.dataselection = 'seg_raw_fusion_d'
+            self.dataselection = 'seg_raw_fusion'
                 
         if currentslice is None:
             self.updateslice(wl=True,layer=layer)

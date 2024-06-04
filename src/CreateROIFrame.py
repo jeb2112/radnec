@@ -195,7 +195,7 @@ class CreateROIFrame(CreateFrame):
             self.updateData()
             self.finalROI_overlay_value.set(False)
         self.enhancingROI_overlay_value.set(True)
-        self.ui.dataselection = 'seg_raw_fusion_d'
+        self.ui.dataselection = 'seg_raw_fusion'
 
         self.ui.sliceviewerframe.updatewl_fusion()
 
@@ -235,7 +235,7 @@ class CreateROIFrame(CreateFrame):
                                                 self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'],
                                                 layer=layer,overlay_intensity=self.config.OverlayIntensity)
                     self.ui.data[s].dset['seg_raw_fusion'][ch]['ex'] = True
-                    self.ui.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.ui.data[s].dset['seg_raw_fusion'][self.ui.chselection]['d'+layer])
+                    # self.ui.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.ui.data[s].dset['seg_raw_fusion'][self.ui.chselection]['d'+layer])
 
         if updateslice:
             self.ui.updateslice()
@@ -249,7 +249,7 @@ class CreateROIFrame(CreateFrame):
         # if in the opposite mode, then switch
         self.enhancingROI_overlay_value.set(False)
         self.finalROI_overlay_value.set(True)
-        self.ui.dataselection = 'seg_fusion_d'
+        self.ui.dataselection = 'seg_fusion'
 
         self.ui.sliceviewerframe.updatewl_fusion()
 
@@ -276,7 +276,7 @@ class CreateROIFrame(CreateFrame):
                                                                 data['seg'],layer=layer,
                                                             overlay_intensity=self.config.OverlayIntensity)
 
-        data['seg_fusion_d'] = copy.deepcopy(data['seg_fusion'])
+        # data['seg_fusion_d'] = copy.deepcopy(data['seg_fusion'])
 
         if updatedata:
             self.updateData()
@@ -482,7 +482,7 @@ class CreateROIFrame(CreateFrame):
             self.ui.updateslice()
         else:
             self.enhancingROI_overlay_value.set(False)
-            self.ui.dataselection = 'seg_fusion_d'
+            self.ui.dataselection = 'seg_fusion'
             # handle the case of switching manually to ROI mode with only one of ET T2 hyper selected.
             # eg the INDIGO case there won't be any ET. for now just a temp workaround.
             # but this might need to become the default behaviour for all cases, and if it's automatic
@@ -510,7 +510,7 @@ class CreateROIFrame(CreateFrame):
 
         else:
             self.finalROI_overlay_value.set(False)
-            self.ui.dataselection = 'seg_raw_fusion_d'
+            self.ui.dataselection = 'seg_raw_fusion'
             self.ui.updateslice(wl=True)
 
     # creates a ROI selection button press event
@@ -577,7 +577,7 @@ class CreateROIFrame(CreateFrame):
                                             layer=self.ui.roiframe.layer.get(),
                                             overlay_intensity=self.config.OverlayIntensity)
             self.ui.roi[self.ui.s][roi].data['seg_fusion'][ch] = fusionstack
-        self.ui.roi[self.ui.s][roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data['seg_fusion'])
+        # self.ui.roi[self.ui.s][roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data['seg_fusion'])
         # need to update ui data here?? or just let it run from layerROI_callback below
         if False:
             self.updateData()
@@ -597,12 +597,12 @@ class CreateROIFrame(CreateFrame):
         if self.ui.roi[self.ui.s][roi].status:
             self.finalROI_overlay_value.set(True)
             self.enhancingROI_overlay_value.set(False)
-            self.ui.dataselection = 'seg_fusion_d'
+            self.ui.dataselection = 'seg_fusion'
             self.layerROI_callback(layer='ET')
         else:
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_value.set(True)
-            self.ui.dataselection = 'seg_raw_fusion_d'
+            self.ui.dataselection = 'seg_raw_fusion'
             self.ui.sliceviewerframe.updateslice()
             if self.ui.roi[self.ui.s][roi].data['WT'] is None:
                 self.layer_callback(layer='T2 hyper')
@@ -849,13 +849,13 @@ class CreateROIFrame(CreateFrame):
 
         if all(self.ui.blastdata[s]['blast'][x] is not None for x in ['ET','T2 hyper']):
             # self.ui.data['seg_raw'] = self.ui.blastdata['blast']['ET'].astype('int')*2 + (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
-            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = (self.ui.blastdata[s]['blast']['T2 hyper'].astype('int'))
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = (self.ui.blastdata[s]['blast']['T2 hyper'].astype('uint8'))
             et = np.where(self.ui.blastdata[s]['blast']['ET'])
             self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'][et] += 4
         elif self.ui.blastdata[s]['blast']['ET'] is not None:
-            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['ET'].astype('int')*4
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['ET'].astype('uint8')*4
         elif self.ui.blastdata[s]['blast']['T2 hyper'] is not None:
-            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['T2 hyper'].astype('int')
+            self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['T2 hyper'].astype('uint8')
 
     # forward-copy certain results from the BLAST ROI to the main dataset
     # may need further work
@@ -863,7 +863,7 @@ class CreateROIFrame(CreateFrame):
         s = self.ui.s
         # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
         layer = self.layer.get()
-        for dt in ['seg_fusion_d','seg_fusion']:
+        for dt in ['seg_fusion']:
             for ch in [self.ui.chselection,'flair']:
                 self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt][ch])
         for dt in ['ET','WT']:
