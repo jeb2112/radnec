@@ -87,7 +87,7 @@ class BlastGui(object):
         if self.debug:
             # load a nifti case for BLAST and create a ROI
             if False:
-                self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
+                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0001')
                 self.caseframe.case_callback()
@@ -107,7 +107,7 @@ class BlastGui(object):
 
             # load a tempo case
             if False:
-                self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001')
+                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0001')
                 self.caseframe.case_callback()
@@ -119,7 +119,7 @@ class BlastGui(object):
 
             # load an overlay case
             if True:
-                self.caseframe.datadir.set('/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002')
+                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0002'))
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0002')
                 self.caseframe.case_callback()
