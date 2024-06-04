@@ -35,11 +35,12 @@ https://zenodo.org/records/2540695 get the 5 *.model files and place them in a s
     4. ```conda install numpy```
     5. ```conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia```
     6. ```pip install -e . ```
+    7. ```conda deactivate```
   
 4. Install the nnUNet model for brain tumour segmentation
     1. Create a directory called 'results' in a convenient location, eg D:\somepath\results:
    2. Set the user ENV ```nnUNet_results``` = D:\somepath\results
-   3. Download the directory 'nnUNetTrainer__nnUNetPlans__3d_fullres_T1post-FLAIR from the BLAST Development/Training Results folder on Dropbox and place in D:\somepath\results
+   3. Download the directory 'nnUNetTrainer__nnUNetPlans__3d_fullres_T1post-FLAIR from the BLAST Development/Training Results folder on Dropbox and store it as D:\somepath\results\nnUNetTrainer__nnUNetPlans__3d_fullres (ie it gets renamed slightly)
   
 5. create the 'blast' python environment. In 'Anaconda Prompt':
     1. ```conda create --solver=libmamba -n blast -c conda-forge cupy python=3.9 cuda-version=11.8```
@@ -66,7 +67,7 @@ https://zenodo.org/records/2540695 get the 5 *.model files and place them in a s
     1. In VS code, click on Debug (the triangle icon in the column of icons near top left) to enter Debug mode.
     2. You will then see a pulldown menu in the top of the Debug panel with a Green arrow, and the 'Gui' entry point. Click on this green arrow to run.
 
-6. Using the File Folder icon near top left of the RADNEC viewer, navigate to and select a root directory (ie the top level directory of a case of several dicom studies) under ```self.UIdatadir```. This should start the dicom processing. The full processing takes up to 20 minutes depending on gpu. Images stored in nifti format should then appear under the ```self.UIlocaldir``` designated above.
+6. Using the File Folder icon near top left of the RADNEC viewer, navigate to and select a root directory (ie the top level directory of a case of several dicom studies) under ```self.UIdatadir```. This should start the dicom processing. The full processing takes 10-20 minutes depending on gpu. Images stored in nifti format should then appear under the ```self.UIlocaldir``` designated above.
 
 7. Using the File Folder icon near top left of the RADNEC viewer, navigate to and select a root directory (ie the top level directory of a case of several studies) under ```self.UIlocaldir```. The case tagname will appear in the 'Case:' dropdown menu, select the case to load the nifti files.
 
