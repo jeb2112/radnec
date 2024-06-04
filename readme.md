@@ -46,7 +46,7 @@ https://zenodo.org/records/2540695 get the 5 *.model files and place them in a s
     1. ```conda create --solver=libmamba -n blast -c conda-forge cupy python=3.9 cuda-version=11.8```
     2. ```conda activate blast```
     3. ```pip install antspyx```
-    4. Check ENV in Control Panel: CUDA_PATH = C:\Users\username\.conda\envs\blast\Library
+    4. Check ENV in Control Panel: CUDA_PATH = C:\Users\username\\.conda\envs\blast\Library
  
 ## RADNEC viewer installation from source code (Windows)
 1.
