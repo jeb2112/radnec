@@ -294,7 +294,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         # add current slice overlay
         self.update_labels()
 
-        if self.ui.dataselection in['seg_raw_fusion_d','seg_fusion_d']:
+        if self.ui.dataselection in['seg_raw_fusion','seg_fusion']:
             self.ax_img.set(cmap='viridis')
             self.ax2_img.set(cmap='viridis')
             self.ax3_img.set(cmap='viridis')
@@ -310,10 +310,10 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
             self.updatewl(ax=3)
         if wl:   
             # possible latency problem here
-            if self.ui.dataselection == 'seg_raw_fusion_d':
+            if self.ui.dataselection == 'seg_raw_fusion':
                 # self.ui.roiframe.layer_callback(updateslice=False,updatedata=False,layer=layer)
                 self.ui.roiframe.layer_callback(layer=layer)
-            elif self.ui.dataselection == 'seg_fusion_d':
+            elif self.ui.dataselection == 'seg_fusion':
                 # self.ui.roiframe.layerROI_callback(updateslice=False,updatedata=False,layer=layer)
                 self.ui.roiframe.layerROI_callback(layer=layer)
             elif self.ui.dataselection == 'raw':
@@ -394,7 +394,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
     # color window/level scaling needs to be done separately for latency
     # for now, just tack it onto the fusion toggle button
     def updatewl_fusion(self):
-        if self.ui.dataselection in ['seg_raw_fusion_d','seg_fusion_d']:
+        if self.ui.dataselection in ['seg_raw_fusion','seg_fusion']:
             # for ax in range(2):
             for ax in ['t1+','flair']: # self.ui.channellist
                 # vmin = self.level[ax] - self.window[ax]/2

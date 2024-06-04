@@ -261,12 +261,12 @@ class BlastGui(object):
                                                         self.data[s].dset['seg_raw'][self.chselection]['d'],layer=self.roiframe.layer.get(),
                                                         overlay_intensity=self.config.OverlayIntensity)
             self.data[s].dset['seg_raw_fusion'][ch]['ex'] = True
-            self.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.data[s].dset['seg_raw_fusion'][ch]['d'+layer])
+            # self.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.data[s].dset['seg_raw_fusion'][ch]['d'+layer])
             
         if self.roiframe.finalROI_overlay_value.get() == True:
-            self.dataselection = 'seg_fusion_d'
+            self.dataselection = 'seg_fusion'
         else:
-            self.dataselection = 'seg_raw_fusion_d'
+            self.dataselection = 'seg_raw_fusion'
                 
         if currentslice is None:
             self.updateslice(wl=True,layer=layer)
