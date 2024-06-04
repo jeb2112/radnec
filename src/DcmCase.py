@@ -897,7 +897,7 @@ class DcmStudy(Study):
             dpath = os.path.join(self.localstudydir,'nnunet')
             if not os.path.exists(dpath):
                 os.mkdir(dpath)
-        for dt,suffix in zip(['t1+','flair+'],['0000','0003']):
+        for dt,suffix in zip(['t1+','flair'],['0000','0003']):
             if os.name == 'posix':
                 l1str = 'ln -s ' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + ' '
                 l1str += os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')
