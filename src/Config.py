@@ -59,7 +59,7 @@ class Config(object):
         # default BLAST slider values
         self.T1default = 0.
         self.T2default = 0.
-        self.BCdefault = (3.,0.)
+        self.BCdefault = (2.,2.)
         self.thresholddefaults = {'t12':0,'flair':0,'bc':3}
 
         # < 1 overlay by alpha compositing, == 1 replacement
