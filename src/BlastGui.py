@@ -17,6 +17,7 @@ from src.Create4PanelSVFrame import Create4PanelSVFrame
 from src.CreateCaseFrame import CreateCaseFrame
 from src.CreateROIFrame import CreateROIFrame
 from src.CreateOverlayFrame import CreateOverlayFrame
+from src.Create4PanelROIFrame import Create4PanelROIFrame
 from src.CreateFrame import Command
 from src.OverlayPlots import *
 
@@ -53,7 +54,7 @@ class BlastGui(object):
 
         # viewer functions. overlay mode, or BLAST segmentation mode
         self.functionlist = {'overlay':0,'BLAST':1,'4panel':2}
-        self.function = tk.StringVar(value='overlay')
+        self.function = tk.StringVar(value='4panel')
 
         # data structure. data is a dict of studies. see DcmCase
         self.data = {} 
@@ -86,6 +87,14 @@ class BlastGui(object):
 
         # hard-coded entries for debugging
         if self.debug:
+            # load a 4panel case
+            if True:
+                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
+                self.caseframe.datadirentry_callback()
+                self.caseframe.casename.set('M0001')
+                self.caseframe.case_callback()
+
+
             # load a nifti case for BLAST and create a ROI
             if False:
                 self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
@@ -119,7 +128,7 @@ class BlastGui(object):
                 self.roiframe.overlay_callback()
 
             # load an overlay case
-            if True:
+            if False:
                 self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0002'))
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0002')
@@ -153,6 +162,7 @@ class BlastGui(object):
         self.roiframes = {}
         self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
         self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
+        self.roiframes['4panel'] = Create4PanelROIFrame(self.mainframe,ui=self,padding='0')
         
         # overlay/blast function mode
         self.functionmenu = ttk.OptionMenu(self.mainframe,self.function,self.functionlist['overlay'],

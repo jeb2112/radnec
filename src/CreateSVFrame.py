@@ -104,12 +104,15 @@ class CreateSliceViewerFrame(CreateFrame):
         self.chdisplay_button['t1+'] = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.chdisplay,value='t1+',
                                                     command=self.updateslice)
         self.chdisplay_button['t1+'].grid(column=2,row=0,sticky='w')
-        self.chdisplay_button['t2'] = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.chdisplay,value='t2',
+        self.chdisplay_button['t2'] = ttk.Radiobutton(self.normal_frame,text='T2',variable=self.chdisplay,value='t2',
                                                     command=self.updateslice)
         self.chdisplay_button['t2'].grid(column=3,row=0,sticky='w')
-        self.chdisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR+',variable=self.chdisplay,value='flair',
+        self.chdisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.chdisplay,value='flair',
                                                     command=self.updateslice)
         self.chdisplay_button['flair'].grid(column=4,row=0,sticky='w')
+        self.chdisplay_button['dwi'] = ttk.Radiobutton(self.normal_frame,text='DWI',variable=self.chdisplay,value='dwi',
+                                                    command=self.updateslice)
+        self.chdisplay_button['dwi'].grid(column=4,row=0,sticky='w')
         # self.chdisplay_keys = ['t1','t1+','flair','flair']
 
         # overlay type contour mask

@@ -48,11 +48,11 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
         # window/level stuff will need further tidying up
-        # window/level values for T1,T2
-        self.window = np.array([1.,1.],dtype='float')
-        self.level = np.array([0.5,0.5],dtype='float')
+        # window/level values for T1,flair,dwi,adc
+        self.window = np.array([1.,1.,1.,1.],dtype='float')
+        self.level = np.array([0.5,0.5,0.5,0.5],dtype='float')
         # window/level values for overlays and images. hard-coded for now.
-        self.wl = {'t1+':[600,300],'flair':[600,300],'dwi':[600,300],'adc':[1000,500]}
+        self.wl = {'t1+':[600,300],'flair':[600,300],'dwi':[1000,500],'adc':[2000,1000]}
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
@@ -98,13 +98,12 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         if self.resizer_count > 0:
             return
         # print(event)
-        slicefovratio = self.dim[0]/self.dim[1]
-        # self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.normal_frame_minsize)/self.ui.dpi
-        self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.ui.roiframe.frame.winfo_height())/self.ui.dpi
-        self.wi = self.hi*2 + self.hi / (2*slicefovratio)
+        axfovratio = self.dim[2]/self.dim[1]
+        self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.ui.roiframe.frame.winfo_height())/self.ui.dpi * 1
+        self.wi = self.hi * axfovratio
         if self.wi > event.width/self.ui.dpi:
             self.wi = (event.width-2*int(self.ui.mainframe_padding))/self.ui.dpi
-            self.hi = self.wi/(2+1/(2*slicefovratio))
+            self.hi = self.wi / axfovratio
         self.ui.current_panelsize = self.hi
         # print('{:d},{:d},{:.2f},{:.2f},{:.2f}'.format(event.width,event.height,self.wi,self.hi,self.wi/self.hi))
         # self.cw.grid_propagate(0)
@@ -117,8 +116,8 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
     # with just frame background style resizing behaviour seems correct.
     def create_blank_canvas(self):
         slicefovratio = self.config.ImageDim[0]/self.config.ImageDim[1]
-        w = self.ui.current_panelsize*(2 + 1/(2*slicefovratio)) * self.ui.dpi
-        h = self.ui.current_panelsize * self.ui.dpi
+        w = self.ui.current_panelsize*1 * self.ui.dpi
+        h = self.ui.current_panelsize*1 * self.ui.dpi
         if True:
             fig = plt.figure(figsize=(w/self.ui.dpi,h/self.ui.dpi),dpi=self.ui.dpi)
             axs = fig.add_subplot(111)
@@ -136,18 +135,17 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
     def create_canvas(self,figsize=None):
         slicefovratio = self.dim[0]/self.dim[1]
         if figsize is None:
-            figsize = (self.ui.current_panelsize*(2 + 1/(2*slicefovratio)),self.ui.current_panelsize)
+            figsize = (self.ui.current_panelsize*1,self.ui.current_panelsize*1)
         if self.fig is not None:
             plt.close(self.fig)
 
         self.fig,self.axs = plt.subplot_mosaic([['A','B'],['C','D']],
-                                     width_ratios=[self.ui.current_panelsize,self.ui.current_panelsize,
-                                                   self.ui.current_panelsize / (2 * slicefovratio) ],
+                                     width_ratios=[self.ui.current_panelsize,self.ui.current_panelsize],
                                      figsize=figsize,dpi=self.ui.dpi)
         self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
         self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
-        self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
-        self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
+        self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
+        self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
         self.ax_img.format_cursor_data = self.make_cursordata_format()
         self.ax2_img.format_cursor_data = self.make_cursordata_format()
         self.ax3_img.format_cursor_data = self.make_cursordata_format()
@@ -192,12 +190,14 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
             figtrans[a] = self.axs[a].transData + self.axs[a].transAxes.inverted()
         # these label coords are slightly hard-coded
         self.xyfig['Im_A']= figtrans['A'].transform((5,self.dim[1]-20))
-        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),5))
-        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),5))
-        self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),5))
-        self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),5))
-        self.xyfig['Im_C'] = figtrans['C'].transform((5,self.dim[0]-15))
-        self.xyfig['Im_D'] = figtrans['D'].transform((5,self.dim[0]-15))
+        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[2]/2),5))
+        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[2]*3/4),5))
+        self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[2]/2),5))
+        self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[2]*3/4),5))
+        self.xyfig['W_C'] = figtrans['C'].transform((int(self.dim[2]/2),5))
+        self.xyfig['L_C'] = figtrans['C'].transform((int(self.dim[2]*3/4),5))
+        self.xyfig['W_D'] = figtrans['D'].transform((int(self.dim[2]/2),5))
+        self.xyfig['L_D'] = figtrans['D'].transform((int(self.dim[2]*3/4),5))
         self.figtrans = figtrans
 
         # figure canvas
@@ -233,47 +233,25 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
         s = self.ui.s # local reference
         slice=self.currentslice.get()
-        slicesag = self.currentsagslice.get()
-        slicecor = self.currentcorslice.get()
         self.ui.set_currentslice()
-        if blast: # option for previewing enhancing in 2d. probably not used anymore
-            self.ui.runblast(currentslice=slice)
-        # which data array to display. 'd' is general
-        d = 'd'
-        # special case arrangement for displaying BLAST overlays by layer type. slightly awkward.
-        if self.ui.roiframe.enhancingROI_overlay_value.get():
-            d = 'd'+self.ui.roiframe.layer.get()
-        self.ax_img.set(data=self.ui.data[s].dset[self.ui.dataselection][self.ui.chselection][d][slice,:,:])
-        # by convention, 2nd panel will always be flair, 1st panel could be t1,t1+ or t2
-        self.ax2_img.set(data=self.ui.data[s].dset[self.ui.dataselection]['flair'][d][slice,:,:])
-        self.ax3_img.set(data=self.ui.data[s].dset[self.ui.dataselection][self.ui.chselection][d][:,:,slicesag])
-        self.ax4_img.set(data=self.ui.data[s].dset[self.ui.dataselection][self.ui.chselection][d][:,slicecor,:])
+        # by convention panels are T1+,FLAIR,DWI,ADC
+        self.ax_img.set(data=self.ui.data[s].dset['raw']['t1+']['d'][slice,:,:])
+        self.ax2_img.set(data=self.ui.data[s].dset['raw']['flair']['d'][slice,:,:])
+        self.ax3_img.set(data=self.ui.data[s].dset['raw']['dwi']['d'][slice,:,:])
+        self.ax4_img.set(data=self.ui.data[s].dset['adc']['d'][slice,:,:])
         # add current slice overlay
         self.update_labels()
 
-        if self.ui.dataselection in['seg_raw_fusion','seg_fusion']:
-            self.ax_img.set(cmap='viridis')
-            self.ax2_img.set(cmap='viridis')
-            self.ax3_img.set(cmap='viridis')
-            self.ax4_img.set(cmap='viridis')
-        else:
-            self.ax_img.set(cmap='gray')
-            self.updatewl(ax=0)
-            self.ax2_img.set(cmap='gray')
-            self.updatewl(ax=1)
-            self.ax3_img.set(cmap='gray')
-            self.updatewl(ax=2)
-            self.ax4_img.set(cmap='gray')
-            self.updatewl(ax=3)
+        self.ax_img.set(cmap='gray')
+        self.updatewl(ax=0)
+        self.ax2_img.set(cmap='gray')
+        self.updatewl(ax=1)
+        self.ax3_img.set(cmap='gray')
+        self.updatewl(ax=2)
+        self.ax4_img.set(cmap='gray')
+        self.updatewl(ax=3)
         if wl:   
-            # possible latency problem here
-            if self.ui.dataselection == 'seg_raw_fusion':
-                # self.ui.roiframe.layer_callback(updateslice=False,updatedata=False,layer=layer)
-                self.ui.roiframe.layer_callback(layer=layer)
-            elif self.ui.dataselection == 'seg_fusion':
-                # self.ui.roiframe.layerROI_callback(updateslice=False,updatedata=False,layer=layer)
-                self.ui.roiframe.layerROI_callback(layer=layer)
-            elif self.ui.dataselection == 'raw':
+            if self.ui.dataselection == 'raw':
                 self.clipwl_raw()
 
         self.canvas.draw()
@@ -286,60 +264,33 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
                 except ValueError as e:
                     print(e)
         # convert data units to figure units
-        self.labels['Im_A'] = self.axs['labelA'].text(self.xyfig['Im_A'][0],1+self.xyfig['Im_A'][1],'Im:'+str(self.currentslice.get()),color='w')
-        self.labels['W_A'] = self.axs['labelA'].text(self.xyfig['W_A'][0],self.xyfig['W_A'][1],'W = '+'{:d}'.format(int(self.window[0])),color='w')
-        self.labels['L_A'] = self.axs['labelA'].text(self.xyfig['L_A'][0],self.xyfig['L_A'][1],'L = '+'{:d}'.format(int(self.level[0])),color='w')
-        self.labels['W_B'] = self.axs['labelB'].text(self.xyfig['W_B'][0],self.xyfig['W_B'][1],'W = '+'{:d}'.format(int(self.window[1])),color='w')
-        self.labels['L_B'] = self.axs['labelB'].text(self.xyfig['L_B'][0],self.xyfig['L_B'][1],'L = '+'{:d}'.format(int(self.level[1]*1)),color='w')
-        self.labels['Im_C'] = self.axs['labelC'].text(self.xyfig['Im_C'][0],self.xyfig['Im_C'][1],'Im:'+str(self.currentsagslice.get()),color='w')
-        self.labels['Im_D'] = self.axs['labelD'].text(self.xyfig['Im_D'][0],self.xyfig['Im_D'][1],'Im:'+str(self.currentcorslice.get()),color='w')
-
+        self.labels['Im_A'] = self.axs['labelA'].text(self.xyfig['Im_A'][0],self.xyfig['Im_A'][1],'Im:'+str(self.currentslice.get()),color='w')
+        for w,l in enumerate(['A','B','C','D']):
+            self.labels['W_'+l] = self.axs['label'+l].text(self.xyfig['W_'+l][0],self.xyfig['W_'+l][1],'W = '+'{:d}'.format(int(self.window[w])),color='w')
+            self.labels['L_'+l] = self.axs['label'+l].text(self.xyfig['L_'+l][0],self.xyfig['L_'+l][1],'L = '+'{:d}'.format(int(self.level[w])),color='w')
         
-    # TODO: latency problem for fusions. 
-    # for now, don't allow to call this function if overlay is selected
     def updatewl(self,ax=0,lval=None,wval=None):
 
         self.wlflag = True
-        # only process on main panels
-        if ax < 2:
-            if lval:
-                self.level[ax] += lval
-            if wval:
-                self.window[ax] += wval
+        if lval:
+            self.level[ax] += lval
+        if wval:
+            self.window[ax] += wval
 
-            vmin = self.level[ax] - self.window[ax]/2
-            vmax = self.level[ax] + self.window[ax]/2
-
-        vmin0 = self.level[0] - self.window[0]/2
-        vmax0 = self.level[0] + self.window[0]/2
-        vmin1 = self.level[1] - self.window[1]/2
-        vmax1 = self.level[1] + self.window[1]/2
+        vmin = self.level[ax] - self.window[ax]/2
+        vmax = self.level[ax] + self.window[ax]/2
 
         if ax==0:
             self.ax_img.set_clim(vmin=vmin,vmax=vmax)
         elif ax==1:
             self.ax2_img.set_clim(vmin=vmin,vmax=vmax)
-        if self.sagcordisplay.get() == 0:
-            self.ax3_img.set_clim(vmin=vmin0,vmax=vmax0)
-            self.ax4_img.set_clim(vmin=vmin0,vmax=vmax0)
-        elif self.sagcordisplay.get() == 1:
-            self.ax3_img.set_clim(vmin=vmin1,vmax=vmax1)
-            self.ax4_img.set_clim(vmin=vmin1,vmax=vmax1)
+        elif ax == 2:
+            self.ax3_img.set_clim(vmin=vmin,vmax=vmax)
+        elif ax == 3:
+            self.ax4_img.set_clim(vmin=vmin,vmax=vmax)
 
         self.canvas.draw()
 
-    # color window/level scaling needs to be done separately for latency
-    # for now, just tack it onto the fusion toggle button
-    def updatewl_fusion(self):
-        if self.ui.dataselection in ['seg_raw_fusion','seg_fusion']:
-            # for ax in range(2):
-            for ax in ['t1+','flair']: # self.ui.channellist
-                # vmin = self.level[ax] - self.window[ax]/2
-                # vmax = self.level[ax] + self.window[ax]/2
-                vmin = self.wl[ax][1] - self.wl[ax][0]/2
-                vmax = self.wl[ax][1] + self.wl[ax][0]/2
-                if False:
-                    self.ui.data[0].dset[ax]['d'] = self.ui.caseframe.rescale(self.ui.data[0].dset[ax+'_copy']['d'],vmin=vmin,vmax=vmax)
 
     # clip the raw data to window and level settings
     def clipwl_raw(self):

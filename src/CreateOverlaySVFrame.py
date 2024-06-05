@@ -90,23 +90,6 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.normal_frame = ttk.Frame(self.parentframe,padding='0')
         self.normal_frame.grid(row=3,column=0,sticky='NW')
 
-        chdisplay_label = ttk.Label(self.normal_frame, text='channel: ')
-        chdisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
-        self.chdisplay_button = {}
-        self.chdisplay_button['t1'] = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.chdisplay,value='t1',
-                                                    command=self.updateslice,state='disabled')
-        self.chdisplay_button['t1'].grid(column=1,row=0,sticky='w')
-        self.chdisplay_button['t1+'] = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.chdisplay,value='t1+',
-                                                    command=self.updateslice)
-        self.chdisplay_button['t1+'].grid(column=2,row=0,sticky='w')
-        self.chdisplay_button['t2'] = ttk.Radiobutton(self.normal_frame,text='T2',variable=self.chdisplay,value='t2',
-                                                    command=self.updateslice,state='disabled')
-        self.chdisplay_button['t2'].grid(column=3,row=0,sticky='w')
-        self.chdisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.chdisplay,value='flair',
-                                                    command=self.updateslice)
-        self.chdisplay_button['flair'].grid(column=4,row=0,sticky='w')
-        # self.chdisplay_keys = ['t1','t1+','flair','flair']
-
         # BLAST/UNet segmentation selection
         maskdisplay_label = ttk.Label(self.normal_frame, text='segmentation: ')
         maskdisplay_label.grid(row=1,column=0,padx=(50,0),sticky='e')

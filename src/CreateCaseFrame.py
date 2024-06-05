@@ -189,14 +189,15 @@ class CreateCaseFrame(CreateFrame):
 
         # update sliceviewers according to data loaded
         s = self.ui.s
-        for sv in self.ui.sliceviewerframes.values():
+        for sv in [self.ui.sliceviewerframes[skey] for skey in ['BLAST','overlay']]:
             for dt in self.ui.data[s].channels.values():
                 if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
                     sv.chdisplay_button[dt]['state'] = 'normal'
+        for sv in self.ui.sliceviewerframes.values():
             sv.dim = np.shape(self.ui.data[s].dset['raw']['t1+']['d'])
-            # auto window/level is hard-coded here
-            sv.level = np.array([self.ui.data[s].dset['raw']['t1+']['max']/4]*2)
-            sv.window = np.array([self.ui.data[s].dset['raw']['t1+']['max']/2]*2)
+            # auto window/level is hard-coded to t1+ here
+            sv.level = np.array([self.ui.data[s].dset['raw']['t1+']['max']/4]*4)
+            sv.window = np.array([self.ui.data[s].dset['raw']['t1+']['max']/2]*4)
             sv.create_canvas()
 
         # update roiframes according to data loaded
