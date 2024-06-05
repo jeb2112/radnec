@@ -367,7 +367,7 @@ class Study():
         # list of attributes for each image volume. 'd' is the main data array,
         # 'ex' is existence as a convenience for checking whether populated. 'dref' is an optional image volume
         # that may be associated with 'd' for any reason
-        self.dprop = {'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'mask':None,'dref':None}
+        self.dprop = {'d':None,'time':None,'affine':None,'ex':False,'max':0,'min':0,'w':0,'l':0,'mask':None,'dref':None}
         # special case for blast overlay layers
         self.dprop_layer = {'dET':None,'dT2 hyper':None,'ex':False}
 
@@ -503,6 +503,8 @@ class NiftiStudy(Study):
                 self.dset['raw'][dt]['max'] = np.max(self.dset['raw'][dt]['d'])
                 self.dset['raw'][dt]['min'] = np.min(self.dset['raw'][dt]['d'])
                 self.dset['raw'][dt]['ex'] = True
+                self.dset['raw'][dt]['w'] = self.dset['raw'][dt]['max']/2
+                self.dset['raw'][dt]['l'] = self.dset['raw'][dt]['max']/4
             # z-scores
             dt_file = 'z' + dt + '_processed.nii.gz'
             if dt_file in files:

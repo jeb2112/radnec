@@ -42,17 +42,17 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
 
         # ui variables
         self.currentslice = tk.IntVar(value=75)
+        # imageaxes to channel mapping
+        self.ax_img = {}
+        self.ax2ch = {'A':('raw','t1+'),'B':('raw','flair'),'C':('raw','dwi'),'D':('adc','dwi')}
         self.labels = {'Im_A':None,'Im_B':None,'Im_C':None,'Im_D':None,'W_A':None,'L_A':None,'W_B':None,'L_B':None}
-        self.axslicelabel = None
-        self.windowlabel = None
-        self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
         # window/level stuff will need further tidying up
         # window/level values for T1,flair,dwi,adc
         self.window = np.array([1.,1.,1.,1.],dtype='float')
         self.level = np.array([0.5,0.5,0.5,0.5],dtype='float')
         # window/level values for overlays and images. hard-coded for now.
-        self.wl = {'t1+':[600,300],'flair':[600,300],'dwi':[1000,500],'adc':[2000,1000]}
+        self.wl = {('raw','t1+'):[600,300],('raw','flair'):[600,300],('raw','dwi'):[1000,500],('adc','dwi'):[2000,1000]}
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
@@ -142,14 +142,9 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.fig,self.axs = plt.subplot_mosaic([['A','B'],['C','D']],
                                      width_ratios=[self.ui.current_panelsize,self.ui.current_panelsize],
                                      figsize=figsize,dpi=self.ui.dpi)
-        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
-        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
-        self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
-        self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
-        self.ax_img.format_cursor_data = self.make_cursordata_format()
-        self.ax2_img.format_cursor_data = self.make_cursordata_format()
-        self.ax3_img.format_cursor_data = self.make_cursordata_format()
-        self.ax4_img.format_cursor_data = self.make_cursordata_format()
+        for a in ['A','B','C','D']:
+            self.ax_img[a] = self.axs[a].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
+            self.ax_img[a].format_cursor_data = self.make_cursordata_format()
 
         # add dummy axes for image labels. absolute canvas coords
 
@@ -234,22 +229,14 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         s = self.ui.s # local reference
         slice=self.currentslice.get()
         self.ui.set_currentslice()
-        # by convention panels are T1+,FLAIR,DWI,ADC
-        self.ax_img.set(data=self.ui.data[s].dset['raw']['t1+']['d'][slice,:,:])
-        self.ax2_img.set(data=self.ui.data[s].dset['raw']['flair']['d'][slice,:,:])
-        self.ax3_img.set(data=self.ui.data[s].dset['raw']['dwi']['d'][slice,:,:])
-        self.ax4_img.set(data=self.ui.data[s].dset['adc']['d'][slice,:,:])
+        # set content of each axesImage
+        for a in ['A','B','C','D']:
+            self.ax_img[a].set(data=self.ui.data[s].dset[self.ax2ch[a][0]][self.ax2ch[a][1]]['d'][slice,:,:])
+            self.ax_img[a].set(cmap='gray')
+            self.updatewl2(a)
         # add current slice overlay
         self.update_labels()
 
-        self.ax_img.set(cmap='gray')
-        self.updatewl(ax=0)
-        self.ax2_img.set(cmap='gray')
-        self.updatewl(ax=1)
-        self.ax3_img.set(cmap='gray')
-        self.updatewl(ax=2)
-        self.ax4_img.set(cmap='gray')
-        self.updatewl(ax=3)
         if wl:   
             if self.ui.dataselection == 'raw':
                 self.clipwl_raw()
@@ -265,10 +252,12 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
                     print(e)
         # convert data units to figure units
         self.labels['Im_A'] = self.axs['labelA'].text(self.xyfig['Im_A'][0],self.xyfig['Im_A'][1],'Im:'+str(self.currentslice.get()),color='w')
-        for w,l in enumerate(['A','B','C','D']):
-            self.labels['W_'+l] = self.axs['label'+l].text(self.xyfig['W_'+l][0],self.xyfig['W_'+l][1],'W = '+'{:d}'.format(int(self.window[w])),color='w')
-            self.labels['L_'+l] = self.axs['label'+l].text(self.xyfig['L_'+l][0],self.xyfig['L_'+l][1],'L = '+'{:d}'.format(int(self.level[w])),color='w')
+        for a in ['A','B','C','D']:
+            ch = self.ax2ch[a]
+            self.labels['W_'+a] = self.axs['label'+a].text(self.xyfig['W_'+a][0],self.xyfig['W_'+a][1],'W = '+'{:d}'.format(int(self.wl[ch][0])),color='w')
+            self.labels['L_'+a] = self.axs['label'+a].text(self.xyfig['L_'+a][0],self.xyfig['L_'+a][1],'L = '+'{:d}'.format(int(self.wl[ch][1])),color='w')
         
+    # original wl 
     def updatewl(self,ax=0,lval=None,wval=None):
 
         self.wlflag = True
@@ -291,6 +280,27 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
 
         self.canvas.draw()
 
+    def ch2ax(self,ch):
+        return self.ax2ch.keys()[self.ax2ch.values().index(ch)]
+
+    # modified arrangement for wl
+    def updatewl2(self,ax=None,lval=None,wval=None):
+
+        if ax==None:
+            return
+        ch = self.ax2ch[ax]
+        self.wlflag = True
+        if lval:
+            self.wl[ch][1] += lval
+        if wval:
+            self.wl[ch][0] += wval
+
+        vmin = self.wl[ch][1] - self.wl[ch][0]/2
+        vmax = self.wl[ch][1] + self.wl[ch][0]/2
+
+        self.ax_img[ax].set_clim(vmin=vmin,vmax=vmax)
+
+        self.canvas.draw()
 
     # clip the raw data to window and level settings
     def clipwl_raw(self):
@@ -307,3 +317,46 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
     def fitlin(self,x,a,b):
         return a*x + b
 
+    # mouse drag event for window/level adjustment
+    def b1motion(self,event):
+        # print(event.num,event.state,event.type)
+        # only allow adjustment in raw data view. overlays have latency to scale in 3d.
+        if self.ui.dataselection != 'raw':
+            return
+        # no adjustment if nav bar is activated
+        if 'zoom' in self.tbar.mode:
+            return
+        # no adjustment from outside the pane
+        if event.y < 0 or event.x < 0:
+            return
+        # process only in two main panels
+        if event.x <=self.ui.current_panelsize/2*self.ui.dpi and event.y <= self.ui.current_panelsize/2*self.ui.dpi:
+            ax = 'A'
+        elif event.x <= self.ui.current_panelsize*self.ui.dpi and event.y <= self.ui.current_panelsize/2*self.ui.dpi:
+            ax = 'B'
+        elif event.x <= self.ui.current_panelsize/2*self.ui.dpi and event.y <= self.ui.current_panelsize*self.ui.dpi:
+            ax = 'C'
+        elif event.x <= self.ui.current_panelsize*self.ui.dpi and event.y <= self.ui.current_panelsize*self.ui.dpi:
+            ax = 'D'
+        else:
+            return
+        if self.b1x is None:
+            self.b1x,self.b1y = copy.copy((event.x,event.y))
+            return
+        if np.abs(event.x-self.b1x) > np.abs(event.y-self.b1y):
+            if event.x-self.b1x > 0:
+                self.updatewl2(ax=ax,wval=10)
+            else:
+                self.updatewl2(ax=ax,wval=-10)
+        else:
+            if event.y - self.b1y > 0:
+                self.updatewl2(ax=ax,lval=10)
+            else:
+                self.updatewl2(ax=ax,lval=-10)
+
+        self.b1x,self.b1y = copy.copy((event.x,event.y))
+        self.update_labels()
+
+        # repeating this here because there are some automatic tk backend events which 
+        # can reset it during a sequence of multiple window/level drags
+        self.canvas.get_tk_widget().config(cursor='circle')
