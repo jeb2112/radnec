@@ -55,8 +55,9 @@ class Case():
         self.load_studydirs()
         self.process_studydirs()
         self.process_timepoints()
-        self.regression()
-        self.segment()
+        if False:
+            self.regression()
+            self.segment()
 
 
     # load all studies of current case
@@ -82,7 +83,7 @@ class Case():
         for i,d in enumerate(dates):
             dstudies = [s for s in self.studies if s.studytimeattrs['StudyDate'] == d]
             for ds in dstudies[-1:0:-1]:
-                for dc in ['raw','cbv']:
+                for dc in ['raw']:
                     for series in list(ds.channels.values()):
                         if ds.dset[dc][series]['ex']:
                             dstudies[0].dset[dc][series]['d'] = np.copy(ds.dset[dc][series]['d'])
@@ -125,7 +126,7 @@ class Case():
         s = self.studies[0]
         # ant register can't handle this flip.
         if True:
-            for dc in ['raw','cbv','z']:
+            for dc in ['raw','z','cbv','adc']:
                 for dt in list(s.channels.values()):
                     if s.dset[dc][dt]['ex']:
                         s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
@@ -140,7 +141,7 @@ class Case():
         if False:
             s.writenifti(s.dset['raw'][dref]['d'],os.path.join(self.config.UIlocaldir,self.case,dref+'_talairach.nii'),affine=s.dset['ref']['affine'])
         # apply that same registration transform to all remaining images in this study
-        for dc in ['raw','cbv','z']:
+        for dc in ['raw','z','cbv','adc']:
             for dt in list(s.channels.values()):
                 if dt == dref and dc == 'raw':
                     continue
@@ -151,7 +152,7 @@ class Case():
         # repeat process for remainder of studies
         for s in self.studies[1:]:
             if True:
-                for dc in ['raw','cbv','z']:
+                for dc in ['raw','z','cbv','adc']:
                     for dt in list(s.channels.values()):
                         if s.dset[dc][dt]['ex']:
                             s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
@@ -160,7 +161,7 @@ class Case():
                 s.dset['raw'][dref]['d'],tx = s.register(self.studies[0].dset['raw'][dref]['d'],s.dset['raw'][dref]['d'],transform='Rigid')
             else:
                 raise ValueError('No T1+ to register to')
-            for dc in ['raw','cbv','z']:
+            for dc in ['raw','z','cbv','adc']:
                 for dt in list(s.channels.values()) :
                     if dt == dref and dc == 'raw':
                         continue
@@ -175,11 +176,11 @@ class Case():
     def write_all(self):
         for s in self.studies:
             localstudydir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
-            for dc in ['z','raw','cbv']:
+            for dc in ['raw','z','cbv','adc']:
                 for dt in list(s.channels.values()):
                     if s.dset[dc][dt]['ex']:
-                        if dc == 'cbv':
-                            dstr = 'cbv_processed.nii'
+                        if dc in ['adc','cbv']:
+                            dstr = dc + '_processed.nii'
                         elif dc == 'z':
                             dstr = 'z' + dt + '_processed.nii'
                         else:
@@ -355,7 +356,7 @@ class Study():
         self.date = None
         self.localstudydir = None
         if channellist is None:
-            self.channels = {0:'t1',1:'t1+',2:'t2',3:'flair'}
+            self.channels = {0:'t1',1:'t1+',2:'t2',3:'flair',4:'dwi'}
         else:
             self.channels = {k:v for k,v in enumerate(channellist)}
 
@@ -380,6 +381,10 @@ class Study():
         self.dset['cbv'] = cp(self.dprop)
         for v in self.channels.values():
             self.dset['cbv'][v] = self.dset['cbv'] 
+        # adc data, if available. this is not channel-specific so just create references for dummy channels
+        self.dset['adc'] = cp(self.dprop)
+        for v in self.channels.values():
+            self.dset['adc'][v] = self.dset['adc'] 
         # raw blast segmentation
         self.dset['seg_raw'] = {v:cp(self.dprop) for v in self.channels.values()}
         # z-scores of the 'raw' data
@@ -524,7 +529,7 @@ class NiftiStudy(Study):
                 self.dset['tempo'][dt]['ex'] = True
 
         # load other
-        for dt in ['cbv','ref']:
+        for dt in ['cbv','ref','adc']:
             dt_file = dt + '_processed.nii.gz'
             if dt_file in files:
                 self.dset[dt]['d'],_ = self.loadnifti(dt_file)                    
@@ -558,8 +563,11 @@ class DcmStudy(Study):
     def __init__(self,case,d,config,**kwargs):
         super().__init__(case,d,**kwargs)
 
+        # override data structure in the case of derived datasets
         # cbv data. for purposes of dicom processing, this will be treated as a 'flair' channel. 
         self.dset['cbv'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # adc data. for purposes of dicom processing, this will be treated as a 'flair' channel. 
+        self.dset['adc'] = {v:cp(self.dprop) for v in self.channels.values()}
 
         self.config = config
         self.localcasedir = os.path.join(self.config.UIlocaldir,self.case)
@@ -620,12 +628,20 @@ class DcmStudy(Study):
             elif any([f in ds0.SeriesDescription.lower() for f in ['flair','fluid']]):
                 dt = 'flair'
 
+            #   
+            elif any([f in ds0.SeriesDescription.lower() for f in ['tracew']]):
+                dt = 'dwi'
+
             # not taking relcbv or relcbf, just relccbv. could use 'perf' as well.
             # note this may be exported in a separate studydir, without a matching t1
             # TODO: the matching t1 has to come from another studydir, based on time tags
             elif any([f in ds0.SeriesDescription.lower() for f in ['relccbv']]):
                 dt = 'flair' # cbv will be stored arbitrarily as a flair channel for processing purposes
                 dc = 'cbv'
+            # likewise adc will be stored in the 'dwi' channel for processing purposes 
+            elif any([f in ds0.SeriesDescription.lower() for f in ['adc']]):
+                dt = 'dwi'
+                dc = 'adc'
             else:
                 dt = None
                 continue
@@ -645,23 +661,6 @@ class DcmStudy(Study):
                         if hasattr(ds0,t):
                             dref['time'] = float(getattr(ds0,t))
                             break
-
-            # also create target affine with 1mm slices (not finished) 
-            # t1+ will probably always have 1mm slices anyway, might not need anymore
-            if False:
-                if dt == 't1+':
-                    if pd.tag.Tag(0x2001,0x1018) in ds0.keys() and pd.tag.Tag(0x0018,0x0088) in ds0.keys(): # philips. siemens?
-                        nslice = int( ds0[(0x2001,0x1018)].value * float(ds0[(0x0018,0x0088)].value) )
-                    elif pd.tag.Tag(0x0018,0x0050) in ds0.keys(): # possible alternate for siemens?
-                        nslice = int(float(ds0[(0x0018,0x0050)].value) * len(files))
-                    else:
-                        raise Exception('number of 1mm slices cannot be parsed from header')
-                    nx = int( float(ds0[(0x0028,0x0030)].value[0]) * ds0[(0x0028,0x0010)].value )
-                    ny = int( float(ds0[(0x0028,0x0030)].value[1]) * ds0[(0x0028,0x0011)].value )
-                    affine =  np.diag(np.ones(4),k=0)
-                    # affine[:3,3] = self.dset['t1+']['affine'][:3,3]
-                    # self.dset['target']['affine'] = affine
-                    # self.dset['target']['d'] = np.zeros((nslice,ny,nx))
 
         return
 
@@ -726,10 +725,10 @@ class DcmStudy(Study):
 
         # resample to target matrix (t1+ for now)
         if True:
-            for dc in ['raw','cbv']:
-                for dt in ['flair','t1','t2']:
+            for dc in ['raw','cbv','adc']:
+                for dt in ['flair','t1','t2','dwi']:
                     if self.dset[dc][dt]['ex'] and self.dset['raw']['t1+']['ex']:
-                        print('Resampling ' + dt + ' into target space...')
+                        print('Resampling ' + dc+','+dt + ' into target space...')
                         self.dset[dc][dt]['d'],self.dset[dc][dt]['affine'] = self.resamplet2(self.dset['raw']['t1+']['d'],self.dset[dc][dt]['d'],
                                                                             self.dset['raw']['t1+']['affine'],self.dset[dc][dt]['affine'])
                         self.dset[dc][dt]['d']= np.clip(self.dset[dc][dt]['d'],0,None)
@@ -743,43 +742,14 @@ class DcmStudy(Study):
                     
 
         # skull strip
-
-        # optional. use a provided mask. not implementing this for now
-        if False: 
-            if self.dset['raw']['t1+']['mask'] is not None:
-
-                # pre-registration. for now assuming mask is a T1post so register T1pre,T2,flair
-                # reference
-                fixed_image = self.dset['t1+']['d']
-
-                for dt in ['t1pre','flair','t2']:
-                    # fname = os.path.join(d,'img_'+t+'_resampled.nii.gz')
-                    if self.dset[dt]['ex']:
-                        moving_image = self.dset[dt]['d']
-                        self.dset[dt]['d'],_ = self.register(fixed_image,moving_image,transform='Rigid')
-                        if False:
-                            self.ui.roiframe.WriteImage(self.dset[t]['d'],os.path.join(d,'img_'+t+'_preregistered.nii.gz'),
-                                                    type='float',affine=self.ui.affine['t1'])
-
-                # apply mask
-                for dt in ['t1','flair','t2']:
-                    if self.dset[dt]['ex']:
-                        self.dset[dt]['d'] = np.where(self.dset['t1+']['mask'],self.dset[dt]['d'],0)
-
-
-        # attempt hd-bet model extraction
-        for dt in ['t1+','t2','t1','flair']:
+        # hd-bet model extraction
+        for dt in ['t1+','t2','t1','flair','dwi']:
             if self.dset['raw'][dt]['ex']:
                 self.dset['raw'][dt]['d'],self.dset['raw'][dt]['mask'] = self.extractbrain2(self.dset['raw'][dt]['d'],
                                                                                             affine=self.dset['raw'][dt]['affine'],fname=dt)
-
-        # could maybe just post-contrast mask for speed assuming no significant change
-        # in pose.
-        if False:
-            for dt in ['t1','flair']:
-                if self.dset[dt]['ex']:
-                    self.dset[dt]['d'] *= self.dset[dt+'+']['mask']
-
+        # For ADC can just use the DWI mask
+        if self.dset['adc']['dwi']['ex']:
+            self.dset['adc']['dwi']['d'] *= self.dset['raw']['dwi']['mask']
 
         # preliminary registration, within the study to t1+ image. probably this is minimal
         # and skipping it shouldn't matter too much.
@@ -788,13 +758,10 @@ class DcmStudy(Study):
             if self.dset['raw']['t1+']['ex']:
                 fixed_image = self.dset['raw']['t1+']['d']
                 for dt in ['t1','flair','t2']:
-                    fname = os.path.join(self.localstudydir,dt+'_resampled.nii.gz')
                     if self.dset['raw'][dt]['ex']:
                         moving_image = self.dset['raw'][dt]['d']
                         self.dset['raw'][dt]['d'],tx = self.register(fixed_image,moving_image,transform='Rigid')
-                        if False:
-                            self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localstudydir,'img_'+dt+'_registered.nii.gz'),
-                                                    type='float',affine=self.ui.affine['t1'])
+
                 # if t1+ image took place immediately after cbv it can be assumed no registration is 
                 # needed. 
                 if self.dset['cbv']['flair']['ex']:
@@ -806,6 +773,14 @@ class DcmStudy(Study):
                     else:
                         print('CBV reference time uncertain, pre-registration is required')
 
+                # for adc, just use dwi registration
+                for dt in ['dwi']:
+                    if self.dset['raw'][dt]['ex']:
+                        moving_image = self.dset['raw'][dt]['d']
+                        self.dset['raw'][dt]['d'],tx = self.register(fixed_image,moving_image,transform='Rigid')
+                    if self.dset['adc']['dwi']['ex']:
+                        self.dset['adc']['dwi']['d'] = self.tx(fixed_image,self.dset['adc']['dwi']['d'],tx)
+
 
 
             else:
@@ -814,31 +789,22 @@ class DcmStudy(Study):
 
         # bias correction.
         # self.dbias = {} # working data for calculating z-scores
-        for dt in ['t1','t1+','flair','t2']:
-            if self.dset['raw'][dt]['ex']:   
-                self.dset['z'][dt]['d'] = np.copy(self.n4bias(self.dset['raw'][dt]['d']))
-                self.dset['z'][dt]['ex'] = True
-
-        # if necessary clip any negative values introduced by the processing
-        for dt in ['t1','t1+','flair','t2']:
-            if self.dset['z'][dt]['ex']:
-                if np.min(self.dset['z'][dt]['d']) < 0:
-                    self.dset['z'][dt]['d'][self.dset['z'][dt]['d'] < 0] = 0
-                # self.dset[dt]['d'] = self.rescale(self.dset[dt]['d'])
-
-        # normal brain stats and z-score images
-        self.normalstats()
-
-        # save nifti files for future use
+        # TODO: use viewer mode designation here
         if False:
-            for dt in ['t2','t1','t1+','flair']:
-                if self.dset['raw'][dt]['ex']:
-                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localstudydir,dt+'_processed.nii'),
-                                                type='float',affine=self.dset['raw']['t1+']['affine'])
-            for dt in ['flair']: # note cbv registration is done later
-                if self.dset['cbv'][dt]['ex']:
-                    self.writenifti(self.dset['cbv'][dt]['d'],os.path.join(self.localstudydir,'cbv_processed.nii'),
-                                                type='float',affine=self.dset['t1+']['affine'])
+            for dt in ['t1','t1+','flair','t2','dwi']:
+                if self.dset['raw'][dt]['ex']:   
+                    self.dset['z'][dt]['d'] = np.copy(self.n4bias(self.dset['raw'][dt]['d']))
+                    self.dset['z'][dt]['ex'] = True
+
+            # if necessary clip any negative values introduced by the processing
+            for dt in ['t1','t1+','flair','t2','dwi']:
+                if self.dset['z'][dt]['ex']:
+                    if np.min(self.dset['z'][dt]['d']) < 0:
+                        self.dset['z'][dt]['d'][self.dset['z'][dt]['d'] < 0] = 0
+                    # self.dset[dt]['d'] = self.rescale(self.dset[dt]['d'])
+
+            # normal brain stats and z-score images
+            self.normalstats()
 
         return
 

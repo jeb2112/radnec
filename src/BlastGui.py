@@ -13,6 +13,7 @@ from importlib import metadata
 from src import Blastbratsv3
 from src.CreateOverlaySVFrame import CreateOverlaySVFrame
 from src.CreateBlastSVFrame import CreateBlastSVFrame
+from src.Create4PanelSVFrame import Create4PanelSVFrame
 from src.CreateCaseFrame import CreateCaseFrame
 from src.CreateROIFrame import CreateROIFrame
 from src.CreateOverlayFrame import CreateOverlayFrame
@@ -51,7 +52,7 @@ class BlastGui(object):
         self.chselection = 't1+' 
 
         # viewer functions. overlay mode, or BLAST segmentation mode
-        self.functionlist = {'overlay':0,'BLAST':1}
+        self.functionlist = {'overlay':0,'BLAST':1,'4panel':2}
         self.function = tk.StringVar(value='overlay')
 
         # data structure. data is a dict of studies. see DcmCase
@@ -146,6 +147,7 @@ class BlastGui(object):
         self.sliceviewerframes = {}
         self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
         self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
+        self.sliceviewerframes['4panel'] = Create4PanelSVFrame(self.mainframe,ui=self,padding='0')
 
         # blast/overlay functions
         self.roiframes = {}
