@@ -26,10 +26,10 @@ Everything is currently worked out using Anaconda 3 on windows for python packag
    5. ```pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118```
    6. ```conda deactivate```
    7. It may also be necessary to manually download the model weights if step 3e does not do this automatically. On this link
-https://zenodo.org/records/2540695 get the 5 *.model files and place them in a sub-directory called 'hd-bet_params' which is in your Windows Users/username directory.
+https://zenodo.org/records/2540695 get the 5 *.model files and place them in a sub-directory called 'hd-bet_params' which is in the Windows Users/username directory.
 
-3.  Install the hd-bet model files.
-    1. In File Explorer under the directory indicated by ```self.UIdatadir``` (step 4 in the section below), create sub-directory 'mni152'
+3.  Install the MNI brain atlas files.
+    1. In File Explorer under the directory indicated by ```self.UIdatadir``` (see step 3 in the section below), create sub-directory 'mni152'
     2. Copy the MNI brain template files from the RADNEC Dropbox directory "GUI VERSION2/CODE" into mni152, or obtain them directly via https://github.com/Jfortin1/MNITemplate
   
 4.  Download and extract the nnUNetV2 code for brain tumour segmentation similarly to 2. (https://github.com/MIC-DKFZ/nnUNet)
