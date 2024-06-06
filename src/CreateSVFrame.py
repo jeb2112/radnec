@@ -356,15 +356,9 @@ class CreateSliceViewerFrame(CreateFrame):
         if aax != self.measurement['ax']:
             self.clear_measurement()
             return
-        # calculate data coords for all axes relative to clicked axes
-        # mouse event returns display coords but which are still flipped in y compared to matplotlib display coords.
-        if True:
-            x,y = self.axs[aax].transData.inverted().transform((event.x,event.y))
-            y = -y
-        else:
-            x,y = event.x,event.y
-        self.draw_measurement('A',x,y)
-
+        # mouse event returns display coords but which are still flipped in y compared to matplotlib data coords.
+        x,y = self.calc_panel_xy(event.x,event.y,aax)
+        self.draw_measurement(x,y,aax)
         self.updateslice()
 
         # repeating this here because there are some automatic tk backend events which 
@@ -373,6 +367,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
     # record coordinates of button click
     def b1click(self,event):
+        ex,ey = np.copy(event.x),np.copy(event.y)
         self.canvas.get_tk_widget().config(cursor='sizing')
         if self.measurement['plot']:
             self.clear_measurement()
@@ -384,8 +379,14 @@ class CreateSliceViewerFrame(CreateFrame):
         if a is None:
             return
         aax = a.axes._label
-        x,y = self.axs[aax].transData.inverted().transform((event.x,event.y))
-        y = -y
+        # data coordinates of the screen click event
+        x,y = self.calc_panel_xy(ex,ey,aax)
+        if False:
+            pdim = int(self.ui.current_panelsize*self.ui.config.dpi/2)
+            if ey > pdim:
+                ey -= pdim 
+            x,y = self.axs[aax].transData.inverted().transform((ex,ey))
+            y = -y + self.dim[1]
         self.measurement['ax'] = aax
         self.measurement['x0'] = x
         self.measurement['y0'] = y
@@ -393,8 +394,12 @@ class CreateSliceViewerFrame(CreateFrame):
             self.axs[aax].plot(x,y,'+')
         self.canvas.get_tk_widget().config(cursor='sizing')
 
+    # from global screen pixel event coords, calculate the data coords within the clicked panel
+    def calc_panel_xy(self,ex,ey):
+        raise NotImplementedError
+
     # draw line for current linear measurement
-    def draw_measurement(self,ax,x,y):
+    def draw_measurement(self,x,y,ax):
         if self.measurement['ax'] != ax or self.measurement['x0'] is None:
             return
         if self.measurement['plot']:
@@ -412,7 +417,8 @@ class CreateSliceViewerFrame(CreateFrame):
 
     # remove existing measurement line
     def clear_measurement(self):
-        Artist.remove(self.measurement['plot'])
+        if self.measurement['plot'] is not None:
+            Artist.remove(self.measurement['plot'])
         self.measurement = {'ax':None,'x0':None,'y0':None,'plot':None,'l':None}
         self.ui.clear_message()
         self.canvas.draw()

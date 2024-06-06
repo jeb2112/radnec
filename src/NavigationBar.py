@@ -280,15 +280,32 @@ class NavigationBar(NavigationToolbar2Tk):
         self.canvas.get_tk_widget().config(cursor='tcross')
 
     # figure out which slice view the mouse event is on
-    def select_artist(self,event):
-        pdim = self.ui.current_panelsize*self.ui.config.dpi
-        if event.x <= pdim:
-            a = self.axs['A'].images[0]
-        elif event.x <= 2*pdim:
-            a = self.axs['B'].images[0]
-        else:
-            a = None
-        return a
+    def select_artist(self,event,sv=None):
+        if sv is None:
+            sv = self.ui.function.get()
+        if sv == 'BLAST' or sv == 'overlay':
+            pdim = self.ui.current_panelsize*self.ui.config.dpi
+            if event.x <= pdim:
+                a = self.axs['A'].images[0]
+            elif event.x <= 2*pdim:
+                a = self.axs['B'].images[0]
+            else:
+                a = None
+            return a
+        elif sv == '4panel':
+            pdim = self.ui.current_panelsize*self.ui.config.dpi/2
+            if event.x <= pdim and event.y <= pdim:
+                a = self.axs['A'].images[0]
+            elif event.x <= 2*pdim and event.y <= pdim:
+                a = self.axs['B'].images[0]
+            elif event.x <= pdim and event.y <= 2*pdim:
+                a = self.axs['C'].images[0]
+            elif event.x <= 2*pdim and event.y <= 2*pdim:
+                a = self.axs['D'].images[0]
+            else:
+                a = None
+            return a
+
                 
 
     # override this method to provide for 3d crosshair overlay

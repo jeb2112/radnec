@@ -398,3 +398,17 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         # repeating this here because there are some automatic tk backend events which 
         # can reset it during a sequence of multiple window/level drags
         self.canvas.get_tk_widget().config(cursor='circle')
+
+    # from global screen pixel event coords, calculate the data coords within the clicked panel
+    # because there is still a flip in the y coordinates between matplotlib and gui event,
+    # for the bottom two panels C,D the screen pixel dimension must first be subtracted, 
+    # negation performed, then the data pixel dimension added back on.
+    def calc_panel_xy(self,ex,ey,ax):
+        if ax > 'B':
+            ey -= int(self.ui.current_panelsize*self.ui.config.dpi/2)
+            x,y = self.axs[ax].transData.inverted().transform((ex,ey))
+            y = -y + self.dim[1]
+        else:
+            x,y = self.axs[ax].transData.inverted().transform((ex,ey))
+            y = -y
+        return x,y
