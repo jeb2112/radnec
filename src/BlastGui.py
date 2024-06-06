@@ -167,7 +167,7 @@ class BlastGui(object):
         # overlay/blast function mode
         self.functionmenu = ttk.OptionMenu(self.mainframe,self.function,self.functionlist['overlay'],
                                         *self.functionlist,command=Command(self.function_callback,update=True))
-        self.functionmenu.grid(row=0,column=4,sticky='e')
+        self.functionmenu.grid(row=0,column=4,sticky='w')
         self.function_callback()
 
         # initialize default directory. no longer needed?
@@ -184,7 +184,10 @@ class BlastGui(object):
             self.mainframe.bind('<Configure>',sv.resizer)
         self.mainframe.update()
 
-    # switching mode between BLAST segmentation and overlay
+        # resize root window according to frames
+        self.sliceviewerframe.resize()
+
+    # switching mode between BLAST segmentation, overlay, 4panel
     def function_callback(self,event=None,update=False):
         f = self.function.get()
         self.set_frame(self.sliceviewerframes[f],frame='normal_frame')
@@ -198,8 +201,8 @@ class BlastGui(object):
         self.chselection = 't1+'
         if update:
             self.sliceviewerframe.updateslice()
-        # if blast, activate study menu
-        if f == 'BLAST':
+        # if blast or 4panel, activate study menu
+        if f == 'BLAST' or f == '4panel':
             self.caseframe.s.configure(state='enable')
         else:
             self.caseframe.s.configure(state='disabled')

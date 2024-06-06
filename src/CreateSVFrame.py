@@ -80,6 +80,11 @@ class CreateSliceViewerFrame(CreateFrame):
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
         self.frame.configure(style='sliceviewerframe.TFrame')
+
+        # misc frame for various functions
+        self.normal_frame = ttk.Frame(self.parentframe,padding='0')
+        self.normal_frame.grid(row=3,column=0,sticky='NW')
+
         self.create_blank_canvas()
 
         # dummy frame to hold canvas and slider bars
@@ -93,8 +98,6 @@ class CreateSliceViewerFrame(CreateFrame):
         self.dummy_frame.grid(row=3,column=0,sticky='news')
 
         # t1/t2 base layer selection
-        self.normal_frame = ttk.Frame(self.parentframe,padding='0')
-        self.normal_frame.grid(row=3,column=0,sticky='NW')
         chdisplay_label = ttk.Label(self.normal_frame, text='base image: ')
         chdisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
         self.chdisplay_button = {}
@@ -112,7 +115,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.chdisplay_button['flair'].grid(column=4,row=0,sticky='w')
         self.chdisplay_button['dwi'] = ttk.Radiobutton(self.normal_frame,text='DWI',variable=self.chdisplay,value='dwi',
                                                     command=self.updateslice)
-        self.chdisplay_button['dwi'].grid(column=4,row=0,sticky='w')
+        self.chdisplay_button['dwi'].grid(column=5,row=0,sticky='w')
         # self.chdisplay_keys = ['t1','t1+','flair','flair']
 
         # overlay type contour mask
@@ -174,9 +177,9 @@ class CreateSliceViewerFrame(CreateFrame):
             # fig.patch.set_facecolor('white')
             self.blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
             self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
-            tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
-            tbar.children['!button4'].pack_forget() # get rid of configure plot
-            tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
+            self.tbar = NavigationToolbar2Tk(self.blankcanvas,self.normal_frame,pack_toolbar=False)
+            self.tbar.children['!button4'].pack_forget() # get rid of configure plot
+            self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
         self.frame.configure(width=w,height=h)
      
     # TODO: latency problem for fusions. 

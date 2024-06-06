@@ -70,6 +70,12 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
         self.frame.configure(style='sliceviewerframe.TFrame')
+
+        # override normal frame with dummy frame
+        # self.fstyle.configure('normal_frame.TFrame',background='red')
+        self.normal_frame = ttk.Frame(self.parentframe,padding='0',style='normal_frame.TFrame')
+        self.normal_frame.grid(row=3,column=0,sticky='news')
+
         self.create_blank_canvas()
 
         # dummy frame to hold canvas and slider bars
@@ -89,7 +95,13 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
             self.ui.root.bind('<Button-4>',self.mousewheel)
             self.ui.root.bind('<Button-5>',self.mousewheel)
 
-    # for dragging resizing of GUI window
+        
+        # adjust current root window to sliceviewer size
+        if False:
+            self.frame.update()
+            self.resize()
+
+    # resize canvas for dragging resizing of GUI window
     def resizer(self,event):
         if self.cw is None:
             return
@@ -110,6 +122,22 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.cw.configure(width=int(self.wi*self.fig.dpi),height=int(self.hi*self.fig.dpi))
         self.fig.set_size_inches((self.wi,self.hi),forward=True)
         return
+    
+    # resize root window to match current sliceviewer
+    def resize(self):
+        if self.canvas:
+            w = self.canvas.get_tk_widget().winfo_width()
+            h = self.canvas.get_tk_widget().winfo_height()
+        else:
+            w = self.blankcanvas.get_tk_widget().winfo_width()
+            h = self.blankcanvas.get_tk_widget().winfo_height()
+        h += self.ui.caseframe.frame.winfo_height() + self.tbar.winfo_height()
+        h += max(self.normal_frame.winfo_height(),self.ui.roiframe.frame.winfo_height())
+        w = max(w,self.ui.caseframe.frame.winfo_width()+self.ui.functionmenu.winfo_width())
+        print('resize {},{}'.format(w,h))
+        self.ui.root.geometry(f'{w}x{h}')
+        return
+
 
     # place holder until a dataset is loaded
     # could create a dummy figure with toolbar, but the background colour during resizing was inconsistent at times
@@ -126,9 +154,14 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
             # fig.patch.set_facecolor('white')
             self.blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
             self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
-            tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
-            tbar.children['!button4'].pack_forget() # get rid of configure plot
-            tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
+            if False:
+                self.tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
+                self.tbar.children['!button4'].pack_forget() # get rid of configure plot
+                self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
+            else:
+                self.tbar = NavigationToolbar2Tk(self.blankcanvas,self.normal_frame,pack_toolbar=False)
+                self.tbar.children['!button4'].pack_forget() # get rid of configure plot
+                self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
         self.frame.configure(width=w,height=h)
      
     # main canvas created when data are loaded
@@ -201,8 +234,13 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         newcanvas.get_tk_widget().configure(width=figsize[0]*self.ui.dpi,height=figsize[1]*self.ui.dpi)
         newcanvas.get_tk_widget().grid(row=0, column=0, sticky='')
 
-        self.tbar = NavigationBar(newcanvas,self.parentframe,pack_toolbar=False,ui=self.ui,axs=self.axs)
-        self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
+        if False:
+            self.tbar = NavigationBar(newcanvas,self.parentframe,pack_toolbar=False,ui=self.ui,axs=self.axs)
+            self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
+        else:
+            self.tbar = NavigationBar(newcanvas,self.normal_frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
+            # self.tbar.children['!button4'].pack_forget() # get rid of configure plot
+            self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
 
         if self.canvas is not None:
             self.cw.delete('all')

@@ -136,9 +136,10 @@ class CreateCaseFrame(CreateFrame):
         self.ui.chselection = 't1+'
         self.ui.dataselection = 'raw'
         self.ui.sliceviewerframe.tbar.home()
-        self.ui.roiframe.currentroi.set(len(self.ui.roi[self.ui.s])-1)
-        self.ui.roiframe.enhancingROI_overlay_value.set(False)
-        self.ui.roiframe.finalROI_overlay_value.set(False)
+        if self.ui.function.get() == 'BLAST':
+            self.ui.roiframe.currentroi.set(len(self.ui.roi[self.ui.s])-1)
+            self.ui.roiframe.enhancingROI_overlay_value.set(False)
+            self.ui.roiframe.finalROI_overlay_value.set(False)
         self.ui.updateslice()
 
         return
