@@ -49,7 +49,7 @@ class CreateSliceViewerFrame(CreateFrame):
         self.currentcorslice = tk.IntVar(value=120)
         self.labels = {'Im_A':None,'Im_B':None,'Im_C':None,'W_A':None,'L_A':None,'W_B':None,'L_B':None}
         self.lines = {k:{'h':None,'v':None} for k in ['A','B','C','D']}
-        self.measurement = {'ax':None,'x0':None,'y0':None,'plot':None}
+        self.measurement = {'ax':None,'x0':None,'y0':None,'plot':None,'l':None}
         self.chdisplay = tk.StringVar(value='t1+')
         # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
@@ -393,7 +393,7 @@ class CreateSliceViewerFrame(CreateFrame):
             self.axs[aax].plot(x,y,'+')
         self.canvas.get_tk_widget().config(cursor='sizing')
 
-    # only tested in 4panel viewer
+    # draw line for current linear measurement
     def draw_measurement(self,ax,x,y):
         if self.measurement['ax'] != ax or self.measurement['x0'] is None:
             return
@@ -406,10 +406,15 @@ class CreateSliceViewerFrame(CreateFrame):
         y = np.array([self.measurement['y0'],y])
         self.measurement['plot'] = self.axs[ax].plot(x,y,'b',clip_on=True)[0]
         self.measurement['ax'] = ax
+        self.measurement['l'] = np.sqrt(np.power(x[1]-x[0],2)+np.power(y[1]-y[0],2))
+        self.ui.set_message(msg='distance = {:.1f}'.format(self.measurement['l']))
+        return
 
+    # remove existing measurement line
     def clear_measurement(self):
         Artist.remove(self.measurement['plot'])
-        self.measurement = {'ax':None,'x0':None,'y0':None,'plot':None}
+        self.measurement = {'ax':None,'x0':None,'y0':None,'plot':None,'l':None}
+        self.ui.clear_message()
         self.canvas.draw()
 
 
