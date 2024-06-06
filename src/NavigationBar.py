@@ -28,6 +28,7 @@ class MyCursors(enum.IntEnum):  # Must subclass int for the macOS backend.
     RESIZE_VERTICAL = enum.auto()
     WL = enum.auto()
     CROSSHAIR = enum.auto()
+    MEASURE = enum.auto()
 cursors = MyCursors  # Backcompat.
 
 # this global does not override the global in backend, so can't use it.
@@ -40,7 +41,8 @@ cursord = {
     cursors.RESIZE_HORIZONTAL: "sb_h_double_arrow",
     cursors.RESIZE_VERTICAL: "sb_v_double_arrow",
     cursors.WL: "circle",
-    cursors.CROSSHAIR: "tcross"
+    cursors.CROSSHAIR: "tcross",
+    cursors.MEASURE: "sizing"
 }
 
 # overriden to add a WL mode
@@ -50,6 +52,7 @@ class _Mode(str, enum.Enum):
     ZOOM = "zoom square"
     WL = "window/level"
     CROSSHAIR = "crosshair"
+    MEASURE = "measure"
 
     def __str__(self):
         return self.value
@@ -100,7 +103,45 @@ class NavigationBar(NavigationToolbar2Tk):
         self._buttons['crosshair'].pack(after=self._buttons['WL'])
         ToolTip.createToolTip(button, 'Display 3d crosshair cursor')
 
+        # add the measurement button
+        path = os.path.join(self.ui.config.UIResourcesPath,'measurement_icon.png')
+        self._buttons['measure'] = button = self._Button('measure',path,toggle=True,command=getattr(self,'measure'))
+        # position it alongside the Pan button
+        self._buttons['measure'].pack_forget
+        self._buttons['measure'].pack(after=self._buttons['WL'])
+        ToolTip.createToolTip(button, 'Display measurement cursor')
+
         self.update()
+
+
+    def measure(self,*args):
+        """
+        Toggle the measurement overlay.
+
+        Move cursor with left mouse, overlay follows. 
+        """
+        if not self.canvas.widgetlock.available(self):
+            self.set_message("measurement unavailable")
+            return
+        if self.mode == _Mode.MEASURE:
+            self.mode = _Mode.NONE
+            self.canvas.widgetlock.release(self)
+        else:
+            self.mode = _Mode.MEASURE
+            self.canvas.widgetlock(self)
+        for a in self.canvas.figure.get_axes():
+            a.set_navigate_mode(self.mode._navigate_mode)
+
+        if self.mode == _Mode.MEASURE:
+            self.canvas.get_tk_widget().config(cursor='sizing')
+            self.ui.root.bind('<B1-Motion>',self.ui.sliceviewerframe.b1motion_measure)
+            self.ui.root.bind('<Button-1>',self.ui.sliceviewerframe.b1click)
+        else:
+            self.canvas.get_tk_widget().config(cursor='arrow')
+            self.ui.root.unbind('<B1-Motion>')
+            self.ui.root.unbind('<Button-1>')
+            self.ui.sliceviewerframe.clear_measurement()
+        self._update_buttons_checked()
 
     def crosshair(self,*args):
         """
@@ -210,6 +251,8 @@ class NavigationBar(NavigationToolbar2Tk):
                     self.canvas.get_tk_widget().config(cursor="circle")
                 elif self._last_cursor == MyCursors.CROSSHAIR:
                     self.canvas.get_tk_widget().config(cursor="tcross")
+                elif self._last_cursor == MyCursors.MEASURE:
+                    self.canvas.get_tk_widget().config(cursor="tcross")
                 else:
                     self.canvas.set_cursor(self._last_cursor)
         else:
@@ -219,7 +262,7 @@ class NavigationBar(NavigationToolbar2Tk):
     # override to add WL
     def _update_buttons_checked(self):
         # sync button checkstates to match active mode
-        for text, mode in [('Zoom', _Mode.ZOOM), ('Pan', _Mode.PAN),('WL',_Mode.WL)]:
+        for text, mode in [('Zoom', _Mode.ZOOM), ('Pan', _Mode.PAN),('WL',_Mode.WL),('Measure',_Mode.MEASURE)]:
             if text in self._buttons:
                 if self.mode == mode:
                     self._buttons[text].select()  # NOT .invoke()

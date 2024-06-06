@@ -48,12 +48,8 @@ class CreateSliceViewerFrame(CreateFrame):
         self.currentsagslice = tk.IntVar(value=120)
         self.currentcorslice = tk.IntVar(value=120)
         self.labels = {'Im_A':None,'Im_B':None,'Im_C':None,'W_A':None,'L_A':None,'W_B':None,'L_B':None}
-        self.axslicelabel = None
-        self.corslicelabel = None
-        self.sagslicelabel = None
-        self.windowlabel = None
-        self.levellabel = None
-        self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
+        self.lines = {k:{'h':None,'v':None} for k in ['A','B','C','D']}
+        self.measurement = {'ax':None,'x0':None,'y0':None,'plot':None}
         self.chdisplay = tk.StringVar(value='t1+')
         # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
@@ -345,7 +341,80 @@ class CreateSliceViewerFrame(CreateFrame):
         self.update_labels()
         return
 
+    # mouse drag event linear measurement
+    # only tested in 4panel viewer
+    def b1motion_measure(self,event):
+        self.canvas.get_tk_widget().config(cursor='sizing')
+        # no adjustment from outside the pane
+        if event.y < 0 or event.y > self.ui.current_panelsize*self.config.dpi:
+            return
+        # which artist axes was clicked
+        a = self.tbar.select_artist(event)
+        if a is None:
+            return
+        aax = a.axes._label
+        if aax != self.measurement['ax']:
+            self.clear_measurement()
+            return
+        # calculate data coords for all axes relative to clicked axes
+        # mouse event returns display coords but which are still flipped in y compared to matplotlib display coords.
+        if True:
+            x,y = self.axs[aax].transData.inverted().transform((event.x,event.y))
+            y = -y
+        else:
+            x,y = event.x,event.y
+        self.draw_measurement('A',x,y)
+
+        self.updateslice()
+
+        # repeating this here because there are some automatic tk backend events which 
+        # can reset it during a sequence of multiple drags
+        self.canvas.get_tk_widget().config(cursor='sizing')
+
+    # record coordinates of button click
+    def b1click(self,event):
+        self.canvas.get_tk_widget().config(cursor='sizing')
+        if self.measurement['plot']:
+            self.clear_measurement()
+        # no adjustment from outside the pane
+        if event.y < 0 or event.y > self.ui.current_panelsize*self.config.dpi:
+            return
+        # which artist axes was clicked
+        a = self.tbar.select_artist(event)
+        if a is None:
+            return
+        aax = a.axes._label
+        x,y = self.axs[aax].transData.inverted().transform((event.x,event.y))
+        y = -y
+        self.measurement['ax'] = aax
+        self.measurement['x0'] = x
+        self.measurement['y0'] = y
+        if False:
+            self.axs[aax].plot(x,y,'+')
+        self.canvas.get_tk_widget().config(cursor='sizing')
+
+    # only tested in 4panel viewer
+    def draw_measurement(self,ax,x,y):
+        if self.measurement['ax'] != ax or self.measurement['x0'] is None:
+            return
+        if self.measurement['plot']:
+            try:
+                Artist.remove(self.measurement['plot'])
+            except ValueError as e:
+                print(e)
+        x = np.array([self.measurement['x0'],x])
+        y = np.array([self.measurement['y0'],y])
+        self.measurement['plot'] = self.axs[ax].plot(x,y,'b',clip_on=True)[0]
+        self.measurement['ax'] = ax
+
+    def clear_measurement(self):
+        Artist.remove(self.measurement['plot'])
+        self.measurement = {'ax':None,'x0':None,'y0':None,'plot':None}
+        self.canvas.draw()
+
+
     # mouse drag event for 3d crosshair overlay
+    # only tested in blast viewer
     def b1motion_crosshair(self,event):
         self.canvas.get_tk_widget().config(cursor='tcross')
         # no adjustment from outside the pane
@@ -411,6 +480,7 @@ class CreateSliceViewerFrame(CreateFrame):
             for hv in ['h','v']:
                 Artist.remove(self.lines[ax][hv])
         self.canvas.draw()
+
 
     # mouse drag event for window/level adjustment
     def b1motion(self,event):
