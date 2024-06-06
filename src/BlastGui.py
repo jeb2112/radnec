@@ -390,6 +390,9 @@ class BlastGui(object):
     def set_studynumber(self,val=None):
         self.s = self.caseframe.s.current()
 
+    def get_studynumber(self):
+        return self.s
+
     def resetUI(self):
         self.normalslice = None
         self.currentslice = None

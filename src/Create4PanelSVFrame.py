@@ -2,6 +2,7 @@ import os,sys
 import numpy as np
 import glob
 import copy
+import time
 import re
 import logging
 import subprocess
@@ -66,15 +67,24 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.fig = None
         self.resizer_count = 1
         self.ui = ui
+        # dwell time
+        self.dwelltime = None
+        self.timing = tk.BooleanVar(value=False)
 
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
         self.frame.configure(style='sliceviewerframe.TFrame')
 
-        # override normal frame with dummy frame
+        # override normal frame 
         # self.fstyle.configure('normal_frame.TFrame',background='red')
         self.normal_frame = ttk.Frame(self.parentframe,padding='0',style='normal_frame.TFrame')
         self.normal_frame.grid(row=3,column=0,sticky='news')
+        self.fstyle.configure('normalframe.TCheckbutton',background='#AAAAAA')
+        self.timerbutton = ttk.Checkbutton(self.normal_frame,text='timing',style='Toolbutton',textvariable=self.timing,command=self.dwell)
+        self.timerbutton.configure(style='normalframe.TCheckbutton')
+        self.timerbutton.grid(row=1,column=1,sticky='w')
+        self.timerbuttonlabel = ttk.Label(self.normal_frame,text='timer:',padding='5')
+        self.timerbuttonlabel.grid(row=1,column=0)
 
         self.create_blank_canvas()
 
@@ -266,6 +276,7 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
     def updateslice(self,event=None,wl=False,blast=False,layer=None):
         s = self.ui.s # local reference
         slice=self.currentslice.get()
+        self.updatedwell()
         self.ui.set_currentslice()
         # set content of each axesImage
         for a in ['A','B','C','D']:
@@ -401,14 +412,33 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
 
     # from global screen pixel event coords, calculate the data coords within the clicked panel
     # because there is still a flip in the y coordinates between matplotlib and gui event,
-    # for the bottom two panels C,D the screen pixel dimension must first be subtracted, 
-    # negation performed, then the data pixel dimension added back on.
+    # for the bottom two panels C,D the screen pixel matrix dimension must first be subtracted, 
+    # negation performed, then the data pixel matrix dimension added back on.
     def calc_panel_xy(self,ex,ey,ax):
         if ax > 'B':
             ey -= int(self.ui.current_panelsize*self.ui.config.dpi/2)
-            x,y = self.axs[ax].transData.inverted().transform((ex,ey))
-            y = -y + self.dim[1]
-        else:
-            x,y = self.axs[ax].transData.inverted().transform((ex,ey))
-            y = -y
+        x,y = self.axs[ax].transData.inverted().transform((ex,ey))
+        y = -y
+        if ax > 'B':
+            y += self.dim[1]
         return x,y
+
+    # start the dwell time counter
+    def dwell(self):
+        if self.timing.get():
+            self.dwelltime = np.zeros((self.dim[0],len(self.ui.data)))
+            self.tstart = time.time()
+            self.ct = np.copy(self.tstart)
+        return
+
+    def updatedwell(self):
+        if self.timing.get():
+            slice = self.ui.currentslice
+            if slice is None:
+                return
+            study = self.ui.get_studynumber()
+            self.dt = time.time()
+            deltatime = np.round(self.dt - self.ct,decimals=1)
+            self.dwelltime[slice,study] += deltatime
+            self.ct = np.copy(self.dt)
+        return
