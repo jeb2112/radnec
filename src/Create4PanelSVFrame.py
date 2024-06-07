@@ -69,7 +69,8 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.ui = ui
         # dwell time
         self.dwelltime = None
-        self.timing = tk.BooleanVar(value=False)
+        self.timingtext = tk.StringVar(value='off')
+        self.timing = tk.IntVar(value=0)
 
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
@@ -80,11 +81,11 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.normal_frame = ttk.Frame(self.parentframe,padding='0',style='normal_frame.TFrame')
         self.normal_frame.grid(row=3,column=0,sticky='news')
         self.fstyle.configure('normalframe.TCheckbutton',background='#AAAAAA')
-        self.timerbutton = ttk.Checkbutton(self.normal_frame,text='timing',style='Toolbutton',textvariable=self.timing,command=self.dwell)
+        self.timerbutton = ttk.Checkbutton(self.normal_frame,style='Toolbutton',textvariable=self.timingtext,variable=self.timing,command=self.dwell)
         self.timerbutton.configure(style='normalframe.TCheckbutton')
-        self.timerbutton.grid(row=1,column=1,sticky='w')
+        self.timerbutton.grid(row=0,column=5,sticky='w')
         self.timerbuttonlabel = ttk.Label(self.normal_frame,text='timer:',padding='5')
-        self.timerbuttonlabel.grid(row=1,column=0)
+        self.timerbuttonlabel.grid(row=0,column=4,sticky='e')
 
         self.create_blank_canvas()
 
@@ -164,14 +165,9 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
             # fig.patch.set_facecolor('white')
             self.blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
             self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
-            if False:
-                self.tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
-                self.tbar.children['!button4'].pack_forget() # get rid of configure plot
-                self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
-            else:
-                self.tbar = NavigationToolbar2Tk(self.blankcanvas,self.normal_frame,pack_toolbar=False)
-                self.tbar.children['!button4'].pack_forget() # get rid of configure plot
-                self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
+            self.tbar = NavigationToolbar2Tk(self.blankcanvas,self.normal_frame,pack_toolbar=False)
+            self.tbar.children['!button4'].pack_forget() # get rid of configure plot
+            self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
         self.frame.configure(width=w,height=h)
      
     # main canvas created when data are loaded
@@ -429,6 +425,9 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
             self.dwelltime = np.zeros((self.dim[0],len(self.ui.data)))
             self.tstart = time.time()
             self.ct = np.copy(self.tstart)
+            self.timingtext.set('on')
+        else:
+            self.timingtext.set('off')
         return
 
     def updatedwell(self):

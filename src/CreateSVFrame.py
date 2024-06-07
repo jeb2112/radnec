@@ -590,6 +590,6 @@ class CreateSliceViewerFrame(CreateFrame):
             inv = imageax.transData.inverted()
             # convert back to data coords with respect to ax
             img_coord = inv.transform(display_coord)
-            return ('x={:.1f}, y={:.1f}'.format(img_coord[0],img_coord[1]))
+            return ('x={:5.1f}, y={:5.1f}'.format(img_coord[0],img_coord[1]))
         return format_coord
 

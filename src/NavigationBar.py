@@ -117,8 +117,6 @@ class NavigationBar(NavigationToolbar2Tk):
     def measure(self,*args):
         """
         Toggle the measurement overlay.
-
-        Move cursor with left mouse, overlay follows. 
         """
         if not self.canvas.widgetlock.available(self):
             self.set_message("measurement unavailable")
