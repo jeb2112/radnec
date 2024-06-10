@@ -49,7 +49,8 @@ class CreateSliceViewerFrame(CreateFrame):
         self.currentcorslice = tk.IntVar(value=120)
         self.labels = {'Im_A':None,'Im_B':None,'Im_C':None,'W_A':None,'L_A':None,'W_B':None,'L_B':None}
         self.lines = {k:{'h':None,'v':None} for k in ['A','B','C','D']}
-        self.measurement = {'ax':None,'x0':None,'y0':None,'plot':None,'l':None}
+        # self.measurement = {'ax':None,'x0':None,'y0':None,'plot':None,'l':None}
+        self.measurement = []
         self.chdisplay = tk.StringVar(value='t1+')
         # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
@@ -341,88 +342,10 @@ class CreateSliceViewerFrame(CreateFrame):
         self.update_labels()
         return
 
-    # mouse drag event linear measurement
-    # only tested in 4panel viewer
-    def b1motion_measure(self,event):
-        self.canvas.get_tk_widget().config(cursor='sizing')
-        # no adjustment from outside the pane
-        if event.y < 0 or event.y > self.ui.current_panelsize*self.config.dpi:
-            return
-        # which artist axes was clicked
-        a = self.tbar.select_artist(event)
-        if a is None:
-            return
-        aax = a.axes._label
-        if aax != self.measurement['ax']:
-            self.clear_measurement()
-            return
-        # mouse event returns display coords but which are still flipped in y compared to matplotlib data coords.
-        x,y = self.calc_panel_xy(event.x,event.y,aax)
-        self.draw_measurement(x,y,aax)
-        self.updateslice()
-
-        # repeating this here because there are some automatic tk backend events which 
-        # can reset it during a sequence of multiple drags
-        self.canvas.get_tk_widget().config(cursor='sizing')
-
-    # record coordinates of button click
-    def b1click(self,event):
-        ex,ey = np.copy(event.x),np.copy(event.y)
-        self.canvas.get_tk_widget().config(cursor='sizing')
-        if self.measurement['plot']:
-            self.clear_measurement()
-        # no adjustment from outside the pane
-        if event.y < 0 or event.y > self.ui.current_panelsize*self.config.dpi:
-            return
-        # which artist axes was clicked
-        a = self.tbar.select_artist(event)
-        if a is None:
-            return
-        aax = a.axes._label
-        # data coordinates of the screen click event
-        x,y = self.calc_panel_xy(ex,ey,aax)
-        if False:
-            pdim = int(self.ui.current_panelsize*self.ui.config.dpi/2)
-            if ey > pdim:
-                ey -= pdim 
-            x,y = self.axs[aax].transData.inverted().transform((ex,ey))
-            y = -y + self.dim[1]
-        self.measurement['ax'] = aax
-        self.measurement['x0'] = x
-        self.measurement['y0'] = y
-        if False:
-            self.axs[aax].plot(x,y,'+')
-        self.canvas.get_tk_widget().config(cursor='sizing')
 
     # from global screen pixel event coords, calculate the data coords within the clicked panel
     def calc_panel_xy(self,ex,ey):
         raise NotImplementedError
-
-    # draw line for current linear measurement
-    def draw_measurement(self,x,y,ax):
-        if self.measurement['ax'] != ax or self.measurement['x0'] is None:
-            return
-        if self.measurement['plot']:
-            try:
-                Artist.remove(self.measurement['plot'])
-            except ValueError as e:
-                print(e)
-        x = np.array([self.measurement['x0'],x])
-        y = np.array([self.measurement['y0'],y])
-        self.measurement['plot'] = self.axs[ax].plot(x,y,'b',clip_on=True)[0]
-        self.measurement['ax'] = ax
-        self.measurement['l'] = np.sqrt(np.power(x[1]-x[0],2)+np.power(y[1]-y[0],2))
-        self.ui.set_message(msg='distance = {:.1f}'.format(self.measurement['l']))
-        return
-
-    # remove existing measurement line
-    def clear_measurement(self):
-        if self.measurement['plot'] is not None:
-            Artist.remove(self.measurement['plot'])
-        self.measurement = {'ax':None,'x0':None,'y0':None,'plot':None,'l':None}
-        self.ui.clear_message()
-        self.canvas.draw()
-
 
     # mouse drag event for 3d crosshair overlay
     # only tested in blast viewer

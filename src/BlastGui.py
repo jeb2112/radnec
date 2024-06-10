@@ -54,7 +54,7 @@ class BlastGui(object):
 
         # viewer functions. overlay mode, or BLAST segmentation mode
         self.functionlist = {'overlay':0,'BLAST':1,'4panel':2}
-        self.function = tk.StringVar(value='4panel')
+        self.function = tk.StringVar(value=self.config.DefaultViewer)
 
         # data structure. data is a dict of studies. see DcmCase
         self.data = {} 
@@ -152,17 +152,18 @@ class BlastGui(object):
         # create case frame
         self.caseframe = CreateCaseFrame(self.mainframe,ui=self)
 
-        # slice viewer frame
-        self.sliceviewerframes = {}
-        self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
-        self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
-        self.sliceviewerframes['4panel'] = Create4PanelSVFrame(self.mainframe,ui=self,padding='0')
-
-        # blast/overlay functions
-        self.roiframes = {}
-        self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
-        self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
-        self.roiframes['4panel'] = Create4PanelROIFrame(self.mainframe,ui=self,padding='0')
+        # slice viewer frames, roi frames 
+        self.sliceviewerframes = {'BLAST':None,'4panel':None,'overlay':None}
+        self.roiframes = {'BLAST':None,'4panel':None,'overlay':None}
+        if self.function.get() == '4panel':
+            self.sliceviewerframes['4panel'] = Create4PanelSVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframes['4panel'] = Create4PanelROIFrame(self.mainframe,ui=self,padding='0')
+        elif self.function.get() == 'BLAST':
+            self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
+        elif self.function.get() == 'overlay':
+            self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
         
         # overlay/blast function mode
         self.functionmenu = ttk.OptionMenu(self.mainframe,self.function,self.functionlist['overlay'],
@@ -181,7 +182,8 @@ class BlastGui(object):
                 self.mainframe.rowconfigure(row_num,weight=0)
         self.mainframe.columnconfigure(0,minsize=self.caseframe.frame.winfo_width(),weight=1)
         for sv in self.sliceviewerframes.values():
-            self.mainframe.bind('<Configure>',sv.resizer)
+            if sv is not None:
+                self.mainframe.bind('<Configure>',sv.resizer)
         self.mainframe.update()
 
         # resize root window according to frames
@@ -348,6 +350,8 @@ class BlastGui(object):
 
     def set_currentroi(self,val=None):
         self.currentroi = self.roiframe.currentroi.get()
+        # if self.currentroi > 0:
+        #     self.roiframe.roinumber.configure(state='active')
 
     def get_currentroi(self):
         return self.currentroi

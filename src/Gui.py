@@ -13,6 +13,10 @@ class Gui():
     def __init__(self, optionsFlag = 0, debug=False):
         try:
             self.config = Config.Config()
+            
+            # said to help reduce ibus-daemon burning cpu and scrambling keyboard in put in conjunction wtih tkinter
+            os.environ['XMODIFIERS'] = "@im=none"
+
             self.root = Tk()
             # self.root.rowconfigure(0,minsize=100,weight=1)
             # self.root.columnconfigure(0,minsize=550,weight=1)

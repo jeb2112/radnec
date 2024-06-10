@@ -90,3 +90,6 @@ class Config(object):
         self.OverlayCmap = {'z':'viridis','cbv':'viridis','tempo':'tempo'}
         cmap_tempo = ListedColormap(np.array([[0 ,.5, 0, 1],[0,0,0,1],[0, 1, 0, 1]]))
         cm.register_cmap(name='tempo',cmap=cmap_tempo)
+
+        # default viewer type
+        self.DefaultViewer = '4panel'

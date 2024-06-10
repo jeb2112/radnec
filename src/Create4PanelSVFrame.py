@@ -48,6 +48,8 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.ax2ch = {'A':('raw','t1+'),'B':('raw','flair'),'C':('raw','dwi'),'D':('adc','dwi')}
         self.labels = {'Im_A':None,'Im_B':None,'Im_C':None,'Im_D':None,'W_A':None,'L_A':None,'W_B':None,'L_B':None}
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
+        # values of the current linear measurement
+        self.measurement = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None}        
         # window/level stuff will need further tidying up
         # window/level values for T1,flair,dwi,adc
         self.window = np.array([1.,1.,1.,1.],dtype='float')
@@ -269,7 +271,7 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.frame.update()
 
     # main callback for any changes in the display
-    def updateslice(self,event=None,wl=False,blast=False,layer=None):
+    def updateslice(self,event=None,wl=False):
         s = self.ui.s # local reference
         slice=self.currentslice.get()
         self.updatedwell()
@@ -287,6 +289,10 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
                 self.clipwl_raw()
 
         self.canvas.draw()
+
+        # if this is not a mouse event, show an existing measurement, or remove it
+        if self.ui.currentroi > 0 and event is None:
+            self.update_measurements()
     
     def update_labels(self,item=None):
         for k in self.labels.keys():
@@ -441,3 +447,115 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
             self.dwelltime[slice,study] += deltatime
             self.ct = np.copy(self.dt)
         return
+    
+
+    # mouse drag event linear measurement
+    def b1motion_measure(self,event=None):
+        self.canvas.get_tk_widget().config(cursor='sizing')
+        # no adjustment from outside the pane
+        if event.y < 0 or event.y > self.ui.current_panelsize*self.config.dpi:
+            return
+        # which artist axes was clicked
+        a = self.tbar.select_artist(event)
+        if a is None:
+            return
+        aax = a.axes._label
+        if aax != self.measurement['ax']:
+            self.clear_measurement()
+            return
+        # mouse event returns display coords but which are still flipped in y compared to matplotlib data coords.
+        x,y = self.calc_panel_xy(event.x,event.y,aax)
+        self.draw_measurement(x,y,aax)
+        self.updateslice(event=event)
+
+        # repeating this here because there are some automatic tk backend events which 
+        # can reset it during a sequence of multiple drags
+        self.canvas.get_tk_widget().config(cursor='sizing')
+
+    # record coordinates of button click
+    def b1click(self,event):
+        ex,ey = np.copy(event.x),np.copy(event.y)
+        self.canvas.get_tk_widget().config(cursor='sizing')
+        if self.measurement['plot']:
+            self.clear_measurement()
+        # no adjustment from outside the pane
+        if event.y < 0 or event.y > self.ui.current_panelsize*self.config.dpi:
+            return
+        # which artist axes was clicked
+        a = self.tbar.select_artist(event)
+        if a is None:
+            return
+        aax = a.axes._label
+        # data coordinates of the screen click event
+        x,y = self.calc_panel_xy(ex,ey,aax)
+        if False:
+            pdim = int(self.ui.current_panelsize*self.ui.config.dpi/2)
+            if ey > pdim:
+                ey -= pdim 
+            x,y = self.axs[aax].transData.inverted().transform((ex,ey))
+            y = -y + self.dim[1]
+        self.measurement['ax'] = aax
+        self.measurement['p0'] = (x,y)
+        self.measurement['slice'] = self.ui.currentslice
+        if False:
+            self.axs[aax].plot(x,y,'+')
+        self.canvas.get_tk_widget().config(cursor='sizing')
+        # bind the release event
+        self.ui.root.bind('<ButtonRelease-1>',self.b1release)
+
+    # record measurement as ROI after left-button release
+    def b1release(self,event):
+        self.record_measurement()
+        self.ui.root.unbind('<ButtonRelease-1>')
+
+    # draw line for current linear measurement
+    def draw_measurement(self,x,y,ax):
+        if self.measurement['ax'] != ax or self.measurement['p0'] is None:
+            return
+        if self.measurement['plot']:
+            try:
+                Artist.remove(self.measurement['plot'])
+            except ValueError as e:
+                print(e)
+        lx = np.array([self.measurement['p0'][0],x])
+        ly = np.array([self.measurement['p0'][1],y])
+        self.measurement['plot'] = self.axs[ax].plot(lx,ly,'b',clip_on=True)[0]
+        self.measurement['p1'] = (x,y)
+        self.measurement['l'] = np.sqrt(np.power(lx[1]-lx[0],2)+np.power(ly[1]-ly[0],2))
+        self.ui.set_message(msg='distance = {:.1f}'.format(self.measurement['l']))
+        return
+
+    # remove existing measurement line
+    def clear_measurement(self):
+        if self.measurement['plot'] is not None:
+            Artist.remove(self.measurement['plot'])
+        self.measurement = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
+        self.ui.clear_message()
+        self.canvas.draw()
+
+    # copy existing measurement to list of roi's.
+    def record_measurement(self):
+        self.ui.roi[self.ui.s].append(self.measurement)
+        self.ui.roiframe.currentroi.set(self.ui.roiframe.currentroi.get() + 1)
+        self.ui.roiframe.update_roinumber_options()
+
+    # re-display an existing measurement
+    def show_measurement(self,roi=None):
+        if roi is None:     
+            self.measurement = self.ui.roi[self.ui.s][self.ui.currentroi]
+        else:
+            self.measurement = self.ui.roi[self.ui.s][roi]
+        lx = np.array([self.measurement['p0'][0],self.measurement['p1'][0]])
+        ly = np.array([self.measurement['p0'][1],self.measurement['p1'][1]])
+        self.ui.set_currentslice(self.measurement['slice'])
+        self.axs[self.measurement['ax']].plot(lx,ly,'b',clip_on=True)[0] 
+        self.ui.set_message(msg='distance = {:.1f}'.format(self.measurement['l']))
+
+    def update_measurements(self):
+        slice = self.ui.currentslice
+        mslices = [r['slice'] for r in self.ui.roi[self.ui.s][1:]]
+        axes = [r['ax'] for r in self.ui.roi[self.ui.s][1:]
+        if slice in mslices:
+            self.show_measurement()
+        else:
+            self.clear_measurement()

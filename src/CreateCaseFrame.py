@@ -192,21 +192,23 @@ class CreateCaseFrame(CreateFrame):
         # update sliceviewers according to data loaded
         s = self.ui.s
         for sv in [self.ui.sliceviewerframes[skey] for skey in ['BLAST','overlay']]:
-            for dt in self.ui.data[s].channels.values():
-                if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
-                    sv.chdisplay_button[dt]['state'] = 'normal'
+            if sv is not None:
+                for dt in self.ui.data[s].channels.values():
+                    if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
+                        sv.chdisplay_button[dt]['state'] = 'normal'
         for sv in self.ui.sliceviewerframes.values():
-            sv.dim = np.shape(self.ui.data[s].dset['raw']['t1+']['d'])
-            # auto window/level is hard-coded to t1+ here
-            sv.level = []
-            sv.window = []
-            for dt in self.ui.data[s].channels.values():
-                if self.ui.data[s].dset['raw'][dt]['ex']:
-                    sv.level.append(self.ui.data[s].dset['raw'][dt]['l'])
-                    sv.window.append(self.ui.data[s].dset['raw'][dt]['w'])
-            sv.level = np.array(sv.level)
-            sv.window = np.array(sv.window)
-            sv.create_canvas()
+            if sv is not None:
+                sv.dim = np.shape(self.ui.data[s].dset['raw']['t1+']['d'])
+                # auto window/level is hard-coded to t1+ here
+                sv.level = []
+                sv.window = []
+                for dt in self.ui.data[s].channels.values():
+                    if self.ui.data[s].dset['raw'][dt]['ex']:
+                        sv.level.append(self.ui.data[s].dset['raw'][dt]['l'])
+                        sv.window.append(self.ui.data[s].dset['raw'][dt]['w'])
+                sv.level = np.array(sv.level)
+                sv.window = np.array(sv.window)
+                sv.create_canvas()
 
         # update roiframes according to data loaded
         if False: # cbv will have to display just one overlay if necessary
