@@ -512,9 +512,10 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
     def draw_measurement(self,x,y,ax):
         if self.measurement['ax'] != ax or self.measurement['p0'] is None:
             return
-        if self.measurement['plot']:
+        if self.measurement['plot'] is not None:
             try:
-                Artist.remove(self.measurement['plot'])
+                self.axs[self.measurement['ax']].lines[0].remove() # coded for only 1 line
+                self.measurement['plot'] = None
             except ValueError as e:
                 print(e)
         lx = np.array([self.measurement['p0'][0],x])
@@ -528,34 +529,43 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
     # remove existing measurement line
     def clear_measurement(self):
         if self.measurement['plot'] is not None:
-            Artist.remove(self.measurement['plot'])
+            self.axs[self.measurement['ax']].lines[0].remove() # coded for only 1 line
+            self.measurement['plot'] = None
+            # Artist.remove(self.measurement['plot'])
         self.measurement = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
         self.ui.clear_message()
         self.canvas.draw()
 
     # copy existing measurement to list of roi's.
     def record_measurement(self):
-        self.ui.roi[self.ui.s].append(self.measurement)
+        self.ui.roi[self.ui.s].append(copy.deepcopy(self.measurement))
         self.ui.roiframe.currentroi.set(self.ui.roiframe.currentroi.get() + 1)
         self.ui.roiframe.update_roinumber_options()
+        self.measurement = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
 
     # re-display an existing measurement
     def show_measurement(self,roi=None):
         if roi is None:     
-            self.measurement = self.ui.roi[self.ui.s][self.ui.currentroi]
+            r = self.ui.roi[self.ui.s][self.ui.currentroi]
         else:
-            self.measurement = self.ui.roi[self.ui.s][roi]
-        lx = np.array([self.measurement['p0'][0],self.measurement['p1'][0]])
-        ly = np.array([self.measurement['p0'][1],self.measurement['p1'][1]])
-        self.ui.set_currentslice(self.measurement['slice'])
-        self.axs[self.measurement['ax']].plot(lx,ly,'b',clip_on=True)[0] 
-        self.ui.set_message(msg='distance = {:.1f}'.format(self.measurement['l']))
+            r = self.ui.roi[self.ui.s][roi]
+        lx = np.array([r['p0'][0],r['p1'][0]])
+        ly = np.array([r['p0'][1],r['p1'][1]])
+        self.ui.set_currentslice(r['slice'])
+        r['plot'] = self.axs[r['ax']].plot(lx,ly,'b',clip_on=True)[0] 
+        self.ui.set_message(msg='distance = {:.1f}'.format(r['l']))
 
     def update_measurements(self):
         slice = self.ui.currentslice
-        mslices = [r['slice'] for r in self.ui.roi[self.ui.s][1:]]
-        axes = [r['ax'] for r in self.ui.roi[self.ui.s][1:]
-        if slice in mslices:
-            self.show_measurement()
-        else:
-            self.clear_measurement()
+        itoshow = 0
+        for i,r in enumerate(self.ui.roi[self.ui.s][1:]):
+            if r['slice'] == slice:
+                itoshow = i + 1 # record index for display
+            elif r['plot'] is not None:
+                # currently hard-coded to 1 line per slice
+                self.axs[r['ax']].lines[0].remove()
+                r['plot'] = None
+                self.ui.clear_message()
+                self.canvas.draw()
+        if itoshow: 
+            self.show_measurement(roi=itoshow)
