@@ -30,7 +30,7 @@ https://zenodo.org/records/2540695 get the 5 *.model files and place them in 'hd
 
 3.  Install the MNI brain atlas template files.
     1. Create sub-directory 'mni152' under the directory indicated by ```self.UIdatadir``` (see step 3 in the section below), 
-    2. Copy the MNI brain template files from the RADNEC Dropbox directory "GUI VERSION2/CODE" into mni152, or obtain them directly via https://github.com/Jfortin1/MNITemplate
+    2. Copy the MNI brain template files from the RADNEC Dropbox directory "GUI VERSION2/CODE" into 'mni152', or obtain them directly via https://github.com/Jfortin1/MNITemplate
   
 4.  Download and extract the nnUNet code for brain tumour segmentation similarly to 2. (https://github.com/MIC-DKFZ/nnUNet)
     1. In 'Anaconda Prompt', change into the root directory of the extracted nnUNet code.
@@ -42,9 +42,10 @@ https://zenodo.org/records/2540695 get the 5 *.model files and place them in 'hd
     7. ```conda deactivate```
   
 5. Install the nnUNet model files.
-    1. Create a directory called 'results' in a convenient location, eg D:\somepath\results:
-   2. Set the user ENV ```nnUNet_results``` = D:\somepath\results
-   3. Download the directory 'nnUNetTrainer__nnUNetPlans__3d_fullres_T1post-FLAIR from the BLAST Development/Training Results folder on Dropbox and store it as D:\somepath\results\nnUNetTrainer__nnUNetPlans__3d_fullres (ie it gets renamed slightly by truncating the suffix)
+    1. Create a pair of directories called 'results\Dataset137' in a convenient location, eg D:\somepath\results\Dataset137:
+   2. Set the user ENV ```nnUNet_results``` = D:\somepath\results (ie without the Dataset137)
+   3. Create but do not populate additional user ENV's ```nnUNet_preprocessed```,```nnUNet_raw```
+   4. Download the directory 'nnUNetTrainer__nnUNetPlans__3d_fullres_T1post-FLAIR from the BLAST Development/Training Results folder on Dropbox and store it as D:\somepath\results\Dataset137\nnUNetTrainer__nnUNetPlans__3d_fullres (ie it gets renamed slightly by truncating the suffix)
   
 6. create the 'blast' python environment. In 'Anaconda Prompt':
     1. ```conda create --solver=libmamba -n blast -c conda-forge cupy python=3.9 cuda-version=11.8```
