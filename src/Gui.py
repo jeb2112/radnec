@@ -32,7 +32,9 @@ class Gui():
                 self.root.call('wm','iconphoto',self.root._w,PhotoImage(file=iconfile))
             self.UI = BlastGui.BlastGui(self.root, optionsFlag, self.config, debug=debug)
 
+            # start a loop for asyncio. might not need this here though.
             tae.start()
+            # tiwsted isn't compatible with the tae loop so just use mainloop()
             if False:
                 tksupport.install(self.root)
                 reactor.run()
@@ -44,6 +46,7 @@ class Gui():
             print("Exit")
 
     def windowCloseHandler(self):
-        # reactor.stop()
+        if False:
+            reactor.stop()
         self.root.quit()
         self.root.destroy()

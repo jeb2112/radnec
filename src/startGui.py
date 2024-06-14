@@ -1,6 +1,5 @@
 import sys,os
 import argparse
-import tk_async_execute as tae
 
 from src.Gui import Gui
 
@@ -13,7 +12,6 @@ def main():
     args = parser.parse_args()
     optionsFlag = int(args.options)
 
-    tae.start()
     gui = Gui(optionsFlag, debug=args.debug)
 
 if __name__ == '__main__':

@@ -11,11 +11,13 @@ import concurrent
 from amazon_transcribe.client import TranscribeStreamingClient
 from amazon_transcribe.handlers import TranscriptResultStreamHandler
 from amazon_transcribe.model import TranscriptEvent
+from amazon_transcribe.model import TranscriptEvent, TranscriptResultStream
 
 class MyEventHandler(TranscriptResultStreamHandler):
-    def __init__(self):
+    def __init__(self,transcript_result_stream):
+        super().__init__(transcript_result_stream)
         self.transcript = []
-        
+
     async def handle_transcript_event(self, transcript_event: TranscriptEvent):
         results = transcript_event.transcript.results
         for result in results:
@@ -27,6 +29,10 @@ class MyEventHandler(TranscriptResultStreamHandler):
 class Transcription(object):
     def __init__(self,root):
 
+        # somehow the credentials code in amazon-transcribe doesn't pick up
+        # refreshing credentials in .aws/sso, it only reads .aws/credentials or env.
+        # use boto3 to read the refreshing credentials and re-export them 
+        # to env
         credentials = boto3.Session(profile_name='jbishop-dev').get_credentials()
         os.environ["AWS_ACCESS_KEY_ID"] = credentials.access_key
         os.environ["AWS_SECRET_ACCESS_KEY"] = credentials.secret_key
@@ -34,6 +40,7 @@ class Transcription(object):
         self.transcript = None
         self.tasks = None
         self.root = root # tkinter root in case its needed
+        self.handler = None
 
     async def mic_stream(self):
         # This function wraps the raw input stream from the microphone forwarding
@@ -70,6 +77,8 @@ class Transcription(object):
                 await stream.input_stream.send_audio_event(audio_chunk=chunk)
                 # await asyncio.to_thread(stream.input_stream.send_audio_event,audio_chunk=chunk)
             await stream.input_stream.end_stream()
+        # the CancelledErrors are for CtrlC exit from event loop only
+        # probably not needed anymore
         except asyncio.CancelledError as e:
             print('cancelled')
             raise
@@ -78,12 +87,13 @@ class Transcription(object):
         print('got signal {}: exit'.format(signame))
         self.loop.stop()
 
+    # main co-routine for the asyncio event loop
     async def basic_transcribe(self):
         # Setup up our client with our chosen AWS region
         client = TranscribeStreamingClient(region="us-west-2")
         self.loop = asyncio.get_running_loop()
 
-        # for CtrlC, add this keyboard handler.
+        # for CtrlC exit from eventloop, add this keyboard handler.
         # however, added handlers like this aren't compatiable with the tkinter-async-execute module
         # get a set_wakeup_fd error. 
         if False:
@@ -103,8 +113,8 @@ class Transcription(object):
         # Instantiate our handler and start processing events
         # with the tkinter-async-execute module though no errors
         # need to be handled anymore
-        handler = MyEventHandler(stream.output_stream)
-        self.tasks =  asyncio.gather(self.write_chunks(stream), handler.handle_events())
+        self.handler = MyEventHandler(stream.output_stream)
+        self.tasks =  asyncio.gather(self.write_chunks(stream), self.handler.handle_events())
         try:
             await self.tasks
         # Cancelled errors have to be handled when using CtrlC to exit the asyncio event loop

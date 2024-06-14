@@ -6,9 +6,10 @@ import copy
 import logging
 import time
 import asyncio
-import concurrent
+import json
 import tkinter as tk
 from tkinter import ttk
+import base64
 import tk_async_execute as tae
 import matplotlib
 import matplotlib.pyplot as plt
@@ -38,6 +39,7 @@ class Create4PanelROIFrame(CreateFrame):
         # variables for the record button
         self.recordtext = tk.StringVar(value='off')
         self.record = tk.IntVar(value=0)
+        self.transcript = None
 
 
         ########################
@@ -118,10 +120,11 @@ class Create4PanelROIFrame(CreateFrame):
             self.transcript = self.T.handler.transcript
             try:
                 tae.stop()
-            # there is a runtime error being thrown at line 515 in base_events _check_closed
+            # there is a runtime error being thrown at line 515 in asyncio base_events.py _check_closed
             # not sure how to handle it yet
             except RuntimeError as e:
                 print('event loop is closed')
+            # restart the loop for a possible next transcription
             tae.start()
         return
 
@@ -176,34 +179,34 @@ class Create4PanelROIFrame(CreateFrame):
 
     # for exporting ROI measurements. 
     def saveROI(self,roi=None):
-        # Save ROI data
         outputpath = self.ui.caseframe.casedir
         fileroot = os.path.join(outputpath,self.ui.caseframe.casefile_prefix + self.ui.caseframe.casename.get())
-        filename = fileroot+'_stats.pkl'
-        # t1mprage template? need to save separately?
+        filename = fileroot+'.json'
 
-        # BLAST outputs. combined ROI or separate? doing separate for now
-        roisuffix = ''
-        for img in ['seg','ET','TC','WT']:
-            for roi in self.roilist:
-                if len(self.roilist) > 1:
-                    roisuffix = '_roi'+roi
-                outputfilename = fileroot + '_blast_' + img + roisuffix + '.nii'
-                if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
-                    self.WriteImage(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
+        output = {'images':{0:None,1:None},'dwell':None,'transcript':None,'measurement':{0:None,1:None}}
+        dwell = np.argsort(np.sum(self.ui.sliceviewerframe.dwelltime,axis=1))[-1::-1]
+        dtags = [c for c in self.ui.data[0].channels.values()]+['adc']
+        idict0 = {d:None for d in dtags}
+        for s in range(2):
+            idict = copy.deepcopy(idict0)
+            for i in range(5): # arbitrarily select top 5 images
+                for dt in dtags:
+                    if dt == 'adc':
+                        idict[dt] = base64.b64encode(self.ui.data[s].dset[dt]['d'][dwell[i]]).decode('utf8').replace("'", '"')
+                    else:
+                        if self.ui.data[s].dset['raw'][dt]['ex']:
+                            idict[dt] = base64.b64encode(self.ui.data[s].dset['raw'][dt]['d'][dwell[i]]).decode('utf8').replace("'", '"')
+            output['images'][s] = idict
+            if len(self.ui.roi[s])>1:
+                output['measurement'][s] = copy.deepcopy(self.ui.roi[s][1:])
+                for m in output['measurement'][s]:
+                    m['plot']=None
+        output['dwell'] = dwell.tolist()
+        output['transcript'] = self.transcript
 
-        sdict = {}
-        bdict = {}
-        for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
-            sdict['roi'+str(i)] = r.stats
-            bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT','blast','raw'))
+        with open(filename,'w') as fp:
+            json.dump(output,fp)
 
-        with open(filename,'ab') as fp:
-            pickle.dump((sdict,bdict),fp)
-        # matlab compatible output
-        filename = filename[:-3] + 'mat'
-        with open(filename,'ab') as fp:
-            savemat(filename,sdict,bdict)
 
     # eliminate latest ROI if there are multiple ROIs in current case
     def clearROI(self):
