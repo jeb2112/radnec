@@ -29,6 +29,24 @@
             "console": "integratedTerminal",
             "justMyCode": false
         },
+        {
+            "name": "mic",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/simple_mic.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "tk-asyncio",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/tk_async.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
 
         
     ]

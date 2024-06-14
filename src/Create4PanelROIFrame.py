@@ -5,8 +5,11 @@ import pickle
 import copy
 import logging
 import time
+import asyncio
+import concurrent
 import tkinter as tk
 from tkinter import ttk
+import tk_async_execute as tae
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backend_bases import _Mode
@@ -22,6 +25,7 @@ from scipy.io import savemat
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
 from src.ROI import ROILinear
+from src.CreateTranscription import *
 
 # contains various ROI methods and variables for 'overlay' mode
 class Create4PanelROIFrame(CreateFrame):
@@ -48,7 +52,7 @@ class Create4PanelROIFrame(CreateFrame):
         self.frame.grid(row=2,column=4,rowspan=5,sticky='ne')
         # record button
         self.fstyle.configure('frame.TCheckbutton',background='#AAAAAA')
-        self.recordbutton = ttk.Checkbutton(self.frame,style='Toolbutton',textvariable=self.recordtext,variable=self.record,command=self.record)
+        self.recordbutton = ttk.Checkbutton(self.frame,style='Toolbutton',textvariable=self.recordtext,variable=self.record,command=self.record_transcript)
         self.recordbutton.configure(style='frame.TCheckbutton')
         self.recordbutton.grid(row=0,column=1,sticky='w')
         self.recordbuttonlabel = ttk.Label(self.frame,text='record:',padding='5')
@@ -80,6 +84,46 @@ class Create4PanelROIFrame(CreateFrame):
     # ROI methods
     ############# 
         
+    # record and transcribe
+    def record_transcript(self):
+        if self.record.get():
+            self.recordtext.set('on')
+            self.frame.update()
+            self.T = Transcription(self.ui.root)
+
+            # with asyncio.run(), can exit with CtrLC and handling errors
+            if False:
+                try:
+                    # for a mic stream there is no completion event within the stream iteslf,
+                    # requires user input. 
+                    asyncio.run(self.T.basic_transcribe())
+                except asyncio.CancelledError as e:
+                    self.recordtext.set('off')
+                    self.record.set(0)
+                except KeyboardInterrupt as e:
+                    print('keyboard interrupt')
+                except RuntimeError as e:
+                    self.recordtext.set('off')
+                    self.record.set(0)
+                finally:
+                    self.recordtext.set('off')
+                    self.record.set(0)
+
+            # with tae module, no CtrlC and don't need to handle errors
+            tae.async_execute(self.T.basic_transcribe(),wait=False)
+
+        else:
+            self.recordtext.set('off')
+            self.record.set(0)
+            self.transcript = self.T.handler.transcript
+            try:
+                tae.stop()
+            # there is a runtime error being thrown at line 515 in base_events _check_closed
+            # not sure how to handle it yet
+            except RuntimeError as e:
+                print('event loop is closed')
+            tae.start()
+        return
 
     def resetROI(self):
         return

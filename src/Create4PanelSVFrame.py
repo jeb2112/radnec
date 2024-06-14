@@ -526,12 +526,10 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.ui.set_message(msg='distance = {:.1f}'.format(self.measurement['l']))
         return
 
-    # remove existing measurement line
+    # remove existing measurement line, for using during interactive draw only
     def clear_measurement(self):
         if self.measurement['plot'] is not None:
             self.axs[self.measurement['ax']].lines[0].remove() # coded for only 1 line
-            self.measurement['plot'] = None
-            # Artist.remove(self.measurement['plot'])
         self.measurement = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
         self.ui.clear_message()
         self.canvas.draw()
@@ -555,6 +553,7 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         r['plot'] = self.axs[r['ax']].plot(lx,ly,'b',clip_on=True)[0] 
         self.ui.set_message(msg='distance = {:.1f}'.format(r['l']))
 
+    # display or remove measuremnt in the current slice
     def update_measurements(self):
         slice = self.ui.currentslice
         itoshow = 0
@@ -567,5 +566,5 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
                 r['plot'] = None
                 self.ui.clear_message()
                 self.canvas.draw()
-        if itoshow: 
+        if itoshow: # display last so distance value can be shown as message
             self.show_measurement(roi=itoshow)

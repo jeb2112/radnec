@@ -1,5 +1,6 @@
 import os
 from tkinter import *
+import tk_async_execute as tae
 import sys
 import logging
 
@@ -31,13 +32,18 @@ class Gui():
                 self.root.call('wm','iconphoto',self.root._w,PhotoImage(file=iconfile))
             self.UI = BlastGui.BlastGui(self.root, optionsFlag, self.config, debug=debug)
 
-            tksupport.install(self.root)
-            reactor.run()
+            tae.start()
+            if False:
+                tksupport.install(self.root)
+                reactor.run()
+            else:
+                self.root.mainloop()
         except Exception as e:
             self.config.logger.error("{}: {}".format(e.args[0], sys.exc_info()[0]))
         else:
             print("Exit")
 
     def windowCloseHandler(self):
-        reactor.stop()
+        # reactor.stop()
+        self.root.quit()
         self.root.destroy()
