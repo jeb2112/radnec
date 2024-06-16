@@ -478,8 +478,8 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.canvas.get_tk_widget().config(cursor='sizing')
         if self.measurement['plot']:
             self.clear_measurement()
-        # no adjustment from outside the pane
-        if event.y < 0 or event.y > self.ui.current_panelsize*self.config.dpi:
+        # no action if outside the pane
+        if event.widget.widgetName != 'canvas':
             return
         # which artist axes was clicked
         a = self.tbar.select_artist(event)

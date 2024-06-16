@@ -182,26 +182,38 @@ class Create4PanelROIFrame(CreateFrame):
         outputpath = self.ui.caseframe.casedir
         fileroot = os.path.join(outputpath,self.ui.caseframe.casefile_prefix + self.ui.caseframe.casename.get())
         filename = fileroot+'.json'
+        tmpfile = os.path.join(outputpath,'tmp.png')
 
         output = {'images':{0:None,1:None},'dwell':None,'transcript':None,'measurement':{0:None,1:None}}
-        dwell = np.argsort(np.sum(self.ui.sliceviewerframe.dwelltime,axis=1))[-1::-1]
+        dwelltime = np.sum(self.ui.sliceviewerframe.dwelltime,axis=1)
+        dwellslice = np.argsort(dwelltime)[-1::-1]
+        dwelltime = [d for d in dwelltime[dwellslice] if d>0]
+        dwellslice = dwellslice[:len(dwelltime)]
         dtags = [c for c in self.ui.data[0].channels.values()]+['adc']
         idict0 = {d:None for d in dtags}
         for s in range(2):
             idict = copy.deepcopy(idict0)
-            for i in range(5): # arbitrarily select top 5 images
+            for i in range(len(dwelltime)): # arbitrarily select top 5 images
                 for dt in dtags:
                     if dt == 'adc':
-                        idict[dt] = base64.b64encode(self.ui.data[s].dset[dt]['d'][dwell[i]]).decode('utf8').replace("'", '"')
+                        plt.imsave(tmpfile,self.ui.data[s].dset[dt]['d'][dwellslice[i]],cmap='gray')
+                        with open(tmpfile,'rb') as fp:
+                            idict[dt] = base64.b64encode(fp.read()).decode('utf8').replace("'",'"')
+                            fp.close()
+                            os.remove(tmpfile)
                     else:
                         if self.ui.data[s].dset['raw'][dt]['ex']:
-                            idict[dt] = base64.b64encode(self.ui.data[s].dset['raw'][dt]['d'][dwell[i]]).decode('utf8').replace("'", '"')
+                            plt.imsave(tmpfile,self.ui.data[s].dset['raw'][dt]['d'][dwellslice[i]],cmap='gray')
+                            with open(tmpfile,'rb') as fp:
+                                idict[dt] = base64.b64encode(fp.read()).decode('utf8').replace("'", '"')
+                                fp.close()
+                                os.remove(tmpfile)
             output['images'][s] = idict
             if len(self.ui.roi[s])>1:
                 output['measurement'][s] = copy.deepcopy(self.ui.roi[s][1:])
                 for m in output['measurement'][s]:
                     m['plot']=None
-        output['dwell'] = dwell.tolist()
+        output['dwell'] = np.vstack((dwellslice,dwelltime)).tolist()
         output['transcript'] = self.transcript
 
         with open(filename,'w') as fp:

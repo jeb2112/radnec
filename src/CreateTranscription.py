@@ -16,12 +16,15 @@ from amazon_transcribe.model import TranscriptEvent, TranscriptResultStream
 class MyEventHandler(TranscriptResultStreamHandler):
     def __init__(self,transcript_result_stream):
         super().__init__(transcript_result_stream)
-        self.transcript = []
+        self.transcript = ['']
 
     async def handle_transcript_event(self, transcript_event: TranscriptEvent):
         results = transcript_event.transcript.results
         for result in results:
             for alt in result.alternatives:
+                # some problem with audio chunks, getting repetition
+                if self.transcript[-1][:-1] in alt.transcript:
+                    self.transcript.pop()
                 self.transcript.append(alt.transcript)
                 print(alt.transcript)
 
