@@ -7,6 +7,7 @@ import boto3
 import signal
 import functools
 import concurrent
+import re
 
 from amazon_transcribe.client import TranscribeStreamingClient
 from amazon_transcribe.handlers import TranscriptResultStreamHandler
@@ -23,8 +24,21 @@ class MyEventHandler(TranscriptResultStreamHandler):
         for result in results:
             for alt in result.alternatives:
                 # some problem with audio chunks, getting repetition
-                if self.transcript[-1][:-1] in alt.transcript:
+                st_test = re.sub('[?|.|,]','',self.transcript[-1].lower())
+                in_test = re.sub('[?|.|,]','',alt.transcript.lower())
+                if st_test == in_test:
                     self.transcript.pop()
+                elif st_test in in_test:
+                    self.transcript.pop()
+                else:
+                    if len(in_test) > len(st_test):
+                        st_test += ' '*(len(in_test)-len(st_test))
+                    elif len(in_test) < len(st_test):
+                        in_test += ' '*(len(st_test)-len(in_test))
+                    index = next((i for i,(c1,c2) in enumerate(zip(st_test,in_test)) if c1 != c2),0)
+                    # print(index,'\n',st_test,'\n',in_test,'\n')
+                    if index > 5:
+                        self.transcript.pop()
                 self.transcript.append(alt.transcript)
                 print(alt.transcript)
 

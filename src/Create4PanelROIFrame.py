@@ -192,8 +192,9 @@ class Create4PanelROIFrame(CreateFrame):
         dtags = [c for c in self.ui.data[0].channels.values()]+['adc']
         idict0 = {d:None for d in dtags}
         for s in range(2):
-            idict = copy.deepcopy(idict0)
-            for i in range(len(dwelltime)): # arbitrarily select top 5 images
+            ilist = []
+            for i in range(min(5,len(dwelltime))): # select top 5 images
+                idict = copy.deepcopy(idict0)
                 for dt in dtags:
                     if dt == 'adc':
                         plt.imsave(tmpfile,self.ui.data[s].dset[dt]['d'][dwellslice[i]],cmap='gray')
@@ -208,7 +209,8 @@ class Create4PanelROIFrame(CreateFrame):
                                 idict[dt] = base64.b64encode(fp.read()).decode('utf8').replace("'", '"')
                                 fp.close()
                                 os.remove(tmpfile)
-            output['images'][s] = idict
+                ilist.append(idict)
+            output['images'][s] = ilist
             if len(self.ui.roi[s])>1:
                 output['measurement'][s] = copy.deepcopy(self.ui.roi[s][1:])
                 for m in output['measurement'][s]:
