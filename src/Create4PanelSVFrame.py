@@ -69,25 +69,16 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.fig = None
         self.resizer_count = 1
         self.ui = ui
-        # dwell time
-        self.dwelltime = None
-        self.timingtext = tk.StringVar(value='off')
-        self.timing = tk.IntVar(value=0)
 
-        self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
+        self.frame.grid(row=1, column=0, columnspan=2, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
         self.frame.configure(style='sliceviewerframe.TFrame')
 
         # override normal frame 
-        # self.fstyle.configure('normal_frame.TFrame',background='red')
+        if False:
+            self.fstyle.configure('normal_frame.TFrame',background='red')
         self.normal_frame = ttk.Frame(self.parentframe,padding='0',style='normal_frame.TFrame')
         self.normal_frame.grid(row=3,column=0,sticky='news')
-        self.fstyle.configure('normalframe.TCheckbutton',background='#AAAAAA')
-        self.timerbutton = ttk.Checkbutton(self.normal_frame,style='Toolbutton',textvariable=self.timingtext,variable=self.timing,command=self.dwell)
-        self.timerbutton.configure(style='normalframe.TCheckbutton')
-        self.timerbutton.grid(row=0,column=5,sticky='w')
-        self.timerbuttonlabel = ttk.Label(self.normal_frame,text='timer:',padding='5')
-        self.timerbuttonlabel.grid(row=0,column=4,sticky='e')
 
         self.create_blank_canvas()
 
@@ -95,7 +86,7 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.fstyle.configure('canvasframe.TFrame',background='#000000')
         self.canvasframe = ttk.Frame(self.frame)
         self.canvasframe.configure(style='canvasframe.TFrame')
-        self.canvasframe.grid(row=1,column=0,columnspan=3,sticky='NW')
+        self.canvasframe.grid(row=0,column=0,columnspan=3,sticky='ew')
 
         # messages text frame
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -108,7 +99,6 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
             self.ui.root.bind('<Button-4>',self.mousewheel)
             self.ui.root.bind('<Button-5>',self.mousewheel)
 
-        
         # adjust current root window to sliceviewer size
         if False:
             self.frame.update()
@@ -144,8 +134,11 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         else:
             w = self.blankcanvas.get_tk_widget().winfo_width()
             h = self.blankcanvas.get_tk_widget().winfo_height()
-        h += self.ui.caseframe.frame.winfo_height() + self.tbar.winfo_height()
-        h += max(self.normal_frame.winfo_height(),self.ui.roiframe.frame.winfo_height())
+        w = self.ui.roiframe.frame.winfo_width() + self.normal_frame.winfo_width()
+        h += max(self.ui.caseframe.frame.winfo_height(),self.ui.functionmenu.winfo_height()) + \
+            max(self.normal_frame.winfo_height(),self.ui.roiframe.frame.winfo_height())
+        h += 2*int(self.ui.mainframe_padding)
+        # roiframe should govern width, but just in case this check
         w = max(w,self.ui.caseframe.frame.winfo_width()+self.ui.functionmenu.winfo_width())
         print('resize {},{}'.format(w,h))
         self.ui.root.geometry(f'{w}x{h}')
@@ -176,12 +169,13 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
     def create_canvas(self,figsize=None):
         slicefovratio = self.dim[0]/self.dim[1]
         if figsize is None:
-            figsize = (self.ui.current_panelsize*1,self.ui.current_panelsize*1)
+            figsize = (self.ui.current_panelsize*slicefovratio,self.ui.current_panelsize*1)
         if self.fig is not None:
             plt.close(self.fig)
 
         self.fig,self.axs = plt.subplot_mosaic([['A','B'],['C','D']],
-                                     width_ratios=[self.ui.current_panelsize,self.ui.current_panelsize],
+                                    #  width_ratios=[self.ui.current_panelsize,self.ui.current_panelsize],
+                                     height_ratios=[self.ui.current_panelsize,self.ui.current_panelsize],
                                      figsize=figsize,dpi=self.ui.dpi)
         for a in ['A','B','C','D']:
             self.ax_img[a] = self.axs[a].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
@@ -240,7 +234,7 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         newcanvas = FigureCanvasTkAgg(self.fig, master=self.canvasframe)  
         newcanvas.get_tk_widget().configure(bg='black')
         newcanvas.get_tk_widget().configure(width=figsize[0]*self.ui.dpi,height=figsize[1]*self.ui.dpi)
-        newcanvas.get_tk_widget().grid(row=0, column=0, sticky='')
+        newcanvas.get_tk_widget().grid(row=0, column=2, sticky='e')
 
         if False:
             self.tbar = NavigationBar(newcanvas,self.parentframe,pack_toolbar=False,ui=self.ui,axs=self.axs)
@@ -248,7 +242,7 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         else:
             self.tbar = NavigationBar(newcanvas,self.normal_frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
             # self.tbar.children['!button4'].pack_forget() # get rid of configure plot
-            self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
+            self.tbar.grid(column=0,row=0,columnspan=1,sticky='NW')
 
         if self.canvas is not None:
             self.cw.delete('all')
@@ -274,7 +268,7 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
     def updateslice(self,event=None,wl=False):
         s = self.ui.s # local reference
         slice=self.currentslice.get()
-        self.updatedwell()
+        self.ui.roiframe.updatedwell()
         self.ui.set_currentslice()
         # set content of each axesImage
         for a in ['A','B','C','D']:
@@ -425,30 +419,6 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         if ax > 'B':
             y += self.dim[1]
         return x,y
-
-    # start the dwell time counter
-    def dwell(self):
-        if self.timing.get():
-            self.dwelltime = np.zeros((self.dim[0],len(self.ui.data)))
-            self.tstart = time.time()
-            self.ct = np.copy(self.tstart)
-            self.timingtext.set('on')
-        else:
-            self.timingtext.set('off')
-        return
-
-    def updatedwell(self):
-        if self.timing.get():
-            slice = self.ui.currentslice
-            if slice is None:
-                return
-            study = self.ui.get_studynumber()
-            self.dt = time.time()
-            deltatime = np.round(self.dt - self.ct,decimals=1)
-            self.dwelltime[slice,study] += deltatime
-            self.ct = np.copy(self.dt)
-        return
-    
 
     # mouse drag event linear measurement
     def b1motion_measure(self,event=None):

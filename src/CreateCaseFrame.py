@@ -51,9 +51,9 @@ class CreateCaseFrame(CreateFrame):
         self.pp = None
 
         # case selection
-        self.frame.grid(row=0,column=0,columnspan=3,sticky='ew')
+        self.frame.grid(row=0,column=0,columnspan=1,sticky='w')
         # select case pulldown menu
-        caselabel = ttk.Label(self.frame, text='Case: ')
+        caselabel = ttk.Label(self.frame, text=' Case: ')
         caselabel.grid(row=0,column=0,sticky='we')
         # self.casename.trace_add('write',self.case_callback)
         self.w = ttk.Combobox(self.frame,width=8,textvariable=self.casename,values=self.caselist['casetags'])
@@ -73,13 +73,14 @@ class CreateCaseFrame(CreateFrame):
         self.datadirentry = ttk.Entry(self.frame,width=40,textvariable=self.datadir)
         # event currently a dummy arg since not being used in datadirentry_callback
         self.datadirentry.bind('<Return>',lambda event=None:self.datadirentry_callback(event=event))
-        self.datadirentry.grid(row=0,column=4,columnspan=5)
+        self.datadirentry.grid(row=0,column=4,columnspan=1)
 
         # optional study list for blast mode
         studylabel = ttk.Label(self.frame,text='Study: ')
-        studylabel.grid(row=0,column=9,sticky='we')
+        studylabel.grid(row=1,column=0,sticky='we')
         self.s = ttk.Combobox(self.frame,width=8,textvariable=self.studynumber,values=self.studylist['studytags'],state='disabled')
-        self.s.grid(row=0,column=10)
+        # self.s.grid(row=0,column=10)
+        self.s.grid(row=1,column=1,sticky='w')
         self.s.bind("<<ComboboxSelected>>",self.study_callback)
         self.studynumber.trace_add('write',lambda *args: self.ui.set_studynumber())
 
@@ -209,6 +210,7 @@ class CreateCaseFrame(CreateFrame):
                 sv.level = np.array(sv.level)
                 sv.window = np.array(sv.window)
                 sv.create_canvas()
+                sv.resize()
 
         # update roiframes according to data loaded
         if False: # cbv will have to display just one overlay if necessary

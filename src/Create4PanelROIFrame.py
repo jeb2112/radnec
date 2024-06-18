@@ -40,6 +40,10 @@ class Create4PanelROIFrame(CreateFrame):
         self.recordtext = tk.StringVar(value='off')
         self.record = tk.IntVar(value=0)
         self.transcript = None
+        # dwell time
+        self.dwelltime = None
+        self.timingtext = tk.StringVar(value='off')
+        self.timing = tk.IntVar(value=0)
 
 
         ########################
@@ -48,10 +52,10 @@ class Create4PanelROIFrame(CreateFrame):
 
         # dummy frame to hide
         self.dummy_frame = ttk.Frame(self.parentframe,padding='0')
-        self.dummy_frame.grid(row=2,column=4,rowspan=5,sticky='news')
+        self.dummy_frame.grid(row=2,column=1,rowspan=2,sticky='nw')
 
         # actual frame
-        self.frame.grid(row=2,column=4,rowspan=5,sticky='ne')
+        self.frame.grid(row=3,column=1,rowspan=2,sticky='ew')
         # record button
         self.fstyle.configure('frame.TCheckbutton',background='#AAAAAA')
         self.recordbutton = ttk.Checkbutton(self.frame,style='Toolbutton',textvariable=self.recordtext,variable=self.record,command=self.record_transcript)
@@ -59,6 +63,12 @@ class Create4PanelROIFrame(CreateFrame):
         self.recordbutton.grid(row=0,column=1,sticky='w')
         self.recordbuttonlabel = ttk.Label(self.frame,text='record:',padding='5')
         self.recordbuttonlabel.grid(row=0,column=0,sticky='e')
+        # timer button
+        self.timerbutton = ttk.Checkbutton(self.frame,style='Toolbutton',textvariable=self.timingtext,variable=self.timing,command=self.dwell)
+        self.timerbutton.configure(style='frame.TCheckbutton')
+        self.timerbutton.grid(row=1,column=1,sticky='w')
+        self.timerbuttonlabel = ttk.Label(self.frame,text=' timer:',padding='5')
+        self.timerbuttonlabel.grid(row=1,column=0,sticky='e')
 
         # roi list
         # for multiple roi's, n'th roi number choice
@@ -257,3 +267,26 @@ class Create4PanelROIFrame(CreateFrame):
                 self.append_roi(d)
             else:
                 v.append(0)
+
+    # start the dwell time counter
+    def dwell(self):
+        if self.timing.get():
+            self.dwelltime = np.zeros((self.dim[0],len(self.ui.data)))
+            self.tstart = time.time()
+            self.ct = np.copy(self.tstart)
+            self.timingtext.set('on')
+        else:
+            self.timingtext.set('off')
+        return
+
+    def updatedwell(self):
+        if self.timing.get():
+            slice = self.ui.currentslice
+            if slice is None:
+                return
+            study = self.ui.get_studynumber()
+            self.dt = time.time()
+            deltatime = np.round(self.dt - self.ct,decimals=1)
+            self.dwelltime[slice,study] += deltatime
+            self.ct = np.copy(self.dt)
+        return
