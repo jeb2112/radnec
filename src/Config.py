@@ -46,7 +46,7 @@ class Config(object):
             self.UIlocaldir = os.path.join('C:\\','Users','Chris Heyn Lab','Data','dicom2nifti')
         elif os.name == 'posix':
             self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
-            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti'
+            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti_4panel'
             # self.UIdatadir = os.path.join(os.path.expanduser('~'),'Data','radnec')
         self.UIdataroot = 'BraTS2021_'
 
@@ -66,7 +66,7 @@ class Config(object):
         self.OverlayIntensity = 1.0
 
         # image panel size
-        self.PanelSize = 4 # inches at 100 dpi
+        self.PanelSize = 3 # inches at 100 dpi
 
         # default size for image array
         self.ImageDim = (155,240,240)
@@ -90,3 +90,6 @@ class Config(object):
         self.OverlayCmap = {'z':'viridis','cbv':'viridis','tempo':'tempo'}
         cmap_tempo = ListedColormap(np.array([[0 ,.5, 0, 1],[0,0,0,1],[0, 1, 0, 1]]))
         cm.register_cmap(name='tempo',cmap=cmap_tempo)
+
+        # default viewer type
+        self.DefaultViewer = '4panel'

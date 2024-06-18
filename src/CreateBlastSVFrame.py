@@ -77,6 +77,11 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
         self.frame.configure(style='sliceviewerframe.TFrame')
+
+        # normal stats button, 2d or 3d
+        self.normal_frame = ttk.Frame(self.parentframe,padding='0')
+        self.normal_frame.grid(row=3,column=0,sticky='NW')
+
         self.create_blank_canvas()
 
         # dummy frame to hold canvas and slider bars
@@ -85,9 +90,6 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.canvasframe.configure(style='canvasframe.TFrame')
         self.canvasframe.grid(row=1,column=0,columnspan=3,sticky='NW')
 
-        # normal stats button, 2d or 3d
-        self.normal_frame = ttk.Frame(self.parentframe,padding='0')
-        self.normal_frame.grid(row=3,column=0,sticky='NW')
         normalSlice = ttk.Button(self.normal_frame,text='normal',command=self.normalslice_callback)
         normalSlice.grid(column=0,row=0,sticky='w')
         slicevolume_slice_button = ttk.Radiobutton(self.normal_frame,text='slice',variable=self.slicevolume_norm,value=0)
@@ -165,9 +167,9 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
             # fig.patch.set_facecolor('white')
             self.blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
             self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
-            tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
-            tbar.children['!button4'].pack_forget() # get rid of configure plot
-            tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
+            self.tbar = NavigationToolbar2Tk(self.blankcanvas,self.normal_frame,pack_toolbar=False)
+            self.tbar.children['!button4'].pack_forget() # get rid of configure plot
+            self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
         self.frame.configure(width=w,height=h)
      
     # main canvas created when data are loaded
@@ -243,7 +245,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         newcanvas.get_tk_widget().configure(width=figsize[0]*self.ui.dpi,height=figsize[1]*self.ui.dpi)
         newcanvas.get_tk_widget().grid(row=0, column=0, sticky='')
 
-        self.tbar = NavigationBar(newcanvas,self.parentframe,pack_toolbar=False,ui=self.ui,axs=self.axs)
+        self.tbar = NavigationBar(newcanvas,self.normal_frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
         self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
 
         if self.canvas is not None:
