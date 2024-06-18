@@ -291,7 +291,8 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         self.canvas.draw()
 
         # if this is not a mouse event, show an existing measurement, or remove it
-        if self.ui.currentroi > 0 and event is None:
+        # if self.ui.currentroi > 0 and event is None:
+        if self.ui.currentroi > 0:
             self.update_measurements()
     
     def update_labels(self,item=None):
@@ -461,7 +462,7 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
             return
         aax = a.axes._label
         if aax != self.measurement['ax']:
-            self.clear_measurement()
+            self.clear_measurement_line()
             return
         # mouse event returns display coords but which are still flipped in y compared to matplotlib data coords.
         x,y = self.calc_panel_xy(event.x,event.y,aax)
@@ -477,7 +478,7 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         ex,ey = np.copy(event.x),np.copy(event.y)
         self.canvas.get_tk_widget().config(cursor='sizing')
         if self.measurement['plot']:
-            self.clear_measurement()
+            self.clear_measurement_line()
         # no action if outside the pane
         if event.widget.widgetName != 'canvas':
             return
@@ -527,12 +528,18 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         return
 
     # remove existing measurement line, for using during interactive draw only
-    def clear_measurement(self):
+    def clear_measurement_line(self):
         if self.measurement['plot'] is not None:
             self.axs[self.measurement['ax']].lines[0].remove() # coded for only 1 line
         self.measurement = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
         self.ui.clear_message()
         self.canvas.draw()
+
+    # remove an existing roi line, for use after interactive draw
+    def clear_line(self,roi):
+        for l in self.axs[roi['ax']].lines:
+            l.remove()
+        roi['plot'] = None
 
     # copy existing measurement to list of roi's.
     def record_measurement(self):
@@ -550,20 +557,24 @@ class Create4PanelSVFrame(CreateSliceViewerFrame):
         lx = np.array([r['p0'][0],r['p1'][0]])
         ly = np.array([r['p0'][1],r['p1'][1]])
         self.ui.set_currentslice(r['slice'])
+        assert(r['plot'] is None)
         r['plot'] = self.axs[r['ax']].plot(lx,ly,'b',clip_on=True)[0] 
         self.ui.set_message(msg='distance = {:.1f}'.format(r['l']))
+        self.canvas.draw()
 
     # display or remove measuremnt in the current slice
     def update_measurements(self):
-        slice = self.ui.currentslice
+        slice = np.copy(self.ui.currentslice)
         itoshow = 0
         for i,r in enumerate(self.ui.roi[self.ui.s][1:]):
             if r['slice'] == slice:
                 itoshow = i + 1 # record index for display
             elif r['plot'] is not None:
-                # currently hard-coded to 1 line per slice
-                self.axs[r['ax']].lines[0].remove()
-                r['plot'] = None
+                # unsolved bug in this function possibly due to slice scrolling too
+                # fast too keep up, is sometimes not removing a line properly
+                # possibly in the slider bar as opposed to mousewheel
+                # so assuming only 1 line per slice and remove all lines to be sure
+                self.clear_line(r)
                 self.ui.clear_message()
                 self.canvas.draw()
         if itoshow: # display last so distance value can be shown as message

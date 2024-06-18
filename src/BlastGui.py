@@ -331,6 +331,8 @@ class BlastGui(object):
             self.roiframe = frameobj
 
     def set_currentslice(self,val=None):
+        if val is not None:
+            self.sliceviewerframe.currentslice.set(val)
         self.currentslice = self.sliceviewerframe.currentslice.get()
 
     def get_currentslice(self):

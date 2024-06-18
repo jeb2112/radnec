@@ -139,9 +139,9 @@ class Create4PanelROIFrame(CreateFrame):
     def roinumber_callback(self,item=None):
 
         self.ui.set_currentroi()
-        # reference or copy
+        r = self.ui.roi[self.ui.s][self.ui.currentroi]
+        self.ui.set_currentslice(r['slice'])
         self.ui.updateslice()
-        self.ui.sliceviewerframe.show_measurement()
         return
     
     def update_roinumber_options(self,n=None):
@@ -226,7 +226,12 @@ class Create4PanelROIFrame(CreateFrame):
     def clearROI(self):
         n = len(self.ui.roi[self.ui.s])
         if n>1:    
-            self.ui.roi[self.ui.s].pop(self.ui.currentroi)
+            currentroi = np.copy(self.ui.currentroi)
+            r = self.ui.roi[self.ui.s][currentroi]
+            if r['plot'] is not None:
+                self.ui.sliceviewerframe.clear_line(r)
+            self.ui.roi[self.ui.s].pop(currentroi)
+
             n -= 1
             if self.ui.currentroi > 1 or n==1:
                 # new current roi is decremented as an arbitrary choice
@@ -235,6 +240,7 @@ class Create4PanelROIFrame(CreateFrame):
             self.update_roinumber_options()
             if n > 1:
                 self.roinumber_callback()
+                # self.ui.updateslice()
             if n==1:
                 self.resetROI()
                 self.ui.updateslice()

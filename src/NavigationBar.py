@@ -138,7 +138,7 @@ class NavigationBar(NavigationToolbar2Tk):
             self.canvas.get_tk_widget().config(cursor='arrow')
             self.ui.root.unbind('<B1-Motion>')
             self.ui.root.unbind('<Button-1>')
-            self.ui.sliceviewerframe.clear_measurement()
+            self.ui.sliceviewerframe.clear_measurement_line()
         self._update_buttons_checked()
 
     def crosshair(self,*args):
