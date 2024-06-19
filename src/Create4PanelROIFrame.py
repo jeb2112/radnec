@@ -195,7 +195,7 @@ class Create4PanelROIFrame(CreateFrame):
         tmpfile = os.path.join(outputpath,'tmp.png')
 
         output = {'images':{0:None,1:None},'dwell':None,'transcript':None,'measurement':{0:None,1:None}}
-        dwelltime = np.sum(self.ui.sliceviewerframe.dwelltime,axis=1)
+        dwelltime = np.sum(self.dwelltime,axis=1)
         dwellslice = np.argsort(dwelltime)[-1::-1]
         dwelltime = [d for d in dwelltime[dwellslice] if d>0]
         dwellslice = dwellslice[:len(dwelltime)]
@@ -271,7 +271,7 @@ class Create4PanelROIFrame(CreateFrame):
     # start the dwell time counter
     def dwell(self):
         if self.timing.get():
-            self.dwelltime = np.zeros((self.dim[0],len(self.ui.data)))
+            self.dwelltime = np.zeros((self.ui.sliceviewerframe.dim[0],len(self.ui.data)))
             self.tstart = time.time()
             self.ct = np.copy(self.tstart)
             self.timingtext.set('on')

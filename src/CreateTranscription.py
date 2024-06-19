@@ -58,6 +58,20 @@ class Transcription(object):
         self.tasks = None
         self.root = root # tkinter root in case its needed
         self.handler = None
+        self.device = None
+        devices = sounddevice.query_devices()
+        default = sounddevice.default.device[0] # 0,1 input,output
+        if default > 0:
+            self.device = default
+        else:
+            for i,d in enumerate(devices):
+                if 'mic' in d['name'].lower():
+                    if d['max_input_channels'] > 0:
+                        self.device = i
+                        break
+            if self.device is None:
+                raise IOError('mic not found')
+
 
     async def mic_stream(self):
         # This function wraps the raw input stream from the microphone forwarding
@@ -76,6 +90,7 @@ class Transcription(object):
             samplerate=16000,
             callback=callback,
             blocksize=1024 * 2,
+            device=self.device,
             dtype="int16",
         )
         # Initiate the audio stream and asynchronously yield the audio chunks
@@ -99,6 +114,8 @@ class Transcription(object):
         except asyncio.CancelledError as e:
             print('cancelled')
             raise
+        except Exception as e:
+            print(e)
 
     def ask_exit(self,signame='SIGINT'):
         print('got signal {}: exit'.format(signame))

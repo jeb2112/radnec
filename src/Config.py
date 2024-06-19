@@ -43,7 +43,7 @@ class Config(object):
         # Path to dataset images
         if os.name == 'nt':
             self.UIdatadir = os.path.join('C:\\','Users','Chris Heyn Lab','Data')
-            self.UIlocaldir = os.path.join('C:\\','Users','Chris Heyn Lab','Data','dicom2nifti')
+            self.UIlocaldir = os.path.join('C:\\','Users','Chris Heyn Lab','Data','dicom2nifti_4panel')
         elif os.name == 'posix':
             self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
             self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti_4panel'

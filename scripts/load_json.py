@@ -8,7 +8,10 @@ import imageio
 import numpy as np
 import pandas as pd
 
-outputpath = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti_4panel/M0001'
+if os.name == 'posix':
+    outputpath = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti_4panel/M0001'
+else:
+    outputpath = 'C:\\Users\\Chris Heyn Lab\\data\\dicom2nifti_4panel\\M0001'
 filename = os.path.join(outputpath,'M0001.json')
 tmpfile = os.path.join(outputpath,'tmpfile.png')
 
@@ -67,7 +70,8 @@ for s in range(2):
 ytext = -.5
 plt.sca(axs['transcript'])
 axs['transcript'].axis('off')
-transcript = ' '.join(d['transcript'])+'.'
-plt.text(0,ytext,transcript,wrap=True)
+if d['transcript'] is not None:
+    transcript = ' '.join(d['transcript'])+'.'
+    plt.text(0,ytext,transcript,wrap=True)
 plt.savefig(os.path.join(outputpath,'summary.png'))
 a=1
