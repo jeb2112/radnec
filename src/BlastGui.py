@@ -13,9 +13,11 @@ from importlib import metadata
 from src import Blastbratsv3
 from src.CreateOverlaySVFrame import CreateOverlaySVFrame
 from src.CreateBlastSVFrame import CreateBlastSVFrame
+from src.Create4PanelSVFrame import Create4PanelSVFrame
 from src.CreateCaseFrame import CreateCaseFrame
 from src.CreateROIFrame import CreateROIFrame
 from src.CreateOverlayFrame import CreateOverlayFrame
+from src.Create4PanelROIFrame import Create4PanelROIFrame
 from src.CreateFrame import Command
 from src.OverlayPlots import *
 
@@ -51,8 +53,8 @@ class BlastGui(object):
         self.chselection = 't1+' 
 
         # viewer functions. overlay mode, or BLAST segmentation mode
-        self.functionlist = {'overlay':0,'BLAST':1}
-        self.function = tk.StringVar(value='overlay')
+        self.functionlist = {'overlay':0,'BLAST':1,'4panel':2}
+        self.function = tk.StringVar(value=self.config.DefaultViewer)
 
         # data structure. data is a dict of studies. see DcmCase
         self.data = {} 
@@ -85,6 +87,14 @@ class BlastGui(object):
 
         # hard-coded entries for debugging
         if self.debug:
+            # load a 4panel case
+            if True:
+                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
+                self.caseframe.datadirentry_callback()
+                self.caseframe.casename.set('M0001')
+                self.caseframe.case_callback()
+
+
             # load a nifti case for BLAST and create a ROI
             if False:
                 self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
@@ -118,7 +128,7 @@ class BlastGui(object):
                 self.roiframe.overlay_callback()
 
             # load an overlay case
-            if True:
+            if False:
                 self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0002'))
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0002')
@@ -142,20 +152,23 @@ class BlastGui(object):
         # create case frame
         self.caseframe = CreateCaseFrame(self.mainframe,ui=self)
 
-        # slice viewer frame
-        self.sliceviewerframes = {}
-        self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
-        self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
-
-        # blast/overlay functions
-        self.roiframes = {}
-        self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
-        self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
+        # slice viewer frames, roi frames 
+        self.sliceviewerframes = {'BLAST':None,'4panel':None,'overlay':None}
+        self.roiframes = {'BLAST':None,'4panel':None,'overlay':None}
+        if self.function.get() == '4panel':
+            self.sliceviewerframes['4panel'] = Create4PanelSVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframes['4panel'] = Create4PanelROIFrame(self.mainframe,ui=self,padding='0')
+        elif self.function.get() == 'BLAST':
+            self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
+        elif self.function.get() == 'overlay':
+            self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
         
         # overlay/blast function mode
         self.functionmenu = ttk.OptionMenu(self.mainframe,self.function,self.functionlist['overlay'],
                                         *self.functionlist,command=Command(self.function_callback,update=True))
-        self.functionmenu.grid(row=0,column=4,sticky='e')
+        self.functionmenu.grid(row=0,column=1,sticky='e')
         self.function_callback()
 
         # initialize default directory. no longer needed?
@@ -169,10 +182,14 @@ class BlastGui(object):
                 self.mainframe.rowconfigure(row_num,weight=0)
         self.mainframe.columnconfigure(0,minsize=self.caseframe.frame.winfo_width(),weight=1)
         for sv in self.sliceviewerframes.values():
-            self.mainframe.bind('<Configure>',sv.resizer)
+            if sv is not None:
+                self.mainframe.bind('<Configure>',sv.resizer)
         self.mainframe.update()
 
-    # switching mode between BLAST segmentation and overlay
+        # resize root window according to frames
+        self.sliceviewerframe.resize()
+
+    # switching mode between BLAST segmentation, overlay, 4panel
     def function_callback(self,event=None,update=False):
         f = self.function.get()
         self.set_frame(self.sliceviewerframes[f],frame='normal_frame')
@@ -186,8 +203,8 @@ class BlastGui(object):
         self.chselection = 't1+'
         if update:
             self.sliceviewerframe.updateslice()
-        # if blast, activate study menu
-        if f == 'BLAST':
+        # if blast or 4panel, activate study menu
+        if f == 'BLAST' or f == '4panel':
             self.caseframe.s.configure(state='enable')
         else:
             self.caseframe.s.configure(state='disabled')
@@ -314,6 +331,8 @@ class BlastGui(object):
             self.roiframe = frameobj
 
     def set_currentslice(self,val=None):
+        if val is not None:
+            self.sliceviewerframe.currentslice.set(val)
         self.currentslice = self.sliceviewerframe.currentslice.get()
 
     def get_currentslice(self):
@@ -333,6 +352,8 @@ class BlastGui(object):
 
     def set_currentroi(self,val=None):
         self.currentroi = self.roiframe.currentroi.get()
+        # if self.currentroi > 0:
+        #     self.roiframe.roinumber.configure(state='active')
 
     def get_currentroi(self):
         return self.currentroi
@@ -374,6 +395,9 @@ class BlastGui(object):
 
     def set_studynumber(self,val=None):
         self.s = self.caseframe.s.current()
+
+    def get_studynumber(self):
+        return self.s
 
     def resetUI(self):
         self.normalslice = None

@@ -78,6 +78,11 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
         self.frame.configure(style='sliceviewerframe.TFrame')
+
+        # t1/t2 base layer selection
+        self.normal_frame = ttk.Frame(self.parentframe,padding='0')
+        self.normal_frame.grid(row=3,column=0,sticky='NW')
+
         self.create_blank_canvas()
 
         # dummy frame to hold canvas and slider bars
@@ -86,26 +91,6 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.canvasframe.configure(style='canvasframe.TFrame')
         self.canvasframe.grid(row=1,column=0,columnspan=3,sticky='NW')
 
-        # t1/t2 base layer selection
-        self.normal_frame = ttk.Frame(self.parentframe,padding='0')
-        self.normal_frame.grid(row=3,column=0,sticky='NW')
-
-        chdisplay_label = ttk.Label(self.normal_frame, text='channel: ')
-        chdisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
-        self.chdisplay_button = {}
-        self.chdisplay_button['t1'] = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.chdisplay,value='t1',
-                                                    command=self.updateslice,state='disabled')
-        self.chdisplay_button['t1'].grid(column=1,row=0,sticky='w')
-        self.chdisplay_button['t1+'] = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.chdisplay,value='t1+',
-                                                    command=self.updateslice)
-        self.chdisplay_button['t1+'].grid(column=2,row=0,sticky='w')
-        self.chdisplay_button['t2'] = ttk.Radiobutton(self.normal_frame,text='T2',variable=self.chdisplay,value='t2',
-                                                    command=self.updateslice,state='disabled')
-        self.chdisplay_button['t2'].grid(column=3,row=0,sticky='w')
-        self.chdisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.chdisplay,value='flair',
-                                                    command=self.updateslice)
-        self.chdisplay_button['flair'].grid(column=4,row=0,sticky='w')
-        # self.chdisplay_keys = ['t1','t1+','flair','flair']
 
         # BLAST/UNet segmentation selection
         maskdisplay_label = ttk.Label(self.normal_frame, text='segmentation: ')
@@ -217,7 +202,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         newcanvas.get_tk_widget().configure(width=figsize[0]*self.ui.dpi,height=figsize[1]*self.ui.dpi)
         newcanvas.get_tk_widget().grid(row=0, column=0, sticky='')
 
-        self.tbar = NavigationBar(newcanvas,self.parentframe,pack_toolbar=False,ui=self.ui,axs=self.axs)
+        self.tbar = NavigationBar(newcanvas,self.normal_frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
         self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
 
         if self.canvas is not None:

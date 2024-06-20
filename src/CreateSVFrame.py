@@ -48,12 +48,9 @@ class CreateSliceViewerFrame(CreateFrame):
         self.currentsagslice = tk.IntVar(value=120)
         self.currentcorslice = tk.IntVar(value=120)
         self.labels = {'Im_A':None,'Im_B':None,'Im_C':None,'W_A':None,'L_A':None,'W_B':None,'L_B':None}
-        self.axslicelabel = None
-        self.corslicelabel = None
-        self.sagslicelabel = None
-        self.windowlabel = None
-        self.levellabel = None
-        self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
+        self.lines = {k:{'h':None,'v':None} for k in ['A','B','C','D']}
+        # self.measurement = {'ax':None,'x0':None,'y0':None,'plot':None,'l':None}
+        self.measurement = []
         self.chdisplay = tk.StringVar(value='t1+')
         # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
@@ -80,6 +77,11 @@ class CreateSliceViewerFrame(CreateFrame):
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
         self.frame.configure(style='sliceviewerframe.TFrame')
+
+        # misc frame for various functions
+        self.normal_frame = ttk.Frame(self.parentframe,padding='0')
+        self.normal_frame.grid(row=3,column=0,sticky='NW')
+
         self.create_blank_canvas()
 
         # dummy frame to hold canvas and slider bars
@@ -93,8 +95,6 @@ class CreateSliceViewerFrame(CreateFrame):
         self.dummy_frame.grid(row=3,column=0,sticky='news')
 
         # t1/t2 base layer selection
-        self.normal_frame = ttk.Frame(self.parentframe,padding='0')
-        self.normal_frame.grid(row=3,column=0,sticky='NW')
         chdisplay_label = ttk.Label(self.normal_frame, text='base image: ')
         chdisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
         self.chdisplay_button = {}
@@ -104,12 +104,15 @@ class CreateSliceViewerFrame(CreateFrame):
         self.chdisplay_button['t1+'] = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.chdisplay,value='t1+',
                                                     command=self.updateslice)
         self.chdisplay_button['t1+'].grid(column=2,row=0,sticky='w')
-        self.chdisplay_button['t2'] = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.chdisplay,value='t2',
+        self.chdisplay_button['t2'] = ttk.Radiobutton(self.normal_frame,text='T2',variable=self.chdisplay,value='t2',
                                                     command=self.updateslice)
         self.chdisplay_button['t2'].grid(column=3,row=0,sticky='w')
-        self.chdisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR+',variable=self.chdisplay,value='flair',
+        self.chdisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.chdisplay,value='flair',
                                                     command=self.updateslice)
         self.chdisplay_button['flair'].grid(column=4,row=0,sticky='w')
+        self.chdisplay_button['dwi'] = ttk.Radiobutton(self.normal_frame,text='DWI',variable=self.chdisplay,value='dwi',
+                                                    command=self.updateslice)
+        self.chdisplay_button['dwi'].grid(column=5,row=0,sticky='w')
         # self.chdisplay_keys = ['t1','t1+','flair','flair']
 
         # overlay type contour mask
@@ -171,9 +174,9 @@ class CreateSliceViewerFrame(CreateFrame):
             # fig.patch.set_facecolor('white')
             self.blankcanvas = FigureCanvasTkAgg(fig, master=self.frame)  
             self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
-            tbar = NavigationToolbar2Tk(self.blankcanvas,self.parentframe,pack_toolbar=False)
-            tbar.children['!button4'].pack_forget() # get rid of configure plot
-            tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
+            self.tbar = NavigationToolbar2Tk(self.blankcanvas,self.normal_frame,pack_toolbar=False)
+            self.tbar.children['!button4'].pack_forget() # get rid of configure plot
+            self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
         self.frame.configure(width=w,height=h)
      
     # TODO: latency problem for fusions. 
@@ -339,7 +342,13 @@ class CreateSliceViewerFrame(CreateFrame):
         self.update_labels()
         return
 
+
+    # from global screen pixel event coords, calculate the data coords within the clicked panel
+    def calc_panel_xy(self,ex,ey):
+        raise NotImplementedError
+
     # mouse drag event for 3d crosshair overlay
+    # only tested in blast viewer
     def b1motion_crosshair(self,event):
         self.canvas.get_tk_widget().config(cursor='tcross')
         # no adjustment from outside the pane
@@ -405,6 +414,7 @@ class CreateSliceViewerFrame(CreateFrame):
             for hv in ['h','v']:
                 Artist.remove(self.lines[ax][hv])
         self.canvas.draw()
+
 
     # mouse drag event for window/level adjustment
     def b1motion(self,event):
@@ -503,6 +513,6 @@ class CreateSliceViewerFrame(CreateFrame):
             inv = imageax.transData.inverted()
             # convert back to data coords with respect to ax
             img_coord = inv.transform(display_coord)
-            return ('x={:.1f}, y={:.1f}'.format(img_coord[0],img_coord[1]))
+            return ('x={:5.1f}, y={:5.1f}'.format(img_coord[0],img_coord[1]))
         return format_coord
 

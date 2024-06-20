@@ -51,9 +51,9 @@ class CreateCaseFrame(CreateFrame):
         self.pp = None
 
         # case selection
-        self.frame.grid(row=0,column=0,columnspan=3,sticky='ew')
+        self.frame.grid(row=0,column=0,columnspan=1,sticky='w')
         # select case pulldown menu
-        caselabel = ttk.Label(self.frame, text='Case: ')
+        caselabel = ttk.Label(self.frame, text=' Case: ')
         caselabel.grid(row=0,column=0,sticky='we')
         # self.casename.trace_add('write',self.case_callback)
         self.w = ttk.Combobox(self.frame,width=8,textvariable=self.casename,values=self.caselist['casetags'])
@@ -73,13 +73,14 @@ class CreateCaseFrame(CreateFrame):
         self.datadirentry = ttk.Entry(self.frame,width=40,textvariable=self.datadir)
         # event currently a dummy arg since not being used in datadirentry_callback
         self.datadirentry.bind('<Return>',lambda event=None:self.datadirentry_callback(event=event))
-        self.datadirentry.grid(row=0,column=4,columnspan=5)
+        self.datadirentry.grid(row=0,column=4,columnspan=1)
 
         # optional study list for blast mode
         studylabel = ttk.Label(self.frame,text='Study: ')
-        studylabel.grid(row=0,column=9,sticky='we')
+        studylabel.grid(row=1,column=0,sticky='we')
         self.s = ttk.Combobox(self.frame,width=8,textvariable=self.studynumber,values=self.studylist['studytags'],state='disabled')
-        self.s.grid(row=0,column=10)
+        # self.s.grid(row=0,column=10)
+        self.s.grid(row=1,column=1,sticky='w')
         self.s.bind("<<ComboboxSelected>>",self.study_callback)
         self.studynumber.trace_add('write',lambda *args: self.ui.set_studynumber())
 
@@ -131,14 +132,16 @@ class CreateCaseFrame(CreateFrame):
         self.ui.dataselection = 'raw'
         self.ui.sliceviewerframe.tbar.home()
         self.ui.updateslice()
+        # self.ui.sliceviewerframe.dwell()
 
     def study_callback(self,event=None):
         self.ui.chselection = 't1+'
         self.ui.dataselection = 'raw'
         self.ui.sliceviewerframe.tbar.home()
-        self.ui.roiframe.currentroi.set(len(self.ui.roi[self.ui.s])-1)
-        self.ui.roiframe.enhancingROI_overlay_value.set(False)
-        self.ui.roiframe.finalROI_overlay_value.set(False)
+        if self.ui.function.get() == 'BLAST':
+            self.ui.roiframe.currentroi.set(len(self.ui.roi[self.ui.s])-1)
+            self.ui.roiframe.enhancingROI_overlay_value.set(False)
+            self.ui.roiframe.finalROI_overlay_value.set(False)
         self.ui.updateslice()
 
         return
@@ -189,15 +192,25 @@ class CreateCaseFrame(CreateFrame):
 
         # update sliceviewers according to data loaded
         s = self.ui.s
+        for sv in [self.ui.sliceviewerframes[skey] for skey in ['BLAST','overlay']]:
+            if sv is not None:
+                for dt in self.ui.data[s].channels.values():
+                    if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
+                        sv.chdisplay_button[dt]['state'] = 'normal'
         for sv in self.ui.sliceviewerframes.values():
-            for dt in self.ui.data[s].channels.values():
-                if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
-                    sv.chdisplay_button[dt]['state'] = 'normal'
-            sv.dim = np.shape(self.ui.data[s].dset['raw']['t1+']['d'])
-            # auto window/level is hard-coded here
-            sv.level = np.array([self.ui.data[s].dset['raw']['t1+']['max']/4]*2)
-            sv.window = np.array([self.ui.data[s].dset['raw']['t1+']['max']/2]*2)
-            sv.create_canvas()
+            if sv is not None:
+                sv.dim = np.shape(self.ui.data[s].dset['raw']['t1+']['d'])
+                # auto window/level is hard-coded to t1+ here
+                sv.level = []
+                sv.window = []
+                for dt in self.ui.data[s].channels.values():
+                    if self.ui.data[s].dset['raw'][dt]['ex']:
+                        sv.level.append(self.ui.data[s].dset['raw'][dt]['l'])
+                        sv.window.append(self.ui.data[s].dset['raw'][dt]['w'])
+                sv.level = np.array(sv.level)
+                sv.window = np.array(sv.window)
+                sv.create_canvas()
+                sv.resize()
 
         # update roiframes according to data loaded
         if False: # cbv will have to display just one overlay if necessary
