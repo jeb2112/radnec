@@ -90,33 +90,35 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.canvasframe.configure(style='canvasframe.TFrame')
         self.canvasframe.grid(row=1,column=0,columnspan=3,sticky='NW')
 
-        normalSlice = ttk.Button(self.normal_frame,text='normal',command=self.normalslice_callback)
-        normalSlice.grid(column=0,row=0,sticky='w')
-        slicevolume_slice_button = ttk.Radiobutton(self.normal_frame,text='slice',variable=self.slicevolume_norm,value=0)
-        slicevolume_slice_button.grid(row=0,column=1,sticky='w')
-        slicevolume_volume_button = ttk.Radiobutton(self.normal_frame,text='vol.',variable=self.slicevolume_norm,value=1)
-        slicevolume_volume_button.grid(row=0,column=2,sticky='w')
+        normalSlice = ttk.Button(self.normal_frame,text='normal stats',command=self.normalslice_callback)
+        normalSlice.grid(column=0,row=1,sticky='w')
+        if False:
+            slicevolume_slice_button = ttk.Radiobutton(self.normal_frame,text='slice',variable=self.slicevolume_norm,value=0)
+            slicevolume_slice_button.grid(row=0,column=1,sticky='w')
+            slicevolume_volume_button = ttk.Radiobutton(self.normal_frame,text='vol.',variable=self.slicevolume_norm,value=1)
+            slicevolume_volume_button.grid(row=0,column=2,sticky='w')
 
         # t1/t2 selection for sag/cor panes
         sagcordisplay_label = ttk.Label(self.normal_frame, text='Sag/Cor: ')
-        sagcordisplay_label.grid(row=0,column=4,padx=(50,0),sticky='e')
+        sagcordisplay_label.grid(row=1,column=1,padx=(50,0),sticky='e')
         self.sagcordisplay_button = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.sagcordisplay,value=0,
                                                     command=self.updateslice)
-        self.sagcordisplay_button.grid(column=5,row=0,sticky='w')
+        self.sagcordisplay_button.grid(row=1,column=2,sticky='w')
         self.sagcordisplay_button = ttk.Radiobutton(self.normal_frame,text='T2',variable=self.sagcordisplay,value=1,
                                                     command=self.updateslice)
-        self.sagcordisplay_button.grid(column=6,row=0,sticky='w')
+        self.sagcordisplay_button.grid(row=1,column=3,sticky='w')
 
         # overlay type contour mask
         # contour not recently updated and not currently running
-        overlay_type_label = ttk.Label(self.normal_frame, text='overlay type: ')
-        overlay_type_label.grid(row=1,column=4,padx=(50,0),sticky='e')
-        self.overlay_type_button = ttk.Radiobutton(self.normal_frame,text='C',variable=self.overlay_type,value=0,
-                                                    command=Command(self.updateslice,wl=True))
-        self.overlay_type_button.grid(row=1,column=5,sticky='w')
-        self.overlay_type_button = ttk.Radiobutton(self.normal_frame,text='M',variable=self.overlay_type,value=1,
-                                                    command=Command(self.updateslice,wl=True))
-        self.overlay_type_button.grid(row=1,column=6,sticky='w')
+        if False:
+            overlay_type_label = ttk.Label(self.normal_frame, text='overlay type: ')
+            overlay_type_label.grid(row=1,column=4,padx=(50,0),sticky='e')
+            self.overlay_type_button = ttk.Radiobutton(self.normal_frame,text='C',variable=self.overlay_type,value=0,
+                                                        command=Command(self.updateslice,wl=True))
+            self.overlay_type_button.grid(row=1,column=5,sticky='w')
+            self.overlay_type_button = ttk.Radiobutton(self.normal_frame,text='M',variable=self.overlay_type,value=1,
+                                                        command=Command(self.updateslice,wl=True))
+            self.overlay_type_button.grid(row=1,column=6,sticky='w')
 
         # messages text frame
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -137,11 +139,16 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         # quick hack to improve the latency skip every other Configure event
         if self.resizer_count > 0:
             return
-        # print(event)
         slicefovratio = self.dim[0]/self.dim[1]
-        # self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.normal_frame_minsize)/self.ui.dpi
-        self.hi = (event.height-self.ui.caseframe.frame.winfo_height()-self.ui.roiframe.frame.winfo_height())/self.ui.dpi
+        min_height = max(self.ui.caseframe.frame.winfo_height(),self.ui.functionmenu.winfo_height()) + \
+            max(self.normal_frame.winfo_height(),self.ui.roiframe.frame.winfo_height()) + \
+            2*int(self.ui.mainframe_padding)
+        min_width = max(self.ui.roiframe.frame.winfo_width() + self.normal_frame.winfo_width(), \
+                        self.ui.caseframe.frame.winfo_width()+self.ui.functionmenu.winfo_width())
+        
+        self.hi = (event.height-min_height)/self.ui.dpi
         self.wi = self.hi*2 + self.hi / (2*slicefovratio)
+        self.wi = max(self.wi,min_width)
         if self.wi > event.width/self.ui.dpi:
             self.wi = (event.width-2*int(self.ui.mainframe_padding))/self.ui.dpi
             self.hi = self.wi/(2+1/(2*slicefovratio))
@@ -151,6 +158,27 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         self.cw.configure(width=int(self.wi*self.fig.dpi),height=int(self.hi*self.fig.dpi))
         self.fig.set_size_inches((self.wi,self.hi),forward=True)
         return
+
+    # resize root window to match current sliceviewer
+    def resize(self):
+        if self.canvas:
+            w = self.canvas.get_tk_widget().winfo_width()
+            h = self.canvas.get_tk_widget().winfo_height()
+        else:
+            w = self.blankcanvas.get_tk_widget().winfo_width()
+            h = self.blankcanvas.get_tk_widget().winfo_height()
+
+        min_height = max(self.ui.caseframe.frame.winfo_height(),self.ui.functionmenu.winfo_height()) + \
+            max(self.normal_frame.winfo_height(),self.ui.roiframe.frame.winfo_height()) + \
+            2*int(self.ui.mainframe_padding)
+        min_width = max(self.ui.roiframe.frame.winfo_width() + self.normal_frame.winfo_width(), \
+                        self.ui.caseframe.frame.winfo_width()+self.ui.functionmenu.winfo_width())
+        w = max(w,min_width)
+        h += min_height
+        print('resize {},{}'.format(w,h))
+        self.ui.root.geometry(f'{w}x{h}')
+        return
+
 
     # place holder until a dataset is loaded
     # could create a dummy figure with toolbar, but the background colour during resizing was inconsistent at times
@@ -169,7 +197,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
             self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
             self.tbar = NavigationToolbar2Tk(self.blankcanvas,self.normal_frame,pack_toolbar=False)
             self.tbar.children['!button4'].pack_forget() # get rid of configure plot
-            self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
+            self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
         self.frame.configure(width=w,height=h)
      
     # main canvas created when data are loaded
@@ -246,7 +274,7 @@ class CreateBlastSVFrame(CreateSliceViewerFrame):
         newcanvas.get_tk_widget().grid(row=0, column=0, sticky='')
 
         self.tbar = NavigationBar(newcanvas,self.normal_frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
-        self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
+        self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
 
         if self.canvas is not None:
             self.cw.delete('all')

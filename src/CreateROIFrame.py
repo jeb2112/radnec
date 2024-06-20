@@ -37,6 +37,7 @@ class CreateROIFrame(CreateFrame):
         self.buttonpress_id = None # temp var for keeping track of button press event
         self.finalROI_overlay_value = tk.BooleanVar(value=False)
         self.enhancingROI_overlay_value = tk.BooleanVar(value=False)
+        self.SAM_overlay_value = tk.BooleanVar(value=False)
         roidict = {'ET':{'t12':None,'flair':None,'bc':None},'T2 hyper':{'t12':None,'flair':None,'bc':None}}
         self.thresholds = copy.deepcopy(roidict)
         self.sliders = copy.deepcopy(roidict)
@@ -48,9 +49,10 @@ class CreateROIFrame(CreateFrame):
         self.thresholds['ET']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[0])
         self.thresholds['T2 hyper']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[1])
         self.overlay_type = tk.IntVar(value=0)
-        self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all']}
+        self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all'],'sam':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layerROI = tk.StringVar(value='ET')
+        self.layerSAM = tk.StringVar(value='ET')
         self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=0)
         self.roilist = []
@@ -92,29 +94,42 @@ class CreateROIFrame(CreateFrame):
         self.layerROI.trace_add('write',lambda *args: self.layerROI.get())
         self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['blast'][0],
                                            *self.layerlist['seg'],command=self.layerROI_callback)
-        self.layerROImenu.config(width=8)
+        self.layerROImenu.config(width=4)
         self.layerROImenu.grid(row=0,column=3,sticky='w')
+
+        # ROI button for SAM segmentation
+        SAM_overlay = ttk.Checkbutton(self.frame,text='',
+                                           variable=self.SAM_overlay_value,
+                                           command=self.SAM_overlay_callback)
+        SAM_overlay.grid(row=1,column=5,sticky='w')
+        layerlabel = ttk.Label(self.frame,text='SAM layer:')
+        layerlabel.grid(row=0,column=4,sticky='w')
+        self.layerSAM.trace_add('write',lambda *args: self.layerSAM.get())
+        self.layerSAMmenu = ttk.OptionMenu(self.frame,self.layerSAM,self.layerlist['blast'][0],
+                                           *self.layerlist['seg'],command=self.layerSAM_callback)
+        self.layerSAMmenu.config(width=4)
+        self.layerSAMmenu.grid(row=0,column=5,sticky='w')
 
         # for multiple roi's, n'th roi number choice
         roinumberlabel = ttk.Label(self.frame,text='ROI number:')
-        roinumberlabel.grid(row=0,column=4,sticky='w')
+        roinumberlabel.grid(row=0,column=6,sticky='w')
         self.currentroi.trace_add('write',self.set_currentroi)
         self.roinumbermenu = ttk.OptionMenu(self.frame,self.currentroi,*self.roilist,command=self.roinumber_callback)
         self.roinumbermenu.config(width=2)
-        self.roinumbermenu.grid(row=0,column=5,sticky='w')
+        self.roinumbermenu.grid(row=0,column=7,sticky='w')
         self.roinumbermenu.configure(state='disabled')
 
         # select ROI button
         selectROI = ttk.Button(self.frame,text='select ROI',command = self.selectROI)
-        selectROI.grid(row=1,column=4,sticky='w')
+        selectROI.grid(row=1,column=6,sticky='w')
 
         # save ROI button
         saveROI = ttk.Button(self.frame,text='save ROI',command = self.saveROI)
-        saveROI.grid(row=1,column=6,sticky='w')
+        saveROI.grid(row=1,column=8,sticky='w')
 
         # clear ROI button
         clearROI = ttk.Button(self.frame,text='clear ROI',command = self.clearROI)
-        clearROI.grid(row=1,column=5,sticky='w')
+        clearROI.grid(row=1,column=7,sticky='w')
         self.frame.update()
 
         ########################
@@ -124,9 +139,9 @@ class CreateROIFrame(CreateFrame):
         # frames for sliders
         self.sliderframe = {}
         self.sliderframe['ET'] = ttk.Frame(self.frame,padding='0')
-        self.sliderframe['ET'].grid(column=0,row=3,columnspan=7,sticky='e')
+        self.sliderframe['ET'].grid(row=3,column=2,columnspan=7,sticky='e')
         self.sliderframe['T2 hyper'] = ttk.Frame(self.frame,padding='0')
-        self.sliderframe['T2 hyper'].grid(column=0,row=3,columnspan=7,sticky='e')
+        self.sliderframe['T2 hyper'].grid(row=3,column=2,columnspan=7,sticky='e')
 
         # ET sliders
         # t1 slider
@@ -287,6 +302,9 @@ class CreateROIFrame(CreateFrame):
         if updateslice:
             self.ui.updateslice()
 
+        return
+    
+    def layerSAM_callback(self):
         return
 
     # update ROI layers that can be displayed according to availability
@@ -516,6 +534,9 @@ class CreateROIFrame(CreateFrame):
             self.ui.dataselection = 'seg_raw_fusion'
             self.ui.updateslice(wl=True)
 
+    def SAM_overlay_callback(self):
+        return
+
     # creates a ROI selection button press event
     def selectROI(self,event=None):
         if self.enhancingROI_overlay_value.get(): # only activate cursor in BLAST mode
@@ -580,6 +601,12 @@ class CreateROIFrame(CreateFrame):
                                             layer=self.ui.roiframe.layer.get(),
                                             overlay_intensity=self.config.OverlayIntensity)
             self.ui.roi[self.ui.s][roi].data['seg_fusion'][ch] = fusionstack
+            if False:
+                fusionstack = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
+                                                self.ui.roi[self.ui.s][roi].data['sam'],
+                                                layer=self.ui.roiframe.layer.get(),
+                                                overlay_intensity=self.config.OverlayIntensity)
+                self.ui.roi[self.ui.s][roi].data['sam_fusion'][ch] = fusionstack
         # self.ui.roi[self.ui.s][roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data['seg_fusion'])
         # need to update ui data here?? or just let it run from layerROI_callback below
         if False:
@@ -611,6 +638,12 @@ class CreateROIFrame(CreateFrame):
                 self.layer_callback(layer='T2 hyper')
             else:
                 self.layer_callback(layer='ET')
+
+        # output final ROI to files for follow-on SAM processing
+        self.saveROI(self.ui.roi[self.ui.s][roi].data['seg'])
+
+        # run a SAM on the finalized ROI
+        self.segment_sam()
 
         return None
     
@@ -776,37 +809,55 @@ class CreateROIFrame(CreateFrame):
 
         return None
 
-    # for exporting BLAST segmentations. not recently updated.
-    def saveROI(self,roi=None):
-        self.ui.endtime()
-        # Save ROI data
-        outputpath = self.ui.caseframe.casedir
-        fileroot = os.path.join(outputpath,self.ui.caseframe.casefile_prefix + self.ui.caseframe.casename.get())
-        filename = fileroot+'_stats.pkl'
-        # t1mprage template? need to save separately?
+    # for exporting BLAST segmentations.
+    def saveROI(self,roi=None,outputpath=None,sam=True):
+        if outputpath is None:
+            outputpath = self.ui.caseframe.casedir
+        if roi is None:
+            roilist = self.roilist
+        else:
+            if type(roi) == list:
+                roilist = roi
+            else:
+                roilist = [roi]
 
-        # BLAST outputs. combined ROI or separate? doing separate for now
+        fileroot = os.path.join(outputpath,self.ui.caseframe.casefile_prefix + self.ui.caseframe.casename.get())
+
+        # BLAST image file outputs.
         roisuffix = ''
         for img in ['seg','ET','TC','WT']:
-            for roi in self.roilist:
-                if len(self.roilist) > 1:
+            for roi in roilist:
+                if len(roilist) > 1:
                     roisuffix = '_roi'+roi
                 outputfilename = fileroot + '_blast_' + img + roisuffix + '.nii'
                 if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
-                    self.WriteImage(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
+                    # self.WriteImage(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
+                    self.ui.s.writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
 
-        sdict = {}
-        bdict = {}
-        for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
-            sdict['roi'+str(i)] = r.stats
-            bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT','blast','raw'))
+        # additional output for sam segmentation
+        if sam:
+            roisuffix = ''
+            for img in ['seg','ET','TC','WT']:
+                for roi in roilist:
+                    if len(roilist) > 1:
+                        roisuffix = '_roi'+roi
+                    outputfilename = fileroot + '_blast_' + img + roisuffix + '.nii'
+                    if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
+                        # self.WriteImage(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
+                        self.ui.s.writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
 
-        with open(filename,'ab') as fp:
-            pickle.dump((sdict,bdict),fp)
-        # matlab compatible output
-        filename = filename[:-3] + 'mat'
-        with open(filename,'ab') as fp:
-            savemat(filename,sdict,bdict)
+
+        # also output to pickle
+        if False:
+            sdict = {}
+            bdict = {}
+            for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
+                sdict['roi'+str(i)] = r.stats
+                bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT','blast','raw'))
+
+            filename = fileroot+'_stats.pkl'
+            with open(filename,'ab') as fp:
+                pickle.dump((sdict,bdict),fp)
 
     # for now output only segmentations so uint8
     def WriteImage(self,img_arr,filename,header=None,norm=False,type='uint8',affine=None):
@@ -949,3 +1000,68 @@ class CreateROIFrame(CreateFrame):
                 # Calculate volumes
                 self.ui.roi[s][roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
 
+    # tumour segmenation by SAM
+    def segment_sam(self,dpath=None):
+        print('SAM segment tumour')
+        if dpath is None:
+            dpath = os.path.join(self.localstudydir,'sam')
+            if not os.path.exists(dpath):
+                os.mkdir(dpath)
+        for dt,suffix in zip(['t1+','flair'],['0000','0003']):
+            if os.name == 'posix':
+                l1str = 'ln -s ' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + ' '
+                l1str += os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')
+            elif os.name == 'nt':
+                l1str = 'copy  \"' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + '\" \"'
+                l1str += os.path.join(dpath,os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')) + '\"'
+            os.system(l1str)
+
+
+        if os.name == 'posix':
+            command = 'conda run -n ptorch scripts/amg.py  --checkpoint /media/jbishop/WD4/brainmets/sam --model-type \"vit_h\" '
+            command += ' --input ' + os.path.join(dpath,'img_sam.nii.gz')
+            command += ' --output ' + dpath
+            res = os.system(command)
+        elif os.name == 'nt':
+            # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
+            # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
+            # it is currently hard-coded to anaconda3/envs location rather than .conda/envs, but anaconda3 could be installed
+            # under either ProgramFiles or Users so check both
+            if os.path.isfile(os.path.expanduser('~')+'\\anaconda3\Scripts\\activate.bat'):
+                activatebatch = os.path.expanduser('~')+"\\anaconda3\Scripts\\activate.bat"
+            elif os.path.isfile("C:\Program Files\\anaconda3\Scripts\\activate.bat"):
+                activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
+            else:
+                raise FileNotFoundError('anaconda3/Scripts/activate.bat')
+            if os.path.isdir(os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'):
+                envpath = os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'
+            elif os.path.isdir(os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'):
+                envpath = os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'
+            else:
+                raise FileNotFoundError('pytorch118_310')
+
+            command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
+            command2 = 'nnUNetv2_predict -i \"' + dpath + '\" -o \"' + dpath + '\" -d137 -c 3d_fullres'
+            cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
+            popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
+            for stdout_line in iter(popen.stdout.readline,""):
+                if stdout_line != '\n':
+                    print(stdout_line)
+            popen.stdout.close()
+            res = popen.wait()
+            if res:
+                raise subprocess.CalledProcessError(res,cstr)
+                print(res)
+                
+        sfile = self.studytimeattrs['StudyDate'] + '.nii.gz'
+        segmentation,affine = self.loadnifti(sfile,dpath)
+        ET = np.zeros_like(segmentation)
+        ET[segmentation == 3] = 1
+        WT = np.zeros_like(segmentation)
+        WT[segmentation > 0] = 1
+        self.writenifti(ET,os.path.join(self.localstudydir,'ET_processed.nii'),affine=affine)
+        self.writenifti(WT,os.path.join(self.localstudydir,'WT_processed.nii'),affine=affine)
+        if False:
+            os.remove(os.path.join(dpath,sfile))
+
+        return 

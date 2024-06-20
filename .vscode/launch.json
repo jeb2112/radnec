@@ -46,6 +46,21 @@
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "amg batched",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/amg_batched.py",
+            "args": [
+                "--input","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001",
+                "--output","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001",
+                "--checkpoint","/media/jbishop/WD4/brainmets/sam",
+                "--model-type","vit_h"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
 
         

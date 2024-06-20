@@ -104,12 +104,13 @@ class NavigationBar(NavigationToolbar2Tk):
         ToolTip.createToolTip(button, 'Display 3d crosshair cursor')
 
         # add the measurement button
-        path = os.path.join(self.ui.config.UIResourcesPath,'measurement_icon.png')
-        self._buttons['measure'] = button = self._Button('measure',path,toggle=True,command=getattr(self,'measure'))
-        # position it alongside the Pan button
-        self._buttons['measure'].pack_forget
-        self._buttons['measure'].pack(after=self._buttons['WL'])
-        ToolTip.createToolTip(button, 'Display measurement cursor')
+        if self.ui.function.get() == '4panel':
+            path = os.path.join(self.ui.config.UIResourcesPath,'measurement_icon.png')
+            self._buttons['measure'] = button = self._Button('measure',path,toggle=True,command=getattr(self,'measure'))
+            # position it alongside the Pan button
+            self._buttons['measure'].pack_forget
+            self._buttons['measure'].pack(after=self._buttons['WL'])
+            ToolTip.createToolTip(button, 'Display measurement cursor')
 
         self.update()
 

@@ -387,7 +387,7 @@ class Study():
             self.dset['adc'][v] = self.dset['adc'] 
         # raw blast segmentation
         self.dset['seg_raw'] = {v:cp(self.dprop) for v in self.channels.values()}
-        # z-scores of the 'raw' data
+        # SAM segmentation
         self.dset['z'] = {v:cp(self.dprop) for v in self.channels.values()}
         # tempo regression differences of the 'raw' data at two time points
         self.dset['tempo'] = {v:cp(self.dprop) for v in self.channels.values()}
@@ -403,6 +403,8 @@ class Study():
         self.dset['seg_raw_fusion_d'] = {v:cp(self.dprop_layer) for v in self.channels.values()}
         # color overlay of the final smoothed ROI created from raw blast segmentation
         self.dset['seg_fusion'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of the SAM of the final smoothed ROI 
+        self.dset['sam_fusion'] = {v:cp(self.dprop) for v in self.channels.values()}
         # copy for colormap scaling
         self.dset['seg_fusion_d'] = {v:cp(self.dprop) for v in self.channels.values()}
 

@@ -96,14 +96,15 @@ class BlastGui(object):
 
 
             # load a nifti case for BLAST and create a ROI
-            if False:
+            if True:
                 self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set('M0001')
                 self.caseframe.case_callback()
-                self.roiframe.overlay_value.set(True)
-                self.roiframe.overlay_type.set('z')
-                self.roiframe.overlay_callback()
+                if self.function.get() == 'overlay':
+                    self.roiframe.overlay_value.set(True)
+                    self.roiframe.overlay_type.set('z')
+                    self.roiframe.overlay_callback()
                 self.function.set('BLAST')
                 self.function_callback(update=True)
                 self.sliceviewerframe.normalslice_callback()
