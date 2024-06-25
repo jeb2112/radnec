@@ -5,6 +5,7 @@ import pickle
 import copy
 import logging
 import time
+import shutil
 import tkinter as tk
 from tkinter import ttk
 import matplotlib
@@ -356,76 +357,76 @@ class CreateROIFrame(CreateFrame):
 
     # callbacks for the BLAST threshold slider bars
 
-    def updatet1threshold(self,event=None,currentslice=True):
-        self.enhancingROI_overlay_value.set(True)
-        # for now, this event reverts to BLAST preview mode and will not directly reprocess the final segmentation
-        if self.finalROI_overlay_value.get() == True:
-            self.finalROI_overlay_value.set(False)
-            self.enhancingROI_overlay_callback()
+    # def updatet1threshold(self,event=None,currentslice=True):
+    #     self.enhancingROI_overlay_value.set(True)
+    #     # for now, this event reverts to BLAST preview mode and will not directly reprocess the final segmentation
+    #     if self.finalROI_overlay_value.get() == True:
+    #         self.finalROI_overlay_value.set(False)
+    #         self.enhancingROI_overlay_callback()
 
-        # force recalc of gates
-        layer = self.layer.get()
-        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
-        self.ui.runblast(currentslice=currentslice)
-        self.t1sliderlabel['text'] = '{:.1f}'.format(self.t1threshold.get())
+    #     # force recalc of gates
+    #     layer = self.layer.get()
+    #     self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
+    #     self.ui.runblast(currentslice=currentslice)
+    #     self.t1sliderlabel['text'] = '{:.1f}'.format(self.t1threshold.get())
 
     # updates the text field showing the value during slider drag
-    def updatet1label(self,event=None):
-        self.t1sliderlabel['text'] = '{:.1f}'.format(self.t1threshold.get())
+    # def updatet1label(self,event=None):
+    #     self.t1sliderlabel['text'] = '{:.1f}'.format(self.t1threshold.get())
 
-    def updatet2threshold(self,event=None,currentslice=True):
-        self.enhancingROI_overlay_value.set(True)
-        if self.finalROI_overlay_value.get() == True:
-            self.finalROI_overlay_value.set(False)
-            self.enhancingROI_overlay_callback()
-        # force recalc of gates
-        layer = self.layer.get()
-        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
-        self.ui.runblast(currentslice=currentslice)
-        self.t2sliderlabel['text'] = '{:.1f}'.format(self.t2threshold.get())
-        # ie not using this workflow presently
-        if self.finalROI_overlay_value.get() == True:
-            self.ROIclick(do3d=True)
-        return
+    # def updatet2threshold(self,event=None,currentslice=True):
+    #     self.enhancingROI_overlay_value.set(True)
+    #     if self.finalROI_overlay_value.get() == True:
+    #         self.finalROI_overlay_value.set(False)
+    #         self.enhancingROI_overlay_callback()
+    #     # force recalc of gates
+    #     layer = self.layer.get()
+    #     self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
+    #     self.ui.runblast(currentslice=currentslice)
+    #     self.t2sliderlabel['text'] = '{:.1f}'.format(self.t2threshold.get())
+    #     # ie not using this workflow presently
+    #     if self.finalROI_overlay_value.get() == True:
+    #         self.ROIclick(do3d=True)
+    #     return
     
-    def updatet2label(self,event=None):
-        self.t2sliderlabel['text'] = '{:.1f}'.format(self.t2threshold.get())
+    # def updatet2label(self,event=None):
+    #     self.t2sliderlabel['text'] = '{:.1f}'.format(self.t2threshold.get())
 
-    def updateflairt1threshold(self,event=None,currentslice=True):
-        self.enhancingROI_overlay_value.set(True)
-        if self.finalROI_overlay_value.get() == True:
-            self.finalROI_overlay_value.set(False)
-            self.enhancingROI_overlay_callback()
-        # force recalc of gates
-        layer = self.layer.get()
-        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
-        self.ui.runblast(currentslice=currentslice)
-        self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
-        # ie not using this workflow presently
-        if self.finalROI_overlay_value.get() == True:
-            self.ROIclick(do3d=True)
-        return
+    # def updateflairt1threshold(self,event=None,currentslice=True):
+    #     self.enhancingROI_overlay_value.set(True)
+    #     if self.finalROI_overlay_value.get() == True:
+    #         self.finalROI_overlay_value.set(False)
+    #         self.enhancingROI_overlay_callback()
+    #     # force recalc of gates
+    #     layer = self.layer.get()
+    #     self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
+    #     self.ui.runblast(currentslice=currentslice)
+    #     self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
+    #     # ie not using this workflow presently
+    #     if self.finalROI_overlay_value.get() == True:
+    #         self.ROIclick(do3d=True)
+    #     return
     
-    def updateflairt1label(self,event=None):
-        self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
+    # def updateflairt1label(self,event=None):
+    #     self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
 
-    def updateflairt2threshold(self,event=None,currentslice=True):
-        self.enhancingROI_overlay_value.set(True)
-        if self.finalROI_overlay_value.get() == True:
-            self.finalROI_overlay_value.set(False)
-            self.enhancingROI_overlay_callback()
-        # force recalc of gates
-        layer = self.layer.get()
-        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
-        self.ui.runblast(currentslice=currentslice)
-        self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt2threshold.get())
-        # ie not using this workflow presently
-        if self.finalROI_overlay_value.get() == True:
-            self.ROIclick(do3d=True)
-        return
+    # def updateflairt2threshold(self,event=None,currentslice=True):
+    #     self.enhancingROI_overlay_value.set(True)
+    #     if self.finalROI_overlay_value.get() == True:
+    #         self.finalROI_overlay_value.set(False)
+    #         self.enhancingROI_overlay_callback()
+    #     # force recalc of gates
+    #     layer = self.layer.get()
+    #     self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
+    #     self.ui.runblast(currentslice=currentslice)
+    #     self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt2threshold.get())
+    #     # ie not using this workflow presently
+    #     if self.finalROI_overlay_value.get() == True:
+    #         self.ROIclick(do3d=True)
+    #     return
     
-    def updateflairt1label(self,event=None):
-        self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
+    # def updateflairt1label(self,event=None):
+    #     self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
 
     def updateslider(self,layer,slider,event=None):
         self.enhancingROI_overlay_value.set(True)
@@ -448,35 +449,36 @@ class CreateROIFrame(CreateFrame):
         # else:
         #     a=1
 
-    def updatebct1size(self,event=None):
-        self.enhancingROI_overlay_value.set(True)
-        if self.finalROI_overlay_value.get() == True:
-            self.finalROI_overlay_value.set(False)
-            self.enhancingROI_overlay_callback()
-        layer = self.layer.get()
-        self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
-        self.ui.runblast(currentslice=True)
-        self.updatebct1label()
-        return
+    # def updatebct1size(self,event=None):
+    #     self.enhancingROI_overlay_value.set(True)
+    #     if self.finalROI_overlay_value.get() == True:
+    #         self.finalROI_overlay_value.set(False)
+    #         self.enhancingROI_overlay_callback()
+    #     layer = self.layer.get()
+    #     self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
+    #     self.ui.runblast(currentslice=True)
+    #     self.updatebct1label()
+    #     # self.updatesliderlabel(layer,slider)
+    #     return
 
-    def updatebct1label(self,event=None):
-        bct1size = self.ui.get_bct1size()
-        self.bct1sliderlabel['text'] = '{:.1f}'.format(bct1size)
+    # def updatebct1label(self,event=None):
+    #     bct1size = self.ui.get_bct1size()
+    #     self.bct1sliderlabel['text'] = '{:.1f}'.format(bct1size)
 
-    def updatebct2size(self,event=None):
-        self.enhancingROI_overlay_value.set(True)
-        if self.finalROI_overlay_value.get() == True:
-            self.finalROI_overlay_value.set(False)
-            self.enhancingROI_overlay_callback()
-        layer = self.layer.get()
-        self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
-        self.ui.runblast(currentslice=True)
-        self.updatebct2label()
-        return
+    # def updatebct2size(self,event=None):
+    #     self.enhancingROI_overlay_value.set(True)
+    #     if self.finalROI_overlay_value.get() == True:
+    #         self.finalROI_overlay_value.set(False)
+    #         self.enhancingROI_overlay_callback()
+    #     layer = self.layer.get()
+    #     self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
+    #     self.ui.runblast(currentslice=True)
+    #     self.updatebct2label()
+    #     return
 
-    def updatebct2label(self,event=None):
-        bct2size = self.ui.get_bct2size()
-        self.bct2sliderlabel['text'] = '{:.1f}'.format(bct2size)
+    # def updatebct2label(self,event=None):
+    #     bct2size = self.ui.get_bct2size()
+    #     self.bct2sliderlabel['text'] = '{:.1f}'.format(bct2size)
 
     # switch to show sliders and values according to current layer being displayed
     def updatesliders(self):
@@ -629,6 +631,10 @@ class CreateROIFrame(CreateFrame):
             self.enhancingROI_overlay_value.set(False)
             self.ui.dataselection = 'seg_fusion'
             self.layerROI_callback(layer='ET')
+
+            # output final ROI to files for follow-on SAM processing
+            self.saveROI(self.ui.roi[self.ui.s][roi],sam=True)
+            self.segment_sam()
         else:
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_value.set(True)
@@ -639,11 +645,6 @@ class CreateROIFrame(CreateFrame):
             else:
                 self.layer_callback(layer='ET')
 
-        # output final ROI to files for follow-on SAM processing
-        self.saveROI(self.ui.roi[self.ui.s][roi].data['seg'])
-
-        # run a SAM on the finalized ROI
-        self.segment_sam()
 
         return None
     
@@ -810,7 +811,7 @@ class CreateROIFrame(CreateFrame):
         return None
 
     # for exporting BLAST segmentations.
-    def saveROI(self,roi=None,outputpath=None,sam=True):
+    def saveROI(self,roi=None,outputpath=None,sam=False):
         if outputpath is None:
             outputpath = self.ui.caseframe.casedir
         if roi is None:
@@ -821,9 +822,32 @@ class CreateROIFrame(CreateFrame):
             else:
                 roilist = [roi]
 
-        fileroot = os.path.join(outputpath,self.ui.caseframe.casefile_prefix + self.ui.caseframe.casename.get())
+        # temp output just for sam segmentation
+        if sam:
+            fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
+            if not os.path.exists(fileroot):
+                os.mkdir(fileroot)
+            else:
+                shutil.rmtree(fileroot)
+                os.mkdir(fileroot)
+            roisuffix = ''
+            for ch,img in zip(['t1+','flair'],['ET','WT']):
+                for roi in roilist: # assuming just one roi for sam
+                    if len(roilist) > 1:
+                        roisuffix = '_roi'+roi
+                    rref = roi.data[img]
+                    dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']
+                    if dref is not None:
+                        for slice in range(self.ui.sliceviewerframe.dim[0]):
+                            if len(np.where(rref[slice])[0]):
+                                outputfilename = os.path.join(fileroot,'mask_' + str(slice) + '_' + ch + '.png')
+                                plt.imsave(outputfilename,rref[slice],cmap='gray')
+                                outputfilename = os.path.join(fileroot,'slice_' + str(slice) + '_' + ch +'.png')
+                                plt.imsave(outputfilename,dref[slice],cmap='gray')
+            return
 
         # BLAST image file outputs.
+        fileroot = os.path.join(outputpath,self.ui.caseframe.casefile_prefix + self.ui.caseframe.casename.get())
         roisuffix = ''
         for img in ['seg','ET','TC','WT']:
             for roi in roilist:
@@ -833,19 +857,6 @@ class CreateROIFrame(CreateFrame):
                 if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
                     # self.WriteImage(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
                     self.ui.s.writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
-
-        # additional output for sam segmentation
-        if sam:
-            roisuffix = ''
-            for img in ['seg','ET','TC','WT']:
-                for roi in roilist:
-                    if len(roilist) > 1:
-                        roisuffix = '_roi'+roi
-                    outputfilename = fileroot + '_blast_' + img + roisuffix + '.nii'
-                    if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
-                        # self.WriteImage(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
-                        self.ui.s.writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
-
 
         # also output to pickle
         if False:
@@ -923,7 +934,8 @@ class CreateROIFrame(CreateFrame):
         for dt in ['ET','WT']:
             self.ui.data[s].mask[dt+'blast']['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt])
             self.ui.data[s].mask[dt+'blast']['ex'] = True
-            self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
+            if self.ui.sliceviewerframes['overlay'] is not None:
+                self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
             if updatemask and False:
                 # by this option, a BLAST segmentation could overwrite the current UI mask directly as a convenience.
                 # otherwise, it will be done in separate step from the Overlay sliceviewer. 

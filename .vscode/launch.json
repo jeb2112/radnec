@@ -48,15 +48,29 @@
             "justMyCode": false
         },
         {
-            "name": "amg batched",
+            "name": "medsam",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/scripts/amg_batched.py",
+            "program": "${workspaceFolder}/scripts/medsam.py",
             "args": [
-                "--input","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001",
-                "--output","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001",
-                "--checkpoint","/media/jbishop/WD4/brainmets/sam",
-                "--model-type","vit_h"
+                "--input","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002",
+                "--output","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002",
+                "--checkpoint","/media/jbishop/WD4/brainmets/sam/medsam_vit_b.pth",
+                "--model-type","vit_b"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "mesdam demo",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/MedSAM_Inference.py",
+            "args": [
+                "-i","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002/20210110/sam",
+                "-o","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002/20210110/sam",
+                "--checkpoint","/media/jbishop/WD4/brainmets/sam/medsam_vit_b.pth"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
