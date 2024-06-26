@@ -94,12 +94,21 @@ class BlastGui(object):
                 self.caseframe.casename.set('M0001')
                 self.caseframe.case_callback()
 
-
             # load a nifti case for BLAST and create a ROI
             if True:
-                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
+                if False:
+                    caseselect = 'M0001'
+                    caseslice = 55
+                    pointxyz = (65,65,55)
+                    flairset = 1.2
+                else:
+                    caseselect = 'M0002'
+                    caseslice = 122
+                    pointxyz = (80,145,122)
+                    flairset = 1.4
+                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,caseselect))
                 self.caseframe.datadirentry_callback()
-                self.caseframe.casename.set('M0001')
+                self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
                 if self.function.get() == 'overlay':
                     self.roiframe.overlay_value.set(True)
@@ -108,13 +117,12 @@ class BlastGui(object):
                 self.function.set('BLAST')
                 self.function_callback(update=True)
                 self.sliceviewerframe.normalslice_callback()
-                self.sliceviewerframe.currentslice.set(55)
-                self.roiframe.thresholds['T2 hyper']['flair'].set(1.2)
+                self.sliceviewerframe.currentslice.set(caseslice)
+                self.roiframe.thresholds['T2 hyper']['flair'].set(flairset)
                 self.roiframe.updateslider('T2 hyper','flair')
                 if True:
-                    self.roiframe.createROI(65,65,55) # case M00001
+                    self.roiframe.createROI(pointxyz[0],pointxyz[1],pointxyz[2])
                     self.roiframe.ROIclick(event=None)
-
 
             # load a tempo case
             if False:

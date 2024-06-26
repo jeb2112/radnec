@@ -634,7 +634,7 @@ class CreateROIFrame(CreateFrame):
             self.layerROI_callback(layer='ET')
 
             # output final ROI to files for follow-on SAM processing
-            self.saveROI(self.ui.roi[self.ui.s][roi],sam=True)
+            self.saveROI(roi,sam=True)
             self.segment_sam()
         else:
             self.finalROI_overlay_value.set(False)
@@ -816,7 +816,7 @@ class CreateROIFrame(CreateFrame):
         if outputpath is None:
             outputpath = self.ui.caseframe.casedir
         if roi is None:
-            roilist = self.roilist
+            roilist = list(map(int,self.roilist))
         else:
             if type(roi) == list:
                 roilist = roi
@@ -837,7 +837,7 @@ class CreateROIFrame(CreateFrame):
                 for roi in roilist: # assuming just one roi for sam
                     if len(roilist) > 1:
                         roisuffix = '_roi'+roi
-                    rref = roi.data[img]
+                    rref = self.ui.roi[self.ui.s][roi].data[img]
                     dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']
                     affine_bytes = self.ui.data[self.ui.s].dset['raw'][ch]['affine'].tobytes()
                     affine_bytes_str = str(affine_bytes)
@@ -851,19 +851,20 @@ class CreateROIFrame(CreateFrame):
                                 meta.add_text('slicedim',str(self.ui.sliceviewerframe.dim[0]))
                                 meta.add_text('affine',affine_bytes_str)
                                 plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
-            return
 
         # BLAST image file outputs.
-        fileroot = os.path.join(outputpath,self.ui.caseframe.casefile_prefix + self.ui.caseframe.casename.get())
-        roisuffix = ''
+        fileroot = self.ui.data[self.ui.s].studydir
         for img in ['seg','ET','TC','WT']:
             for roi in roilist:
                 if len(roilist) > 1:
                     roisuffix = '_roi'+roi
-                outputfilename = fileroot + '_blast_' + img + roisuffix + '.nii'
+                    outputfilename = os.path.join(fileroot,'{}_{}_blast_processed.nii'.format(img,roisuffix))
+                else:
+                    outputfilename = os.path.join(fileroot,'{}_blast_processed.nii'.format(img))
                 if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
-                    # self.WriteImage(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
-                    self.ui.s.writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],outputfilename,affine=self.ui.affine['t1'])
+                    self.ui.data[self.ui.s].writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],
+                                                       outputfilename,
+                                                       affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
 
         # also output to pickle
         if False:
@@ -1023,23 +1024,15 @@ class CreateROIFrame(CreateFrame):
     def segment_sam(self,dpath=None):
         print('SAM segment tumour')
         if dpath is None:
-            dpath = os.path.join(self.localstudydir,'sam')
+            dpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
             if not os.path.exists(dpath):
                 os.mkdir(dpath)
-        for dt,suffix in zip(['t1+','flair'],['0000','0003']):
-            if os.name == 'posix':
-                l1str = 'ln -s ' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + ' '
-                l1str += os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')
-            elif os.name == 'nt':
-                l1str = 'copy  \"' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + '\" \"'
-                l1str += os.path.join(dpath,os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')) + '\"'
-            os.system(l1str)
-
 
         if os.name == 'posix':
-            command = 'conda run -n ptorch scripts/amg.py  --checkpoint /media/jbishop/WD4/brainmets/sam --model-type \"vit_h\" '
-            command += ' --input ' + os.path.join(dpath,'img_sam.nii.gz')
-            command += ' --output ' + dpath
+            command = 'conda run -n ptorch python scripts/medsam.py  --checkpoint /media/jbishop/WD4/brainmets/sam/medsam_vit_b.pth '
+            command += ' --input ' + self.ui.caseframe.casedir
+            command += ' --output ' + self.ui.caseframe.casedir
+            command += ' --model-type vit_b'
             res = os.system(command)
         elif os.name == 'nt':
             # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
@@ -1072,14 +1065,6 @@ class CreateROIFrame(CreateFrame):
                 raise subprocess.CalledProcessError(res,cstr)
                 print(res)
                 
-        sfile = self.studytimeattrs['StudyDate'] + '.nii.gz'
-        segmentation,affine = self.loadnifti(sfile,dpath)
-        ET = np.zeros_like(segmentation)
-        ET[segmentation == 3] = 1
-        WT = np.zeros_like(segmentation)
-        WT[segmentation > 0] = 1
-        self.writenifti(ET,os.path.join(self.localstudydir,'ET_processed.nii'),affine=affine)
-        self.writenifti(WT,os.path.join(self.localstudydir,'WT_processed.nii'),affine=affine)
         if False:
             os.remove(os.path.join(dpath,sfile))
 

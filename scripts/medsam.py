@@ -309,7 +309,7 @@ def main(args: argparse.Namespace) -> None:
         files = os.listdir(spath)
         if len(files) == 0:
             continue
-        for ch in ['t1+','flair']:
+        for ch,img in zip(['t1+','flair'],['ET','WT']):
             images = [ f for f in files if re.match('slice_[0-9]+_'+ch,f) ]
             images = sorted([os.path.join(spath, f) for f in images])
             masks = [ f for f in files if re.match('mask_[0-9]+_'+ch,f)]
@@ -364,7 +364,7 @@ def main(args: argparse.Namespace) -> None:
                     show_mask(sam_mask[slice], ax[1])
                     ax[1].set_title("MedSAM Segmentation")
 
-            writenifti(sam_mask,os.path.join(spath,'sam_mask_{}.nii'.format(ch)),type=np.uint8,affine=affine)
+            writenifti(sam_mask,os.path.join(args.output,s,'{}_sam_processed.nii'.format(img)),type=np.uint8,affine=affine)
 
     print("Done!")
 
