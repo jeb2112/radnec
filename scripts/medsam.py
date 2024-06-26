@@ -4,9 +4,11 @@ import torch
 import argparse
 import json
 import os
+import copy
 import re
 import nibabel as nb
 import matplotlib.pyplot as plt
+import PIL
 import numpy as np
 from typing import Any, Dict, List
 
@@ -175,7 +177,7 @@ def show_mask(mask, ax, random_color=False):
         color = np.array([30/255, 144/255, 255/255, 0.6])
     h, w = mask.shape[-2:]
     mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
-    ax.imshow(mask_image)
+    ax.imshow(mask_image,origin='lower')
     
 def show_points(coords, labels, ax, marker_size=375):
     pos_points = coords[labels==1]
@@ -233,6 +235,18 @@ def _compute_box_from_mask(mask, original_size=None, box_extension=0):
     max_y, max_x = coords[0].max(), coords[1].max()
     box = np.array([min_y, min_x, max_y + 1, max_x + 1])
     return _process_box(box, mask.shape, original_size=original_size, box_extension=box_extension)
+
+# write a single nifti file. use uint8 for masks 
+def writenifti(img_arr,filename,header=None,norm=False,type='float64',affine=None):
+    img_arr_cp = copy.deepcopy(img_arr)
+    if norm:
+        img_arr_cp = (img_arr_cp -np.min(img_arr_cp)) / (np.max(img_arr_cp)-np.min(img_arr_cp)) * norm
+    # using nibabel nifti coordinates
+    img_nb = nb.Nifti1Image(np.transpose(img_arr_cp.astype(type),(2,1,0)),affine,header=header)
+    nb.save(img_nb,filename)
+    if True:
+        os.system('gzip --force "{}"'.format(filename))
+
 
 @torch.no_grad()
 def medsam_inference(medsam_model, img_embed, box_1024, H, W):
@@ -300,10 +314,20 @@ def main(args: argparse.Namespace) -> None:
             images = sorted([os.path.join(spath, f) for f in images])
             masks = [ f for f in files if re.match('mask_[0-9]+_'+ch,f)]
             masks = sorted([os.path.join(spath, f) for f in masks])
+            image_pil = PIL.Image.open(images[0])
+            slicedim = int(image_pil.info['slicedim'])
+            affine_enc = image_pil.info['affine'].encode()
+            affine_dec = affine_enc.decode('unicode-escape').encode('ISO-8859-1')[2:-1]
+            affine = np.reshape(np.frombuffer(affine_dec, dtype=np.float64),(4,4))
+            sam_mask = np.zeros((slicedim,)+image_pil.size[-1::-1])
 
-            for m,t in zip([masks[7]],[images[7]]):
+            # for m,t in zip([masks[7]],[images[7]]):
+            for m,t in zip(masks,images):
                 print(f"Processing '{t}'...")
-                image = np.atleast_3d(plt.imread(t)[:,:,:3].astype(np.float32))
+                slice = int(re.search('slice_([0-9]+)',t).group(1))
+                image_pil = PIL.Image.open(t)
+                image = np.atleast_3d(np.array(image_pil)[:,:,:3].astype(np.float32))
+                # image = np.atleast_3d(plt.imread(t)[:,:,:3].astype(np.float32))
                 H, W, _ = image.shape
                 if image is None:
                     print(f"Could not load '{t}' as an image, skipping...")
@@ -327,26 +351,21 @@ def main(args: argparse.Namespace) -> None:
 
                 with torch.no_grad():
                     image_embedding = sam.image_encoder(imaget)  # (1, 256, 64, 64)
-                medsam_seg = medsam_inference(sam, image_embedding, box_1024, H, W)
+                sam_mask[slice] = medsam_inference(sam, image_embedding, box_1024, H, W)
 
                 if False:
-                    plt.figure(7)
-                    plt.clf()
-                    plt.imshow(imaget.data.cpu().data.numpy()[0])
-                    bboxt_arr = bboxt.cpu().data.numpy()[0]
-                    show_box(bboxt_arr,plt.gca())
-                    show_mask(medsam_seg)
+                    fig, ax = plt.subplots(1, 2, num=7, figsize=(6, 3))
+                    ax[0].cla()
+                    ax[0].imshow(image,origin='lower')
+                    show_box(bbox, ax[0])
+                    ax[0].set_title("Input Image and Bounding Box")
+                    ax[1].cla()
+                    ax[1].imshow(image,origin='lower')
+                    show_mask(sam_mask[slice], ax[1])
+                    ax[1].set_title("MedSAM Segmentation")
 
-                base = os.path.basename(t)
-                base = os.path.splitext(base)[0]
-                save_base = os.path.join(args.output, base)
-                if output_mode == "binary_mask":
-                    os.makedirs(save_base, exist_ok=False)
-                    write_masks_to_folder(masks, save_base)
-                else:
-                    save_file = save_base + ".json"
-                    with open(save_file, "w") as f:
-                        json.dump(masks, f)
+            writenifti(sam_mask,os.path.join(spath,'sam_mask_{}.nii'.format(ch)),type=np.uint8,affine=affine)
+
     print("Done!")
 
 

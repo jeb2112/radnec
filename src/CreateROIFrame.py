@@ -14,6 +14,7 @@ from matplotlib.backend_bases import _Mode
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
 import nibabel as nb
+import PIL
 from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube,reconstruction
 from skimage.measure import find_contours
 from scipy.spatial.distance import dice
@@ -823,6 +824,7 @@ class CreateROIFrame(CreateFrame):
                 roilist = [roi]
 
         # temp output just for sam segmentation
+        # using tmpfiles so ptorch not needed in the blast env
         if sam:
             fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
             if not os.path.exists(fileroot):
@@ -837,13 +839,18 @@ class CreateROIFrame(CreateFrame):
                         roisuffix = '_roi'+roi
                     rref = roi.data[img]
                     dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']
+                    affine_bytes = self.ui.data[self.ui.s].dset['raw'][ch]['affine'].tobytes()
+                    affine_bytes_str = str(affine_bytes)
                     if dref is not None:
                         for slice in range(self.ui.sliceviewerframe.dim[0]):
                             if len(np.where(rref[slice])[0]):
                                 outputfilename = os.path.join(fileroot,'mask_' + str(slice) + '_' + ch + '.png')
-                                plt.imsave(outputfilename,rref[slice],cmap='gray')
+                                plt.imsave(outputfilename,rref[slice],cmap='gray',)
                                 outputfilename = os.path.join(fileroot,'slice_' + str(slice) + '_' + ch +'.png')
-                                plt.imsave(outputfilename,dref[slice],cmap='gray')
+                                meta = PIL.PngImagePlugin.PngInfo()
+                                meta.add_text('slicedim',str(self.ui.sliceviewerframe.dim[0]))
+                                meta.add_text('affine',affine_bytes_str)
+                                plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
             return
 
         # BLAST image file outputs.
