@@ -63,19 +63,21 @@
             "justMyCode": false
         },
         {
-            "name": "mesdam demo",
+            "name": "sam",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/scripts/MedSAM_Inference.py",
+            "program": "${workspaceFolder}/scripts/sam.py",
             "args": [
-                "-i","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002/20210110/sam",
-                "-o","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002/20210110/sam",
-                "--checkpoint","/media/jbishop/WD4/brainmets/sam/medsam_vit_b.pth"
+                "--input","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002",
+                "--output","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002",
+                "--checkpoint","/media/jbishop/WD4/brainmets/sam/sam_vit_b_01ec64.pth",
+                "--model-type","vit_b"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": false
-        }
+        },
+
 
         
     ]

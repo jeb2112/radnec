@@ -636,6 +636,7 @@ class CreateROIFrame(CreateFrame):
             # output final ROI to files for follow-on SAM processing
             self.saveROI(roi,sam=True)
             self.segment_sam()
+            # TODO. reload segmentations to viewer
         else:
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_value.set(True)
