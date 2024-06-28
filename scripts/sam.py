@@ -10,6 +10,8 @@ import nibabel as nb
 from typing import Any, Dict, List
 import PIL
 import matplotlib.pyplot as plt
+from scipy.spatial import ConvexHull
+from scipy.ndimage import binary_dilation
 
 from segment_anything import SamPredictor, sam_model_registry
 from segment_anything.utils.transforms import ResizeLongestSide
@@ -209,8 +211,26 @@ def loadnifti(self,t1_file,dir=None,type=None):
     if type is not None:
         img_arr_t1 = img_arr_t1.astype(type)
     affine = img_nb_t1.affine
-
     return img_arr_t1,affine
+
+# compute the bounding hull from a mask. 
+def _compute_hull_from_mask(mask, original_size=None, hull_extension=0):
+    mask2 = np.copy(mask)
+    if hull_extension > 0:
+        for h in range(hull_extension):
+            mask2 = binary_dilation(mask2)
+    coords = np.transpose(np.array(np.where(mask2 == 1)))
+    hull = ConvexHull(coords)
+    hcoords = np.transpose(np.vstack((coords[hull.vertices,1],coords[hull.vertices,0])))
+    if False:
+        plt.figure(7)
+        plt.cla()
+        plt.imshow(mask)
+        plt.plot(hcoords[:,0],hcoords[:,1],'r.',markersize=5)
+        plt.show(block=False)
+        a=1
+    return hcoords
+
 def _process_box(box, shape, original_size=None, box_extension=0):
     if box_extension == 0:  # no extension
         extension_y, extension_x = 0, 0
@@ -289,6 +309,7 @@ def main(args: argparse.Namespace) -> None:
             affine = np.reshape(np.frombuffer(affine_dec, dtype=np.float64),(4,4))
             sam_mask_point = np.zeros((slicedim,)+image_pil.size[-1::-1])
             sam_mask_box = np.zeros((slicedim,)+image_pil.size[-1::-1])
+            sam_mask_boxpoint = np.zeros((slicedim,)+image_pil.size[-1::-1])
 
             # for m,t in zip([masks[0]],[images[0]]):
             for m,t in zip(masks,images):
@@ -305,19 +326,23 @@ def main(args: argparse.Namespace) -> None:
                     continue
                 predictor.set_image(image)
 
-                bbox = _compute_box_from_mask(mask,box_extension=1)
+                bbox = _compute_box_from_mask(mask,box_extension=3)
                 point = np.array(list(map(int,np.mean(np.where(mask),axis=1)))) 
                 ros = np.array(np.where(image[:,:,0]))
                 distances = np.sqrt(np.power(ros[0]-point[0],2)+np.power(ros[1]-point[1],2))
                 arg = np.argsort(np.abs(distances - np.median(distances)))[0]
                 point_bg = np.atleast_2d(np.flip(ros[:,arg])) # flip for xy
                 point = np.atleast_2d(np.flip(point))
+                convexhull = _compute_hull_from_mask(mask,hull_extension=2)
+                convexhull_points = np.concatenate((np.atleast_2d(point),convexhull),axis=0)
+                convexhull_labels = np.array([1]+[0]*len(convexhull))
                 
-                points = np.concatenate((point,point_bg),axis=0)
-                points_label = np.array([1,0]) # foreground,background
+                # points prompt
+                # points = np.concatenate((point,point_bg),axis=0)
+                # points_label = np.array([1,0]) # foreground,background
                 masks, scores, _ = predictor.predict(
-                    point_coords=points,
-                    point_labels=points_label,
+                    point_coords=convexhull_points,
+                    point_labels=convexhull_labels,
                     multimask_output=True,
                 )
                 mask_sizes = np.zeros_like(scores)
@@ -329,6 +354,7 @@ def main(args: argparse.Namespace) -> None:
                 else:
                     sam_mask_point[slice] = np.copy(masks[min_mask,:,:])
 
+                # box prompt
                 sam_mask_box[slice], _, _ = predictor.predict(
                     point_coords=None,
                     point_labels=None,
@@ -336,24 +362,38 @@ def main(args: argparse.Namespace) -> None:
                     multimask_output=False,
                 )
 
-                if False:
-                    fig, ax = plt.subplots(1, 3, num=7, figsize=(9, 3))
+                # box points prompt
+                sam_mask_boxpoint[slice],_,_ = predictor.predict(
+                    point_coords=convexhull_points,
+                    point_labels=convexhull_labels,
+                    box = bbox[None,:],
+                    multimask_output=False,
+                )
+                if True:
+                    fig, ax = plt.subplots(1, 4, num=7, figsize=(10, 2.5),sharex=True,sharey=True)
                     ax[0].cla()
                     ax[0].imshow(image,origin='lower')
                     show_box(bbox, ax[0])
-                    show_points(points,points_label,ax[0],marker_size=300)
+                    show_points(convexhull_points,convexhull_labels,ax[0],marker_size=10)
                     ax[0].set_title("Input Image and Bounding Box")
                     ax[1].cla()
                     ax[1].imshow(image,origin='lower')
                     show_mask(sam_mask_point[slice], ax[1])
+                    ax[1].set_title('points')
                     ax[2].cla()
                     ax[2].imshow(image,origin='lower')
                     show_mask(sam_mask_box[slice],ax[2])
+                    ax[2].set_title('box')
+                    ax[3].cla()
+                    ax[3].imshow(image,origin='lower')
+                    show_mask(sam_mask_boxpoint[slice],ax[3])
+                    ax[3].set_title('box-points')
                     plt.show(block=False)
                     a=1
 
-            writenifti(sam_mask_point,os.path.join(args.output,s,'{}_sampoint_processed.nii'.format(img)),type=np.uint8,affine=affine)
+            writenifti(sam_mask_point,os.path.join(args.output,s,'{}_sampoints_processed.nii'.format(img)),type=np.uint8,affine=affine)
             writenifti(sam_mask_box,os.path.join(args.output,s,'{}_sambox_processed.nii'.format(img)),type=np.uint8,affine=affine)
+            writenifti(sam_mask_boxpoint,os.path.join(args.output,s,'{}_samboxpoints_processed.nii'.format(img)),type=np.uint8,affine=affine)
 
             opath = spath
 
