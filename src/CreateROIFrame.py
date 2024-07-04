@@ -1022,7 +1022,7 @@ class CreateROIFrame(CreateFrame):
                 self.ui.roi[s][roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
 
     # tumour segmenation by SAM
-    def segment_sam(self,dpath=None):
+    def segment_sam(self,dpath=None,sam='SAM'):
         print('SAM segment tumour')
         if dpath is None:
             dpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
@@ -1030,10 +1030,16 @@ class CreateROIFrame(CreateFrame):
                 os.mkdir(dpath)
 
         if os.name == 'posix':
-            command = 'conda run -n ptorch python scripts/medsam.py  --checkpoint /media/jbishop/WD4/brainmets/sam/medsam_vit_b.pth '
-            command += ' --input ' + self.ui.caseframe.casedir
-            command += ' --output ' + self.ui.caseframe.casedir
-            command += ' --model-type vit_b'
+            if sam == 'medSAM':
+                command = 'conda run -n ptorch python scripts/medsam.py  --checkpoint /media/jbishop/WD4/brainmets/sam/medsam_vit_b.pth '
+                command += ' --input ' + self.ui.caseframe.casedir
+                command += ' --output ' + self.ui.caseframe.casedir
+                command += ' --model-type vit_b'
+            elif sam == 'SAM':
+                command = 'conda run -n ptorch python scripts/sam.py  --checkpoint /media/jbishop/WD4/brainmets/sam/sam_vit_b_01ec64.pth '
+                command += ' --input ' + self.ui.caseframe.casedir
+                command += ' --output ' + self.ui.caseframe.casedir
+                command += ' --model-type vit_b'
             res = os.system(command)
         elif os.name == 'nt':
             # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()

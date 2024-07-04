@@ -124,7 +124,8 @@ class CreateCaseFrame(CreateFrame):
         return
 
     def case_callback(self,casevar=None,val=None,event=None,files=None):
-        case = self.casename.get()
+        case = self.w.get()
+        self.casename.set(case)
         self.ui.set_casename(val=case)
         print('Loading case {}'.format(case))
         self.loadCase(files=files)
@@ -195,7 +196,8 @@ class CreateCaseFrame(CreateFrame):
         for sv in [self.ui.sliceviewerframes[skey] for skey in ['BLAST','overlay']]:
             if sv is not None:
                 for dt in self.ui.data[s].channels.values():
-                    if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
+                    if all([self.ui.data[st].dset['raw'][dt]['ex'] for st in range(len(self.ui.data))]):
+                    # if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
                         sv.chdisplay_button[dt]['state'] = 'normal'
         for sv in self.ui.sliceviewerframes.values():
             if sv is not None:
@@ -287,7 +289,7 @@ class CreateCaseFrame(CreateFrame):
                     if len(niftidirs) > 1:
                         niftidirs = self.group_dcmdirs(niftidirs)
                         # casefiles = [re.split(r'/|\\\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
-                        casedirs = [k for k in niftidirs.keys()]
+                        casedirs = sorted([k for k in niftidirs.keys()])
                         # if a single nifti case dir at the level  of the case dir and not the parent dir,
                         # need to adjust datadir to be the parent directory
                         if len(casedirs) == 1:
@@ -297,7 +299,7 @@ class CreateCaseFrame(CreateFrame):
                         doload = self.config.AutoLoad
                     elif len(niftidirs) == 1:
                         raise ValueError('Only one image directory found for this case')
-                    # may need a future sort
+                    # sorted above? or here may need a future sort
                     if False:
                         casefiles,casedirs = (list(t) for t in zip(*sorted(zip(casefiles,casedirs))))
                     self.caselist['casetags'] = casedirs

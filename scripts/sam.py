@@ -391,9 +391,9 @@ def main(args: argparse.Namespace) -> None:
                     plt.show(block=False)
                     a=1
 
-            writenifti(sam_mask_point,os.path.join(args.output,s,'{}_sampoints_processed.nii'.format(img)),type=np.uint8,affine=affine)
-            writenifti(sam_mask_box,os.path.join(args.output,s,'{}_sambox_processed.nii'.format(img)),type=np.uint8,affine=affine)
-            writenifti(sam_mask_boxpoint,os.path.join(args.output,s,'{}_samboxpoints_processed.nii'.format(img)),type=np.uint8,affine=affine)
+            writenifti(sam_mask_point,os.path.join(args.output,s,'{}_sam_points_processed.nii'.format(img)),type=np.uint8,affine=affine)
+            writenifti(sam_mask_box,os.path.join(args.output,s,'{}_sam_box_processed.nii'.format(img)),type=np.uint8,affine=affine)
+            writenifti(sam_mask_boxpoint,os.path.join(args.output,s,'{}_sam_boxpoints_processed.nii'.format(img)),type=np.uint8,affine=affine)
 
             opath = spath
 

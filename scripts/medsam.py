@@ -364,7 +364,7 @@ def main(args: argparse.Namespace) -> None:
                     show_mask(sam_mask[slice], ax[1])
                     ax[1].set_title("MedSAM Segmentation")
 
-            writenifti(sam_mask,os.path.join(args.output,s,'{}_sam_processed.nii'.format(img)),type=np.uint8,affine=affine)
+            writenifti(sam_mask,os.path.join(args.output,s,'{}_medsam_processed.nii'.format(img)),type=np.uint8,affine=affine)
 
     print("Done!")
 
