@@ -590,7 +590,12 @@ class CreateROIFrame(CreateFrame):
                     self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
             
         roi = self.ui.get_currentroi()
-        self.closeROI(self.ui.data[self.ui.s].dset['seg_raw'][self.ui.chselection]['d'],self.ui.get_currentslice(),do3d=do3d)
+        try:
+            self.closeROI(self.ui.data[self.ui.s].dset['seg_raw'][self.ui.chselection]['d'],self.ui.get_currentslice(),do3d=do3d)
+        except Exception as e:
+            print(e)
+            print('ROI not completed')
+            return
         # update layer menu
         self.update_layermenu_options(self.ui.roi[self.ui.s][roi])
 
@@ -764,7 +769,11 @@ class CreateROIFrame(CreateFrame):
                 seed[:,-1,:] = 0
                 seed[0,:,:] = 0
                 seed[-1,:,:] = 0
-                objectmask_filled = reconstruction(seed,objectmask_filled,method='erosion')
+                try:
+                    objectmask_filled = reconstruction(seed,objectmask_filled,method='erosion')
+                except ValueError as e:
+                    print(e)
+                    print('Try increasing the threshold to have fewer pixels in the BLAST mask')
                 objectmask_final = objectmask_filled.astype('int')
                 self.ui.roi[s][roi].data['TC'] = objectmask_final.astype('uint8')
             else: # 2d mode probably not used anymore

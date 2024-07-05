@@ -1,5 +1,7 @@
-# scrip copies and renames brats nifti images, and computes a z-score image as well
-# intended for BLAST segmentation and sam processing
+# scrip copies and renames brats nifti images
+
+# computes a z-score image for BLAST processing
+# runs nnunet segmentation as well
 
 from multiprocessing import Pool
 import nibabel as nb
@@ -12,7 +14,6 @@ import os
 import ants
 import copy
 from sklearn.cluster import KMeans
-
 
 
 # calculate stats to create z-score images
@@ -109,6 +110,60 @@ def rescale(img_arr,vmin=None,vmax=None):
     scaled_arr = np.clip(scaled_arr,a_min=0,a_max=1)
     return scaled_arr
 
+# nnunet segmentation
+def segment(C,ddir):
+    ndir = os.path.join(ddir,'nnunet')
+    if os.name == 'posix':
+        command = 'conda run -n ptorch nnUNetv2_predict '
+        command += ' -i ' + ndir
+        command += ' -o ' + ndir
+        command += ' -d137 -c 3d_fullres'
+        res = os.system(command)
+    elif os.name == 'nt':
+        # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
+        # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
+        # it is currently hard-coded to anaconda3/envs location rather than .conda/envs, but anaconda3 could be installed
+        # under either ProgramFiles or Users so check both
+        if os.path.isfile(os.path.expanduser('~')+'\\anaconda3\Scripts\\activate.bat'):
+            activatebatch = os.path.expanduser('~')+"\\anaconda3\Scripts\\activate.bat"
+        elif os.path.isfile("C:\Program Files\\anaconda3\Scripts\\activate.bat"):
+            activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
+        else:
+            raise FileNotFoundError('anaconda3/Scripts/activate.bat')
+        if os.path.isdir(os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'):
+            envpath = os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'
+        elif os.path.isdir(os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'):
+            envpath = os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'
+        else:
+            raise FileNotFoundError('pytorch118_310')
+
+        command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
+        command2 = 'nnUNetv2_predict -i \"' + dpath + '\" -o \"' + dpath + '\" -d137 -c 3d_fullres'
+        cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
+        popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
+        for stdout_line in iter(popen.stdout.readline,""):
+            if stdout_line != '\n':
+                print(stdout_line)
+        popen.stdout.close()
+        res = popen.wait()
+        if res:
+            raise subprocess.CalledProcessError(res,cstr)
+            print(res)
+            
+    sfile = C+ '.nii.gz'
+    segmentation,affine = loadnifti(sfile,ndir)
+    ET = np.zeros_like(segmentation)
+    ET[segmentation == 3] = 1
+    WT = np.zeros_like(segmentation)
+    WT[segmentation > 0] = 1
+    writenifti(ET,os.path.join(ddir,'ET_unet_processed.nii'),affine=affine)
+    writenifti(WT,os.path.join(ddir,'WT_unet_processed.nii'),affine=affine)
+    os.rename(os.path.join(ndir,sfile),os.path.join(ndir,C+'-unet.nii.gz'))
+
+
+######
+# main
+######
 
 
 if __name__ == '__main__':
@@ -136,9 +191,22 @@ if __name__ == '__main__':
             elif 'seg' in f:
                 shutil.copy(os.path.join(dir,f),ddir)
 
+        # calculate z-score images
         img_arr_t1,affine_t1 = loadnifti('t1+_processed.nii.gz',ddir)
         img_arr_flair,affine_flair = loadnifti('flair_processed.nii.gz',ddir)
-
         zimg_t1,zimg_flair = normalstats(img_arr_t1,img_arr_flair)
         writenifti(zimg_t1,os.path.join(ddir,'zt1+_processed.nii'),affine=affine_t1)
         writenifti(zimg_flair,os.path.join(ddir,'zflair_processed.nii'),affine=affine_flair)
+
+        # nnunet segmentation
+        ndir = os.path.join(ddir,'nnunet')
+        os.makedirs(ndir,exist_ok=True)
+        for dt,suffix in zip(['t1+','flair'],['0000','0003']):
+            if os.name == 'posix':
+                l1str = 'ln -s ' + os.path.join(ddir,dt+'_processed.nii.gz') + ' '
+                l1str += os.path.join(ndir,C+'_'+suffix+'.nii.gz')
+            elif os.name == 'nt':
+                l1str = 'copy  \"' + os.path.join(localstudydir,dt+'_processed.nii.gz') + '\" \"'
+                l1str += os.path.join(dpath,os.path.join(dpath,studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')) + '\"'
+            os.system(l1str)
+        segment(C,ddir)

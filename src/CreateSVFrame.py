@@ -440,14 +440,14 @@ class CreateSliceViewerFrame(CreateFrame):
             return
         if np.abs(event.x-self.b1x) > np.abs(event.y-self.b1y):
             if event.x-self.b1x > 0:
-                self.updatewl(ax=ax,wval=.02)
+                self.updatewl(ax=ax,wval=self.window[ax]/50) # 2% increment is hard-coded
             else:
-                self.updatewl(ax=ax,wval=-.02)
+                self.updatewl(ax=ax,wval=-self.window[ax]/50)
         else:
             if event.y - self.b1y > 0:
-                self.updatewl(ax=ax,lval=.02)
+                self.updatewl(ax=ax,lval=self.level[ax]/50)
             else:
-                self.updatewl(ax=ax,lval=-.02)
+                self.updatewl(ax=ax,lval=-self.level[ax]/50)
 
         self.b1x,self.b1y = copy.copy((event.x,event.y))
         self.update_labels()
