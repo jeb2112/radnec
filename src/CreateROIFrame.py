@@ -358,88 +358,22 @@ class CreateROIFrame(CreateFrame):
 
     # callbacks for the BLAST threshold slider bars
 
-    # def updatet1threshold(self,event=None,currentslice=True):
-    #     self.enhancingROI_overlay_value.set(True)
-    #     # for now, this event reverts to BLAST preview mode and will not directly reprocess the final segmentation
-    #     if self.finalROI_overlay_value.get() == True:
-    #         self.finalROI_overlay_value.set(False)
-    #         self.enhancingROI_overlay_callback()
-
-    #     # force recalc of gates
-    #     layer = self.layer.get()
-    #     self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
-    #     self.ui.runblast(currentslice=currentslice)
-    #     self.t1sliderlabel['text'] = '{:.1f}'.format(self.t1threshold.get())
-
-    # updates the text field showing the value during slider drag
-    # def updatet1label(self,event=None):
-    #     self.t1sliderlabel['text'] = '{:.1f}'.format(self.t1threshold.get())
-
-    # def updatet2threshold(self,event=None,currentslice=True):
-    #     self.enhancingROI_overlay_value.set(True)
-    #     if self.finalROI_overlay_value.get() == True:
-    #         self.finalROI_overlay_value.set(False)
-    #         self.enhancingROI_overlay_callback()
-    #     # force recalc of gates
-    #     layer = self.layer.get()
-    #     self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
-    #     self.ui.runblast(currentslice=currentslice)
-    #     self.t2sliderlabel['text'] = '{:.1f}'.format(self.t2threshold.get())
-    #     # ie not using this workflow presently
-    #     if self.finalROI_overlay_value.get() == True:
-    #         self.ROIclick(do3d=True)
-    #     return
-    
-    # def updatet2label(self,event=None):
-    #     self.t2sliderlabel['text'] = '{:.1f}'.format(self.t2threshold.get())
-
-    # def updateflairt1threshold(self,event=None,currentslice=True):
-    #     self.enhancingROI_overlay_value.set(True)
-    #     if self.finalROI_overlay_value.get() == True:
-    #         self.finalROI_overlay_value.set(False)
-    #         self.enhancingROI_overlay_callback()
-    #     # force recalc of gates
-    #     layer = self.layer.get()
-    #     self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
-    #     self.ui.runblast(currentslice=currentslice)
-    #     self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
-    #     # ie not using this workflow presently
-    #     if self.finalROI_overlay_value.get() == True:
-    #         self.ROIclick(do3d=True)
-    #     return
-    
-    # def updateflairt1label(self,event=None):
-    #     self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
-
-    # def updateflairt2threshold(self,event=None,currentslice=True):
-    #     self.enhancingROI_overlay_value.set(True)
-    #     if self.finalROI_overlay_value.get() == True:
-    #         self.finalROI_overlay_value.set(False)
-    #         self.enhancingROI_overlay_callback()
-    #     # force recalc of gates
-    #     layer = self.layer.get()
-    #     self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
-    #     self.ui.runblast(currentslice=currentslice)
-    #     self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt2threshold.get())
-    #     # ie not using this workflow presently
-    #     if self.finalROI_overlay_value.get() == True:
-    #         self.ROIclick(do3d=True)
-    #     return
-    
-    # def updateflairt1label(self,event=None):
-    #     self.flairsliderlabel['text'] = '{:.1f}'.format(self.flairt1threshold.get())
-
     def updateslider(self,layer,slider,event=None):
         self.enhancingROI_overlay_value.set(True)
         if self.finalROI_overlay_value.get() == True:
             self.finalROI_overlay_value.set(False)
             self.enhancingROI_overlay_callback()
         # layer = self.layer.get()
+        self.updatesliderlabel(layer,slider)
+
+        # updates to blastdata
         if slider == 'bc':
             self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
         self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
+        self.ui.update_blast(layer=layer)
+
+        # rerun blast with new value
         self.ui.runblast(currentslice=True)
-        self.updatesliderlabel(layer,slider)
 
     def updatesliderlabel(self,layer,slider):
         # if 'T2 hyper' in self.sliderlabels.keys() and 'T2 hyper' in self.sliders.keys():
@@ -447,39 +381,6 @@ class CreateROIFrame(CreateFrame):
             self.sliderlabels[layer][slider]['text'] = '{:.1f}'.format(self.sliders[layer][slider].get())
         except KeyError as e:
             print(e)
-        # else:
-        #     a=1
-
-    # def updatebct1size(self,event=None):
-    #     self.enhancingROI_overlay_value.set(True)
-    #     if self.finalROI_overlay_value.get() == True:
-    #         self.finalROI_overlay_value.set(False)
-    #         self.enhancingROI_overlay_callback()
-    #     layer = self.layer.get()
-    #     self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
-    #     self.ui.runblast(currentslice=True)
-    #     self.updatebct1label()
-    #     # self.updatesliderlabel(layer,slider)
-    #     return
-
-    # def updatebct1label(self,event=None):
-    #     bct1size = self.ui.get_bct1size()
-    #     self.bct1sliderlabel['text'] = '{:.1f}'.format(bct1size)
-
-    # def updatebct2size(self,event=None):
-    #     self.enhancingROI_overlay_value.set(True)
-    #     if self.finalROI_overlay_value.get() == True:
-    #         self.finalROI_overlay_value.set(False)
-    #         self.enhancingROI_overlay_callback()
-    #     layer = self.layer.get()
-    #     self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
-    #     self.ui.runblast(currentslice=True)
-    #     self.updatebct2label()
-    #     return
-
-    # def updatebct2label(self,event=None):
-    #     bct2size = self.ui.get_bct2size()
-    #     self.bct2sliderlabel['text'] = '{:.1f}'.format(bct2size)
 
     # switch to show sliders and values according to current layer being displayed
     def updatesliders(self):

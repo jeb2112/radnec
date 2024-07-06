@@ -13,6 +13,7 @@ from importlib import metadata
 from src import Blastbratsv3
 from src.CreateOverlaySVFrame import CreateOverlaySVFrame
 from src.CreateBlastSVFrame import CreateBlastSVFrame
+from src.CreateSAMSVFrame import CreateSAMSVFrame
 from src.Create4PanelSVFrame import Create4PanelSVFrame
 from src.CreateCaseFrame import CreateCaseFrame
 from src.CreateROIFrame import CreateROIFrame
@@ -53,7 +54,7 @@ class BlastGui(object):
         self.chselection = 't1+' 
 
         # viewer functions. overlay mode, or BLAST segmentation mode
-        self.functionlist = {'overlay':0,'BLAST':1,'4panel':2}
+        self.functionlist = {'overlay':0,'BLAST':1,'4panel':2,'SAM':3}
         self.function = tk.StringVar(value=self.config.DefaultViewer)
 
         # data structure. data is a dict of studies. see DcmCase
@@ -87,65 +88,42 @@ class BlastGui(object):
 
         # hard-coded entries for debugging
         if self.debug:
-            # load a 4panel case
-            if True:
-                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
-                self.caseframe.datadirentry_callback()
-                self.caseframe.casename.set('M0001')
-                self.caseframe.case_callback()
 
             # load a nifti case for BLAST and create a ROI
             if True:
-                if False:
-                    caseselect = 'M0001'
-                    caseslice = 55
-                    pointxyz = (65,65,55)
-                    flairset = 1.2
+                if True:
+                    caseselect = 'M00001'
+                    caseslice = 85
+                    pointxyz = (165,125,85)
+                    ETt1set = 0.0
+                    ETflairset = -1.0
+                    WTt1set = 0.0
+                    WTflairset = 1.0
                 else:
                     caseselect = 'M0002'
                     caseslice = 122
                     pointxyz = (80,145,122)
                     flairset = 1.4
-                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,caseselect))
+                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir))
                 self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
-                if self.function.get() == 'overlay':
-                    self.roiframe.overlay_value.set(True)
-                    self.roiframe.overlay_type.set('z')
-                    self.roiframe.overlay_callback()
-                self.function.set('BLAST')
+                self.function.set('SAM')
                 self.function_callback(update=True)
-                self.sliceviewerframe.normalslice_callback()
                 self.sliceviewerframe.currentslice.set(caseslice)
-                self.roiframe.thresholds['T2 hyper']['flair'].set(flairset)
+                self.sliceviewerframe.normalslice_callback()
+                self.roiframe.thresholds['ET']['t12'].set(ETt1set)
+                self.roiframe.thresholds['ET']['flair'].set(ETflairset)
+                self.roiframe.updateslider('ET','t12')
+                self.roiframe.updateslider('ET','flair')
+                self.roiframe.layer_callback(layer='T2 hyper')
+                self.roiframe.thresholds['T2 hyper']['t12'].set(WTt1set)
+                self.roiframe.thresholds['T2 hyper']['flair'].set(WTflairset)
+                self.roiframe.updateslider('T2 hyper','t12')
                 self.roiframe.updateslider('T2 hyper','flair')
-                if True:
+                if False:
                     self.roiframe.createROI(pointxyz[0],pointxyz[1],pointxyz[2])
                     self.roiframe.ROIclick(event=None)
-
-            # load a tempo case
-            if False:
-                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0001'))
-                self.caseframe.datadirentry_callback()
-                self.caseframe.casename.set('M0001')
-                self.caseframe.case_callback()
-                self.roiframe.overlay_value.set(True)                
-                self.roiframe.overlay_type.set('tempo')
-                self.roiframe.mask_value.set(True)
-                self.sliceviewerframe.currentslice.set(55)
-                self.roiframe.overlay_callback()
-
-            # load an overlay case
-            if False:
-                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir,'M0002'))
-                self.caseframe.datadirentry_callback()
-                self.caseframe.casename.set('M0002')
-                self.caseframe.case_callback()
-                self.roiframe.overlay_value.set(True)                
-                self.roiframe.mask_value.set(True)
-                self.sliceviewerframe.currentslice.set(123)
-                self.roiframe.overlay_callback()
 
 
     #########
@@ -173,6 +151,10 @@ class BlastGui(object):
         elif self.function.get() == 'overlay':
             self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
             self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
+        elif self.function.get() == 'SAM':
+            self.sliceviewerframes['SAM'] = CreateSAMSVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframes['SAM'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
+
         
         # overlay/blast function mode
         self.functionmenu = ttk.OptionMenu(self.mainframe,self.function,self.functionlist['overlay'],

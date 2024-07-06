@@ -45,8 +45,8 @@ class Config(object):
             self.UIdatadir = os.path.join('C:\\','Users','Chris Heyn Lab','Data')
             self.UIlocaldir = os.path.join('C:\\','Users','Chris Heyn Lab','Data','dicom2nifti')
         elif os.name == 'posix':
-            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
-            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti'
+            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases'
+            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
             # self.UIdatadir = os.path.join(os.path.expanduser('~'),'Data','radnec')
         self.UIdataroot = 'BraTS2021_'
 
@@ -92,4 +92,4 @@ class Config(object):
         cm.register_cmap(name='tempo',cmap=cmap_tempo)
 
         # default viewer type
-        self.DefaultViewer = 'BLAST'
+        self.DefaultViewer = 'SAM'

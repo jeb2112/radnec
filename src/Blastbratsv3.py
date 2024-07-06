@@ -87,7 +87,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
 
     # begun blast processing 
     start = time.time()
-    region_of_support = np.where(t1stack*flairstack*t2stack>0)
+    region_of_support = np.where(t1stack*flairstack*t2stack != 0)
     background_mask = np.where(t1stack*flairstack*t2stack == 0)
     t1channel = t1stack[region_of_support]
     # currently don't have plain t2 in radnec cases, but this might 
@@ -146,8 +146,8 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             plt.scatter(flairstack[braingate],t1stack[braingate],c='w',s=2)
             plt.scatter(xy_layerverts[:,0],xy_layerverts[:,1],c='r',s=20)
             ax.set_aspect('equal')
-            ax.set_xlim(left=0,right=maxZ)
-            ax.set_ylim(bottom=0,top=maxZ)
+            ax.set_xlim(left=-maxZ,right=maxZ)
+            ax.set_ylim(bottom=-maxZ,top=maxZ)
             plt.text(0,1.02,'flair {:.3f},{:.3f}'.format(np.mean(flairchannel),np.std(flairchannel)))
             plt.text(0,1.1,'t1 {:.3f},{:.3f}'.format(np.mean(t1channel),np.std(t1channel)))
             plt.xlabel('flair')
