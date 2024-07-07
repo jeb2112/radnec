@@ -466,4 +466,53 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # since we finish the on the T2 hyper layer, have this slider disabled to begin with
         # self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
 
+    # mouse/keyboard events
+    # mouse drag event for 3d crosshair overlay
+    def b1motion_crosshair(self,event):
+        self.canvas.get_tk_widget().config(cursor='tcross')
+        # no adjustment from outside the pane
+        if event.widget.widgetName != 'canvas':
+            return
+        # which artist axes was clicked
+        a = self.tbar.select_artist(event)
+        if a is None:
+            return
+        aax = a.axes._label
+        # calculate data coords for all axes relative to clicked axes
+        # event origin is bottom left, but data origin is top/left
+        # TODO: matrix transforms for sag/cor/ax
+        # mouse event returns display coords but which are still flipped in y compared to matplotlib display coords.
+        # because there are two axes stacked for sag/cor, the correction for this flip involves +/- 1*self.dim[0]
+        x,y = self.axs[aax].transData.inverted().transform((event.x,event.y))
+        if False:
+            print('crosshair',event.x,event.y,x,y,aax)
+        if aax in ['A']:
+            y = self.dim[1]-y
+            y1 = self.currentslice.get()
+            self.draw_crosshair('A',x,y)
+            self.draw_crosshair('C',y,y1)
+            self.draw_crosshair('D',x,y1)
+            self.currentsagslice.set(int(x))
+            self.currentcorslice.set(int(y))
+        elif aax == 'C':
+            y = -y
+            y1 = self.currentsagslice.get()
+            self.draw_crosshair('A',y1,x)
+            self.draw_crosshair('C',x,y)
+            self.draw_crosshair('D',y1,y)
+            self.currentslice.set(int(y))
+            self.currentcorslice.set(int(x))
+        elif aax == 'D':
+            y = -y + 2*self.dim[0]
+            y1 = self.currentcorslice.get()
+            self.draw_crosshair('A',x,y1)
+            self.draw_crosshair('C',y1,y)
+            self.draw_crosshair('D',x,y)
+            self.currentslice.set(int(y))
+            self.currentsagslice.set(int(x))
 
+        self.updateslice()
+
+        # repeating this here because there are some automatic tk backend events which 
+        # can reset it during a sequence of multiple drags
+        self.canvas.get_tk_widget().config(cursor='tcross')

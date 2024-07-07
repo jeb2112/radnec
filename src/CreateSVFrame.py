@@ -412,7 +412,8 @@ class CreateSliceViewerFrame(CreateFrame):
     def clear_crosshair(self):
         for ax in self.lines.keys():
             for hv in ['h','v']:
-                Artist.remove(self.lines[ax][hv])
+                if self.lines[ax][hv] is not None:
+                    Artist.remove(self.lines[ax][hv])
         self.canvas.draw()
 
 

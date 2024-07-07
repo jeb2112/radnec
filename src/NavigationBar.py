@@ -304,8 +304,27 @@ class NavigationBar(NavigationToolbar2Tk):
             else:
                 a = None
             return a
+        elif sv == 'SAM':
+            slicefovratio = self.ui.sliceviewerframe.dim[0]/self.ui.sliceviewerframe.dim[1]
+            pdim = self.ui.current_panelsize * self.ui.config.dpi
+            pdim2 = self.ui.current_panelsize * (1 + 1/(2*slicefovratio)) * self.ui.config.dpi
+            if event.x <= pdim:
+                a = self.axs['A'].images[0]
+            # note that these axes are for a mouse click/drag event, but
+            # are flipped for a mouseover/hover type of event
+            elif event.x <= pdim2 and event.y <= pdim/2:
+                a = self.axs['C'].images[0]
+            elif event.x <= pdim2 and event.y <= pdim:
+                a = self.axs['D'].images[0]
+            else:
+                a = None
+            if False:
+                print('select_artist',event.x,event.y,pdim,pdim2,a.axes._label)
+                if hasattr(event,'inaxes'):
+                    print(event.inaxes._label)
 
-                
+            return a
+
 
     # override this method to provide for 3d crosshair overlay
     def mouse_move(self, event):
@@ -320,6 +339,8 @@ class NavigationBar(NavigationToolbar2Tk):
         # if event.inaxes and event.inaxes.get_navigate():
         if event.inaxes:
             try:
+                # note that these mouseover coords are screen coords 
+                # which do not match a click or drag event coords
                 s = event.inaxes.format_coord(event.xdata, event.ydata)
             except (ValueError, OverflowError):
                 pass
