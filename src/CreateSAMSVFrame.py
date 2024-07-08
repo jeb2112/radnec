@@ -94,10 +94,12 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         # button to run stats for normal background
         normalSlice = ttk.Button(self.normal_frame,text='normal stats',command=self.normalslice_callback)
-        normalSlice.grid(column=0,row=1,sticky='w')
+        normalSlice.grid(row=1,column=0,sticky='w')
         # button to run 2d SAM on manual bbox
-        runSAM = ttk.Button(self.normal_frame,text='run 2d SAM',command=self.sam2d_callback)
-        runSAM.grid(column=1,row=1,sticky='w')
+        run2dSAM = ttk.Button(self.normal_frame,text='run 2d SAM',command=self.sam2d_callback)
+        run2dSAM.grid(row=1,column=1,sticky='w')
+        run3dSAM = ttk.Button(self.normal_frame,text='run 3d SAM',command=self.sam3d_callback)
+        run3dSAM.grid(row=1,column=2,sticky='w')
 
         # messages text frame
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -319,7 +321,10 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         # if not an event, show an existing bbox, or remove it
         if self.ui.currentroi > 0 and event is None:
-            self.update_bboxs()
+            if self.ui.roiframe.overlay_value['SAM'].get() == True:
+                self.update_bboxs()
+            else:
+                self.clear_bbox()
 
         self.canvas.draw()
     
@@ -475,15 +480,34 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # since we finish the on the T2 hyper layer, have this slider disabled to begin with
         # self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
 
-    # run 2d SAM on available bbox
+    # run 2d SAM on available bbox. currently this is only for a handdrawn bbox
     def sam2d_callback(self):
         print('run sam 2D')
-        if self.bbox['plot'] is None:
-            print('No bbox defined')
+        if len(list(self.bboxs.keys())) == 0:
+            print('No bbox\'s defined')
+            return
+        if self.ui.currentslice not in list(self.bboxs.keys()):
+            print('No bbox defined in current slice')
             return
         self.ui.roiframe.saveROI(sam=self.ui.currentslice,mask='bbox')
         self.ui.roiframe.segment_sam()
+        # switch to SAM display
+        self.ui.roiframe.set_overlay('SAM')
+        # in SAM, the ET bounding box segmentation is interpreted directly as TC
+        self.ui.roiframe.layerSAM_callback(layer='TC')
 
+    # run 3d SAM on all bbox's. currently this is only for handdrawn not BLAST
+    def sam3d_callback(self):
+        print('run sam 3D')
+        if len(list(self.bboxs.keys())) == 0:
+            print('No bbox\'s defined')
+            return
+        self.ui.roiframe.saveROI(mask='bbox')
+        self.ui.roiframe.segment_sam()
+        # switch to SAM display
+        self.ui.roiframe.set_overlay('SAM')
+        # in SAM, the ET bounding box segmentation is interpreted directly as TC
+        self.ui.roiframe.layerSAM_callback(layer='TC')
 
     #######################
     # mouse/keyboard events

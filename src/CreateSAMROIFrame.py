@@ -304,7 +304,10 @@ class CreateSAMROIFrame(CreateFrame):
         roi = self.ui.get_currentroi()
         if roi == 0:
             return
-        self.ui.dataselection = 'seg_fusion'
+        if self.overlay_value['SAM'].get() == True:
+            self.ui.dataselection = 'seg_fusion'
+        else:
+            self.ui.dataselection = 'raw'
         # a convenience reference
         data = self.ui.roi[self.ui.s][roi].data
         # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
@@ -323,10 +326,11 @@ class CreateSAMROIFrame(CreateFrame):
         return
 
     # convenience method
-    def set_overlay(self,overlay='BLAST'):
+    def set_overlay(self,overlay=''):
         for k in self.overlay_value.keys():
             self.overlay_value[k].set(False)
-        self.overlay_value[overlay].set(True)        
+        if len(overlay):
+            self.overlay_value[overlay].set(True)        
 
     # update ROI layers that can be displayed according to availability
     def update_layermenu_options(self,roi):
@@ -460,10 +464,14 @@ class CreateSAMROIFrame(CreateFrame):
             self.ui.updateslice(wl=True)
 
     def SAM_overlay_callback(self):
-        self.set_overlay('SAM')
-        # currently have only one 'seg_fusion' overlay image, so have to regenerate each time
-        # switching between SAM and finalROI
-        self.layerSAM_callback()
+        if self.overlay_value['SAM'].get() == False:
+            self.ui.dataselection = 'raw'
+            self.ui.updateslice()
+        else:
+            self.set_overlay('SAM')
+            # currently have only one 'seg_fusion' overlay image, so have to regenerate each time
+            # switching between SAM and finalROI
+            self.layerSAM_callback()
         return
 
     # creates a ROI selection button press event
