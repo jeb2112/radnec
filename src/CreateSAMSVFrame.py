@@ -11,7 +11,6 @@ from nibabel.processing import resample_from_to
 import pydicom as pd
 from pydicom.fileset import FileSet
 from tkinter import ttk,StringVar,DoubleVar,PhotoImage
-from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg,NavigationToolbar2Tk
 import matplotlib
 import matplotlib.pyplot as plt
@@ -51,6 +50,9 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.windowlabel = None
         self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
+        # values of the current bbox
+        self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None}        
+        self.bboxs = {}
         self.sagcordisplay = tk.IntVar(value=0)
         self.overlay_type = tk.IntVar(value=self.config.BlastOverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
@@ -78,7 +80,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
         self.frame.configure(style='sliceviewerframe.TFrame')
 
-        # normal stats button, 2d or 3d
+        # normal frame for stats button etc
         self.normal_frame = ttk.Frame(self.parentframe,padding='0')
         self.normal_frame.grid(row=3,column=0,sticky='NW')
 
@@ -90,8 +92,12 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.canvasframe.configure(style='canvasframe.TFrame')
         self.canvasframe.grid(row=1,column=0,columnspan=3,sticky='NW')
 
+        # button to run stats for normal background
         normalSlice = ttk.Button(self.normal_frame,text='normal stats',command=self.normalslice_callback)
         normalSlice.grid(column=0,row=1,sticky='w')
+        # button to run 2d SAM on manual bbox
+        runSAM = ttk.Button(self.normal_frame,text='run 2d SAM',command=self.sam2d_callback)
+        runSAM.grid(column=1,row=1,sticky='w')
 
         # messages text frame
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -311,6 +317,10 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             elif self.ui.dataselection == 'raw':
                 self.clipwl_raw()
 
+        # if not an event, show an existing bbox, or remove it
+        if self.ui.currentroi > 0 and event is None:
+            self.update_bboxs()
+
         self.canvas.draw()
     
     def update_labels(self,item=None):
@@ -404,10 +414,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         if False:
             self.ui.data[0].dset[dt]['d'] = copy.deepcopy(self.ui.data[0].dset[dt+'_copy']['d'])
 
-
-    def fitlin(self,x,a,b):
-        return a*x + b
-
     # main method for BLAST stats in the normal image data
     def normalslice_callback(self,event=None):
         print('normal stats')
@@ -469,7 +475,20 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # since we finish the on the T2 hyper layer, have this slider disabled to begin with
         # self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
 
+    # run 2d SAM on available bbox
+    def sam2d_callback(self):
+        print('run sam 2D')
+        if self.bbox['plot'] is None:
+            print('No bbox defined')
+            return
+        self.ui.roiframe.saveROI(sam=self.ui.currentslice,mask='bbox')
+        self.ui.roiframe.segment_sam()
+
+
+    #######################
     # mouse/keyboard events
+    #######################
+
     # mouse drag event for 3d crosshair overlay
     # currently this is over-ridden for the hard-coded axes coords. should better be generalized
     def b1motion_crosshair(self,event):
@@ -520,3 +539,152 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # repeating this here because there are some automatic tk backend events which 
         # can reset it during a sequence of multiple drags
         self.canvas.get_tk_widget().config(cursor='tcross')
+
+
+    # methods for drawing bounding boxes
+
+    # from global screen pixel event coords, calculate the data coords within the clicked panel
+    # because there is still a flip in the y coordinates between matplotlib and gui event,
+    # for the bottom two panels C,D the screen pixel matrix dimension must first be subtracted, 
+    # negation performed, then the data pixel matrix dimension added back on.
+    def calc_panel_xy(self,ex,ey,ax):
+        if ax > 'B':
+            ey -= int(self.ui.current_panelsize*self.ui.config.dpi/2)
+        x,y = self.axs[ax].transData.inverted().transform((ex,ey))
+        # y = -y
+        y = self.dim[1]-y
+        if ax > 'B':
+            y += self.dim[1]
+        return x,y
+
+    # mouse drag event creates bbox
+    def b1motion_bbox(self,event=None):
+        self.canvas.get_tk_widget().config(cursor='sizing')
+        # no adjustment from outside the pane
+        if event.y < 0 or event.y > self.ui.current_panelsize*self.config.dpi:
+            return
+        # which artist axes was clicked
+        a = self.tbar.select_artist(event)
+        if a is None:
+            return
+        aax = a.axes._label
+        if aax != self.bbox['ax']:
+            self.clear_bbox()
+            return
+        # mouse event returns display coords but which are still flipped in y compared to matplotlib data coords.
+        x,y = self.calc_panel_xy(event.x,event.y,aax)
+        self.draw_bbox(x,y,aax)
+        self.updateslice(event=event)
+
+        # repeating this here because there are some automatic tk backend events which 
+        # can reset it during a sequence of multiple drags
+        self.canvas.get_tk_widget().config(cursor='sizing')
+
+    # record coordinates of button click
+    def b1click(self,event):
+        ex,ey = np.copy(event.x),np.copy(event.y)
+        self.canvas.get_tk_widget().config(cursor='sizing')
+        if self.bbox['plot']:
+            self.clear_bbox()
+        # no action if outside the pane
+        if event.widget.widgetName != 'canvas':
+            return
+        # which artist axes was clicked
+        a = self.tbar.select_artist(event)
+        if a is None:
+            return
+        aax = a.axes._label
+        # data coordinates of the screen click event
+        x,y = self.calc_panel_xy(ex,ey,aax)
+        if False:
+            pdim = int(self.ui.current_panelsize*self.ui.config.dpi/2)
+            if ey > pdim:
+                ey -= pdim 
+            x,y = self.axs[aax].transData.inverted().transform((ex,ey))
+            y = -y + self.dim[1]
+        self.bbox['ax'] = aax
+        self.bbox['p0'] = (x,y)
+        self.bbox['slice'] = self.ui.currentslice
+        if False:
+            self.axs[aax].plot(x,y,'+')
+        self.canvas.get_tk_widget().config(cursor='sizing')
+        # bind the release event
+        self.ui.root.bind('<ButtonRelease-1>',self.b1release)
+
+    # record bbox after left-button release
+    def b1release(self,event):
+        self.record_bbox()
+        self.ui.root.unbind('<ButtonRelease-1>')
+
+    # draw line for current linear bbox
+    def draw_bbox(self,x,y,ax):
+        if self.bbox['ax'] != ax or self.bbox['p0'] is None:
+            return
+        if self.bbox['plot'] is not None:
+            try:
+                self.axs[self.bbox['ax']].lines[0].remove() # coded for only 1 line
+                self.bbox['plot'] = None
+            except ValueError as e:
+                print(e)
+        lx = np.array([self.bbox['p0'][0],x,x,self.bbox['p0'][0],self.bbox['p0'][0]])
+        ly = np.array([self.bbox['p0'][1],self.bbox['p0'][1],y,y,self.bbox['p0'][1]])
+        self.bbox['plot'] = self.axs[ax].plot(lx,ly,'b',clip_on=True)[0]
+        self.bbox['p1'] = (x,y)
+        self.bbox['l'] = np.sqrt(np.power(lx[2]-lx[0],2)+np.power(ly[2]-ly[0],2))
+        self.ui.set_message(msg='diameter = {:.1f}'.format(self.bbox['l']))
+        return
+
+    # remove existing bbox, for using during interactive draw only
+    def clear_bbox(self):
+        if self.bbox['plot'] is not None:
+            self.axs[self.bbox['ax']].lines[0].remove() # coded for only 1 line
+        self.bbox = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
+        self.ui.clear_message()
+        self.canvas.draw()
+
+    # compute mask array from bounding box. 
+    # this is a round-about arrangement, since sam.py script
+    # recomputes the bbox from the mask, but don't want to implement
+    # external file storage for bbox's directly at this time. 
+    # TODO. box extension
+    def create_mask_from_bbox(self, bbox, box_extension=0):
+        vxy = np.array([[bbox[0][0],bbox[0][1]],
+                       [bbox[1][0],bbox[0][1]],
+                       [bbox[1][0],bbox[1][1]],
+                       [bbox[0][0],bbox[1][1]]])
+        vyx = np.flip(vxy,axis=1)
+        bbox_path = Path(vyx,closed=False)
+        mask = np.zeros((self.dim[1],self.dim[2]),dtype='uint8')
+        mask = bbox_path.contains_points(np.array(np.where(mask==0)).T)
+        mask = np.reshape(mask,(self.dim[1],self.dim[2]))        
+        return mask
+
+    # copy existing bbox in current slice to 'bbox' field of the roi. 
+    def record_bbox(self):
+        self.bboxs[self.ui.currentslice] = copy.deepcopy(self.bbox)
+        # hard-coded for one ROI only
+        # this ROI should be cleared before creating a BLAST ROI. eventually should reconcile these.
+        if self.ui.currentroi == 0:
+            self.ui.roiframe.createROI(self.bbox['p0'][0],self.bbox['p0'][1],self.currentslice)
+            self.ui.roi[self.ui.s][1].data['bbox'] = np.zeros(self.dim)
+        self.ui.roi[self.ui.s][1].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0'],self.bbox['p1']))
+        if False:
+            self.bbox = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
+        return
+
+    # re-display an existing bbox
+    def show_bbox(self,roi=None):
+        self.bbox = copy.deepcopy(self.bboxs[self.ui.currentslice])
+        self.bbox['plot'] = None
+        self.draw_bbox(self.bbox['p1'][0],self.bbox['p1'][1],self.bbox['ax'])
+        self.canvas.draw()
+
+    # display or remove bbox in the current slice
+    def update_bboxs(self):
+        self.clear_bbox()
+        slice = self.ui.currentslice
+        if slice in list(self.bboxs.keys()):
+            self.bbox = copy.deepcopy(self.bboxs[slice])
+            self.show_bbox()
+            self.canvas.draw()
+ 

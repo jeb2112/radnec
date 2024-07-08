@@ -12,8 +12,10 @@ class ROI():
         self.data = {'WT':None,'ET':None,'TC':None,'contour':{'WT':None,'ET':None},
                      'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
-                     'seg':None,'segSAM':None,
-                     'ET_sam':None,'WT_sam':None,'TC_sam':None}
+                     'seg':None,
+                     'ET_sam':None,'WT_sam':None,'TC_sam':None,
+                     'segSAM':None,
+                     'bbox':None}
 
         # ROI selection coordinates
         self.coords = {'ET':{},'necrosis':{},'T2 hyper':{}}

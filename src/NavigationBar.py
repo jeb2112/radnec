@@ -29,6 +29,7 @@ class MyCursors(enum.IntEnum):  # Must subclass int for the macOS backend.
     WL = enum.auto()
     CROSSHAIR = enum.auto()
     MEASURE = enum.auto()
+    BBOX = enum.auto()
 cursors = MyCursors  # Backcompat.
 
 # this global does not override the global in backend, so can't use it.
@@ -42,7 +43,8 @@ cursord = {
     cursors.RESIZE_VERTICAL: "sb_v_double_arrow",
     cursors.WL: "circle",
     cursors.CROSSHAIR: "tcross",
-    cursors.MEASURE: "sizing"
+    cursors.MEASURE: "sizing",
+    cursors.BBOX: "sizing"
 }
 
 # overriden to add a WL mode
@@ -53,6 +55,7 @@ class _Mode(str, enum.Enum):
     WL = "window/level"
     CROSSHAIR = "crosshair"
     MEASURE = "measure"
+    BBOX = "bbox"
 
     def __str__(self):
         return self.value
@@ -107,12 +110,48 @@ class NavigationBar(NavigationToolbar2Tk):
         if self.ui.function.get() == '4panel':
             path = os.path.join(self.ui.config.UIResourcesPath,'measurement_icon.png')
             self._buttons['measure'] = button = self._Button('measure',path,toggle=True,command=getattr(self,'measure'))
-            # position it alongside the Pan button
             self._buttons['measure'].pack_forget
             self._buttons['measure'].pack(after=self._buttons['WL'])
             ToolTip.createToolTip(button, 'Display measurement cursor')
 
+        # add the bounding box button
+        if self.ui.function.get() == 'SAM':
+            path = os.path.join(self.ui.config.UIResourcesPath,'bbox_icon.png')
+            self._buttons['bbox'] = button = self._Button('bbox',path,toggle=True,command=getattr(self,'bbox'))
+            self._buttons['bbox'].pack_forget
+            self._buttons['bbox'].pack(after=self._buttons['WL'])
+            ToolTip.createToolTip(button, 'Display bbox cursor')
+
+
         self.update()
+
+
+    def bbox(self,*args):
+        """
+        Toggle the bbox overlay.
+        """
+        if not self.canvas.widgetlock.available(self):
+            self.set_message("bbox unavailable")
+            return
+        if self.mode == _Mode.BBOX:
+            self.mode = _Mode.NONE
+            self.canvas.widgetlock.release(self)
+        else:
+            self.mode = _Mode.BBOX
+            self.canvas.widgetlock(self)
+        for a in self.canvas.figure.get_axes():
+            a.set_navigate_mode(self.mode._navigate_mode)
+
+        if self.mode == _Mode.BBOX:
+            self.canvas.get_tk_widget().config(cursor='sizing')
+            self.ui.root.bind('<B1-Motion>',self.ui.sliceviewerframe.b1motion_bbox)
+            self.ui.root.bind('<Button-1>',self.ui.sliceviewerframe.b1click)
+        else:
+            self.canvas.get_tk_widget().config(cursor='arrow')
+            self.ui.root.unbind('<B1-Motion>')
+            self.ui.root.unbind('<Button-1>')
+            self.ui.sliceviewerframe.clear_bbox()
+        self._update_buttons_checked()
 
 
     def measure(self,*args):

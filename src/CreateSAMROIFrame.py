@@ -748,8 +748,8 @@ class CreateSAMROIFrame(CreateFrame):
 
         return None
 
-    # for exporting BLAST segmentations.
-    def saveROI(self,roi=None,outputpath=None,sam=False):
+    # for exporting BLAST/SAM segmentations.
+    def saveROI(self,roi=None,outputpath=None,sam=0,mask='ET'):
         if outputpath is None:
             outputpath = self.ui.caseframe.casedir
         if roi is None:
@@ -762,37 +762,38 @@ class CreateSAMROIFrame(CreateFrame):
 
         # temp output just for sam segmentation
         # using tmpfiles so ptorch not needed in the blast env
-        if sam:
-            fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
-            if not os.path.exists(fileroot):
-                os.mkdir(fileroot)
-            else:
-                shutil.rmtree(fileroot)
-                os.mkdir(fileroot)
-            roisuffix = ''
-            for ch,img in zip(['t1+'],['ET']):
-                for roi in roilist: # assuming just one roi for sam
-                    if len(roilist) > 1:
-                        roisuffix = '_roi'+roi
-                    rref = self.ui.roi[self.ui.s][roi].data[img]
-                    dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']
-                    affine_bytes = self.ui.data[self.ui.s].dset['raw'][ch]['affine'].tobytes()
-                    affine_bytes_str = str(affine_bytes)
-                    if dref is not None:
-                        if type(sam) == bool: # ie True, do all slices
-                            rslice = list(range(self.ui.sliceviewer.dim[0]))
-                        elif type(sam) == int: # current slice only
-                            rslice = [sam]
-                        for slice in rslice:
-                            if len(np.where(rref[slice])[0]):
-                                outputfilename = os.path.join(fileroot,'mask_' + str(slice) + '_' + ch + '.png')
-                                plt.imsave(outputfilename,rref[slice],cmap='gray',)
-                                outputfilename = os.path.join(fileroot,'slice_' + str(slice) + '_' + ch +'.png')
-                                meta = PIL.PngImagePlugin.PngInfo()
-                                meta.add_text('slicedim',str(self.ui.sliceviewerframe.dim[0]))
-                                meta.add_text('affine',affine_bytes_str)
-                                plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
-            # self.segment_sam()
+        fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
+        if not os.path.exists(fileroot):
+            os.mkdir(fileroot)
+        else:
+            shutil.rmtree(fileroot)
+            os.mkdir(fileroot)
+        roisuffix = ''
+        if sam == 0:
+            rslice = list(range(self.ui.sliceviewerframe.dim[0])) # do all slices
+        else:
+            rslice = [sam] # do given slice
+
+        for ch,m in zip(['t1+'],[mask]):
+            for roi in roilist: # assuming just one roi for sam
+                if len(roilist) > 1:
+                    roisuffix = '_roi'+roi
+                # available masks for prompt: 'ET' for BLAST, 'bbox' for manual
+                rref = self.ui.roi[self.ui.s][roi].data[m]
+                dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']
+                affine_bytes = self.ui.data[self.ui.s].dset['raw'][ch]['affine'].tobytes()
+                affine_bytes_str = str(affine_bytes)
+                if dref is not None:
+                    for slice in rslice:
+                        if len(np.where(rref[slice])[0]):
+                            outputfilename = os.path.join(fileroot,'mask_' + str(slice) + '_' + ch + '.png')
+                            plt.imsave(outputfilename,rref[slice],cmap='gray',)
+                            outputfilename = os.path.join(fileroot,'slice_' + str(slice) + '_' + ch +'.png')
+                            meta = PIL.PngImagePlugin.PngInfo()
+                            meta.add_text('slicedim',str(self.ui.sliceviewerframe.dim[0]))
+                            meta.add_text('affine',affine_bytes_str)
+                            plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
+
 
         # BLAST image file outputs.
         fileroot = self.ui.data[self.ui.s].studydir
@@ -807,6 +808,13 @@ class CreateSAMROIFrame(CreateFrame):
                     self.ui.data[self.ui.s].writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],
                                                        outputfilename,
                                                        affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
+                    
+        # SAM outputs
+        # ie for the full 3d volume, additionally run the segmentation
+        # currently assuming only 1 roi exists at a time, this can be extended 
+        # like the code above
+        if sam == 0: 
+            self.segment_sam()
 
         # also output to pickle
         if False:
@@ -940,8 +948,11 @@ class CreateSAMROIFrame(CreateFrame):
                 self.ui.roi[s][roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
 
     # tumour segmenation by SAM
-    def segment_sam(self,dpath=None,model='SAM',layer='ET_sam'):
+    def segment_sam(self,roi=None,dpath=None,model='SAM',layer='ET_sam'):
         print('SAM segment tumour')
+        if roi is None:
+            roi = self.ui.currentroi
+
         if dpath is None:
             dpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
             if not os.path.exists(dpath):
