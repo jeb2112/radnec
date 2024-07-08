@@ -16,7 +16,7 @@ from src.CreateBlastSVFrame import CreateBlastSVFrame
 from src.CreateSAMSVFrame import CreateSAMSVFrame
 from src.Create4PanelSVFrame import Create4PanelSVFrame
 from src.CreateCaseFrame import CreateCaseFrame
-from src.CreateROIFrame import CreateROIFrame
+from src.CreateSAMROIFrame import CreateSAMROIFrame
 from src.CreateOverlayFrame import CreateOverlayFrame
 from src.Create4PanelROIFrame import Create4PanelROIFrame
 from src.CreateFrame import Command
@@ -94,9 +94,9 @@ class BlastGui(object):
                 if True:
                     caseselect = 'M00001'
                     caseslice = 85
-                    pointxyz = (165,125,85)
-                    ETt1set = 0.0
-                    ETflairset = -1.0
+                    pointxyz = (165,129,85)
+                    ETt1set = 0.2
+                    ETflairset = -0.6
                     WTt1set = 0.0
                     WTflairset = 1.0
                 else:
@@ -116,12 +116,13 @@ class BlastGui(object):
                 self.roiframe.thresholds['ET']['flair'].set(ETflairset)
                 self.roiframe.updateslider('ET','t12')
                 self.roiframe.updateslider('ET','flair')
-                self.roiframe.layer_callback(layer='T2 hyper')
-                self.roiframe.thresholds['T2 hyper']['t12'].set(WTt1set)
-                self.roiframe.thresholds['T2 hyper']['flair'].set(WTflairset)
-                self.roiframe.updateslider('T2 hyper','t12')
-                self.roiframe.updateslider('T2 hyper','flair')
                 if False:
+                    self.roiframe.layer_callback(layer='T2 hyper')
+                    self.roiframe.thresholds['T2 hyper']['t12'].set(WTt1set)
+                    self.roiframe.thresholds['T2 hyper']['flair'].set(WTflairset)
+                    self.roiframe.updateslider('T2 hyper','t12')
+                    self.roiframe.updateslider('T2 hyper','flair')
+                if True:
                     self.roiframe.createROI(pointxyz[0],pointxyz[1],pointxyz[2])
                     self.roiframe.ROIclick(event=None)
 
@@ -147,13 +148,13 @@ class BlastGui(object):
             self.roiframes['4panel'] = Create4PanelROIFrame(self.mainframe,ui=self,padding='0')
         elif self.function.get() == 'BLAST':
             self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
-            self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
+            self.roiframes['BLAST'] = CreateSAMROIFrame(self.mainframe,ui=self,padding='0')
         elif self.function.get() == 'overlay':
             self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
             self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
         elif self.function.get() == 'SAM':
             self.sliceviewerframes['SAM'] = CreateSAMSVFrame(self.mainframe,ui=self,padding='0')
-            self.roiframes['SAM'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
+            self.roiframes['SAM'] = CreateSAMROIFrame(self.mainframe,ui=self,padding='0')
 
         
         # overlay/blast function mode
@@ -271,7 +272,7 @@ class BlastGui(object):
             self.data[s].dset['seg_raw_fusion'][ch]['ex'] = True
             # self.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.data[s].dset['seg_raw_fusion'][ch]['d'+layer])
             
-        if self.roiframe.finalROI_overlay_value.get() == True:
+        if self.roiframe.overlay_value['finalROI'].get() == True:
             self.dataselection = 'seg_fusion'
         else:
             self.dataselection = 'seg_raw_fusion'
@@ -287,9 +288,9 @@ class BlastGui(object):
         if False:
             if currentslice:
                 self.sliceviewerframe.vsliceslider['command'] = None
-                if self.roiframe.enhancingROI_overlay_value.get() == True:
+                if self.roiframe.overlay_value['BLAST'].get() == True:
                     self.sliceviewerframe.vsliceslider.bind("<ButtonRelease-1>",self.sliceviewerframe.updateslice_blast)
-                elif self.roiframe.finalROI_overlay_value.get() == True:
+                elif self.roiframe.overlay_value['finalROI'].get() == True:
                     self.sliceviewerframe.vsliceslider.bind("<ButtonRelease-1>",self.sliceviewerframe.updateslice_roi)
             else:
                 self.sliceviewerframe.vsliceslider.unbind("<ButtonRelease-1>")

@@ -31,15 +31,13 @@ from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
 from src.ROI import ROI
 
-# contains various ROI methods and variables for 'BLAST' mode
-class CreateROIFrame(CreateFrame):
+# contains various ROI methods and variables for 'SAM' mode
+class CreateSAMROIFrame(CreateFrame):
     def __init__(self,frame,ui=None,padding='10'):
         super().__init__(frame,ui=ui,padding=padding)
 
         self.buttonpress_id = None # temp var for keeping track of button press event
-        self.overlay_value = {'BLAST':tk.BooleanVar(value=False),'finalROI':tk.BooleanVar(value=False)}
-        self.overlay_value['finalROI'] = tk.BooleanVar(value=False)
-        self.overlay_value['BLAST'] = tk.BooleanVar(value=False)
+        self.overlay_value = {'BLAST':tk.BooleanVar(value=False),'finalROI':tk.BooleanVar(value=False),'SAM':tk.BooleanVar(value=False)}
         roidict = {'ET':{'t12':None,'flair':None,'bc':None},'T2 hyper':{'t12':None,'flair':None,'bc':None}}
         self.thresholds = copy.deepcopy(roidict)
         self.sliders = copy.deepcopy(roidict)
@@ -54,6 +52,7 @@ class CreateROIFrame(CreateFrame):
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all'],'sam':['ET','TC','WT','all']}
         self.layer = tk.StringVar(value='ET')
         self.layerROI = tk.StringVar(value='ET')
+        self.layerSAM = tk.StringVar(value='ET')
         self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=0)
         self.roilist = []
@@ -97,6 +96,19 @@ class CreateROIFrame(CreateFrame):
                                            *self.layerlist['seg'],command=self.layerROI_callback)
         self.layerROImenu.config(width=4)
         self.layerROImenu.grid(row=0,column=3,sticky='w')
+
+        # ROI button for SAM segmentation
+        SAM_overlay = ttk.Checkbutton(self.frame,text='',
+                                           variable=self.overlay_value['SAM'],
+                                           command=self.SAM_overlay_callback)
+        SAM_overlay.grid(row=1,column=5,sticky='w')
+        layerlabel = ttk.Label(self.frame,text='SAM layer:')
+        layerlabel.grid(row=0,column=4,sticky='w')
+        self.layerSAM.trace_add('write',lambda *args: self.layerSAM.get())
+        self.layerSAMmenu = ttk.OptionMenu(self.frame,self.layerSAM,self.layerlist['sam'][1],
+                                           *self.layerlist['seg'],command=self.layerSAM_callback)
+        self.layerSAMmenu.config(width=4)
+        self.layerSAMmenu.grid(row=0,column=5,sticky='w')
 
         # for multiple roi's, n'th roi number choice
         roinumberlabel = ttk.Label(self.frame,text='ROI number:')
@@ -160,7 +172,6 @@ class CreateROIFrame(CreateFrame):
         self.sliderlabels['ET']['bc'] = ttk.Label(self.sliderframe['ET'],text=self.thresholds['ET']['bc'].get())
         self.sliderlabels['ET']['bc'].grid(row=2,column=2,sticky='e')
 
-
         # T2 hyper sliders
         # t2 slider
         t2label = ttk.Label(self.sliderframe['T2 hyper'], text='T1/T2')
@@ -204,8 +215,7 @@ class CreateROIFrame(CreateFrame):
         # also if in ROI mode, then copy the relevant data back for BLAST mode.
         if self.overlay_value['finalROI'].get() == True:
             self.updateData()
-            self.overlay_value['finalROI'].set(False)
-        self.overlay_value['BLAST'].set(True)
+        self.set_overlay('BLAST')
         self.ui.dataselection = 'seg_raw_fusion'
 
         self.ui.sliceviewerframe.updatewl_fusion()
@@ -253,8 +263,7 @@ class CreateROIFrame(CreateFrame):
         if roi == 0:
             return
         # if in the opposite mode, then switch
-        self.overlay_value['BLAST'].set(False)
-        self.overlay_value['finalROI'].set(True)
+        self.set_overlay('finalROI')
         self.ui.dataselection = 'seg_fusion'
 
         self.ui.sliceviewerframe.updatewl_fusion()
@@ -281,9 +290,6 @@ class CreateROIFrame(CreateFrame):
                 data['seg_fusion'][ch] = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
                                                                 data['seg'],layer=layer,
                                                             overlay_intensity=self.config.OverlayIntensity)
-
-        # data['seg_fusion_d'] = copy.deepcopy(data['seg_fusion'])
-
         if updatedata:
             self.updateData()
 
@@ -292,6 +298,36 @@ class CreateROIFrame(CreateFrame):
 
         return
     
+    # method for displaying SAM results
+    def layerSAM_callback(self,layer='TC',updateslice=True, updatedata=True):
+
+        roi = self.ui.get_currentroi()
+        if roi == 0:
+            return
+        self.ui.dataselection = 'seg_fusion'
+        # a convenience reference
+        data = self.ui.roi[self.ui.s][roi].data
+        # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
+        # then also copied back to main ui data
+        # TODO: check mouse event, versus layer_callback called by statement
+        for ch in [self.ui.chselection]:
+            data['seg_fusion'][ch] = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
+                                                            data['segSAM'],layer=layer,
+                                                        overlay_intensity=self.config.OverlayIntensity)
+
+        if updatedata:
+            self.updateData()
+
+        if updateslice:
+            self.ui.updateslice()
+        return
+
+    # convenience method
+    def set_overlay(self,overlay='BLAST'):
+        for k in self.overlay_value.keys():
+            self.overlay_value[k].set(False)
+        self.overlay_value[overlay].set(True)        
+
     # update ROI layers that can be displayed according to availability
     def update_layermenu_options(self,roi):
         roi = self.ui.get_currentroi()
@@ -367,6 +403,8 @@ class CreateROIFrame(CreateFrame):
 
     # switch to show sliders and values according to current layer being displayed
     def updatesliders(self):
+        if self.overlay_value['SAM'].get() == True:
+            return
         if self.overlay_value['BLAST'].get() == True:
             layer = self.layer.get()
         elif self.overlay_value['finalROI'].get() == True:
@@ -420,6 +458,13 @@ class CreateROIFrame(CreateFrame):
             self.overlay_value['finalROI'].set(False)
             self.ui.dataselection = 'seg_raw_fusion'
             self.ui.updateslice(wl=True)
+
+    def SAM_overlay_callback(self):
+        self.set_overlay('SAM')
+        # currently have only one 'seg_fusion' overlay image, so have to regenerate each time
+        # switching between SAM and finalROI
+        self.layerSAM_callback()
+        return
 
     # creates a ROI selection button press event
     def selectROI(self,event=None):
@@ -509,26 +554,33 @@ class CreateROIFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='arrow')
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
-        # currently this logic stays in BLAST mode if both ET and t2 hyper are not yet selected.
-        # however, the preferred workflow may be to switch to ROI mode automatically after 1st BLAST
-        # segmentation is selected, then manually jump back to BLAST mode for the 2nd selection
+        # currently this logic jumps immediately to SAM segmentation
+        # when the BLAST ROI is complete. 
         roi = self.ui.get_currentroi()
         if self.ui.roi[self.ui.s][roi].status:
-            # this part may need verification
             self.overlay_value['finalROI'].set(True)
             self.overlay_value['BLAST'].set(False)
             self.ui.dataselection = 'seg_fusion'
-            self.layerROI_callback(layer='ET')
-
-        else:
-            self.overlay_value['finalROI'].set(False)
-            self.overlay_value['BLAST'].set(True)
-            self.ui.dataselection = 'seg_raw_fusion'
-            self.ui.sliceviewerframe.updateslice()
             if self.ui.roi[self.ui.s][roi].data['WT'] is None:
-                self.layer_callback(layer='T2 hyper')
+                # removed T2 hyper here
+                self.layer_callback(layer='ET')
             else:
                 self.layer_callback(layer='ET')
+
+            # output current slice only of the BLAST ROI to file for follow-on SAM processing
+            self.saveROI(roi,sam=self.ui.currentslice)
+            # automatically run sam but only for current slice
+            self.segment_sam()
+            # automatically switch to SAM display
+            self.set_overlay('SAM')
+            # in SAM, the ET bounding box segmentation is interpreted directly as TC
+            self.layerSAM_callback(layer='TC')
+            # TODO. reload segmentations to viewer
+        else:
+            self.set_overlay('BLAST')
+            self.ui.dataselection = 'seg_raw_fusion'
+            self.ui.sliceviewerframe.updateslice()
+            self.layer_callback(layer='ET')
 
 
         return None
@@ -660,25 +712,22 @@ class CreateROIFrame(CreateFrame):
                 objectmask_filled = flood_fill(objectmask_filled,(ypos,xpos),True)
                 objectmask_final[currentslice,:,:] = objectmask_filled.astype('int')     
                 self.ui.roi[s][roi].data['TC'] = objectmask_final.astype('uint8')
-
-            # step 3. TC contouring option. not recently updated.
-            if do3d:
-                objectmask_contoured = {}
-                for sl in range(self.config.ImageDim[0]):
-                    objectmask_contoured[sl] = find_contours(objectmask_final[sl,:,:])
-                self.ui.roi[s][roi].data['contour']['TC'] = objectmask_contoured
  
             # create a combined seg mask from the three layers
             # using nnunet convention for labels
+            # there is currently no WT segmentation in the SAM viewer
             if self.ui.roi[s][roi].data['WT'] is None:
                 self.ui.roi[s][roi].data['seg'] = 4*self.ui.roi[s][roi].data['ET'] + \
-                                                    2*self.ui.roi[s][roi].data['TC']
+                                                     2*self.ui.roi[s][roi].data['TC']
+                # for current SAM mode, ET layer alone is complete
+                self.ui.roi[s][roi].status = True # ie ROI is now complete                                                    
             else:
                 self.ui.roi[s][roi].data['seg'] = 4*self.ui.roi[s][roi].data['ET'] + \
-                                                    2*self.ui.roi[s][roi].data['TC'] + \
-                                                    1*self.ui.roi[s][roi].data['WT']
-                self.ui.roi[s][roi].status = True # ie ROI has both compartments selected                                                    
+                                                     2*self.ui.roi[s][roi].data['TC'] + \
+                                                     1*self.ui.roi[s][roi].data['WT']
+                self.ui.roi[s][roi].status = True # ie ROI has both compartments selected
 
+        # this no longer part of SAM viewer
         elif m == 'WT': # WT gets no additional processing. just create a combined seg mask from the three layers
                         # nnunet convention for labels
             if self.ui.roi[s][roi].data['ET'] is None:
@@ -721,7 +770,7 @@ class CreateROIFrame(CreateFrame):
                 shutil.rmtree(fileroot)
                 os.mkdir(fileroot)
             roisuffix = ''
-            for ch,img in zip(['t1+','flair'],['ET','WT']):
+            for ch,img in zip(['t1+'],['ET']):
                 for roi in roilist: # assuming just one roi for sam
                     if len(roilist) > 1:
                         roisuffix = '_roi'+roi
@@ -730,7 +779,11 @@ class CreateROIFrame(CreateFrame):
                     affine_bytes = self.ui.data[self.ui.s].dset['raw'][ch]['affine'].tobytes()
                     affine_bytes_str = str(affine_bytes)
                     if dref is not None:
-                        for slice in range(self.ui.sliceviewerframe.dim[0]):
+                        if type(sam) == bool: # ie True, do all slices
+                            rslice = list(range(self.ui.sliceviewer.dim[0]))
+                        elif type(sam) == int: # current slice only
+                            rslice = [sam]
+                        for slice in rslice:
                             if len(np.where(rref[slice])[0]):
                                 outputfilename = os.path.join(fileroot,'mask_' + str(slice) + '_' + ch + '.png')
                                 plt.imsave(outputfilename,rref[slice],cmap='gray',)
@@ -739,6 +792,7 @@ class CreateROIFrame(CreateFrame):
                                 meta.add_text('slicedim',str(self.ui.sliceviewerframe.dim[0]))
                                 meta.add_text('affine',affine_bytes_str)
                                 plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
+            # self.segment_sam()
 
         # BLAST image file outputs.
         fileroot = self.ui.data[self.ui.s].studydir
@@ -765,29 +819,6 @@ class CreateROIFrame(CreateFrame):
             filename = fileroot+'_stats.pkl'
             with open(filename,'ab') as fp:
                 pickle.dump((sdict,bdict),fp)
-
-    # for now output only segmentations so uint8
-    def WriteImage(self,img_arr,filename,header=None,norm=False,type='uint8',affine=None):
-        img_arr_cp = copy.deepcopy(img_arr)
-        if norm:
-            img_arr_cp = (img_arr_cp -np.min(img_arr_cp)) / (np.max(img_arr_cp)-np.min(img_arr_cp)) * norm
-        # using nibabel nifti coordinates
-        if True:
-            img_nb = nb.Nifti1Image(np.transpose(img_arr_cp.astype(type),(2,1,0)),affine,header=header)
-            nb.save(img_nb,filename)
-        # couldn't get sitk nifti coordinates to work in mricron viewer
-        else:
-            img = sitk.GetImageFromArray(img_arr_cp.astype('uint8'))
-            # this fails to copy origin, so do it manually
-            # img.CopyInformation(self.ui.t1ce)
-            img.SetDirection(self.ui.direction)
-            img.SetSpacing(self.ui.spacing)
-            img.SetOrigin(self.ui.origin)
-            writer = sitk.ImageFileWriter()
-            writer.SetImageIO('NiftiImageIO')
-            writer.SetFileName(filename)
-            writer.Execute(img)
-        return
         
 
     # back-copy an existing ROI and overlay from current dataset back into the current roi. 
@@ -907,3 +938,68 @@ class CreateROIFrame(CreateFrame):
 
                 # Calculate volumes
                 self.ui.roi[s][roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
+
+    # tumour segmenation by SAM
+    def segment_sam(self,dpath=None,model='SAM',layer='ET_sam'):
+        print('SAM segment tumour')
+        if dpath is None:
+            dpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
+            if not os.path.exists(dpath):
+                os.mkdir(dpath)
+
+        if os.name == 'posix':
+            if model == 'medSAM':
+                command = 'conda run -n ptorch python scripts/medsam.py  --checkpoint /media/jbishop/WD4/brainmets/sam/medsam_vit_b.pth '
+                command += ' --input ' + self.ui.caseframe.casedir
+                command += ' --output ' + self.ui.caseframe.casedir
+                command += ' --model-type vit_b'
+            elif model == 'SAM':
+                command = 'conda run -n ptorch python scripts/sam.py  --checkpoint /media/jbishop/WD4/brainmets/sam/sam_vit_b_01ec64.pth '
+                command += ' --input ' + self.ui.caseframe.casedir
+                command += ' --output ' + self.ui.caseframe.casedir
+                command += ' --model-type vit_b'
+            res = os.system(command)
+        elif os.name == 'nt':
+            # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
+            # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
+            # it is currently hard-coded to anaconda3/envs location rather than .conda/envs, but anaconda3 could be installed
+            # under either ProgramFiles or Users so check both
+            if os.path.isfile(os.path.expanduser('~')+'\\anaconda3\Scripts\\activate.bat'):
+                activatebatch = os.path.expanduser('~')+"\\anaconda3\Scripts\\activate.bat"
+            elif os.path.isfile("C:\Program Files\\anaconda3\Scripts\\activate.bat"):
+                activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
+            else:
+                raise FileNotFoundError('anaconda3/Scripts/activate.bat')
+            if os.path.isdir(os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'):
+                envpath = os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'
+            elif os.path.isdir(os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'):
+                envpath = os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'
+            else:
+                raise FileNotFoundError('pytorch118_310')
+
+            command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
+            command2 = 'nnUNetv2_predict -i \"' + dpath + '\" -o \"' + dpath + '\" -d137 -c 3d_fullres'
+            cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
+            popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
+            for stdout_line in iter(popen.stdout.readline,""):
+                if stdout_line != '\n':
+                    print(stdout_line)
+            popen.stdout.close()
+            res = popen.wait()
+            if res:
+                raise subprocess.CalledProcessError(res,cstr)
+                print(res)
+                
+        # self.ui.data[self.ui.s].dset['sam']['d'],_ = self.ui.data[self.ui.s].loadnifti('ET_sam_box_processed.nii.gz',self.ui.data[self.ui.s].studydir)
+        roi = self.ui.currentroi
+        self.ui.roi[self.ui.s][roi].data[layer],_ = self.ui.data[self.ui.s].loadnifti(layer+'_box_processed.nii.gz',self.ui.data[self.ui.s].studydir)
+        # create a combined seg mask from the three layers
+        # using nnunet convention for labels
+        # there is currently no WT segmentation in the SAM viewer, and segmentation from ET
+        # bounding box is interpreted directly as TC
+        self.ui.roi[self.ui.s][roi].data['segSAM'] = 2*self.ui.roi[self.ui.s][roi].data['ET_sam'] #+ \
+                                                # 1*self.ui.roi[self.ui.s][roi].data['WT_sam']
+        if False:
+            os.remove(os.path.join(dpath,sfile))
+
+        return 

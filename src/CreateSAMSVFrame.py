@@ -279,10 +279,11 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # which data array to display. 'd' is general
         d = 'd'
         # special case arrangement for displaying BLAST overlays by layer type. slightly awkward.
-        if self.ui.roiframe.enhancingROI_overlay_value.get():
+        if self.ui.roiframe.overlay_value['BLAST'].get():
             d = 'd'+self.ui.roiframe.layer.get()
         self.ax_img.set(data=self.ui.data[s].dset[self.ui.dataselection][self.ui.chselection][d][slice,:,:])
         # by convention, 2nd panel will always be flair, 1st panel could be t1,t1+ or t2
+        # for sam currently there will be no flair 2nd panel
         self.ax3_img.set(data=self.ui.data[s].dset[self.ui.dataselection][self.ui.chselection][d][:,:,slicesag])
         self.ax4_img.set(data=self.ui.data[s].dset[self.ui.dataselection][self.ui.chselection][d][:,slicecor,:])
         # add current slice overlay
@@ -430,7 +431,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # T2 hyper values will just be the same as ET since we do not have plain T2 available for rad nec.
         X['T2 hyper'] = np.column_stack((vset[1],vset[0]))
 
-        for i,layer in enumerate(['T2 hyper','ET']):
+        # no T2 hyper processing in SAM viewer
+        for i,layer in enumerate(['ET']):
             np.random.seed(1)
             kmeans = KMeans(n_clusters=2,n_init='auto').fit(X[layer])
             background_cluster = np.argmin(np.power(kmeans.cluster_centers_[:,0],2)+np.power(kmeans.cluster_centers_[:,1],2))
@@ -460,7 +462,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.ui.runblast(currentslice=None,layer=layer)
 
             # activate thresholds only after normal slice stats are available
-            for sl in ['t12','flair','bc']:
+            # removed 'bc' for SAM mode
+            for sl in ['t12','flair']:
                 self.ui.roiframe.sliders[layer][sl]['state']='normal'
                 self.ui.roiframe.sliders[layer][sl].bind("<ButtonRelease-1>",Command(self.ui.roiframe.updateslider,layer,sl))
         # since we finish the on the T2 hyper layer, have this slider disabled to begin with
@@ -468,6 +471,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
     # mouse/keyboard events
     # mouse drag event for 3d crosshair overlay
+    # currently this is over-ridden for the hard-coded axes coords. should better be generalized
     def b1motion_crosshair(self,event):
         self.canvas.get_tk_widget().config(cursor='tcross')
         # no adjustment from outside the pane

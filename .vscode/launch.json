@@ -68,8 +68,8 @@
             "request": "launch",
             "program": "${workspaceFolder}/scripts/sam.py",
             "args": [
-                "--input","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002",
-                "--output","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002",
+                "--input","/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024/M00001",
+                "--output","/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024/M00001",
                 "--checkpoint","/media/jbishop/WD4/brainmets/sam/sam_vit_b_01ec64.pth",
                 "--model-type","vit_b"
             ],

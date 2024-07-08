@@ -1,7 +1,7 @@
 import numpy as np
 
 # collectding various ROI stats and data
-# for BLAST segmentations
+# for BLAST/SAM segmentations
 class ROI():
     def __init__(self,xpos,ypos,slice,compartment='ET'):
 
@@ -12,7 +12,8 @@ class ROI():
         self.data = {'WT':None,'ET':None,'TC':None,'contour':{'WT':None,'ET':None},
                      'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
-                     'seg':None}
+                     'seg':None,'segSAM':None,
+                     'ET_sam':None,'WT_sam':None,'TC_sam':None}
 
         # ROI selection coordinates
         self.coords = {'ET':{},'necrosis':{},'T2 hyper':{}}

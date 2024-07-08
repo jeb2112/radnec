@@ -387,8 +387,10 @@ class Study():
             self.dset['adc'][v] = self.dset['adc'] 
         # raw blast segmentation
         self.dset['seg_raw'] = {v:cp(self.dprop) for v in self.channels.values()}
-        # SAM segmentation
+        # z-score image
         self.dset['z'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # SAM segmentation
+        self.dset['sam'] = {v:cp(self.dprop) for v in self.channels.values()}
         # tempo regression differences of the 'raw' data at two time points
         self.dset['tempo'] = {v:cp(self.dprop) for v in self.channels.values()}
         # color overlay of the z-scores

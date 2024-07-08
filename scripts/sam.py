@@ -296,8 +296,8 @@ def main(args: argparse.Namespace) -> None:
         files = os.listdir(spath)
         if len(files) == 0:
             continue
-        # for ch,img in zip(['t1+','flair'],['ET','WT']):
-        for ch,img in zip(['flair','t1+'],['WT','ET']):
+        # for ch,img in zip(['flair','t1+'],['WT','ET']):
+        for ch,img in zip(['t1+'],['ET']):
             images = [ f for f in files if re.match('slice_[0-9]+_'+ch,f) ]
             images = sorted([os.path.join(spath, f) for f in images])
             masks = [ f for f in files if re.match('mask_[0-9]+_'+ch,f)]

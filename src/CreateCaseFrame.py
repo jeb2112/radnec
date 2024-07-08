@@ -141,8 +141,8 @@ class CreateCaseFrame(CreateFrame):
         self.ui.sliceviewerframe.tbar.home()
         if self.ui.function.get() == 'BLAST':
             self.ui.roiframe.currentroi.set(len(self.ui.roi[self.ui.s])-1)
-            self.ui.roiframe.enhancingROI_overlay_value.set(False)
-            self.ui.roiframe.finalROI_overlay_value.set(False)
+            self.ui.roiframe.overlay_value['BLAST'].set(False)
+            self.ui.roiframe.overlay_value['finalROI'].set(False)
         self.ui.updateslice()
 
         return
