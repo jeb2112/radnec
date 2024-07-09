@@ -280,7 +280,7 @@ class Case():
                     mask = np.ones_like(self.studies[0].dset['raw'][dt]['d'],dtype='uint8')*2
                     mask[region_of_support] = reg_set_below * 1 + reg_set_above * 3 
                     mask[mask==0] = 2
-                    self.studies[0].writenifti(mask,os.path.join(self.studies[self.timepoints[1]].localstudydir,'tempo'+dt+'_processed.nii'),
+                    self.studies[0].writenifti(mask,os.path.join(self.studies[self.timepoints[1]].localstudydir,'tempo'+dt+'.nii'),
                                             affine=self.studies[0].dset['ref']['affine'])
 
 
@@ -412,15 +412,24 @@ class Study():
 
         
         # storage for masks derived from blast segmentation or nnUNet
-        self.mask =  {'ET':{'d':None,'affine':None,'ex':False},
-                     'WT':{'d':None,'affine':None,'ex':False},
-                     'ETblast':{'d':None,'affine':None,'ex':False},
-                     'WTblast':{'d':None,'affine':None,'ex':False},
-                     'ETsam':{'d':None,'affine':None,'ex':False},
-                     'WTsam':{'d':None,'affine':None,'ex':False},
-                     'ETunet':{'d':None,'affine':None,'ex':False},
-                     'WTunet':{'d':None,'affine':None,'ex':False},
-                    }
+        mask_layer = {'ET':{'d':None,'ex':None},'TC':{'d':None,'ex':None},'WT':{'d':None,'ex':None}}
+        self.mask =  copy.deepcopy(mask_layer)
+        for m in ['blast','sam','unet','gt']:
+            self.mask[m] = copy.deepcopy(mask_layer)
+        if False:    
+            self.mask =  {'ET':{'d':None,'affine':None,'ex':False},
+                        'TC':{'d':None,'affine':None,'ex':False},
+                        'WT':{'d':None,'affine':None,'ex':False},
+                        'ETblast':{'d':None,'affine':None,'ex':False},
+                        'WTblast':{'d':None,'affine':None,'ex':False},
+                        'ETsam':{'d':None,'affine':None,'ex':False},
+                        'WTsam':{'d':None,'affine':None,'ex':False},
+                        'ETunet':{'d':None,'affine':None,'ex':False},
+                        'WTunet':{'d':None,'affine':None,'ex':False},
+                        'ET_gt':{'d':None,'ex':None},
+                        'TC_gt':{'d':None,'ex':None},
+                        'WT_gt':{'d':None,'ex':None}
+                        }
 
         self.dtag = [k for k in self.dset.keys()]
         self.date = None
@@ -494,9 +503,10 @@ class Study():
 # sub-class for handling the output nifti images and loading into viewer
 class NiftiStudy(Study):
 
-    def __init__(self,case,d):    # convenience function
+    def __init__(self,case,d,groundtruth=None):
 
         super().__init__(case,d)
+        self.gt = groundtruth
 
     def loaddata(self):
         files = os.listdir(self.studydir)
@@ -545,22 +555,37 @@ class NiftiStudy(Study):
 
         # load masks
         for dt in ['ET','WT']:
-            dt_file = dt + '_processed.nii.gz'
+            dt_file = dt + '.nii.gz'
             if dt_file in files:
                 self.mask[dt]['d'],_ = self.loadnifti(dt_file)
                 self.mask[dt]['ex'] = True
-                # for now, ET_processed is an nnunet segmentation, not a BLAST
+                # for now, ET is an nnunet segmentation, not a BLAST
                 # so store a copy separately
-                self.mask[dt+'unet']['d'] = np.copy(self.mask[dt]['d'])
-                self.mask[dt+'unet']['ex'] = True
+                self.mask['unet'][dt]['d'] = np.copy(self.mask[dt]['d'])
+                self.mask['unet'][dt]['ex'] = True
             # check additionally for a blast mask
-            dt_file = dt+'blast_processed.nii.gz'
+            dt_file = dt+'blast.nii.gz'
             if dt_file in files:
-                self.mask[dt+'blast']['d'],_ = self.loadnifti(dt_file)
-                self.mask[dt+'blast']['ex'] = True
+                self.mask['blast'][dt]['d'],_ = self.loadnifti(dt_file)
+                self.mask['blast'][dt]['ex'] = True
             else:
-                self.mask[dt+'blast']['d'] = np.ones_like(self.mask['ET']['d'])
-                self.mask[dt+'blast']['ex'] = False
+                self.mask['blast'][dt]['d'] = np.ones_like(self.mask['ET']['d'])
+                self.mask['blast'][dt]['ex'] = False
+
+        # ground truth mask. self.gt is a compiled regex for filename matching
+        if self.gt is not None:
+            gt_files = [f for f in files if re.match(self.gt,f)]
+            if len(gt_files) == 1:
+                gt_file = gt_files[0]
+                gtmask, _ = self.loadnifti(gt_file)
+                # these values hardcoded for BraTS 2024 MET
+                for dt,val in zip(['ET','TC','WT'],[3,1,2]):
+                    self.mask['gt'][dt]['d'] = gtmask == val
+                    self.mask['gt'][dt]['ex'] = True
+                # to be confirmed? sam project defines TC as ET+necrosis, in BraTS TC is just necrosis
+                self.mask['gt']['TC']['d'] = self.mask['gt']['TC']['d'] | self.mask['gt']['ET']['d']
+            else:
+                print('No or multiple files match ground truth regex')
 
         return
 
@@ -924,8 +949,8 @@ class DcmStudy(Study):
         ET[segmentation == 3] = 1
         WT = np.zeros_like(segmentation)
         WT[segmentation > 0] = 1
-        self.writenifti(ET,os.path.join(self.localstudydir,'ET_processed.nii'),affine=affine)
-        self.writenifti(WT,os.path.join(self.localstudydir,'WT_processed.nii'),affine=affine)
+        self.writenifti(ET,os.path.join(self.localstudydir,'ET.nii'),affine=affine)
+        self.writenifti(WT,os.path.join(self.localstudydir,'WT.nii'),affine=affine)
         if False:
             os.remove(os.path.join(dpath,sfile))
 

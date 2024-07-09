@@ -746,9 +746,9 @@ class CreateROIFrame(CreateFrame):
             for roi in roilist:
                 if len(roilist) > 1:
                     roisuffix = '_roi'+roi
-                    outputfilename = os.path.join(fileroot,'{}_{}_blast_processed.nii'.format(img,roisuffix))
+                    outputfilename = os.path.join(fileroot,'{}_{}_blast.nii'.format(img,roisuffix))
                 else:
-                    outputfilename = os.path.join(fileroot,'{}_blast_processed.nii'.format(img))
+                    outputfilename = os.path.join(fileroot,'{}_blast.nii'.format(img))
                 if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
                     self.ui.data[self.ui.s].writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],
                                                        outputfilename,
@@ -828,8 +828,8 @@ class CreateROIFrame(CreateFrame):
             for ch in [self.ui.chselection,'flair']:
                 self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt][ch])
         for dt in ['ET','WT']:
-            self.ui.data[s].mask[dt+'blast']['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt])
-            self.ui.data[s].mask[dt+'blast']['ex'] = True
+            self.ui.data[s].mask['blast'][dt]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt])
+            self.ui.data[s].mask['blast'][dt]['ex'] = True
             if self.ui.sliceviewerframes['overlay'] is not None:
                 self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
             if updatemask and False:

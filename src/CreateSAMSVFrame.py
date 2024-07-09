@@ -75,10 +75,11 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.fig = None
         self.resizer_count = 1
         self.ui = ui
-        # dwell time
+        # user interaction time
         self.dwelltime = None
         self.timingtext = tk.StringVar(value='off')
         self.timing = tk.IntVar(value=0)
+        self.elapsedtime = 0
 
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')

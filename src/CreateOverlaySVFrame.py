@@ -286,8 +286,8 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
 
         mask = self.maskdisplay.get()
         for s in self.ui.data.keys():
-            self.ui.data[s].mask['ET']['d'] = self.ui.data[s].mask['ET'+mask]['d']
-            self.ui.data[s].mask['WT']['d'] = self.ui.data[s].mask['WT'+mask]['d']
+            self.ui.data[s].mask['ET']['d'] = self.ui.data[s].mask[mask]['ET']['d']
+            self.ui.data[s].mask['WT']['d'] = self.ui.data[s].mask[mask]['WT']['d']
             for ovly in ['z','tempo','cbv']:
                 for ch in list(self.ui.data[s].channels.values()):
                     self.ui.data[s].dset[ovly+'overlay'][ch]['ex'] = False

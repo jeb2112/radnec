@@ -57,6 +57,7 @@ parser.add_argument(
 )
 
 parser.add_argument("--device", type=str, default="cuda", help="The device to run generation on.")
+parser.add_argument("--tag",type=str, default="",help="Tag word for file naming")
 
 parser.add_argument(
     "--convert-to-rle",
@@ -369,7 +370,7 @@ def main(args: argparse.Namespace) -> None:
                     box = bbox[None,:],
                     multimask_output=False,
                 )
-                if True:
+                if False:
                     fig, ax = plt.subplots(1, 4, num=7, figsize=(10, 2.5),sharex=True,sharey=True)
                     ax[0].cla()
                     ax[0].imshow(image,origin='lower')
@@ -391,9 +392,9 @@ def main(args: argparse.Namespace) -> None:
                     plt.show(block=False)
                     a=1
 
-            writenifti(sam_mask_point,os.path.join(args.output,s,'{}_sam_points_processed.nii'.format(img)),type=np.uint8,affine=affine)
-            writenifti(sam_mask_box,os.path.join(args.output,s,'{}_sam_box_processed.nii'.format(img)),type=np.uint8,affine=affine)
-            writenifti(sam_mask_boxpoint,os.path.join(args.output,s,'{}_sam_boxpoints_processed.nii'.format(img)),type=np.uint8,affine=affine)
+            writenifti(sam_mask_point,os.path.join(args.output,s,'{}_sam_{}_points.nii'.format(img,args.tag)),type=np.uint8,affine=affine)
+            writenifti(sam_mask_box,os.path.join(args.output,s,'{}_sam_{}_box.nii'.format(img,args.tag)),type=np.uint8,affine=affine)
+            writenifti(sam_mask_boxpoint,os.path.join(args.output,s,'{}_sam_{}_boxpoints.nii'.format(img,args.tag)),type=np.uint8,affine=affine)
 
             opath = spath
 

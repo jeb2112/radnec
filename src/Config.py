@@ -3,6 +3,7 @@ import logging
 from matplotlib.colors import ListedColormap
 import matplotlib.cm as cm
 import numpy as np
+import re
 
 class Config(object):
     def __init__(self):
@@ -49,6 +50,9 @@ class Config(object):
             self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
             # self.UIdatadir = os.path.join(os.path.expanduser('~'),'Data','radnec')
         self.UIdataroot = 'BraTS2021_'
+
+        # optional root filename for ground truth masks
+        self.UIgroundtruth = re.compile('BraTS-MET-[0-9]{5}-000-seg.nii.gz')
 
         # automatically load first case in directory
         self.AutoLoad = False

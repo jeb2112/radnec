@@ -183,7 +183,7 @@ class CreateCaseFrame(CreateFrame):
             # of accession number. simple sort thus resolves studies in correct time order.
             studies = sorted([f for f in os.listdir(self.casedir) if os.path.isdir(os.path.join(self.casedir,f)) ])
             for i,sname in enumerate(studies):
-                self.ui.data[i] = NiftiStudy(self.casename.get(),os.path.join(self.casedir,sname))
+                self.ui.data[i] = NiftiStudy(self.casename.get(),os.path.join(self.casedir,sname),groundtruth=self.config.UIgroundtruth)
                 self.ui.data[i].loaddata()
                 self.ui.data[i].date = sname
                 # separately collecting them in a list here

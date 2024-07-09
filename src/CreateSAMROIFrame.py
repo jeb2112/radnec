@@ -17,7 +17,7 @@ import nibabel as nb
 import PIL
 from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube,reconstruction
 from skimage.measure import find_contours
-from scipy.spatial.distance import dice
+from scipy.spatial.distance import dice,directed_hausdorff
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
 if os.name == 'posix':
@@ -801,7 +801,6 @@ class CreateSAMROIFrame(CreateFrame):
         if self.ui.sliceviewerframe.timing.get() == True:
             self.ui.sliceviewerframe.timing.set(False)
             self.ui.sliceviewerframe.timer()
-            self.ui.roi[self.ui.s][self.ui.currentroi].stats['elapsedtime'] = self.ui.sliceviewerframe.elapsedtime
 
         if outputpath is None:
             outputpath = self.ui.caseframe.casedir
@@ -837,21 +836,24 @@ class CreateSAMROIFrame(CreateFrame):
         # is not fully parallelized between SAM, BLAST, bbox and blast sam prompts,
         # because this viewer might be just a one-off. 
         if self.ui.roi[self.ui.s][1].data['bbox'] is not None:
+            tag = 'bbox'
             self.save_prompts(mask='bbox')
-            self.segment_sam(tag='bbox')
+            self.segment_sam(tag=tag)
         elif self.ui.data[self.ui.s].dset['seg_raw']['t1+']['ex']:
+            tag = 'blast'
             self.save_prompts(mask='ET')
-            self.segment_sam(tag='blast')
+            self.segment_sam(tag=tag)
 
         # also output stats to pickle
         if True:
+            self.ROIstats()
             sdict = {}
             bdict = {}
             for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
                 sdict['roi'+str(i)] = r.stats
-                bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT','blast','raw'))
+                bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT'))
 
-            filename = fileroot+'_stats.pkl'
+            filename = os.path.join(fileroot,'stats_'+tag+'.pkl')
             with open(filename,'ab') as fp:
                 pickle.dump((sdict,bdict),fp)
         
@@ -883,6 +885,7 @@ class CreateSAMROIFrame(CreateFrame):
             self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['ET'].astype('uint8')*4
         elif self.ui.blastdata[s]['blast']['T2 hyper'] is not None:
             self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'] = self.ui.blastdata[s]['blast']['T2 hyper'].astype('uint8')
+        self.ui.data[s].dset['seg_raw'][self.ui.chselection]['ex'] = True
 
     # forward-copy certain results from the BLAST ROI to the main dataset
     # may need further work
@@ -894,8 +897,8 @@ class CreateSAMROIFrame(CreateFrame):
             for ch in [self.ui.chselection,'flair']:
                 self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt][ch])
         for dt in ['ET','WT']:
-            self.ui.data[s].mask[dt+'blast']['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt])
-            self.ui.data[s].mask[dt+'blast']['ex'] = True
+            self.ui.data[s].mask['blast'][dt]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt])
+            self.ui.data[s].mask['blast'][dt]['ex'] = True
             if self.ui.sliceviewerframes['overlay'] is not None:
                 self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
             if updatemask and False:
@@ -944,35 +947,29 @@ class CreateSAMROIFrame(CreateFrame):
             else:
                 v.append(0)
 
-    # not recently updated.
+    # various output stats, add more as required
     def ROIstats(self):
         
         roi = self.ui.get_currentroi()
         s = self.ui.s
         data = self.ui.roi[s][roi].data
-        for t in ['ET','TC','WT']:
+        self.ui.roi[s][roi].stats['elapsedtime'] = self.ui.sliceviewerframe.elapsedtime
+        
+        for dt in ['ET','TC','WT']:
             # check for a complete segmentation
-            if t not in data.keys():
+            if dt not in data.keys():
                 continue
-            elif data[t] is None:
+            elif data[dt] is None:
                 continue
-            self.ui.roi[s][roi].stats['vol'][t] = len(np.where(data[t])[0])
+            self.ui.roi[s][roi].stats['vol'][dt] = len(np.where(data[dt])[0])
 
-            if self.ui.data['label'] is not None:
-                sums = data['manual_'+t] + data[t]
-                subs = data['manual_'+t] - data[t]
-                        
-                TP = len(np.where(sums == 2)[0])
-                FP = len(np.where(subs == -1)[0])
-                TN = len(np.where(sums == 0)[0])
-                FN = len(np.where(subs == 1)[0])
-
-                self.ui.roi[s][roi].stats['spec'][t] = TN/(TN+FP)
-                self.ui.roi[s][roi].stats['sens'][t] = TP/(TP+FN)
-                self.ui.roi[s][roi].stats['dsc'][t] = 1-dice(data['manual_'+t].flatten(),data[t].flatten()) 
-
-                # Calculate volumes
-                self.ui.roi[s][roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
+            # ground truth comparisons
+            if self.ui.data[self.ui.s].mask['gt'][dt]['ex']:
+                # dice
+                self.ui.roi[s][roi].stats['dsc'][dt] = 1-dice(self.ui.data[self.ui.s].mask['gt'][dt]['d'].flatten(),data[dt].flatten()) 
+                # haunsdorff
+                self.ui.roi[s][roi].stats['hd'][dt] = directed_hausdorff(np.array(np.where(self.ui.data[self.ui.s].mask['gt'][dt]['d'])).T,
+                                                                         np.array(np.where(data[dt])).T)[0]
 
     # tumour segmenation by SAM
     def segment_sam(self,roi=None,dpath=None,model='SAM',layer='ET_sam',tag=''):

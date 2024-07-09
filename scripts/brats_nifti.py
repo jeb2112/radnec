@@ -156,8 +156,8 @@ def segment(C,ddir):
     ET[segmentation == 3] = 1
     WT = np.zeros_like(segmentation)
     WT[segmentation > 0] = 1
-    writenifti(ET,os.path.join(ddir,'ET_unet_processed.nii'),affine=affine)
-    writenifti(WT,os.path.join(ddir,'WT_unet_processed.nii'),affine=affine)
+    writenifti(ET,os.path.join(ddir,'ET_unet.nii'),affine=affine)
+    writenifti(WT,os.path.join(ddir,'WT_unet.nii'),affine=affine)
     os.rename(os.path.join(ndir,sfile),os.path.join(ndir,C+'-unet.nii.gz'))
 
 
