@@ -50,9 +50,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.windowlabel = None
         self.levellabel = None
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
-        # values of the current bbox
-        self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None}        
-        self.bboxs = {}
         self.sagcordisplay = tk.IntVar(value=0)
         self.overlay_type = tk.IntVar(value=self.config.BlastOverlayType)
         self.slicevolume_norm = tk.IntVar(value=1)
@@ -80,6 +77,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.timingtext = tk.StringVar(value='off')
         self.timing = tk.IntVar(value=0)
         self.elapsedtime = 0
+        # bbox tool
+        self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None}        
 
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
@@ -331,7 +330,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         # if not an event, show an existing bbox, or remove it
         if self.ui.currentroi > 0 and event is None:
-            if self.ui.roiframe.overlay_value['SAM'].get() == True:
+            if self.ui.roiframe.overlay_value['SAM'].get() == True or str(self.run2dSAM['state']) == 'active':
                 self.update_bboxs()
             else:
                 self.clear_bbox()
@@ -491,12 +490,13 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
 
     # run 2d SAM on available bbox. currently this is only for a handdrawn bbox
+    # the ROI is hardcoded [1]
     def sam2d_callback(self):
         print('run sam 2D')
-        if len(list(self.bboxs.keys())) == 0:
+        if len(list(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs.keys())) == 0:
             print('No bbox\'s defined')
             return
-        if self.ui.currentslice not in list(self.bboxs.keys()):
+        if self.ui.currentslice not in list(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs.keys()):
             print('No bbox defined in current slice')
             return
         self.ui.roiframe.save_prompts(sam=self.ui.currentslice,mask='bbox')
@@ -509,7 +509,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
     # run 3d SAM on all bbox's. currently this is only for handdrawn not BLAST
     def sam3d_callback(self):
         print('run sam 3D')
-        if len(list(self.bboxs.keys())) == 0:
+        if len(list(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs.keys())) == 0:
             print('No bbox\'s defined')
             return
         self.ui.roiframe.saveROI(mask='bbox')
@@ -697,20 +697,27 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
     # note that self.ui.roi is being used for both blast and sam here,
     # so it needs to be cleared in between segmentations
     def record_bbox(self):
-        self.bboxs[self.ui.currentslice] = copy.deepcopy(self.bbox)
-        # hard-coded for one ROI only
-        # this ROI should be cleared before creating a BLAST ROI. eventually should reconcile these.
+
+        # for SAM bbox prompt mode, it is hard-coded for one ROI only
+        # switching back and forth between drawing bbox's and generating
+        # BLAST ROI's is not coded and needs to be reconciled.
+        if self.ui.currentroi > 1 or len(self.ui.roiframe.roilist) > 1:
+            print('All existing ROI\'s must be cleared before generating a bbox ROI')
+            self.ui.set_message('All existing ROI\'s must be cleared before generating a bbox ROI')
+            return
+        # in bbox mode, there is a single ROI hard-coded [1]
         if self.ui.currentroi == 0:
             self.ui.roiframe.createROI(self.bbox['p0'][0],self.bbox['p0'][1],self.currentslice)
-            self.ui.roi[self.ui.s][1].data['bbox'] = np.zeros(self.dim)
-        self.ui.roi[self.ui.s][1].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0'],self.bbox['p1']))
+            self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'] = np.zeros(self.dim)
+        self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[self.ui.currentslice] = copy.deepcopy(self.bbox)
+        self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0'],self.bbox['p1']))
         if False:
             self.bbox = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
         return
 
     # re-display an existing bbox
     def show_bbox(self,roi=None):
-        self.bbox = copy.deepcopy(self.bboxs[self.ui.currentslice])
+        self.bbox = copy.deepcopy(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[self.ui.currentslice])
         self.bbox['plot'] = None
         self.draw_bbox(self.bbox['p1'][0],self.bbox['p1'][1],self.bbox['ax'])
         self.canvas.draw()
@@ -719,8 +726,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
     def update_bboxs(self):
         self.clear_bbox()
         slice = self.ui.currentslice
-        if slice in list(self.bboxs.keys()):
-            self.bbox = copy.deepcopy(self.bboxs[slice])
+        if slice in list(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs.keys()):
+            self.bbox = copy.deepcopy(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[slice])
             self.show_bbox()
             self.canvas.draw()
 

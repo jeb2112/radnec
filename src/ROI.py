@@ -15,11 +15,14 @@ class ROI():
                      'seg':None,
                      'bbox':None}
 
-        # ROI selection coordinates
+        # BLAST ROI selection coordinates from mouse click
         self.coords = {'ET':{},'necrosis':{},'T2 hyper':{}}
         self.coords[compartment]['x'] = xpos
         self.coords[compartment]['y'] = ypos
         self.coords[compartment]['slice'] = slice
+
+        # SAM drawn bbox coordinates and values
+        self.bboxs = {}
 
         # threshold gates saved as intermediate values
         self.gate = {'brain':None,'ET':None,'T2 hyper':None}
