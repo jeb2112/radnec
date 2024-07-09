@@ -13,8 +13,6 @@ class ROI():
                      'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg':None,
-                     'ET_sam':None,'WT_sam':None,'TC_sam':None,
-                     'seg_sam':None,
                      'bbox':None}
 
         # ROI selection coordinates

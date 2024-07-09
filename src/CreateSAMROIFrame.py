@@ -315,7 +315,7 @@ class CreateSAMROIFrame(CreateFrame):
         # TODO: check mouse event, versus layer_callback called by statement
         for ch in [self.ui.chselection]:
             data['seg_fusion'][ch] = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
-                                                            data['seg_sam'],layer=layer,
+                                                            data['seg'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
 
         if updatedata:
@@ -954,7 +954,7 @@ class CreateSAMROIFrame(CreateFrame):
         s = self.ui.s
         data = self.ui.roi[s][roi].data
         self.ui.roi[s][roi].stats['elapsedtime'] = self.ui.sliceviewerframe.elapsedtime
-        
+
         for dt in ['ET','TC','WT']:
             # check for a complete segmentation
             if dt not in data.keys():
@@ -972,7 +972,7 @@ class CreateSAMROIFrame(CreateFrame):
                                                                          np.array(np.where(data[dt])).T)[0]
 
     # tumour segmenation by SAM
-    def segment_sam(self,roi=None,dpath=None,model='SAM',layer='ET_sam',tag=''):
+    def segment_sam(self,roi=None,dpath=None,model='SAM',layer='ET',tag=''):
         print('SAM segment tumour')
         if roi is None:
             roi = self.ui.currentroi
@@ -1026,18 +1026,17 @@ class CreateSAMROIFrame(CreateFrame):
                 raise subprocess.CalledProcessError(res,cstr)
                 print(res)
                 
-        # self.ui.data[self.ui.s].dset['sam']['d'],_ = self.ui.data[self.ui.s].loadnifti('ET_sam_box_processed.nii.gz',self.ui.data[self.ui.s].studydir)
         roi = self.ui.currentroi
-        self.ui.roi[self.ui.s][roi].data[layer],_ = self.ui.data[self.ui.s].loadnifti(layer+'_'+tag+'_box.nii.gz',self.ui.data[self.ui.s].studydir)
+        self.ui.roi[self.ui.s][roi].data[layer],_ = self.ui.data[self.ui.s].loadnifti(layer+'_sam_'+tag+'_box.nii.gz',self.ui.data[self.ui.s].studydir)
         # create a combined seg mask from the three layers
         # using nnunet convention for labels
         # there is currently no WT segmentation in the SAM viewer, and segmentation from ET
         # bounding box is interpreted directly as TC
-        self.ui.roi[self.ui.s][roi].data['seg_sam'] = 2*self.ui.roi[self.ui.s][roi].data['ET_sam'] #+ \
+        self.ui.roi[self.ui.s][roi].data['seg'] = 2*self.ui.roi[self.ui.s][roi].data['ET'] #+ \
                                                 # 1*self.ui.roi[self.ui.s][roi].data['WT_sam']
         # need to add this to updateData() or create similar method
-        self.ui.data[self.ui.s].dset['seg_sam']['t1+']['d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data['ET_sam'])
-        self.ui.data[self.ui.s].dset['seg_sam']['t1+']['ex'] = True
+        self.ui.data[self.ui.s].mask['sam'][layer]['d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data['ET'])
+        self.ui.data[self.ui.s].mask['sam'][layer]['ex'] = True
         if False:
             os.remove(os.path.join(dpath,sfile))
 

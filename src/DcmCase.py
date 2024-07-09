@@ -416,20 +416,6 @@ class Study():
         self.mask =  copy.deepcopy(mask_layer)
         for m in ['blast','sam','unet','gt']:
             self.mask[m] = copy.deepcopy(mask_layer)
-        if False:    
-            self.mask =  {'ET':{'d':None,'affine':None,'ex':False},
-                        'TC':{'d':None,'affine':None,'ex':False},
-                        'WT':{'d':None,'affine':None,'ex':False},
-                        'ETblast':{'d':None,'affine':None,'ex':False},
-                        'WTblast':{'d':None,'affine':None,'ex':False},
-                        'ETsam':{'d':None,'affine':None,'ex':False},
-                        'WTsam':{'d':None,'affine':None,'ex':False},
-                        'ETunet':{'d':None,'affine':None,'ex':False},
-                        'WTunet':{'d':None,'affine':None,'ex':False},
-                        'ET_gt':{'d':None,'ex':None},
-                        'TC_gt':{'d':None,'ex':None},
-                        'WT_gt':{'d':None,'ex':None}
-                        }
 
         self.dtag = [k for k in self.dset.keys()]
         self.date = None

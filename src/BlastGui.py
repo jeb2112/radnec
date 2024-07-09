@@ -122,7 +122,7 @@ class BlastGui(object):
                     self.roiframe.thresholds['T2 hyper']['flair'].set(WTflairset)
                     self.roiframe.updateslider('T2 hyper','t12')
                     self.roiframe.updateslider('T2 hyper','flair')
-                if True:
+                if False:
                     self.roiframe.createROI(pointxyz[0],pointxyz[1],pointxyz[2])
                     self.roiframe.ROIclick(event=None)
 
