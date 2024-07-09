@@ -14,7 +14,7 @@ class ROI():
                      'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg':None,
                      'ET_sam':None,'WT_sam':None,'TC_sam':None,
-                     'segSAM':None,
+                     'seg_sam':None,
                      'bbox':None}
 
         # ROI selection coordinates
@@ -31,6 +31,7 @@ class ROI():
             'sens':{'ET':0,'TC':0,'WT':0},
             'dsc':{'ET':0,'TC':0,'WT':0},
             'vol':{'ET':0,'TC':0,'WT':0},
+            'HD':{'ET':0,'TC':0,'WT':0},
             'elapsed_time':0}
 
 # for linear measurements in 4panel viewer

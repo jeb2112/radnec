@@ -315,7 +315,7 @@ class CreateSAMROIFrame(CreateFrame):
         # TODO: check mouse event, versus layer_callback called by statement
         for ch in [self.ui.chselection]:
             data['seg_fusion'][ch] = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
-                                                            data['segSAM'],layer=layer,
+                                                            data['seg_sam'],layer=layer,
                                                         overlay_intensity=self.config.OverlayIntensity)
 
         if updatedata:
@@ -576,9 +576,9 @@ class CreateSAMROIFrame(CreateFrame):
                 self.layer_callback(layer='ET')
 
             # output current slice only of the BLAST ROI to file for follow-on SAM processing
-            self.saveROI(roi,sam=self.ui.currentslice)
+            self.save_prompts(sam=self.ui.currentslice,mask='ET')
             # automatically run sam but only for current slice
-            self.segment_sam()
+            self.segment_sam(tag='blast')
             # automatically switch to SAM display
             self.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -756,20 +756,11 @@ class CreateSAMROIFrame(CreateFrame):
 
         return None
 
-    # for exporting BLAST/SAM segmentations.
-    def saveROI(self,roi=None,outputpath=None,sam=0,mask='ET'):
-        if outputpath is None:
-            outputpath = self.ui.caseframe.casedir
-        if roi is None:
-            roilist = list(map(int,self.roilist))
-        else:
-            if type(roi) == list:
-                roilist = roi
-            else:
-                roilist = [roi]
+    # temp output for sam segmentation prompts
+    # using tmpfiles so ptorch not needed in the blast env
+    def save_prompts(self,sam=0,mask='ET'):
 
-        # temp output just for sam segmentation
-        # using tmpfiles so ptorch not needed in the blast env
+        roilist = [self.ui.currentroi]
         fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
         if not os.path.exists(fileroot):
             os.mkdir(fileroot)
@@ -803,6 +794,25 @@ class CreateSAMROIFrame(CreateFrame):
                             plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
 
 
+    # for exporting BLAST/SAM segmentations.
+    def saveROI(self,roi=None,outputpath=None):
+
+        # if timer running, stop it
+        if self.ui.sliceviewerframe.timing.get() == True:
+            self.ui.sliceviewerframe.timing.set(False)
+            self.ui.sliceviewerframe.timer()
+            self.ui.roi[self.ui.s][self.ui.currentroi].stats['elapsedtime'] = self.ui.sliceviewerframe.elapsedtime
+
+        if outputpath is None:
+            outputpath = self.ui.caseframe.casedir
+        if roi is None:
+            roilist = list(map(int,self.roilist))
+        else:
+            if type(roi) == list:
+                roilist = roi
+            else:
+                roilist = [roi]
+
         # BLAST image file outputs.
         fileroot = self.ui.data[self.ui.s].studydir
         for img in ['seg','ET','TC','WT']:
@@ -817,15 +827,24 @@ class CreateSAMROIFrame(CreateFrame):
                                                        outputfilename,
                                                        affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
                     
-        # SAM outputs
-        # ie for the full 3d volume, additionally run the segmentation
-        # currently assuming only 1 roi exists at a time, this can be extended 
-        # like the code above
-        if sam == 0: 
-            self.segment_sam()
+        # additionally run the SAM segmentation across all available slice masks
+        # this longer process will thus not be counted in the timer.
+        # currently assuming only 1 roi exists at a time hard-coded [1], and that roi is either
+        # a BLAST segmentation, or a handdrawn bbox SAM segmentation. 
+        # currently, if handdrawn, it is assumed at least one currentslice segmentation has been performed
+        # from handdrawn bbox, to populate data['bbox']. that distinction is being 
+        # used to decide which prompt to use for final 3d SAM here. awkward, but data structure
+        # is not fully parallelized between SAM, BLAST, bbox and blast sam prompts,
+        # because this viewer might be just a one-off. 
+        if self.ui.roi[self.ui.s][1].data['bbox'] is not None:
+            self.save_prompts(mask='bbox')
+            self.segment_sam(tag='bbox')
+        elif self.ui.data[self.ui.s].dset['seg_raw']['t1+']['ex']:
+            self.save_prompts(mask='ET')
+            self.segment_sam(tag='blast')
 
-        # also output to pickle
-        if False:
+        # also output stats to pickle
+        if True:
             sdict = {}
             bdict = {}
             for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
@@ -956,7 +975,7 @@ class CreateSAMROIFrame(CreateFrame):
                 self.ui.roi[s][roi].stats['vol']['manual_'+t] = len(np.where(data['manual_'+t])[0])
 
     # tumour segmenation by SAM
-    def segment_sam(self,roi=None,dpath=None,model='SAM',layer='ET_sam'):
+    def segment_sam(self,roi=None,dpath=None,model='SAM',layer='ET_sam',tag=''):
         print('SAM segment tumour')
         if roi is None:
             roi = self.ui.currentroi
@@ -976,6 +995,7 @@ class CreateSAMROIFrame(CreateFrame):
                 command = 'conda run -n ptorch python scripts/sam.py  --checkpoint /media/jbishop/WD4/brainmets/sam/sam_vit_b_01ec64.pth '
                 command += ' --input ' + self.ui.caseframe.casedir
                 command += ' --output ' + self.ui.caseframe.casedir
+                command += ' --tag ' + tag
                 command += ' --model-type vit_b'
             res = os.system(command)
         elif os.name == 'nt':
@@ -1011,13 +1031,16 @@ class CreateSAMROIFrame(CreateFrame):
                 
         # self.ui.data[self.ui.s].dset['sam']['d'],_ = self.ui.data[self.ui.s].loadnifti('ET_sam_box_processed.nii.gz',self.ui.data[self.ui.s].studydir)
         roi = self.ui.currentroi
-        self.ui.roi[self.ui.s][roi].data[layer],_ = self.ui.data[self.ui.s].loadnifti(layer+'_box_processed.nii.gz',self.ui.data[self.ui.s].studydir)
+        self.ui.roi[self.ui.s][roi].data[layer],_ = self.ui.data[self.ui.s].loadnifti(layer+'_'+tag+'_box.nii.gz',self.ui.data[self.ui.s].studydir)
         # create a combined seg mask from the three layers
         # using nnunet convention for labels
         # there is currently no WT segmentation in the SAM viewer, and segmentation from ET
         # bounding box is interpreted directly as TC
-        self.ui.roi[self.ui.s][roi].data['segSAM'] = 2*self.ui.roi[self.ui.s][roi].data['ET_sam'] #+ \
+        self.ui.roi[self.ui.s][roi].data['seg_sam'] = 2*self.ui.roi[self.ui.s][roi].data['ET_sam'] #+ \
                                                 # 1*self.ui.roi[self.ui.s][roi].data['WT_sam']
+        # need to add this to updateData() or create similar method
+        self.ui.data[self.ui.s].dset['seg_sam']['t1+']['d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data['ET_sam'])
+        self.ui.data[self.ui.s].dset['seg_sam']['t1+']['ex'] = True
         if False:
             os.remove(os.path.join(dpath,sfile))
 

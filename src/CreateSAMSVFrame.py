@@ -4,7 +4,7 @@ import glob
 import copy
 import re
 import logging
-import subprocess
+import time
 import tkinter as tk
 import nibabel as nb
 from nibabel.processing import resample_from_to
@@ -75,6 +75,10 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.fig = None
         self.resizer_count = 1
         self.ui = ui
+        # dwell time
+        self.dwelltime = None
+        self.timingtext = tk.StringVar(value='off')
+        self.timing = tk.IntVar(value=0)
 
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
@@ -92,14 +96,19 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.canvasframe.configure(style='canvasframe.TFrame')
         self.canvasframe.grid(row=1,column=0,columnspan=3,sticky='NW')
 
+        # timer button
+        self.timerbutton = ttk.Checkbutton(self.normal_frame,style='Toolbutton',textvariable=self.timingtext,variable=self.timing,command=self.timer)
+        self.timerbutton.configure(style='frame.TCheckbutton')
+        self.timerbutton.grid(row=1,column=1,sticky='w')
+        self.timerbuttonlabel = ttk.Label(self.normal_frame,text=' timer:',padding='5')
+        self.timerbuttonlabel.grid(row=1,column=0,sticky='e')
+
         # button to run stats for normal background
         normalSlice = ttk.Button(self.normal_frame,text='normal stats',command=self.normalslice_callback)
-        normalSlice.grid(row=1,column=0,sticky='w')
+        normalSlice.grid(row=1,column=2,sticky='w')
         # button to run 2d SAM on manual bbox
-        run2dSAM = ttk.Button(self.normal_frame,text='run 2d SAM',command=self.sam2d_callback)
-        run2dSAM.grid(row=1,column=1,sticky='w')
-        run3dSAM = ttk.Button(self.normal_frame,text='run 3d SAM',command=self.sam3d_callback)
-        run3dSAM.grid(row=1,column=2,sticky='w')
+        self.run2dSAM = ttk.Button(self.normal_frame,text='run SAM',command=self.sam2d_callback,state='disabled')
+        self.run2dSAM.grid(row=1,column=3,sticky='w')
 
         # messages text frame
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -178,7 +187,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.blankcanvas.get_tk_widget().grid(row=1, column=0, columnspan=3)
             self.tbar = NavigationToolbar2Tk(self.blankcanvas,self.normal_frame,pack_toolbar=False)
             self.tbar.children['!button4'].pack_forget() # get rid of configure plot
-            self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
+            self.tbar.grid(column=0,row=0,columnspan=4,sticky='NW')
         self.frame.configure(width=w,height=h)
      
     # main canvas created when data are loaded
@@ -247,7 +256,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         newcanvas.get_tk_widget().grid(row=0, column=0, sticky='')
 
         self.tbar = NavigationBar(newcanvas,self.normal_frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
-        self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
+        self.tbar.grid(column=0,row=0,columnspan=4,sticky='NW')
 
         if self.canvas is not None:
             self.cw.delete('all')
@@ -489,8 +498,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         if self.ui.currentslice not in list(self.bboxs.keys()):
             print('No bbox defined in current slice')
             return
-        self.ui.roiframe.saveROI(sam=self.ui.currentslice,mask='bbox')
-        self.ui.roiframe.segment_sam()
+        self.ui.roiframe.save_prompts(sam=self.ui.currentslice,mask='bbox')
+        self.ui.roiframe.segment_sam(tag='bbox')
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -503,7 +512,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             print('No bbox\'s defined')
             return
         self.ui.roiframe.saveROI(mask='bbox')
-        self.ui.roiframe.segment_sam()
+        self.ui.roiframe.segment_sam(tag='bbox')
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -684,6 +693,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         return mask
 
     # copy existing bbox in current slice to 'bbox' field of the roi. 
+    # note that self.ui.roi is being used for both blast and sam here,
+    # so it needs to be cleared in between segmentations
     def record_bbox(self):
         self.bboxs[self.ui.currentslice] = copy.deepcopy(self.bbox)
         # hard-coded for one ROI only
@@ -711,4 +722,22 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.bbox = copy.deepcopy(self.bboxs[slice])
             self.show_bbox()
             self.canvas.draw()
+
+
+    ########    
+    # timing
+    ########
+
+    # start the timer
+    def timer(self):
+        if self.timing.get():
+            self.tstart = time.time()
+            self.ct = np.copy(self.tstart)
+            self.timingtext.set('on')
+        else:
+            self.tstop = time.time()
+            self.elapsedtime = self.tstop - self.tstart
+            self.timingtext.set('off')
+            self.ui.set_message('Elapsed time = {:d} seconds'.format(int(np.ceil(self.elapsedtime))))
+        return
  

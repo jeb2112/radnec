@@ -390,7 +390,7 @@ class Study():
         # z-score image
         self.dset['z'] = {v:cp(self.dprop) for v in self.channels.values()}
         # SAM segmentation
-        self.dset['sam'] = {v:cp(self.dprop) for v in self.channels.values()}
+        self.dset['seg_sam'] = {v:cp(self.dprop) for v in self.channels.values()}
         # tempo regression differences of the 'raw' data at two time points
         self.dset['tempo'] = {v:cp(self.dprop) for v in self.channels.values()}
         # color overlay of the z-scores
@@ -416,6 +416,8 @@ class Study():
                      'WT':{'d':None,'affine':None,'ex':False},
                      'ETblast':{'d':None,'affine':None,'ex':False},
                      'WTblast':{'d':None,'affine':None,'ex':False},
+                     'ETsam':{'d':None,'affine':None,'ex':False},
+                     'WTsam':{'d':None,'affine':None,'ex':False},
                      'ETunet':{'d':None,'affine':None,'ex':False},
                      'WTunet':{'d':None,'affine':None,'ex':False},
                     }

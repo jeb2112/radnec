@@ -146,11 +146,15 @@ class NavigationBar(NavigationToolbar2Tk):
             self.canvas.get_tk_widget().config(cursor='sizing')
             self.ui.root.bind('<B1-Motion>',self.ui.sliceviewerframe.b1motion_bbox)
             self.ui.root.bind('<Button-1>',self.ui.sliceviewerframe.b1click)
+            # additionally activate SAM button
+            self.ui.sliceviewerframe.run2dSAM.configure(state='active')
         else:
             self.canvas.get_tk_widget().config(cursor='arrow')
             self.ui.root.unbind('<B1-Motion>')
             self.ui.root.unbind('<Button-1>')
             self.ui.sliceviewerframe.clear_bbox()
+            # additionally deactivate SAM button
+            self.ui.sliceviewerframe.run2dSAM.configure(state='disabled')
         self._update_buttons_checked()
 
 
