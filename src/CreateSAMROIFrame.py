@@ -5,6 +5,7 @@ import pickle
 import copy
 import logging
 import time
+import json
 import shutil
 import tkinter as tk
 from tkinter import ttk
@@ -821,7 +822,7 @@ class CreateSAMROIFrame(CreateFrame):
 
         # restore context
         self.ui.roi = self.ui.rois['blast']
-        
+
     # for exporting BLAST/SAM segmentations.
     def saveROI(self,roi=None,outputpath=None):
 
@@ -844,7 +845,7 @@ class CreateSAMROIFrame(CreateFrame):
         # BLAST finalROI outputs. 
         # hack for sam: have to check here if a regular BLAST segmentation has been done
         # otherwise don't try to output anything.
-        if len(self.ui.roi[self.ui.s]) > self.ui.currentroi: # > for 1-based indexing
+        if len(self.ui.rois['blast'][self.ui.s]) > self.ui.currentroi: # > for 1-based indexing
             for img in ['ET','TC','WT']:
                 for roi in roilist:
                     if len(roilist) > 1:
@@ -857,19 +858,17 @@ class CreateSAMROIFrame(CreateFrame):
                                                             outputfilename,
                                                             affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
                     
-            # also output stats to pickle
+            # also output stats
             if True:
                 self.ui.roi = self.ui.rois['blast']
                 self.ROIstats()
                 sdict = {}
-                bdict = {}
                 for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
-                    sdict['roi'+str(i)] = r.stats
-                    bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT'))
+                    sdict['roi'+str(i+1)] = r.stats
 
-                filename = os.path.join(fileroot,'stats_blast.pkl')
-                with open(filename,'wb') as fp:
-                    pickle.dump((sdict,bdict),fp)
+                filename = os.path.join(fileroot,'stats_blast.json')
+                with open(filename,'w') as fp:
+                    json.dump(sdict,fp,indent=4)
 
         # now run the SAM segmentation across all available slice masks
         # this longer process will thus not be counted in the timer.
@@ -894,14 +893,12 @@ class CreateSAMROIFrame(CreateFrame):
             self.ui.roi = self.ui.rois['sam']
             self.ROIstats()
             sdict = {}
-            bdict = {}
             for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
-                sdict['roi'+str(i)] = r.stats
-                bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT'))
+                sdict['roi'+str(i+1)] = r.stats
 
-            filename = os.path.join(fileroot,'stats_sam_'+tag+'.pkl')
-            with open(filename,'wb') as fp:
-                pickle.dump((sdict,bdict),fp)
+            filename = os.path.join(fileroot,'stats_sam_'+tag+'.json')
+            with open(filename,'w') as fp:
+                json.dump(sdict,fp,indent=4)
         
 
     # back-copy an existing ROI and overlay from current dataset back into the current roi. 
@@ -986,6 +983,13 @@ class CreateSAMROIFrame(CreateFrame):
                     self.updatesliderlabel(l,sl)
             self.update_roinumber_options()
 
+    def set_roi(self,roi=None):
+        self.roistate = 'blast'
+        if roi is None:
+            self.ui.roi = self.ui.rois[self.roistate]
+        else:
+            self.ui.roi = self.ui.rois[roi]
+
     def append_roi(self,d):
         for k,v in d.items():
             if isinstance(v,dict):
@@ -1011,14 +1015,24 @@ class CreateSAMROIFrame(CreateFrame):
 
             # ground truth comparisons
             if self.ui.data[self.ui.s].mask['gt'][dt]['ex']:
+
+                # pull out the matching lesion using cc3d
+                gt_mask = np.copy(self.ui.data[self.ui.s].mask['gt'][dt]['d'])
+                CC_labeled = cc3d.connected_components(gt_mask,connectivity=6)
+                centroid_point = np.array(list(map(int,np.mean(np.where(data[dt]),axis=1)))) 
+                objectnumber = CC_labeled[centroid_point[0],centroid_point[1],centroid_point[2]]
+                gt_lesion = (CC_labeled == objectnumber).astype('uint8')
+
                 # dice
-                self.ui.roi[s][roi].stats['dsc'][dt] = 1-dice(self.ui.data[self.ui.s].mask['gt'][dt]['d'].flatten(),data[dt].flatten()) 
+                self.ui.roi[s][roi].stats['dsc'][dt] = 1-dice(gt_lesion.flatten(),data[dt].flatten()) 
                 # haunsdorff
-                self.ui.roi[s][roi].stats['hd'][dt] = directed_hausdorff(np.array(np.where(self.ui.data[self.ui.s].mask['gt'][dt]['d'])).T,
+                self.ui.roi[s][roi].stats['hd'][dt] = directed_hausdorff(np.array(np.where(gt_lesion)).T,
                                                                          np.array(np.where(data[dt])).T)[0]
 
     # tumour segmenation by SAM
-    def segment_sam(self,roi=None,dpath=None,model='SAM',layer='ET',tag=''):
+    # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
+    # a bit arbitrary, not using it as the SAM prompt. So, layer arg here defaults to 'TC'
+    def segment_sam(self,roi=None,dpath=None,model='SAM',layer='TC',tag=''):
         print('SAM segment tumour')
         if roi is None:
             roi = self.ui.currentroi
@@ -1081,14 +1095,15 @@ class CreateSAMROIFrame(CreateFrame):
         # using nnunet convention for labels
         # there is currently no WT segmentation in the SAM viewer, and segmentation from ET
         # bounding box is interpreted directly as TC
-        self.ui.roi[self.ui.s][roi].data['seg'] = 2*self.ui.roi[self.ui.s][roi].data['ET'] #+ \
+        self.ui.roi[self.ui.s][roi].data['seg'] = 2*self.ui.roi[self.ui.s][roi].data[layer] #+ \
                                                 # 1*self.ui.roi[self.ui.s][roi].data['WT_sam']
         # need to add this to updateData() or create similar method
-        self.ui.data[self.ui.s].mask['sam'][layer]['d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data['ET'])
+        self.ui.data[self.ui.s].mask['sam'][layer]['d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data[layer])
         self.ui.data[self.ui.s].mask['sam'][layer]['ex'] = True
 
         # restore roi context
-        self.ui.roi = self.ui.rois['blast']
+        if tag == 'blast':
+            self.ui.roi = self.ui.rois['blast']
 
         if False:
             os.remove(os.path.join(dpath,sfile))

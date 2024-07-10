@@ -33,7 +33,7 @@ class ROI():
             'dsc':{'ET':0,'TC':0,'WT':0},
             'vol':{'ET':0,'TC':0,'WT':0},
             'hd':{'ET':0,'TC':0,'WT':0},
-            'elapsed_time':0}
+            'elapsedtime':0}
 
 # for linear measurements in 4panel viewer
 class ROILinear():

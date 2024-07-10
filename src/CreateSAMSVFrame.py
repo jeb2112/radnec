@@ -510,8 +510,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
         self.ui.roiframe.layerSAM_callback(layer='TC')
 
-        # restore roi context
-        self.ui.roi = self.ui.rois['blast']
 
     # run 3d SAM on all bbox's. currently this is only for handdrawn not BLAST
     # might not be needed and not properly coded
@@ -721,9 +719,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         if False:
             self.bbox = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
 
-        # restore roi context
-        self.ui.roi = self.ui.rois['blast']
-
         return
 
     # re-display an existing bbox
@@ -737,9 +732,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.draw_bbox(self.bbox['p1'][0],self.bbox['p1'][1],self.bbox['ax'])
         self.canvas.draw()
 
-        # restore context
-        self.ui.roi = self.ui.rois['blast']
-
     # display or remove bbox in the current slice
     def update_bboxs(self):
 
@@ -752,9 +744,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.bbox = copy.deepcopy(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[slice])
             self.show_bbox()
             self.canvas.draw()
-            
-        # restore context
-        self.ui.roi = self.ui.rois['blast']
 
 
     ########    

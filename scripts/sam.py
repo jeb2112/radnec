@@ -298,7 +298,8 @@ def main(args: argparse.Namespace) -> None:
         if len(files) == 0:
             continue
         # for ch,img in zip(['flair','t1+'],['WT','ET']):
-        for ch,img in zip(['t1+'],['ET']):
+        # by definition SAM output from t1+ input is TC, not just ET
+        for ch,img in zip(['t1+'],['TC']):
             images = [ f for f in files if re.match('slice_[0-9]+_'+ch,f) ]
             images = sorted([os.path.join(spath, f) for f in images])
             masks = [ f for f in files if re.match('mask_[0-9]+_'+ch,f)]
