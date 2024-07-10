@@ -259,6 +259,9 @@ class CreateSAMROIFrame(CreateFrame):
     # main method for handling ET,TC,WT selection in final ROI smoothed segmentation
     def layerROI_callback(self,layer=None,updateslice=True,updatedata=True):
 
+        # switch roi context
+        self.ui.roi = self.ui.rois['blast']
+
         roi = self.ui.get_currentroi()
         if roi == 0:
             return
@@ -300,6 +303,9 @@ class CreateSAMROIFrame(CreateFrame):
     
     # method for displaying SAM results
     def layerSAM_callback(self,layer='TC',updateslice=True, updatedata=True):
+
+        # switch roi context
+        self.ui.roi = self.ui.rois['sam']
 
         roi = self.ui.get_currentroi()
         if roi == 0:
@@ -424,6 +430,10 @@ class CreateSAMROIFrame(CreateFrame):
        
     # callback for final smoothed ROI on/off selection
     def finalROI_overlay_callback(self,event=None):
+
+        # update roi context
+        self.ui.roi = self.ui.rois['blast']
+
         if self.overlay_value['finalROI'].get() == False:
             # base display, not data selection
             self.ui.dataselection = 'raw'
@@ -511,6 +521,8 @@ class CreateSAMROIFrame(CreateFrame):
             #     print('Clicked in background')
             #     return
             else:
+                # roi context
+                self.ui.roi = self.ui.rois['blast']
                 roi = self.ui.get_currentroi()
                 # if current roi has segmentations for both compartments, start a new ROI
                 # otherwise if only 1 segmentation is present and the mouse click is for that
@@ -524,35 +536,26 @@ class CreateSAMROIFrame(CreateFrame):
                     self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
             
         roi = self.ui.get_currentroi()
+
         try:
             self.closeROI(self.ui.data[self.ui.s].dset['seg_raw'][self.ui.chselection]['d'],self.ui.get_currentslice(),do3d=do3d)
         except Exception as e:
             print(e)
             print('ROI not completed')
             return
+
         # update layer menu
         self.update_layermenu_options(self.ui.roi[self.ui.s][roi])
 
-        if False: # not ported yet
-            self.ROIstats()
-        # fusionstack = np.zeros((2,155,240,240))
-        # note some duplicate calls to generate_overlay should be removed
-        for ch in [self.ui.chselection,'flair']:
-            fusionstack = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
-                                             self.ui.roi[self.ui.s][roi].data['seg'],
-                                            layer=self.ui.roiframe.layer.get(),
-                                            overlay_intensity=self.config.OverlayIntensity)
-            self.ui.roi[self.ui.s][roi].data['seg_fusion'][ch] = fusionstack
-            if False:
+        # might want to avoid including this processing time in the overall elapsed?
+        if True:
+            # note some duplicate calls to generate_overlay should be removed
+            for ch in [self.ui.chselection,'flair']:
                 fusionstack = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
-                                                self.ui.roi[self.ui.s][roi].data['sam'],
+                                                self.ui.roi[self.ui.s][roi].data['seg'],
                                                 layer=self.ui.roiframe.layer.get(),
                                                 overlay_intensity=self.config.OverlayIntensity)
-                self.ui.roi[self.ui.s][roi].data['sam_fusion'][ch] = fusionstack
-        # self.ui.roi[self.ui.s][roi].data['seg_fusion_d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data['seg_fusion'])
-        # need to update ui data here?? or just let it run from layerROI_callback below
-        if False:
-            self.updateData()
+                self.ui.roi[self.ui.s][roi].data['seg_fusion'][ch] = fusionstack
 
         # if triggered by a button event
         if self.buttonpress_id:
@@ -563,17 +566,21 @@ class CreateSAMROIFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
         # currently this logic jumps immediately to SAM segmentation
-        # when the BLAST ROI is complete. 
+        # from the raw blast ROI. 
         roi = self.ui.get_currentroi()
+        # in the SAM viewer, there is only ET/TC, so the ROI status is set true immediately
+        # once ET is available
         if self.ui.roi[self.ui.s][roi].status:
-            self.overlay_value['finalROI'].set(True)
-            self.overlay_value['BLAST'].set(False)
-            self.ui.dataselection = 'seg_fusion'
-            if self.ui.roi[self.ui.s][roi].data['WT'] is None:
-                # removed T2 hyper here
-                self.layer_callback(layer='ET')
-            else:
-                self.layer_callback(layer='ET')
+            # don't stop to display the BLAST finalROI, jump directly to SAM
+            if False:
+                self.overlay_value['finalROI'].set(True)
+                self.overlay_value['BLAST'].set(False)
+                self.ui.dataselection = 'seg_fusion'
+                if self.ui.roi[self.ui.s][roi].data['WT'] is None:
+                    # removed T2 hyper here. should this be layerROI_callback?
+                    self.layer_callback(layer='ET')
+                else:
+                    self.layer_callback(layer='ET')
 
             # output current slice only of the BLAST ROI to file for follow-on SAM processing
             self.save_prompts(sam=self.ui.currentslice,mask='ET')
@@ -585,6 +592,8 @@ class CreateSAMROIFrame(CreateFrame):
             self.layerSAM_callback(layer='TC')
             # TODO. reload segmentations to viewer
         else:
+            # this workflow option shouldn't be triggered in the current implementation of 
+            # SAM (ET/TC) only.
             self.set_overlay('BLAST')
             self.ui.dataselection = 'seg_raw_fusion'
             self.ui.sliceviewerframe.updateslice()
@@ -812,21 +821,37 @@ class CreateSAMROIFrame(CreateFrame):
             else:
                 roilist = [roi]
 
-        # BLAST image file outputs.
         fileroot = self.ui.data[self.ui.s].studydir
-        for img in ['seg','ET','TC','WT']:
+        # BLAST finalROI outputs. 
+        # In this version of the viewer finalROI is not being run, and so this output is not needed.
+        # only SAM is being output
+        for img in ['ET','TC','WT']:
             for roi in roilist:
                 if len(roilist) > 1:
                     roisuffix = '_roi'+roi
-                    outputfilename = os.path.join(fileroot,'{}_{}_blast_processed.nii'.format(img,roisuffix))
+                    outputfilename = os.path.join(fileroot,'{}_{}_blast.nii'.format(img,roisuffix))
                 else:
-                    outputfilename = os.path.join(fileroot,'{}_blast_processed.nii'.format(img))
+                    outputfilename = os.path.join(fileroot,'{}_blast.nii'.format(img))
                 if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
                     self.ui.data[self.ui.s].writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],
-                                                       outputfilename,
-                                                       affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
+                                                    outputfilename,
+                                                    affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
                     
-        # additionally run the SAM segmentation across all available slice masks
+        # also output stats to pickle
+        if True:
+            self.ui.roi = self.ui.rois['blast']
+            self.ROIstats()
+            sdict = {}
+            bdict = {}
+            for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
+                sdict['roi'+str(i)] = r.stats
+                bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT'))
+
+            filename = os.path.join(fileroot,'stats_blast.pkl')
+            with open(filename,'wb') as fp:
+                pickle.dump((sdict,bdict),fp)
+
+        # now run the SAM segmentation across all available slice masks
         # this longer process will thus not be counted in the timer.
         # currently assuming only 1 roi exists at a time hard-coded [1], and that roi is either
         # a BLAST segmentation, or a handdrawn bbox SAM segmentation. 
@@ -835,7 +860,7 @@ class CreateSAMROIFrame(CreateFrame):
         # used to decide which prompt to use for final 3d SAM here. awkward, but data structure
         # is not fully parallelized between SAM, BLAST, bbox and blast sam prompts,
         # because this viewer might be just a one-off. 
-        if self.ui.roi[self.ui.s][1].data['bbox'] is not None:
+        if self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'] is not None:
             tag = 'bbox'
             self.save_prompts(mask='bbox')
             self.segment_sam(tag=tag)
@@ -846,6 +871,7 @@ class CreateSAMROIFrame(CreateFrame):
 
         # also output stats to pickle
         if True:
+            self.ui.roi = self.ui.rois['sam']
             self.ROIstats()
             sdict = {}
             bdict = {}
@@ -853,8 +879,8 @@ class CreateSAMROIFrame(CreateFrame):
                 sdict['roi'+str(i)] = r.stats
                 bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT'))
 
-            filename = os.path.join(fileroot,'stats_'+tag+'.pkl')
-            with open(filename,'ab') as fp:
+            filename = os.path.join(fileroot,'stats_sam_'+tag+'.pkl')
+            with open(filename,'wb') as fp:
                 pickle.dump((sdict,bdict),fp)
         
 
@@ -1026,6 +1052,9 @@ class CreateSAMROIFrame(CreateFrame):
                 raise subprocess.CalledProcessError(res,cstr)
                 print(res)
                 
+        # switch roi context
+        self.ui.roi = self.ui.rois['sam']
+
         roi = self.ui.currentroi
         self.ui.roi[self.ui.s][roi].data[layer],_ = self.ui.data[self.ui.s].loadnifti(layer+'_sam_'+tag+'_box.nii.gz',self.ui.data[self.ui.s].studydir)
         # create a combined seg mask from the three layers
@@ -1037,6 +1066,10 @@ class CreateSAMROIFrame(CreateFrame):
         # need to add this to updateData() or create similar method
         self.ui.data[self.ui.s].mask['sam'][layer]['d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data['ET'])
         self.ui.data[self.ui.s].mask['sam'][layer]['ex'] = True
+
+        # restore roi context
+        self.ui.roi = self.ui.rois['blast']
+
         if False:
             os.remove(os.path.join(dpath,sfile))
 

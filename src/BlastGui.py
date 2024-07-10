@@ -76,7 +76,11 @@ class BlastGui(object):
         # affine is now a key in the main data structure so this attribute isn't needed
         # affine is no longer used though, so can be removed entirely
         self.affine = {'t1pre':None,'t1':None,'t2':None,'flair':None}
-        self.roi = {0:[0],1:[0]} # a list of ROI's for each study. '0' is dummy value so the Roi indexing ends up as 1-based. hard-coded for two studies
+        # a list of ROI's for each study. '0' is dummy value so the Roi indexing ends up as 1-based. hard-coded for two studies
+        # in addition, tally blast and sam rois separately.
+        roidefault = {0:[0],1:[0]} 
+        self.rois = {'blast':copy.deepcopy(roidefault),'sam':copy.deepcopy(roidefault)}
+        self.roi = self.rois['blast']
         self.currentroi = 0 # tracks the currentroi widget variable
         self.OS = sys.platform
         self.tstart = time.time()
@@ -122,7 +126,7 @@ class BlastGui(object):
                     self.roiframe.thresholds['T2 hyper']['flair'].set(WTflairset)
                     self.roiframe.updateslider('T2 hyper','t12')
                     self.roiframe.updateslider('T2 hyper','flair')
-                if False:
+                if True:
                     self.roiframe.createROI(pointxyz[0],pointxyz[1],pointxyz[2])
                     self.roiframe.ROIclick(event=None)
 
@@ -361,9 +365,6 @@ class BlastGui(object):
     def update_blast(self,**kwargs):
         self.roiframe.updateBLAST(**kwargs)
 
-    def endtime(self):
-        self.roi[self.currentroi].stats['elapsed_time'] = time.time() - self.tstart
-
     def clear_message(self):
         self.sliceviewerframe.messagelabel['text'] = ''
         self.message.set('')
@@ -400,8 +401,9 @@ class BlastGui(object):
         self.data = {}
         self.blastdata = {0:copy.deepcopy(self.blastdatadict),1:copy.deepcopy(self.blastdatadict)}
     
-        # self.roi = [0] # dummy value for Roi indexing 1-based
-        self.roi = {0:[0],1:[0]} # dummy value for Roi indexing 1-based
+        roidefault = {0:[0],1:[0]} # dummy value for Roi indexing 1-based
+        self.rois = {'blast':copy.deepcopy(roidefault),'sam':copy.deepcopy(roidefault)}
+        self.roi = self.rois['blast']
         self.currentroi = 0 # tracks the currentroi widget variable
         self.tstart = time.time()
         self.message = tk.StringVar(value='')
