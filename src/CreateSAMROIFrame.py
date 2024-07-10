@@ -533,9 +533,22 @@ class CreateSAMROIFrame(CreateFrame):
                     else:
                         self.updateROI(event)
                 else:
+                    # for the SAM viewer, there should only ever be 1 ROI active
                     self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
             
         roi = self.ui.get_currentroi()
+
+        # awkward hack: create a duplicate ROI for 'sam'
+        if roi == 1:
+            compartment = self.layer.get()
+            roi_forsam = ROI(self.ui.roi[self.ui.s][roi].coords[compartment]['x'],
+                            self.ui.roi[self.ui.s][roi].coords[compartment]['y'],
+                            self.ui.get_currentslice(),compartment=compartment)
+            self.ui.roi = self.ui.rois['sam']
+            self.ui.roi[self.ui.s].append(roi_forsam)
+            self.ui.roi = self.ui.rois['blast']
+        else:
+            raise ValueError('Only one ROI is supported for SAM')
 
         try:
             self.closeROI(self.ui.data[self.ui.s].dset['seg_raw'][self.ui.chselection]['d'],self.ui.get_currentslice(),do3d=do3d)
@@ -769,6 +782,10 @@ class CreateSAMROIFrame(CreateFrame):
     # using tmpfiles so ptorch not needed in the blast env
     def save_prompts(self,sam=0,mask='ET'):
 
+        # roi context
+        if mask == 'bbox':
+            self.ui.roi = self.ui.rois['sam']
+
         roilist = [self.ui.currentroi]
         fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
         if not os.path.exists(fileroot):
@@ -802,7 +819,9 @@ class CreateSAMROIFrame(CreateFrame):
                             meta.add_text('affine',affine_bytes_str)
                             plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
 
-
+        # restore context
+        self.ui.roi = self.ui.rois['blast']
+        
     # for exporting BLAST/SAM segmentations.
     def saveROI(self,roi=None,outputpath=None):
 
@@ -823,33 +842,34 @@ class CreateSAMROIFrame(CreateFrame):
 
         fileroot = self.ui.data[self.ui.s].studydir
         # BLAST finalROI outputs. 
-        # In this version of the viewer finalROI is not being run, and so this output is not needed.
-        # only SAM is being output
-        for img in ['ET','TC','WT']:
-            for roi in roilist:
-                if len(roilist) > 1:
-                    roisuffix = '_roi'+roi
-                    outputfilename = os.path.join(fileroot,'{}_{}_blast.nii'.format(img,roisuffix))
-                else:
-                    outputfilename = os.path.join(fileroot,'{}_blast.nii'.format(img))
-                if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
-                    self.ui.data[self.ui.s].writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],
-                                                    outputfilename,
-                                                    affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
+        # hack for sam: have to check here if a regular BLAST segmentation has been done
+        # otherwise don't try to output anything.
+        if len(self.ui.roi[self.ui.s]) > self.ui.currentroi: # > for 1-based indexing
+            for img in ['ET','TC','WT']:
+                for roi in roilist:
+                    if len(roilist) > 1:
+                        roisuffix = '_roi'+roi
+                        outputfilename = os.path.join(fileroot,'{}_{}_blast.nii'.format(img,roisuffix))
+                    else:
+                        outputfilename = os.path.join(fileroot,'{}_blast.nii'.format(img))
+                        if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
+                            self.ui.data[self.ui.s].writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],
+                                                            outputfilename,
+                                                            affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
                     
-        # also output stats to pickle
-        if True:
-            self.ui.roi = self.ui.rois['blast']
-            self.ROIstats()
-            sdict = {}
-            bdict = {}
-            for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
-                sdict['roi'+str(i)] = r.stats
-                bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT'))
+            # also output stats to pickle
+            if True:
+                self.ui.roi = self.ui.rois['blast']
+                self.ROIstats()
+                sdict = {}
+                bdict = {}
+                for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
+                    sdict['roi'+str(i)] = r.stats
+                    bdict['roi'+str(i)] = dict((k,r.data[k]) for k in ('ET','TC','WT'))
 
-            filename = os.path.join(fileroot,'stats_blast.pkl')
-            with open(filename,'wb') as fp:
-                pickle.dump((sdict,bdict),fp)
+                filename = os.path.join(fileroot,'stats_blast.pkl')
+                with open(filename,'wb') as fp:
+                    pickle.dump((sdict,bdict),fp)
 
         # now run the SAM segmentation across all available slice masks
         # this longer process will thus not be counted in the timer.
@@ -860,7 +880,7 @@ class CreateSAMROIFrame(CreateFrame):
         # used to decide which prompt to use for final 3d SAM here. awkward, but data structure
         # is not fully parallelized between SAM, BLAST, bbox and blast sam prompts,
         # because this viewer might be just a one-off. 
-        if self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'] is not None:
+        if len(list(self.ui.rois['sam'][self.ui.s][self.ui.currentroi].bboxs.keys())) > 0:
             tag = 'bbox'
             self.save_prompts(mask='bbox')
             self.segment_sam(tag=tag)
