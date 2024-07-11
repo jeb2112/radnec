@@ -42,8 +42,10 @@ class Gui():
                 self.root.mainloop()
         except KeyError as e:
             self.config.logger.error("{}: {}".format(e.args[0], sys.exc_info()[0]))
+            print("{}: {}".format(e.args[0], sys.exc_info()[0]))
         except Exception as e:
             self.config.logger.error("{}: {}".format(e.args[0], sys.exc_info()[0]))
+            print("{}: {}".format(e.args[0], sys.exc_info()[0]))
         else:
             print("Exit")
 

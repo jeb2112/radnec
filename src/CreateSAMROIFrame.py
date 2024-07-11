@@ -129,7 +129,8 @@ class CreateSAMROIFrame(CreateFrame):
         saveROI.grid(row=1,column=8,sticky='w')
 
         # clear ROI button
-        clearROI = ttk.Button(self.frame,text='clear ROI',command = self.clearROI)
+        # using resetROI until multiple ROI's are coded properly
+        clearROI = ttk.Button(self.frame,text='clear ROI',command = self.resetROI)
         clearROI.grid(row=1,column=7,sticky='w')
         self.frame.update()
 
@@ -262,6 +263,7 @@ class CreateSAMROIFrame(CreateFrame):
 
         # switch roi context
         self.ui.roi = self.ui.rois['blast']
+        self.update_roinumber_options()
 
         roi = self.ui.get_currentroi()
         if roi == 0:
@@ -307,6 +309,7 @@ class CreateSAMROIFrame(CreateFrame):
 
         # switch roi context
         self.ui.roi = self.ui.rois['sam']
+        self.update_roinumber_options()
 
         roi = self.ui.get_currentroi()
         if roi == 0:
@@ -434,6 +437,7 @@ class CreateSAMROIFrame(CreateFrame):
 
         # update roi context
         self.ui.roi = self.ui.rois['blast']
+        self.update_roinumber_options()
 
         if self.overlay_value['finalROI'].get() == False:
             # base display, not data selection
@@ -470,7 +474,7 @@ class CreateSAMROIFrame(CreateFrame):
             self.ui.updateslice()
 
         else:
-            self.overlay_value['finalROI'].set(False)
+            self.set_overlay('BLAST')
             self.ui.dataselection = 'seg_raw_fusion'
             self.ui.updateslice(wl=True)
 
@@ -524,6 +528,7 @@ class CreateSAMROIFrame(CreateFrame):
             else:
                 # roi context
                 self.ui.roi = self.ui.rois['blast']
+                self.update_roinumber_options()
                 roi = self.ui.get_currentroi()
                 # if current roi has segmentations for both compartments, start a new ROI
                 # otherwise if only 1 segmentation is present and the mouse click is for that
@@ -786,6 +791,7 @@ class CreateSAMROIFrame(CreateFrame):
         # roi context
         if mask == 'bbox':
             self.ui.roi = self.ui.rois['sam']
+            self.update_roinumber_options()
 
         roilist = [self.ui.currentroi]
         fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
@@ -892,10 +898,13 @@ class CreateSAMROIFrame(CreateFrame):
         if True:
             self.ui.roi = self.ui.rois['sam']
             self.ROIstats()
-            sdict = {}
             for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
-                sdict['roi'+str(i+1)] = r.stats
-
+                sdict = {'roi'+str(i+1):{'stats':None,'bbox':None}}
+                sdict['roi'+str(i+1)]['stats'] = r.stats
+                bboxs = {}
+                for k in r.bboxs.keys():
+                    bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1']}
+                sdict['roi'+str(i+1)]['bbox'] = bboxs
             filename = os.path.join(fileroot,'stats_sam_'+tag+'.json')
             with open(filename,'w') as fp:
                 json.dump(sdict,fp,indent=4)
@@ -952,6 +961,7 @@ class CreateSAMROIFrame(CreateFrame):
         self.updatesliders()
 
     # eliminate latest ROI if there are multiple ROIs in current case
+    # not updated for SAM viewer yet
     def clearROI(self):
         n = len(self.ui.roi[self.ui.s])
         if n>1:    
@@ -968,20 +978,23 @@ class CreateSAMROIFrame(CreateFrame):
                 self.resetROI()
                 self.ui.updateslice()
 
-    # eliminate all ROIs, ie for loading another case
+    # eliminate all ROIs, ie for loading another case. 
     def resetROI(self):
         self.currentroi.set(0)
-        self.ui.roi[self.ui.s] = [0]
-        self.ui.roiframe.overlay_value['finalROI'].set(False)
-        self.ui.roiframe.overlay_value['BLAST'].set(False)
+        self.set_overlay('')
+        self.ui.reset_roi()
+        self.update_roinumber_options(n=1)
         self.ui.roiframe.layertype.set('blast')
         self.ui.roiframe.layer.set('ET')
+        self.ui.chselection = 't1+'
+        # awkward check here due to using resetROI for clearROI
+        if self.ui.sliceviewerframe.canvas is not None:
+            self.enhancingROI_overlay_callback()
         if self.ui.chselection in ['t1+','flair']:
             for l in ['ET','T2 hyper']:
                 for sl in ['t12','flair','bc']:
                     self.thresholds[l][sl].set(self.ui.config.thresholddefaults[sl])
                     self.updatesliderlabel(l,sl)
-            self.update_roinumber_options()
 
     def set_roi(self,roi=None):
         self.roistate = 'blast'
@@ -1088,6 +1101,7 @@ class CreateSAMROIFrame(CreateFrame):
                 
         # switch roi context
         self.ui.roi = self.ui.rois['sam']
+        self.update_roinumber_options()
 
         roi = self.ui.currentroi
         self.ui.roi[self.ui.s][roi].data[layer],_ = self.ui.data[self.ui.s].loadnifti(layer+'_sam_'+tag+'_box.nii.gz',self.ui.data[self.ui.s].studydir)
@@ -1104,6 +1118,7 @@ class CreateSAMROIFrame(CreateFrame):
         # restore roi context
         if tag == 'blast':
             self.ui.roi = self.ui.rois['blast']
+            self.update_roinumber_options()
 
         if False:
             os.remove(os.path.join(dpath,sfile))

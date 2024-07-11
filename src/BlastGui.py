@@ -114,19 +114,20 @@ class BlastGui(object):
                 self.caseframe.case_callback()
                 self.function.set('SAM')
                 self.function_callback(update=True)
-                self.sliceviewerframe.currentslice.set(caseslice)
-                self.sliceviewerframe.normalslice_callback()
-                self.roiframe.thresholds['ET']['t12'].set(ETt1set)
-                self.roiframe.thresholds['ET']['flair'].set(ETflairset)
-                self.roiframe.updateslider('ET','t12')
-                self.roiframe.updateslider('ET','flair')
+                if False:
+                    self.sliceviewerframe.currentslice.set(caseslice)
+                    self.sliceviewerframe.normalslice_callback()
+                    self.roiframe.thresholds['ET']['t12'].set(ETt1set)
+                    self.roiframe.thresholds['ET']['flair'].set(ETflairset)
+                    self.roiframe.updateslider('ET','t12')
+                    self.roiframe.updateslider('ET','flair')
                 if False:
                     self.roiframe.layer_callback(layer='T2 hyper')
                     self.roiframe.thresholds['T2 hyper']['t12'].set(WTt1set)
                     self.roiframe.thresholds['T2 hyper']['flair'].set(WTflairset)
                     self.roiframe.updateslider('T2 hyper','t12')
                     self.roiframe.updateslider('T2 hyper','flair')
-                if True:
+                if False:
                     self.roiframe.createROI(pointxyz[0],pointxyz[1],pointxyz[2])
                     self.roiframe.ROIclick(event=None)
 
@@ -391,6 +392,12 @@ class BlastGui(object):
 
     def get_studynumber(self):
         return self.s
+
+    def reset_roi(self):
+        self.currentroi = 0
+        roidefault = {0:[0],1:[0]} # dummy value for Roi indexing 1-based
+        self.rois = {'blast':copy.deepcopy(roidefault),'sam':copy.deepcopy(roidefault)}
+        self.roi = self.rois['blast']
 
     def resetUI(self):
         self.normalslice = None
