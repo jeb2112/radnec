@@ -77,6 +77,20 @@
             "console": "integratedTerminal",
             "justMyCode": false
         },
+        {
+            "name": "plan_process",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/home/src/nnunet/nnunetv2/experiment_planning/plan_and_preprocess_entrypoints.py",
+            "args": [
+                "-d","138",
+                "-np","1",
+                "-c","3d_fullres"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
 
 
         

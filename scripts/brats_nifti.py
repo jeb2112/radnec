@@ -173,6 +173,9 @@ if __name__ == '__main__':
 
     # nifti destination dir for BLAST
     blast_data_dir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
+
+    # nifti destination dir for nnUNetv1
+    nnunet_data_dir = '/media/jbishop/WD4/brainmets/nnunetv1/inference'
     
     cases = sorted(os.listdir(brats_data_dir))
 
@@ -186,8 +189,10 @@ if __name__ == '__main__':
         for f in files:
             if 't1c' in f:
                 shutil.copy(os.path.join(dir,f),os.path.join(ddir,'t1+_processed.nii.gz'))
+                shutil.copy(os.path.join(dir,f)),os.path.join(nnunet_data_dir,C+'_0001.nii.gz')
             elif 't2f' in f:
                 shutil.copy(os.path.join(dir,f),os.path.join(ddir,'flair_processed.nii.gz'))
+                shutil.copy(os.path.join(dir,f)),os.path.join(nnunet_data_dir,C+'_0002.nii.gz')
             elif 'seg' in f:
                 shutil.copy(os.path.join(dir,f),ddir)
 
@@ -198,7 +203,7 @@ if __name__ == '__main__':
         writenifti(zimg_t1,os.path.join(ddir,'zt1+_processed.nii'),affine=affine_t1)
         writenifti(zimg_flair,os.path.join(ddir,'zflair_processed.nii'),affine=affine_flair)
 
-        # nnunet segmentation
+        # home-trained nnunet segmentation
         ndir = os.path.join(ddir,'nnunet')
         os.makedirs(ndir,exist_ok=True)
         for dt,suffix in zip(['t1+','flair'],['0000','0003']):
@@ -210,3 +215,8 @@ if __name__ == '__main__':
                 l1str += os.path.join(dpath,os.path.join(dpath,studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')) + '\"'
             os.system(l1str)
         segment(C,ddir)
+
+        # stunet segmentation
+        os.environ["nnUNet_raw_data_base"] = "/media/jbishop/WD4/nnunetv1/raw"
+        os.environ["nnUNet_preprocessed"] = "/media/jbishop/WD4/nnunetv1/preprocessed"
+        os.environ['RESULTS_FOLDER'] = "/media/jbishop/WD4/nnunetv1/results"
