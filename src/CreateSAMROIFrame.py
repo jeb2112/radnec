@@ -94,7 +94,7 @@ class CreateSAMROIFrame(CreateFrame):
         layerlabel = ttk.Label(self.frame,text='ROI layer:')
         layerlabel.grid(row=0,column=2,sticky='w')
         self.layerROI.trace_add('write',lambda *args: self.layerROI.get())
-        self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['blast'][0],
+        self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['seg'][0],
                                            *self.layerlist['seg'],command=self.layerROI_callback)
         self.layerROImenu.config(width=4)
         self.layerROImenu.grid(row=0,column=3,sticky='w')
@@ -107,8 +107,8 @@ class CreateSAMROIFrame(CreateFrame):
         layerlabel = ttk.Label(self.frame,text='SAM layer:')
         layerlabel.grid(row=0,column=4,sticky='w')
         self.layerSAM.trace_add('write',lambda *args: self.layerSAM.get())
-        self.layerSAMmenu = ttk.OptionMenu(self.frame,self.layerSAM,self.layerlist['sam'][1],
-                                           *self.layerlist['seg'],command=self.layerSAM_callback)
+        self.layerSAMmenu = ttk.OptionMenu(self.frame,self.layerSAM,self.layerlist['sam'][0],
+                                           *self.layerlist['sam'],command=self.layerSAM_callback)
         self.layerSAMmenu.config(width=4)
         self.layerSAMmenu.grid(row=0,column=5,sticky='w')
 
@@ -894,10 +894,12 @@ class CreateSAMROIFrame(CreateFrame):
             tag = 'bbox'
             self.save_prompts(mask='bbox')
             self.segment_sam(tag=tag)
+            self.layerSAM_callback(layer='TC')
         elif self.ui.data[self.ui.s].dset['seg_raw']['t1+']['ex']:
             tag = 'blast'
             self.save_prompts(mask='ET')
             self.segment_sam(tag=tag)
+            self.layerSAM_callback(layer='TC')
 
         # also output stats to pickle
         if True:
