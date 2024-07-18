@@ -7,6 +7,7 @@ import logging
 import time
 import json
 import shutil
+import subprocess
 import tkinter as tk
 from tkinter import ttk
 import matplotlib
@@ -333,6 +334,10 @@ class CreateSAMROIFrame(CreateFrame):
 
         if updateslice:
             self.ui.updateslice()
+        
+        # restore roi context
+        self.ui.roi = self.ui.rois['blast']
+        
         return
 
     # convenience method
@@ -1087,7 +1092,11 @@ class CreateSAMROIFrame(CreateFrame):
                 raise FileNotFoundError('pytorch118_310')
 
             command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
-            command2 = 'nnUNetv2_predict -i \"' + dpath + '\" -o \"' + dpath + '\" -d137 -c 3d_fullres'
+            command2 = 'conda run -n pytorch118_310 python scripts/sam.py  --checkpoint "C:\\Users\\Chris Heyn Lab\\data\\pretrained\\sam\\sam_vit_b_01ec64.pth" '
+            command2 += ' --input "' + self.ui.caseframe.casedir
+            command2 += '" --output "' + self.ui.caseframe.casedir
+            command2 += '" --tag ' + tag
+            command2 += ' --model-type vit_b'
             cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
             popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
             for stdout_line in iter(popen.stdout.readline,""):

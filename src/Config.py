@@ -11,7 +11,7 @@ class Config(object):
         ### Paths that tend to change based on local install
 
         if os.name == 'nt':
-            self.InstallPath = os.path.join('C:\\','Users','chint','src','radnec')
+            self.InstallPath = os.path.join('C:\\','Users','Chris Heyn Lab','src','radnec')
         else:
             self.InstallPath = os.path.join('/home','src','radnec')
 
@@ -44,7 +44,7 @@ class Config(object):
         # Path to dataset images
         if os.name == 'nt':
             self.UIdatadir = os.path.join('C:\\','Users','Chris Heyn Lab','Data')
-            self.UIlocaldir = os.path.join('C:\\','Users','Chris Heyn Lab','Data','dicom2nifti')
+            self.UIlocaldir = os.path.join('C:\\','Users','Chris Heyn Lab','Data','dicom2nifti_sam')
         elif os.name == 'posix':
             self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases'
             self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
