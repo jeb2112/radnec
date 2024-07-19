@@ -202,7 +202,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
                                      width_ratios=[self.ui.current_panelsize,
                                                    self.ui.current_panelsize / (2 * slicefovratio) ],
                                      figsize=figsize,dpi=self.ui.dpi)
-        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
+        # probably needs to be origin upper for ax_img
+        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
         self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
         self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
         self.ax_img.format_cursor_data = self.make_cursordata_format()
@@ -242,9 +243,9 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         for a in ['A','C','D']:
             figtrans[a] = self.axs[a].transData + self.axs[a].transAxes.inverted()
         # these label coords are slightly hard-coded
-        self.xyfig['Im_A']= figtrans['A'].transform((5,self.dim[1]-20))
-        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),5))
-        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),5))
+        self.xyfig['Im_A']= figtrans['A'].transform((5,25))
+        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),self.dim[1]-15))
+        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),self.dim[1]-15))
         self.xyfig['Im_C'] = figtrans['C'].transform((5,self.dim[0]-15))
         self.xyfig['Im_D'] = figtrans['D'].transform((5,self.dim[0]-15))
         self.figtrans = figtrans
