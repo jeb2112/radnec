@@ -431,12 +431,24 @@ class Study():
         except IOError as e:
             print('Can\'t import {}'.format(t1_file))
             return None,None
+        affine = copy.copy(img_nb_t1.affine)
+        img_arr_t1 = np.array(img_nb_t1.dataobj)
+        # modify the affine to match itksnap convention
+        for i in range(2):
+            if affine[i,i] > 0:
+                affine[i,3] += img_nb_t1.shape[i] * affine[i,i]
+                affine[i,i] = -1*(affine[i,i])
+                # will use flips for now for speed
+                img_arr_t1 = np.flip(img_arr_t1,axis=i)
+        # this takes too long and requires re-masking
+        if False:
+            img_nb_t1 = nb.processing.resample_from_to(img_nb_t1,(img_nb_t1.shape,affine))
+
         nb_header = img_nb_t1.header.copy()
         # nibabel convention will be transposed to sitk convention
-        img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
+        img_arr_t1 = np.transpose(img_arr_t1,axes=(2,1,0))
         if type is not None:
             img_arr_t1 = img_arr_t1.astype(type)
-        affine = img_nb_t1.affine
 
         return img_arr_t1,affine
 

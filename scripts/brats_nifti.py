@@ -215,11 +215,18 @@ if __name__ == '__main__':
         blast_data_dir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
     elif os.name == 'nt':
         # brats source dir
-        brats_data_dir = "C:\\Users\\chint\\data\\BraTS2024_Training_Data"
-        # nifti destination dir for BLAST
-        blast_data_dir = "C:\\Users\\chint\\data\\radnec_sam"
-        # reference for talairach coords
-        mni_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\mni152"
+        if True:
+            brats_data_dir = "C:\\Users\\chint\\data\\BraTS2024_Training_Data"
+            # nifti destination dir for BLAST
+            blast_data_dir = "C:\\Users\\chint\\data\\radnec_sam"
+            # reference for talairach coords
+            mni_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\mni152"
+        else:
+            brats_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\brats2024\\raw\\training"
+            # nifti destination dir for BLAST
+            blast_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\dicom2nifti_sam"
+            # reference for talairach coords
+            mni_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\mni152"
 
     # not using MNI reference for the time being
     if False:

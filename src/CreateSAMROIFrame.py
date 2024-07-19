@@ -7,6 +7,7 @@ import logging
 import time
 import json
 import shutil
+import getpass
 import subprocess
 import tkinter as tk
 from tkinter import ttk
@@ -1067,12 +1068,12 @@ class CreateSAMROIFrame(CreateFrame):
 
         if os.name == 'posix':
             if model == 'medSAM':
-                command = 'conda run -n ptorch python scripts/medsam.py  --checkpoint /media/jbishop/WD4/brainmets/sam/medsam_vit_b.pth '
+                command = 'conda run -n ptorch python scripts/medsam.py  --checkpoint /media/jbishop/WD4/brainmets/brats2024/sam_models/medsam_vit_b.pth '
                 command += ' --input ' + self.ui.caseframe.casedir
                 command += ' --output ' + self.ui.caseframe.casedir
                 command += ' --model-type vit_b'
             elif model == 'SAM':
-                command = 'conda run -n ptorch python scripts/sam.py  --checkpoint /media/jbishop/WD4/brainmets/sam/sam_vit_b_01ec64.pth '
+                command = 'conda run -n ptorch python scripts/sam.py  --checkpoint /media/jbishop/WD4/brainmets/brats2024/sam_models/sam_vit_b_01ec64.pth '
                 command += ' --input ' + self.ui.caseframe.casedir
                 command += ' --output ' + self.ui.caseframe.casedir
                 command += ' --tag ' + tag
@@ -1096,8 +1097,9 @@ class CreateSAMROIFrame(CreateFrame):
             else:
                 raise FileNotFoundError('pytorch118_310')
 
+            username = getpass.getuser()
             command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
-            command2 = 'conda run -n pytorch118_310 python scripts/sam.py  --checkpoint "C:\\Users\\chint\\data\\sam_models\\sam_vit_b_01ec64.pth" '
+            command2 = 'conda run -n pytorch118_310 python scripts/sam.py  --checkpoint "C:\\Users\\' + username + '\\data\\sam_models\\sam_vit_b_01ec64.pth" '
             command2 += ' --input "' + self.ui.caseframe.casedir
             command2 += '" --output "' + self.ui.caseframe.casedir
             command2 += '" --tag ' + tag

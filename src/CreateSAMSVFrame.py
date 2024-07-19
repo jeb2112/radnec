@@ -202,7 +202,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
                                      width_ratios=[self.ui.current_panelsize,
                                                    self.ui.current_panelsize / (2 * slicefovratio) ],
                                      figsize=figsize,dpi=self.ui.dpi)
-        # probably needs to be origin upper for ax_img
         self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
         self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
         self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
