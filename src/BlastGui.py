@@ -89,6 +89,8 @@ class BlastGui(object):
         self.debug = debug
 
         self.createGeneralLayout()
+        self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir))
+        self.caseframe.datadirentry_callback()
 
         # hard-coded entries for debugging
         if self.debug:
@@ -108,8 +110,6 @@ class BlastGui(object):
                     caseslice = 122
                     pointxyz = (80,145,122)
                     flairset = 1.4
-                self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir))
-                self.caseframe.datadirentry_callback()
                 self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
                 self.function.set('SAM')
@@ -415,7 +415,7 @@ class BlastGui(object):
         self.tstart = time.time()
         self.message = tk.StringVar(value='')
         if self.roiframe is not None:
-            self.roiframe.resetROI()
+            self.roiframe.resetROI(data=False)
 
     def get_monitor_from_coord(self,x, y):
         monitors = screeninfo.get_monitors()

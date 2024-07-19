@@ -664,8 +664,12 @@ class CreateSAMROIFrame(CreateFrame):
         mask = (metmaskstack & mlist[m]['threshold'] == mlist[m]['threshold']).astype('double')
 
         # dust operation gets rid of a lot of small noise elements in the raw BLAST segmentation
+        # but can't use it if small lesions are present.
         # connectivity = 6 is the minimum, again to filter out noise and tenuously connected regions
-        CC_labeled = cc3d.dust(mask,connectivity=6,threshold=100,in_place=False)
+        if False:
+            CC_labeled = cc3d.dust(mask,connectivity=6,threshold=100,in_place=False)
+        else:
+            CC_labeled = copy.deepcopy(mask)
         CC_labeled = cc3d.connected_components(CC_labeled,connectivity=6)
         stats = cc3d.statistics(CC_labeled)
 
@@ -674,7 +678,6 @@ class CreateSAMROIFrame(CreateFrame):
         # other than cc3d, currently there is no additional processing on ET or WT
         self.ui.roi[s][roi].data[m] = objectmask.astype('uint8')
 
-        
         if m == 'ET': # calculate TC, a smoothed/filled version of ET
             objectmask_closed = np.zeros(np.shape(self.ui.data[self.ui.s].dset[self.ui.dataselection][self.ui.chselection]['d'+m])[1:])
             objectmask_final = np.zeros(np.shape(self.ui.data[self.ui.s].dset[self.ui.dataselection][self.ui.chselection]['d'+m])[1:])
@@ -986,7 +989,7 @@ class CreateSAMROIFrame(CreateFrame):
                 self.ui.updateslice()
 
     # eliminate all ROIs, ie for loading another case. 
-    def resetROI(self):
+    def resetROI(self,data=True):
         self.currentroi.set(0)
         self.set_overlay('')
         self.ui.reset_roi()
@@ -995,7 +998,7 @@ class CreateSAMROIFrame(CreateFrame):
         self.ui.roiframe.layer.set('ET')
         self.ui.chselection = 't1+'
         # awkward check here due to using resetROI for clearROI
-        if self.ui.sliceviewerframe.canvas is not None:
+        if self.ui.sliceviewerframe.canvas is not None and data:
             self.enhancingROI_overlay_callback()
         if self.ui.chselection in ['t1+','flair']:
             for l in ['ET','T2 hyper']:
@@ -1094,7 +1097,7 @@ class CreateSAMROIFrame(CreateFrame):
                 raise FileNotFoundError('pytorch118_310')
 
             command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
-            command2 = 'conda run -n pytorch118_310 python scripts/sam.py  --checkpoint "C:\\Users\\Chris Heyn Lab\\data\\pretrained\\sam\\sam_vit_b_01ec64.pth" '
+            command2 = 'conda run -n pytorch118_310 python scripts/sam.py  --checkpoint "C:\\Users\\chint\\data\\sam_models\\sam_vit_b_01ec64.pth" '
             command2 += ' --input "' + self.ui.caseframe.casedir
             command2 += '" --output "' + self.ui.caseframe.casedir
             command2 += '" --tag ' + tag

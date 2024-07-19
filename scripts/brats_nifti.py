@@ -215,16 +215,18 @@ if __name__ == '__main__':
         blast_data_dir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
     elif os.name == 'nt':
         # brats source dir
-        brats_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\brats2024\\raw\\training"
+        brats_data_dir = "C:\\Users\\chint\\data\\BraTS2024_Training_Data"
         # nifti destination dir for BLAST
-        blast_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\dicom2nifti_sam"
+        blast_data_dir = "C:\\Users\\chint\\data\\radnec_sam"
         # reference for talairach coords
         mni_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\mni152"
 
-    dref,dref_affine = loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',dir=mni_data_dir)
-    mask,_ = loadnifti('mni_icbm152_t1_tal_nlin_sym_09a_mask.nii',dir=mni_data_dir)
-    dref *= mask
-    dref_nb = nb.load(os.path.join(mni_data_dir,'mni_icbm152_t1_tal_nlin_sym_09a.nii'))
+    # not using MNI reference for the time being
+    if False:
+        dref,dref_affine = loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',dir=mni_data_dir)
+        mask,_ = loadnifti('mni_icbm152_t1_tal_nlin_sym_09a_mask.nii',dir=mni_data_dir)
+        dref *= mask
+        dref_nb = nb.load(os.path.join(mni_data_dir,'mni_icbm152_t1_tal_nlin_sym_09a.nii'))
 
     cases = sorted(os.listdir(brats_data_dir))
 
