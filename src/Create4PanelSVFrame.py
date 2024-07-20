@@ -24,7 +24,6 @@ from enum import Enum
 
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
-import itk
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice
 import scipy
