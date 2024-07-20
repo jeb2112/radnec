@@ -1,6 +1,6 @@
 [project]
-name = "blast"
-description = "BLAST user interface"
+name = "radnec"
+description = "RADNEC/SAM user interface"
 dynamic=["version"]
 authors = [
     {name = "JB", email = "j.bishop@utoronto.ca"}
@@ -10,10 +10,12 @@ dependencies = [
             "scipy",
             "scikit-learn",
             "numpy",
+            "ants",
+            "antspyx",
             "scikit-image",
             "SimpleITK",
             "pandas",
-            "matplotlib",
+            "matplotlib >= 3.8, <3.9",
             "connected-components-3d",
             "twisted",
             "versioneer",
@@ -21,9 +23,12 @@ dependencies = [
             "nibabel",
             "screeninfo",
             "pydicom",
-            "itk-elastix"      ]
+            "tkinter-async-execute",
+            "sounddevice",
+            "amazon-transcribe",
+            "boto3"      ]
 [project.urls]
-"Source" = "https://github.com/jeb2112/blast"
+"Source" = "https://github.com/jeb2112/radnec"
 
 # This is configuration specific to the `setuptools` build backend.
 # If you are using a different build backend, you will need to change this.
