@@ -52,5 +52,6 @@ class Gui():
     def windowCloseHandler(self):
         if False:
             reactor.stop()
+        tae.stop()
         self.root.quit()
         self.root.destroy()

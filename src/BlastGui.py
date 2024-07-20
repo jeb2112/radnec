@@ -32,9 +32,8 @@ class BlastGui(object):
         self.current_panelsize = self.default_panelsize
 
         self.toolsFlag = toolsFlag
-        self.version = ''
-        # self.version = metadata.version('radnec')
-        self.titletext = 'RADNEC User Interface v' + self.version
+        self.version = metadata.version('radnec')
+        self.titletext = 'RADNEC/SAM User Interface v' + self.version
 
         self.root.title(self.titletext)
         self.config = config
