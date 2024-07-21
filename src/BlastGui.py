@@ -32,7 +32,10 @@ class BlastGui(object):
         self.current_panelsize = self.default_panelsize
 
         self.toolsFlag = toolsFlag
-        self.version = metadata.version('radnec')
+        try:
+            self.version = metadata.version('radnec')
+        except metadata.PackageNotFoundError:
+            self.version = ''
         self.titletext = 'RadNec/SAM User Interface v' + self.version
 
         self.root.title(self.titletext)
