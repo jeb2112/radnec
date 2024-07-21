@@ -33,7 +33,7 @@ class BlastGui(object):
 
         self.toolsFlag = toolsFlag
         self.version = metadata.version('radnec')
-        self.titletext = 'RADNEC/SAM User Interface v' + self.version
+        self.titletext = 'RadNec/SAM User Interface v' + self.version
 
         self.root.title(self.titletext)
         self.config = config

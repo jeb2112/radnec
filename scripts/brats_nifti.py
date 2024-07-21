@@ -15,6 +15,79 @@ import ants
 import copy
 from sklearn.cluster import KMeans
 import subprocess
+from scipy.spatial.distance import dice,directed_hausdorff
+import cc3d
+import json
+
+# various output stats, add more as required
+# data,groundtruth dict 'ET','TC','WT'
+def ROIstats(data,groundtruth):
+    
+    # output stats
+    stats0 = {'spec':{'ET':None,'TC':None,'WT':None},
+        'sens':{'ET':None,'TC':None,'WT':None},
+        'dsc':{'ET':None,'TC':None,'WT':None},
+        'vol_gt':{'ET':None,'TC':None,'WT':None},
+        'hd':{'ET':None,'TC':None,'WT':None},
+        'coords_gt':{'ET':None,'TC':None,'WT':None}
+        }
+    roistats = {}
+    
+    # ground truth comparisons
+    # multiple lesions tallied
+
+    # pull out the matching lesion using cc3d
+    n_gt = 1
+    for dt in ['ET','TC']:
+        gt_mask = np.copy(groundtruth[dt])
+        CC_gt_labeled = cc3d.connected_components(gt_mask,connectivity=26)
+        n_gt = max(n_gt,len(np.unique(CC_gt_labeled)))
+
+    for i in range(1,n_gt):
+
+        stats = copy.deepcopy(stats0)
+
+        # not doing 'wt for now
+        for dt in ['ET','TC']:
+            # check for a complete segmentation
+            if dt not in data.keys():
+                continue
+            elif data[dt] is None:
+                continue
+
+            gt_mask = np.copy(groundtruth[dt])
+            CC_gt_labeled = cc3d.connected_components(gt_mask,connectivity=26)
+            CC_data_labeled = cc3d.connected_components(data[dt],connectivity=26)
+
+            if i in np.unique(CC_gt_labeled):
+                gt_lesion = (CC_gt_labeled == i).astype('uint8')
+                gt_lesion_ros = np.where(gt_lesion)
+                gt_centroid_point = np.array(list(map(int,np.mean(np.where(gt_lesion),axis=1)))) 
+                if max(CC_data_labeled[gt_lesion_ros]) > 0:
+                    overlap_index = np.where(CC_data_labeled[gt_lesion_ros])[0][0]
+                    overlap_point = [x[overlap_index] for x in gt_lesion_ros]
+                    objectnumber = CC_data_labeled[overlap_point[0],overlap_point[1],overlap_point[2]]
+                else:
+                    objectnumber = 0
+                if objectnumber > 0:
+                    unet_lesion = (CC_data_labeled == objectnumber).astype('uint8')
+                    # dice
+                    stats['dsc'][dt] = (1-dice(gt_lesion.flatten(),unet_lesion.flatten()))
+                    # haunsdorff
+                    stats['hd'][dt] = max(directed_hausdorff(np.array(np.where(gt_lesion)).T,np.array(np.where(unet_lesion)).T)[0],
+                                          directed_hausdorff(np.array(np.where(unet_lesion)).T,np.array(np.where(gt_lesion)).T)[0])
+                else:
+                    stats['dsc'][dt] = 0
+                    stats['hd'][dt] = -1
+                stats['vol_gt'][dt] = len(np.where(gt_lesion)[0])
+                stats['coords_gt'][dt] = gt_centroid_point.tolist()
+
+        roistats['roi'+str(i)] = copy.deepcopy(stats)
+
+    # output stats 
+    filename = os.path.join(ddir,'stats_unet.json')
+    with open(filename,'w') as fp:
+        json.dump(roistats,fp,indent=4)
 
 
 # calculate stats to create z-score images
@@ -194,11 +267,16 @@ def segment(C,ddir):
     segmentation,affine = loadnifti(sfile,ndir)
     ET = np.zeros_like(segmentation)
     ET[segmentation == 3] = 1
+    TC = np.zeros_like(segmentation)
+    TC[segmentation > 1] = 1
     WT = np.zeros_like(segmentation)
     WT[segmentation > 0] = 1
     writenifti(ET,os.path.join(ddir,'ET_unet.nii'),affine=affine)
+    writenifti(TC,os.path.join(ddir,'TC_unet.nii'),affine=affine)
     writenifti(WT,os.path.join(ddir,'WT_unet.nii'),affine=affine)
     os.rename(os.path.join(ndir,sfile),os.path.join(ndir,C+'-unet.nii.gz'))
+    nnunet_seg = {'ET':ET,'TC':TC,'WT':WT}
+    return nnunet_seg
 
 
 ######
@@ -293,5 +371,20 @@ if __name__ == '__main__':
                 l1str = 'copy  \"' + os.path.join(ddir,dt+'_processed.nii.gz') + '\" \"'
                 l1str += os.path.join(ndir,C+'_'+suffix+'.nii.gz') + '\"'
             os.system(l1str)
-        segment(C,ddir)
+        if True:
+            nnunet_seg = segment(C,ddir)
+        else: # for debugging
+            nnunet_seg = {}
+            for dt in ['ET','TC','WT']:
+                nnunet_seg[dt],_ = loadnifti(dt+'_unet.nii.gz',ddir,type='uint8')
+        gt_seg,_ = loadnifti(seg_fname,ddir,type='uint8')
+        gt = {}
+        gt['ET'] = np.zeros_like(gt_seg)
+        gt['ET'][gt_seg == 3] = 1
+        gt['WT'] = np.zeros_like(gt_seg)
+        gt['WT'][gt_seg > 0] = 1
+        gt['TC'] = np.zeros_like(gt_seg)
+        # convert brats definition of TC to BLAST definition
+        gt['TC'][(gt_seg == 1) | (gt_seg == 3) ] = 1
+        ROIstats(nnunet_seg,gt)
 

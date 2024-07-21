@@ -7,11 +7,13 @@ call "C:\Program Files\anaconda3\Scripts\activate.bat" "%USERPROFILE%\anaconda3"
 @echo off
 echo Installing RadNec/SAM viewer...
 timeout /t 2 > nul
-@echo on
+@REM @echo on
 call conda create --solver=libmamba -n radnec_sam -c conda-forge cupy python=3.9 cuda-version=11.8
+@REM call conda create --solver=libmamba -n radnec_sam -c conda-forge python=3.9
 call conda activate radnec_sam
 @ echo off
 cd "%userprofile%\src\whl"
+@REM @ echo on
 dir /b/o:-n > whls.txt
 for /f "skip=1" %%a in (whls.txt) do (
     echo Installing %%a ...

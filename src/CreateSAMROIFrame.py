@@ -1050,9 +1050,8 @@ class CreateSAMROIFrame(CreateFrame):
                 # dice
                 self.ui.roi[s][roi].stats['dsc'][dt] = 1-dice(gt_lesion.flatten(),data[dt].flatten()) 
                 # haunsdorff
-                self.ui.roi[s][roi].stats['hd'][dt] = directed_hausdorff(np.array(np.where(gt_lesion)).T,
-                                                                         np.array(np.where(data[dt])).T)[0]
-
+                self.ui.roi[s][roi].stats['hd'][dt] = max(directed_hausdorff(np.array(np.where(gt_lesion)).T,np.array(np.where(data[dt])).T)[0],
+                                                        directed_hausdorff(np.array(np.where(data[dt])).T,np.array(np.where(gt_lesion)).T)[0])
     # tumour segmenation by SAM
     # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
     # a bit arbitrary, not using it as the SAM prompt. So, layer arg here defaults to 'TC'
