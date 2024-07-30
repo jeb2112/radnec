@@ -1098,7 +1098,8 @@ class CreateSAMROIFrame(CreateFrame):
 
             username = getpass.getuser()
             command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
-            command2 = 'conda run -n ' + self.ui.config.UIpytorch + ' python scripts/sam.py  --checkpoint "C:\\Users\\' + username + '\\data\\sam_models\\sam_vit_b_01ec64.pth" '
+            # command2 = 'conda run -n ' + self.ui.config.UIpytorch + ' python scripts/sam.py  --checkpoint "C:\\Users\\' + username + '\\data\\sam_models\\sam_vit_b_01ec64.pth" '
+            command2 = 'conda run python scripts/sam.py  --checkpoint "C:\\Users\\' + username + '\\data\\sam_models\\sam_vit_b_01ec64.pth" '
             command2 += ' --input "' + self.ui.caseframe.casedir
             command2 += '" --output "' + self.ui.caseframe.casedir
             command2 += '" --tag ' + tag
