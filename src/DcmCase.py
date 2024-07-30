@@ -921,12 +921,12 @@ class DcmStudy(Study):
                 activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
             else:
                 raise FileNotFoundError('anaconda3/Scripts/activate.bat')
-            if os.path.isdir(os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'):
-                envpath = os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'
-            elif os.path.isdir(os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'):
-                envpath = os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'
+            if os.path.isdir(os.path.expanduser('~')+'\\anaconda3\envs\\' + self.ui.config.UIpytorch):
+                envpath = os.path.expanduser('~')+'\\anaconda3\envs\\' + self.ui.config.UIpytorch
+            elif os.path.isdir(os.path.expanduser('~')+'\\.conda\envs\\' + self.ui.config.UIpytorch):
+                envpath = os.path.expanduser('~')+'\\.conda\envs\\' + self.ui.config.UIpytorch
             else:
-                raise FileNotFoundError('pytorch118_310')
+                raise FileNotFoundError(self.ui.config.UIpytorch)
 
             command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
             command2 = 'nnUNetv2_predict -i \"' + dpath + '\" -o \"' + dpath + '\" -d137 -c 3d_fullres'

@@ -43,10 +43,10 @@ class Config(object):
 
         # Path to dataset images
         if os.name == 'nt':
-            if True:
+            if True: # default True
                 self.UIdatadir = os.path.join('C:\\','Users','chint','data')
                 self.UIlocaldir = os.path.join('C:\\','Users','chint','data','radnec_sam')
-            else:
+            else:  # True for local debugging
                 self.UIdatadir = os.path.join('C:\\','Users','Chris Heyn Lab','data')
                 self.UIlocaldir = os.path.join('C:\\','Users','Chris Heyn Lab','data','dicom2nifti_sam')
         elif os.name == 'posix':
@@ -57,6 +57,10 @@ class Config(object):
 
         # optional root filename for ground truth masks
         self.UIgroundtruth = re.compile('BraTS-MET-[0-9]{5}-000-seg.nii.gz')
+
+        # pytorch env for SAM and nnUNet
+        self.UIpytorch = 'pytorch_sam'
+        # self.UIpytorch = 'pytorch118_310'
 
         # automatically load first case in directory
         self.AutoLoad = False

@@ -224,7 +224,7 @@ def tx(img_arr_fixed,img_arr_moving,tx):
     return img_arr_tx
 
 # nnunet segmentation
-def segment(C,ddir):
+def segment(C,ddir,pyenv='pytorch_sam'):
     ndir = os.path.join(ddir,'nnunet')
     if os.name == 'posix':
         command = 'conda run -n ptorch nnUNetv2_predict '
@@ -243,12 +243,12 @@ def segment(C,ddir):
             activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
         else:
             raise FileNotFoundError('anaconda3/Scripts/activate.bat')
-        if os.path.isdir(os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'):
-            envpath = os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'
-        elif os.path.isdir(os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'):
-            envpath = os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'
+        if os.path.isdir(os.path.expanduser('~')+'\\anaconda3\envs\\' + pyenv):
+            envpath = os.path.expanduser('~')+'\\anaconda3\envs\\' + pyenv
+        elif os.path.isdir(os.path.expanduser('~')+'\\.conda\envs\\' + pyenv):
+            envpath = os.path.expanduser('~')+'\\.conda\envs\\' + pyenv
         else:
-            raise FileNotFoundError('pytorch118_310')
+            raise FileNotFoundError(pyenv)
 
         command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
         command2 = 'nnUNetv2_predict -i \"' + ndir + '\" -o \"' + ndir + '\" -d137 -c 3d_fullres'
@@ -293,13 +293,13 @@ if __name__ == '__main__':
         blast_data_dir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
     elif os.name == 'nt':
         # brats source dir
-        if True:
+        if True: # default True
             brats_data_dir = "C:\\Users\\chint\\data\\BraTS2024_Training_Data"
             # nifti destination dir for BLAST
             blast_data_dir = "C:\\Users\\chint\\data\\radnec_sam"
             # reference for talairach coords
             mni_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\mni152"
-        else:
+        else: # True for local debugging
             brats_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\brats2024\\raw\\training"
             # nifti destination dir for BLAST
             blast_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\dicom2nifti_sam"

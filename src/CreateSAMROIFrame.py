@@ -1089,16 +1089,16 @@ class CreateSAMROIFrame(CreateFrame):
                 activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
             else:
                 raise FileNotFoundError('anaconda3/Scripts/activate.bat')
-            if os.path.isdir(os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'):
-                envpath = os.path.expanduser('~')+'\\anaconda3\envs\\pytorch118_310'
-            elif os.path.isdir(os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'):
-                envpath = os.path.expanduser('~')+'\\.conda\envs\\pytorch118_310'
+            if os.path.isdir(os.path.expanduser('~')+'\\anaconda3\envs\\' + self.ui.config.UIpytorch):
+                envpath = os.path.expanduser('~')+'\\anaconda3\envs\\' + self.ui.config.UIpytorch
+            elif os.path.isdir(os.path.expanduser('~')+'\\.conda\envs\\' + self.ui.config.UIpytorch):
+                envpath = os.path.expanduser('~')+'\\.conda\envs\\' + self.ui.config.UIpytorch
             else:
-                raise FileNotFoundError('pytorch118_310')
+                raise FileNotFoundError(self.ui.config.UIpytorch)
 
             username = getpass.getuser()
             command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
-            command2 = 'conda run -n pytorch118_310 python scripts/sam.py  --checkpoint "C:\\Users\\' + username + '\\data\\sam_models\\sam_vit_b_01ec64.pth" '
+            command2 = 'conda run -n ' + self.ui.config.UIpytorch + ' python scripts/sam.py  --checkpoint "C:\\Users\\' + username + '\\data\\sam_models\\sam_vit_b_01ec64.pth" '
             command2 += ' --input "' + self.ui.caseframe.casedir
             command2 += '" --output "' + self.ui.caseframe.casedir
             command2 += '" --tag ' + tag
