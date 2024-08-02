@@ -224,7 +224,7 @@ def tx(img_arr_fixed,img_arr_moving,tx):
     return img_arr_tx
 
 # nnunet segmentation
-def segment(C,ddir,pyenv='pytorch_sam'):
+def segment(C,ddir,pyenv='pytorch118_310'):
     ndir = os.path.join(ddir,'nnunet')
     if os.name == 'posix':
         command = 'conda run -n ptorch nnUNetv2_predict '
