@@ -288,7 +288,7 @@ if __name__ == '__main__':
 
     if os.name == 'posix':
         # brats source dir
-        brats_data_dir = '/media/jbishop/WD4/brainmets/brats2024/raw/validation'
+        brats_data_dir = '/media/jbishop/WD4/brainmets/brats2024/raw/training'
         # nifti destination dir for BLAST
         blast_data_dir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
     elif os.name == 'nt':
@@ -313,7 +313,11 @@ if __name__ == '__main__':
         dref *= mask
         dref_nb = nb.load(os.path.join(mni_data_dir,'mni_icbm152_t1_tal_nlin_sym_09a.nii'))
 
-    cases = sorted(os.listdir(brats_data_dir))
+    if os.path.exists(os.path.join(brats_data_dir,'BraTS_2024_testcases.txt')):
+        with open(os.path.join(brats_data_dir,'BraTS_2024_testcases.txt')) as fp:
+            cases = [line.removesuffix('.nii.gz\n') for line in fp]
+    else:
+        cases = sorted(os.listdir(brats_data_dir))
 
     # edit range of cases to process here
     for C in cases[:5]:
