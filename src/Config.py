@@ -59,8 +59,8 @@ class Config(object):
         self.UIgroundtruth = re.compile('BraTS-MET-[0-9]{5}-000-seg.nii.gz')
 
         # pytorch env for SAM and nnUNet
-        self.UIpytorch = 'pytorch_sam'
-        # self.UIpytorch = 'pytorch118_310'
+        # self.UIpytorch = 'pytorch_sam'
+        self.UIpytorch = 'pytorch118_310'
 
         # automatically load first case in directory
         self.AutoLoad = False
