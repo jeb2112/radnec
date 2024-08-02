@@ -230,7 +230,7 @@ def segment(C,ddir,pyenv='pytorch_sam'):
         command = 'conda run -n ptorch nnUNetv2_predict '
         command += ' -i ' + ndir
         command += ' -o ' + ndir
-        command += ' -d137 -c 3d_fullres'
+        command += ' -d138 -c 3d_fullres'
         res = os.system(command)
     elif os.name == 'nt':
         # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
@@ -251,7 +251,7 @@ def segment(C,ddir,pyenv='pytorch_sam'):
             raise FileNotFoundError(pyenv)
 
         command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
-        command2 = 'nnUNetv2_predict -i \"' + ndir + '\" -o \"' + ndir + '\" -d137 -c 3d_fullres'
+        command2 = 'nnUNetv2_predict -i \"' + ndir + '\" -o \"' + ndir + '\" -d138 -c 3d_fullres'
         cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
         popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
         for stdout_line in iter(popen.stdout.readline,""):
@@ -288,7 +288,7 @@ if __name__ == '__main__':
 
     if os.name == 'posix':
         # brats source dir
-        brats_data_dir = '/media/jbishop/WD4/brainmets/brats2024/raw/training'
+        brats_data_dir = '/media/jbishop/WD4/brainmets/brats2024/raw/validation'
         # nifti destination dir for BLAST
         blast_data_dir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
     elif os.name == 'nt':
@@ -363,7 +363,7 @@ if __name__ == '__main__':
         writenifti(zimg_flair,os.path.join(ddir,'zflair_processed.nii'),affine=affine_flair)
 
         # home-trained nnunet segmentation
-        for dt,suffix in zip(['t1+','flair'],['0000','0003']):
+        for dt,suffix in zip(['t1+','flair'],['0001','0003']):
             if os.name == 'posix':
                 l1str = 'ln -s ' + os.path.join(ddir,dt+'_processed.nii.gz') + ' '
                 l1str += os.path.join(ndir,C+'_'+suffix+'.nii.gz')
