@@ -436,7 +436,7 @@ class Study():
         # modify the affine to match itksnap convention
         for i in range(2):
             if affine[i,i] > 0:
-                affine[i,3] += img_nb_t1.shape[i] * affine[i,i]
+                affine[i,3] += (img_nb_t1.shape[i]-1) * affine[i,i]
                 affine[i,i] = -1*(affine[i,i])
                 # will use flips for now for speed
                 img_arr_t1 = np.flip(img_arr_t1,axis=i)
