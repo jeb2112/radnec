@@ -52,11 +52,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
     t2stack = copy.deepcopy(t1)
 
     t12Diff = clustersize*blastdata['blast']['params'][layer]['stdt12'] 
-    # t2Diff = clustersize*blastdata['blast']['params']['stdt2']
     flairDiff = clustersize*blastdata['blast']['params'][layer]['stdflair']
-
-    # Define brain
-    # h = images.roi.Ellipse(gca,'Center',[meant2 meant1],'Semiaxes',[t2Diff t1Diff],'Color','y','LineWidth',1,'LabelAlpha',0.5,'InteractionsAllowed','none')
 
     # row=y=t1 col=x=t2, but xy convention for patches.Ellipse is same as matlab
     brain_perimeter = Ellipse((blastdata['blast']['params'][layer]['meanflair'],
@@ -65,11 +61,25 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
     flairgate = blastdata['blast']['params'][layer]['meanflair']+(flairthresh)*blastdata['blast']['params'][layer]['stdflair']
     t12gate = blastdata['blast']['params'][layer]['meant12']+(t12thresh)*blastdata['blast']['params'][layer]['stdt12']
 
-    # define ET threshold gate >= (t2gate,t1gate). upper right quadrant
+    # elliptical gate for ET masking will be formed from a selected point if there are
+    # non-zero values, otherwise use the slider values for rectangular gate. 
     if layer == 'ET':
-        # flairgate = blastdata['blast']['params']['meant1flair']+(flairthresh)*blastdata['blast']['params']['stdt1flair']
-        yv_gate = np.array([t12gate, maxZ, maxZ, t12gate])
-        xv_gate = np.array([flairgate, flairgate, maxZ, maxZ]) 
+        if (blastdata['blastpoint']['params'][layer]['meanflair']!=0 and blastdata['blastpoint']['params'][layer]['meant12']!=0):
+            pointclustersize = 1
+            point_perimeter = Ellipse((blastdata['blastpoint']['params'][layer]['meanflair'],
+                                    blastdata['blastpoint']['params'][layer]['meant12']),
+                                    2*pointclustersize*blastdata['blastpoint']['params'][layer]['stdflair'],
+                                    2*pointclustersize*blastdata['blastpoint']['params'][layer]['stdt12'])
+
+            unitverts = point_perimeter.get_path().vertices
+            xy_layerverts = point_perimeter.get_patch_transform().transform(unitverts)
+        # define ET threshold gate >= (t2gate,t1gate). upper right quadrant
+        else:
+            yv_gate = np.array([t12gate, maxZ, maxZ, t12gate])
+            xv_gate = np.array([flairgate, flairgate, maxZ, maxZ]) 
+            # form vertices for slider-selected rectangular foreground gate
+            xy_layerverts = np.vstack((xv_gate,yv_gate)).T
+            xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
     elif layer == 'T2 hyper':
         if False: # ie plain T2 not available
             # define NET threshold gate, >= ,flairgate,>= t2gate. upper right quadrant
@@ -77,10 +87,11 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             yv_gate = np.array([t12gate, maxZ, maxZ, t12gate])
             xv_gate = np.array([flairgate, flairgate, maxZ, maxZ]) 
         # until T2 is available, define NET threshold gate, >= ,flairgate. right hemispace
-        # flairgate = blastdata['blast']['params']['meant2flair']+(flairthresh)*blastdata['blast']['params']['stdt2flair']
         yv_gate = np.array([-maxZ, maxZ, maxZ, -maxZ])
         xv_gate = np.array([flairgate, flairgate, maxZ, maxZ]) 
-
+        # form vertices for slider-selected rectangular foreground gate
+        xy_layerverts = np.vstack((xv_gate,yv_gate)).T
+        xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
 
     # find the gated pixels
     stack_shape = np.shape(t1)
@@ -94,15 +105,18 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
     # need to be restored in the future
     t2channel = t2stack[region_of_support]
     flairchannel = flairstack[region_of_support]
+
+    # form vertices of the data volume
     if layer == 'ET':
         t1t2verts = np.vstack((flairchannel.flatten(),t1channel.flatten())).T
     else: # ie WT
         t1t2verts = np.vstack((flairchannel.flatten(),t2channel.flatten())).T
-    xy_layerverts = np.vstack((xv_gate,yv_gate)).T
-    xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
+
+    # form vertices for normal brain background gate
     unitverts = brain_perimeter.get_path().vertices
     xy_brainverts = brain_perimeter.get_patch_transform().transform(unitverts)
-    # use pre-existing result if available
+
+    # before running processing, use pre-existing result if available
     brain_gate = blastdata['blast']['gates']['brain '+layer]
     layer_gate = blastdata['blast']['gates'][layer]
 
@@ -134,7 +148,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             brain_gate = np.zeros(np.shape(t1stack),dtype='uint8')
             brain_gate[region_of_support] = brain_path.contains_points(t1t2verts).flatten()
 
-    if False:
+    if True:
         plt.figure(7)
         if layer == 'ET':
             ax = plt.subplot(1,2,1)

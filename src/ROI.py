@@ -49,3 +49,14 @@ class ROILinear():
         self.coords['slice'] = slice
         self.coords['channel'] = channel
         self.coords['plot'] = None
+
+
+# for creating raw BLAST seg by point selection
+class ROIPoint():
+    def __init__(self,xpos,ypos,slice):
+        # BLAST ROI selection coordinates from mouse click
+        self.coords = {}
+        self.coords['x'] = xpos
+        self.coords['y'] = ypos
+        self.coords['slice'] = slice
+        self.radius = 5 # pixel radius to include

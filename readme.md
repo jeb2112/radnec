@@ -1,8 +1,28 @@
-# RADNEC Viewer
+# A. SAM/RADNEC Viewer
 
-This code creates the RADNEC viewer user interface. It also incorporates the BLAST viewer and segmentation code.
+The 'sam' branch of this code creates the RADNEC viewer user interface, as implemented with SAM. 
 
-# Installation (Windows)
+## Preliminary
+
+1. ~20 Gb of free space is needed on C: drive.
+2. A /data directory will be created under the User directory if one does not exist already.
+3. A number of files and datasets are downloaded from the shared 'BLAST DEVELOPMENT' directory on dropbox according to hard-coded links in the installGUI.bat script. 
+
+## Installation and Usage (Windows)
+
+1. Download the source code from github.
+2. Build the project using the 'build' package from PyPI with command 'python -m build'. 
+3. Take the resulting .whl file and place in a temporary directory, along with the installGUI.bat file that is found in src/resources. 
+4. Run the installGUI.bat file.
+5. Run the viewer from the shortcut created on desktop.
+6. The installGUI.bat downloads a preprocessed directory of images from BraTS 2024 METS that can be loaded in the viewer. Other images can be prepared for loading in the viewer from a Dicom directory, using the 'master' branch of the code and according to Step 4. in the Usage instructions below. 
+7. The brats_nifty.py script found in src/scripts can be used as a guide to process other directories of Nifti images for loading into the viewer. It is written specifically for the Brats 2024 dataset, but can be modified for other purposes.
+
+# B. RADNEC Viewer
+
+The 'master' branch of this code creates the RADNEC viewer user interface. It also incorporates the BLAST viewer and segmentation code.
+
+## Installation (Windows)
 
 Everything is currently worked out using Anaconda 3 on windows for python package and environments, and VS Code for running the viewer.
 

@@ -32,7 +32,7 @@ import cc3d
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
-from src.ROI import ROI
+from src.ROI import ROI,ROIPoint
 
 # contains various ROI methods and variables for 'SAM' mode
 class CreateSAMROIFrame(CreateFrame):
@@ -204,6 +204,12 @@ class CreateSAMROIFrame(CreateFrame):
         self.sliderlabels['T2 hyper']['bc'] = ttk.Label(self.sliderframe['T2 hyper'],text=self.thresholds['T2 hyper']['bc'].get())
         self.sliderlabels['T2 hyper']['bc'].grid(row=2,column=2,sticky='e')
 
+        # mouse click button
+        selectPoint= ttk.Button(self.frame,text='add\nPoint',command=self.selectPoint)
+        selectPoint.grid(row=3,column=2,rowspan=3,sticky='nes')
+        removePoint= ttk.Button(self.frame,text='remove\nPoint',command=self.removePoint)
+        removePoint.grid(row=3,column=3,rowspan=3,sticky='nes')
+        self.frame.update()
 
     #############
     # ROI methods
@@ -397,7 +403,7 @@ class CreateSAMROIFrame(CreateFrame):
 
     # callbacks for the BLAST threshold slider bars
 
-    def updateslider(self,layer,slider,event=None):
+    def updateslider(self,layer,slider,event=None,doblast=True):
         self.overlay_value['BLAST'].set(True)
         if self.overlay_value['finalROI'].get() == True:
             self.overlay_value['finalROI'].set(False)
@@ -412,7 +418,8 @@ class CreateSAMROIFrame(CreateFrame):
         self.ui.update_blast(layer=layer)
 
         # rerun blast with new value
-        self.ui.runblast(currentslice=True)
+        if doblast:
+            self.ui.runblast(currentslice=True)
 
     def updatesliderlabel(self,layer,slider):
         # if 'T2 hyper' in self.sliderlabels.keys() and 'T2 hyper' in self.sliders.keys():
@@ -1007,6 +1014,8 @@ class CreateSAMROIFrame(CreateFrame):
                     self.thresholds[l][sl].set(self.ui.config.thresholddefaults[sl])
                     self.updatesliderlabel(l,sl)
 
+
+
     def set_roi(self,roi=None):
         self.roistate = 'blast'
         if roi is None:
@@ -1140,3 +1149,97 @@ class CreateSAMROIFrame(CreateFrame):
             os.remove(os.path.join(dpath,sfile))
 
         return 
+    
+
+    #############################
+    # methods for point selection
+    #############################
+
+    # creates a Point selection button press event
+    def selectPoint(self,event=None):
+        self.set_overlay() # deactivate any overlay
+        self.enhancingROI_overlay_callback()
+        self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.selectPointClick)
+        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
+
+
+    # processes a cursor selection button press event for generating/updating raw BLAST seg
+    def selectPointClick(self,event=None):
+        if event:
+            if event.button > 1: # ROI selection on left mouse only
+                return
+            
+        # self.ui.sliceviewerframe.canvas.widgetlock.release(self.ui.sliceviewerframe)
+        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='watch')
+        self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
+        if event:
+            # print(event.xdata,event.ydata)
+            # need check for inbounds
+            # convert coords from dummy label axis
+            s = event.inaxes.format_coord(event.xdata,event.ydata)
+            event.xdata,event.ydata = map(float,re.findall(r"(?:\d*\.\d+)",s))
+            if event.xdata < 0 or event.ydata < 0:
+                return None
+            # elif self.ui.data['raw'][0,self.ui.get_currentslice(),int(event.x),int(event.y)] == 0:
+            #     print('Clicked in background')
+            #     return
+            else:
+                # self.update_pointnumber_options()
+                self.createPoint(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
+            
+        self.updateBLASTMask()
+        # self.layer_callback(layer='ET',updateslice=True,overlay=True)
+
+        # if triggered by a button event
+        if self.buttonpress_id:
+            self.ui.sliceviewerframe.canvas.callbacks.disconnect(self.buttonpress_id)
+            self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='')
+            self.buttonpress_id = None
+        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='arrow')
+        self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
+
+
+
+        return None        
+
+    def removePoint(self,event=None):
+        if self.ui.currentpt == 0:
+            return
+        self.ui.pt[self.ui.s].pop()
+        self.ui.currentpt -= 1
+        return
+
+    # records button press coords in a new ROI object
+    def createPoint(self,x,y,slice):
+        pt = ROIPoint(x,y,slice)
+        self.ui.pt[self.ui.s].append(pt)
+        self.ui.currentpt += 1
+
+    # create updated BLAST seg from collection of ROI Points
+    def updateBLASTMask(self):
+        pt = self.ui.pt[self.ui.s][0]
+        dslice_t1 = self.ui.data[self.ui.s].dset['z']['t1+']['d'][pt.coords['slice']]
+        dslice_flair = self.ui.data[self.ui.s].dset['z']['flair']['d'][pt.coords['slice']]
+
+        # create grid
+        x = np.arange(0,self.ui.sliceviewerframe.dim[2])
+        y = np.arange(0,self.ui.sliceviewerframe.dim[1])
+        vol = np.array(np.meshgrid(x,y,indexing='xy'))
+
+        # circular region of interest around point
+        roi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < pt.radius)
+        
+        # functionality similar to updateslider()
+        self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdt12'] = np.std(dslice_t1[roi])
+        self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdflair'] = np.std(dslice_flair[roi])
+        self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meant12'] = np.mean(dslice_t1[roi])
+        self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meanflair'] = np.mean(dslice_flair[roi])
+
+        self.set_overlay('BLAST')
+        self.enhancingROI_overlay_callback()
+        self.ui.blastdata[self.ui.s]['blast']['gates']['ET'] = None
+        self.ui.update_blast(layer='ET')
+        self.ui.runblast(currentslice=True)
+
+        return
+    

@@ -62,13 +62,16 @@ class BlastGui(object):
         # data structure. data is a dict of studies. see DcmCase
         self.data = {} 
         # additional data related to BLAST, per study
-        self.blastdatadict = {'blast':{'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
+        self.blastdatadict = {'blast':
+                              {'gates':{'ET':None,'T2 hyper':None,'brain ET':None,'brain T2 hyper':None},
                             'T2 hyper':None,
                             'ET':None,
                             'params':{'ET':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
                                'T2 hyper':{'t12':0.0,'bc':0.0,'flair':0.0,'stdt12':1,'stdflair':1,'meant12':1,'meanflair':1},
                                },
-                    },
+                            },
+                            'blastpoint':
+                            {'params':{'ET':{'stdt12':0,'stdflair':0,'meant12':0,'meanflair':0}}}
         }
         # currently hard-coded for two studies
         self.blastdata = {0:copy.deepcopy(self.blastdatadict),1:copy.deepcopy(self.blastdatadict)}
@@ -84,6 +87,10 @@ class BlastGui(object):
         self.rois = {'blast':copy.deepcopy(roidefault),'sam':copy.deepcopy(roidefault)}
         self.roi = self.rois['blast']
         self.currentroi = 0 # tracks the currentroi widget variable
+        # container for point selection of BLAST raw seg
+        self.pt = {0:[],1:[]}
+        self.currentpt = 0 # tracks the current point
+
         self.OS = sys.platform
         self.tstart = time.time()
 
