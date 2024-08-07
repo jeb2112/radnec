@@ -59,4 +59,5 @@ class ROIPoint():
         self.coords['x'] = xpos
         self.coords['y'] = ypos
         self.coords['slice'] = slice
+        self.data = {'flair':{'mu':0,'std':0},'t12':{'mu':0,'std':0}}
         self.radius = 5 # pixel radius to include

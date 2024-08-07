@@ -71,7 +71,7 @@ class BlastGui(object):
                                },
                             },
                             'blastpoint':
-                            {'params':{'ET':{'stdt12':0,'stdflair':0,'meant12':0,'meanflair':0}}}
+                            {'params':{'ET':{'stdt12':[],'stdflair':[],'meant12':[],'meanflair':[]}}}
         }
         # currently hard-coded for two studies
         self.blastdata = {0:copy.deepcopy(self.blastdatadict),1:copy.deepcopy(self.blastdatadict)}

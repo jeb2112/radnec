@@ -1199,8 +1199,6 @@ class CreateSAMROIFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='arrow')
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
-
-
         return None        
 
     def removePoint(self,event=None):
@@ -1208,8 +1206,12 @@ class CreateSAMROIFrame(CreateFrame):
             return
         self.ui.pt[self.ui.s].pop()
         self.ui.currentpt -= 1
-        for k in self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET'].keys():
-            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET'][k] = 0
+
+        if len(self.ui.pt[self.ui.s]) == 0:
+            self.set_overlay() # deactivate any overlay
+            self.enhancingROI_overlay_callback()
+        else:
+            self.updateBLASTMask()
         return
 
     # records button press coords in a new ROI object
@@ -1220,8 +1222,9 @@ class CreateSAMROIFrame(CreateFrame):
 
     # create updated BLAST seg from collection of ROI Points
     def updateBLASTMask(self):
-        combined_roi = None
-        for pt in self.ui.pt[self.ui.s]:
+        for k in self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET'].keys():
+            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET'][k] = []
+        for i,pt in enumerate(self.ui.pt[self.ui.s]):
             dslice_t1 = self.ui.data[self.ui.s].dset['z']['t1+']['d'][pt.coords['slice']]
             dslice_flair = self.ui.data[self.ui.s].dset['z']['flair']['d'][pt.coords['slice']]
 
@@ -1231,23 +1234,16 @@ class CreateSAMROIFrame(CreateFrame):
             vol = np.array(np.meshgrid(x,y,indexing='xy'))
 
             # circular region of interest around point
-            if combined_roi is None:
-                combined_roi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < pt.radius)
-            else:
-                roi = np.array(np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < pt.radius)).T
-                croi = np.array(combined_roi).T
-                # accumulate roi's
-                x = (roi[:, None] != croi).all(-1).all(-1)
-                ii = np.where(x)
-                croi = np.concatenate((croi,roi[ii]),axis=0)
-                combined_roi = tuple(croi.T)
+            roi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < pt.radius)
+            # accumulate roi's. not using anymore
+            # x = (roi[:, None] != croi).all(-1).all(-1)
         
-        # functionality similar to updateslider()
-        self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdt12'] = np.std(dslice_t1[combined_roi])
-        self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdflair'] = np.std(dslice_flair[combined_roi])
-        self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meant12'] = np.mean(dslice_t1[combined_roi])
-        self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meanflair'] = np.mean(dslice_flair[combined_roi])
+            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdt12'].append(np.std(dslice_t1[roi]))
+            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdflair'].append(np.std(dslice_flair[roi]))
+            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meant12'].append(np.mean(dslice_t1[roi]))
+            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meanflair'].append(np.mean(dslice_flair[roi]))
 
+        # functionality similar to updateslider()
         self.set_overlay('BLAST')
         self.enhancingROI_overlay_callback()
         self.ui.blastdata[self.ui.s]['blast']['gates']['ET'] = None

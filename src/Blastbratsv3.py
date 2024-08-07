@@ -2,6 +2,8 @@ import os
 import numpy as np
 from skimage.draw import ellipse_perimeter
 from scipy.spatial.distance import dice
+from scipy.spatial import ConvexHull
+from scipy.ndimage import binary_dilation
 import copy
 from matplotlib.path import Path
 from matplotlib.patches import Ellipse
@@ -19,6 +21,25 @@ except:
 import multiprocessing
 import cc3d
 from src import OverlayPlots
+
+
+# compute the bounding hull from a mask. 
+def _compute_hull_from_mask(mask, original_size=None, hull_extension=0):
+    mask2 = np.copy(mask)
+    if hull_extension > 0:
+        for h in range(hull_extension):
+            mask2 = binary_dilation(mask2)
+    coords = np.transpose(np.array(np.where(mask2 == 1)))
+    hull = ConvexHull(coords)
+    hcoords = np.transpose(np.vstack((coords[hull.vertices,1],coords[hull.vertices,0])))
+    if False:
+        plt.figure(7)
+        plt.cla()
+        plt.imshow(mask)
+        plt.plot(hcoords[:,0],hcoords[:,1],'r.',markersize=5)
+        plt.show(block=False)
+        a=1
+    return hcoords
 
 
 #################
@@ -61,18 +82,26 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
     flairgate = blastdata['blast']['params'][layer]['meanflair']+(flairthresh)*blastdata['blast']['params'][layer]['stdflair']
     t12gate = blastdata['blast']['params'][layer]['meant12']+(t12thresh)*blastdata['blast']['params'][layer]['stdt12']
 
-    # elliptical gate for ET masking will be formed from a selected point if there are
-    # non-zero values, otherwise use the slider values for rectangular gate. 
+    # elliptical gate for ET masking will be formed from a selected point(s) if there are
+    # values, otherwise use the slider values for rectangular gate. 
     if layer == 'ET':
-        if (blastdata['blastpoint']['params'][layer]['meanflair']!=0 and blastdata['blastpoint']['params'][layer]['meant12']!=0):
+        bd = blastdata['blastpoint']['params'][layer]
+        if (len(bd['meanflair']) > 0):
             pointclustersize = 1
-            point_perimeter = Ellipse((blastdata['blastpoint']['params'][layer]['meanflair'],
-                                    blastdata['blastpoint']['params'][layer]['meant12']),
-                                    2*pointclustersize*blastdata['blastpoint']['params'][layer]['stdflair'],
-                                    2*pointclustersize*blastdata['blastpoint']['params'][layer]['stdt12'])
+            combined_pointverts = None
+            for mu_t1,mu_flair,std_t1,std_flair in zip(bd['meant12'],bd['meanflair'],bd['stdt12'],bd['stdflair']):
+                point_perimeter = Ellipse((mu_flair, mu_t1), 2*pointclustersize*std_flair,2*pointclustersize*std_t1)
+                unitverts = point_perimeter.get_path().vertices
+                pointverts = point_perimeter.get_patch_transform().transform(unitverts)
+                if combined_pointverts is None:
+                    combined_pointverts = pointverts
+                    xy_layerverts = np.copy(combined_pointverts)
+                else: # for multiple points, easier to combine into an approx hull than figure out the compound elliptic path
+                    combined_pointverts = np.concatenate((combined_pointverts,pointverts),axis=0)
+                    hull = ConvexHull(combined_pointverts)
+                    xy_layerverts = np.transpose(np.vstack((combined_pointverts[hull.vertices,0],combined_pointverts[hull.vertices,1])))
+                    xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
 
-            unitverts = point_perimeter.get_path().vertices
-            xy_layerverts = point_perimeter.get_patch_transform().transform(unitverts)
         # define ET threshold gate >= (t2gate,t1gate). upper right quadrant
         else:
             yv_gate = np.array([t12gate, maxZ, maxZ, t12gate])
