@@ -148,7 +148,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             brain_gate = np.zeros(np.shape(t1stack),dtype='uint8')
             brain_gate[region_of_support] = brain_path.contains_points(t1t2verts).flatten()
 
-    if True:
+    if False:
         plt.figure(7)
         if layer == 'ET':
             ax = plt.subplot(1,2,1)
