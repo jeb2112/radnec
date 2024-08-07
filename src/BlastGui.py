@@ -87,7 +87,7 @@ class BlastGui(object):
         self.rois = {'blast':copy.deepcopy(roidefault),'sam':copy.deepcopy(roidefault)}
         self.roi = self.rois['blast']
         self.currentroi = 0 # tracks the currentroi widget variable
-        # container for point selection of BLAST raw seg
+        # container for point selection of BLAST raw seg. hard-coded for two studies
         self.pt = {0:[],1:[]}
         self.currentpt = 0 # tracks the current point
 
@@ -364,6 +364,12 @@ class BlastGui(object):
     def get_currentroi(self):
         return self.currentroi
     
+    def set_currentpt(self,val=None):
+        self.currentpt = self.roiframe.currentpt.get()
+ 
+    def get_currentpt(self):
+        return self.currentpt
+
     def get_bcsize(self,layer=None):
         if layer is None:
             layer = self.roiframe.layer.get()
@@ -407,6 +413,11 @@ class BlastGui(object):
         roidefault = {0:[0],1:[0]} # dummy value for Roi indexing 1-based
         self.rois = {'blast':copy.deepcopy(roidefault),'sam':copy.deepcopy(roidefault)}
         self.roi = self.rois['blast']
+
+    def reset_pt(self):
+        self.currentpt = 0
+        self.roiframe.currentpt.set(0)
+        self.pt = {0:[],1:[]}
 
     def resetUI(self):
         self.normalslice = None

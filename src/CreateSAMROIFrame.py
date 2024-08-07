@@ -58,6 +58,7 @@ class CreateSAMROIFrame(CreateFrame):
         self.layerSAM = tk.StringVar(value='ET')
         self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=0)
+        self.currentpt = tk.IntVar(value=0)
         self.roilist = []
 
         ########################
@@ -205,10 +206,13 @@ class CreateSAMROIFrame(CreateFrame):
         self.sliderlabels['T2 hyper']['bc'].grid(row=2,column=2,sticky='e')
 
         # mouse click button
+        self.currentpt.trace_add('write',self.updatepointlabel)
         selectPoint= ttk.Button(self.frame,text='add\nPoint',command=self.selectPoint)
         selectPoint.grid(row=3,column=2,rowspan=3,sticky='nes')
         removePoint= ttk.Button(self.frame,text='remove\nPoint',command=self.removePoint)
         removePoint.grid(row=3,column=3,rowspan=3,sticky='nes')
+        self.pointLabel = ttk.Label(self.frame,text=self.currentpt.get(),padding=10)
+        self.pointLabel.grid(row=3,column=1,rowspan=1,sticky='e')
         self.frame.update()
 
     #############
@@ -1013,8 +1017,8 @@ class CreateSAMROIFrame(CreateFrame):
                 for sl in ['t12','flair','bc']:
                     self.thresholds[l][sl].set(self.ui.config.thresholddefaults[sl])
                     self.updatesliderlabel(l,sl)
-
-
+        # additionally clear any point selections
+        self.ui.reset_pt()
 
     def set_roi(self,roi=None):
         self.roistate = 'blast'
@@ -1202,10 +1206,10 @@ class CreateSAMROIFrame(CreateFrame):
         return None        
 
     def removePoint(self,event=None):
-        if self.ui.currentpt == 0:
+        if self.currentpt.get() == 0:
             return
         self.ui.pt[self.ui.s].pop()
-        self.ui.currentpt -= 1
+        self.set_currentpt(-1)
 
         if len(self.ui.pt[self.ui.s]) == 0:
             self.set_overlay() # deactivate any overlay
@@ -1218,7 +1222,7 @@ class CreateSAMROIFrame(CreateFrame):
     def createPoint(self,x,y,slice):
         pt = ROIPoint(x,y,slice)
         self.ui.pt[self.ui.s].append(pt)
-        self.ui.currentpt += 1
+        self.set_currentpt(1)
 
     # create updated BLAST seg from collection of ROI Points
     def updateBLASTMask(self):
@@ -1235,7 +1239,7 @@ class CreateSAMROIFrame(CreateFrame):
 
             # circular region of interest around point
             roi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < pt.radius)
-            # accumulate roi's. not using anymore
+            # accumulate roi's in image space. not using anymore
             # x = (roi[:, None] != croi).all(-1).all(-1)
         
             self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdt12'].append(np.std(dslice_t1[roi]))
@@ -1252,3 +1256,13 @@ class CreateSAMROIFrame(CreateFrame):
 
         return
     
+    def set_currentpt(self,delta):
+        val = self.currentpt.get() + delta
+        self.currentpt.set(value=val)
+        self.ui.set_currentpt()    
+
+    def updatepointlabel(self,*args):
+        try:
+            self.pointLabel['text'] = '{:d}'.format(self.currentpt.get())
+        except KeyError as e:
+            print(e)
