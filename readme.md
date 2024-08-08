@@ -12,10 +12,10 @@ The 'sam' branch of this code creates the RADNEC viewer user interface, as imple
 
 1. Download the source code from github.
 2. Build the project using the 'build' package from PyPI with command 'python -m build'. 
-3. Take the resulting .whl file and place in a temporary directory, along with the installGUI.bat file that is found in src/resources. 
+3. Take the resulting .whl file and place in a temporary directory, along with copies of the installGUI.bat, installGUI.ps1 file that are found in src/resources. 
 4. Run the installGUI.bat file.
-5. Run the viewer from the shortcut created on desktop.
-6. The installGUI.bat downloads a preprocessed directory of images from BraTS 2024 METS that can be loaded in the viewer. Other images can be prepared for loading in the viewer from a Dicom directory, using the 'master' branch of the code and according to Step 4. in the Usage instructions below. 
+5. Run the viewer from the shortcut created on desktop. If the shortcut has failed to create, the batch file startGui.bat found in src/resources can be used to start the viewer.
+6. The installGUI.bat also downloads a preprocessed directory of images from BraTS 2024 METS that can be loaded in the viewer. Other images can be prepared for loading in the viewer from a Dicom directory, using the 'master' branch of the code and according to Step 4. in the Usage instructions below. 
 7. The brats_nifty.py script found in src/scripts can be used as a guide to process other directories of Nifti images for loading into the viewer. It is written specifically for the Brats 2024 dataset, but can be modified for other purposes.
 
 # B. RADNEC Viewer
