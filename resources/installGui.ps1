@@ -153,7 +153,6 @@ if (-not (Test-Path $user/data/radnec_sam)) {
 
 Write-Host 'Installation complete, exiting...'
 pause
-exit
 # SIG # Begin signature block
 # MIIFvwYJKoZIhvcNAQcCoIIFsDCCBawCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
