@@ -648,10 +648,10 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.axs[aax].plot(x,y,'+')
         self.canvas.get_tk_widget().config(cursor='sizing')
         # bind the release event
-        self.ui.root.bind('<ButtonRelease-1>',self.b1release)
+        self.ui.root.bind('<ButtonRelease-1>',self.b1record)
 
     # record bbox after left-button release
-    def b1release(self,event):
+    def b1record(self,event=None):
         self.record_bbox()
         self.ui.root.unbind('<ButtonRelease-1>')
 

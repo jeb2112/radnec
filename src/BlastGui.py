@@ -210,7 +210,7 @@ class BlastGui(object):
         if update:
             self.sliceviewerframe.updateslice()
         # if blast or 4panel, activate study menu
-        if f == 'BLAST' or f == '4panel':
+        if f == 'BLAST' or f == '4panel' or f == 'SAM':
             self.caseframe.s.configure(state='enable')
         else:
             self.caseframe.s.configure(state='disabled')

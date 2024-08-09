@@ -68,10 +68,13 @@
             "request": "launch",
             "program": "${workspaceFolder}/scripts/sam.py",
             "args": [
-                "--input","/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024/M00001",
-                "--output","/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024/M00001",
-                "--checkpoint","/media/jbishop/WD4/brainmets/sam/sam_vit_b_01ec64.pth",
-                "--model-type","vit_b"
+                // "--input","/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024/M00001",
+                // "--output","/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024/M00001",
+                "--input","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti//M0009",
+                "--output","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0009",
+                "--checkpoint","/media/jbishop/WD4/brainmets/brats2024/sam_models/sam_vit_b_01ec64.pth",
+                "--model-type","vit_b",
+                "--temporal"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",

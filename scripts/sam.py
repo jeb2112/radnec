@@ -1,4 +1,4 @@
-
+# run in ptorch env
 import torch
 import argparse
 import json
@@ -66,6 +66,13 @@ parser.add_argument(
         "Save masks as COCO RLEs in a single json instead of as a folder of PNGs. "
         "Requires pycocotools."
     ),
+)
+
+parser.add_argument(
+    "--temporal",
+    action="store_true",
+    help=("Process two study directories as a temporal pair")
+
 )
 
 amg_settings = parser.add_argument_group("AMG Settings")
@@ -271,7 +278,185 @@ def writenifti(img_arr,filename,header=None,norm=False,type='float64',affine=Non
     if True:
         os.system('gzip --force "{}"'.format(filename))
 
+def writenifti_color(img_arr,filename,header=None,type='float64',affine=None):
+    shape_3d = img_arr.shape[0:3]
+    img_arr_u = (img_arr*1).astype('uint8')
+    rgb_dtype = np.dtype([('R', 'u1'), ('G', 'u1'), ('B', 'u1')])
+    # rgb_dtype = np.dtype([('R', 'f8'), ('G', 'f8'), ('B', 'f8')])
+    img_arr_c = img_arr_u.copy().view(dtype=rgb_dtype).reshape(shape_3d)  # copy used to force fresh internal structure
+    img_nb = nb.Nifti1Image(np.transpose(img_arr_c,(2,1,0)), affine,header=header)
+    # using nibabel nifti coordinates
+    nb.save(img_nb,filename)
+    if True:
+        os.system('gzip --force "{}"'.format(filename))
 
+# main function to segment the prompt, with filename args
+# m = filename of a mask of the target in the image to be segmented, can be used to make a bounding box prompt
+# t = filename of target image to be segmented
+def run_sam(m,t,predictor):
+    print(f"Processing '{t}'...")
+    slice = int(re.search('slice_([0-9]+)',t).group(1))
+    image_pil = PIL.Image.open(t)
+    image = np.atleast_3d(np.array(image_pil)[:,:,:3])
+    if image is None:
+        print(f"Could not load '{t}' as an image, skipping...")
+        return
+    mask = np.squeeze(plt.imread(m)[:,:,0]*1).astype(np.uint8)
+    if mask is None:
+        print('could not load {} as a mask, skipping...'.format(m))
+        return
+    predictor.set_image(image)
+
+    bbox = _compute_box_from_mask(mask,box_extension=3)
+    point = np.array(list(map(int,np.mean(np.where(mask),axis=1)))) 
+    ros = np.array(np.where(image[:,:,0]))
+    distances = np.sqrt(np.power(ros[0]-point[0],2)+np.power(ros[1]-point[1],2))
+    arg = np.argsort(np.abs(distances - np.median(distances)))[0]
+    point_bg = np.atleast_2d(np.flip(ros[:,arg])) # flip for xy
+    point = np.atleast_2d(np.flip(point))
+    convexhull = _compute_hull_from_mask(mask,hull_extension=2)
+    convexhull_points = np.concatenate((np.atleast_2d(point),convexhull),axis=0)
+    convexhull_labels = np.array([1]+[0]*len(convexhull))
+
+    # points prompt
+    # points = np.concatenate((point,point_bg),axis=0)
+    # points_label = np.array([1,0]) # foreground,background
+    masks, scores, _ = predictor.predict(
+        point_coords=convexhull_points,
+        point_labels=convexhull_labels,
+        multimask_output=True,
+    )
+    mask_sizes = np.zeros_like(scores)
+    for i,m in enumerate(masks):
+        mask_sizes[i] = len(np.where(m)[0])
+    min_mask = np.where(mask_sizes == min(mask_sizes))[0]
+    if len(min_mask > 0):
+        min_mask = min_mask[0]
+    if np.argmax(scores) == min_mask:
+        sam_mask_point = np.copy(masks[np.argmax(scores),:,:])
+    else:
+        sam_mask_point = np.copy(masks[min_mask,:,:])
+
+    # box prompt
+    sam_mask_box, _, _ = predictor.predict(
+        point_coords=None,
+        point_labels=None,
+        box = bbox[None,:],
+        multimask_output=False,
+    )
+
+    # box points prompt
+    sam_mask_boxpoint,_,_ = predictor.predict(
+        point_coords=convexhull_points,
+        point_labels=convexhull_labels,
+        box = bbox[None,:],
+        multimask_output=False,
+    )
+    if False:
+        fig, ax = plt.subplots(1, 4, num=7, figsize=(10, 2.5),sharex=True,sharey=True)
+        ax[0].cla()
+        ax[0].imshow(image,origin='lower')
+        show_box(bbox, ax[0])
+        show_points(convexhull_points,convexhull_labels,ax[0],marker_size=10)
+        ax[0].set_title("Input Image and Bounding Box")
+        ax[1].cla()
+        ax[1].imshow(image,origin='lower')
+        show_mask(sam_mask_point[slice], ax[1])
+        ax[1].set_title('points')
+        ax[2].cla()
+        ax[2].imshow(image,origin='lower')
+        show_mask(sam_mask_box[slice],ax[2])
+        ax[3].cla()
+        ax[3].imshow(image,origin='lower')
+        show_mask(sam_mask_boxpoint[slice],ax[3])
+        ax[3].set_title('box-points')
+        plt.show(block=False)
+        a=1
+
+    return (sam_mask_point,sam_mask_box,sam_mask_boxpoint)
+
+
+# supplemental function to segment the prompt with provided image and mask matrices
+# m = a mask of the target in the image to be segmented, can be used to make a bounding box prompt
+# t = target image to be segmented
+def run_sam2(mask,image,predictor):
+    # print(f"Processing '{t}'...")
+ 
+    predictor.set_image(image)
+
+    bbox = _compute_box_from_mask(mask,box_extension=3)
+    point = np.array(list(map(int,np.mean(np.where(mask),axis=1)))) 
+    ros = np.array(np.where(image[:,:,0]))
+    distances = np.sqrt(np.power(ros[0]-point[0],2)+np.power(ros[1]-point[1],2))
+    arg = np.argsort(np.abs(distances - np.median(distances)))[0]
+    point_bg = np.atleast_2d(np.flip(ros[:,arg])) # flip for xy
+    point = np.atleast_2d(np.flip(point))
+    convexhull = _compute_hull_from_mask(mask,hull_extension=2)
+    convexhull_points = np.concatenate((np.atleast_2d(point),convexhull),axis=0)
+    convexhull_labels = np.array([1]+[0]*len(convexhull))
+
+    # points prompt
+    # points = np.concatenate((point,point_bg),axis=0)
+    # points_label = np.array([1,0]) # foreground,background
+    masks, scores, _ = predictor.predict(
+        point_coords=convexhull_points,
+        point_labels=convexhull_labels,
+        multimask_output=True,
+    )
+    mask_sizes = np.zeros_like(scores)
+    for i,m in enumerate(masks):
+        mask_sizes[i] = len(np.where(m)[0])
+    min_mask = np.where(mask_sizes == min(mask_sizes))[0]
+    if len(min_mask) > 1:
+        min_mask = min_mask[0]
+    if np.argmax(scores) == min_mask:
+        sam_mask_point = np.copy(masks[np.argmax(scores),:,:])
+    else:
+        sam_mask_point = np.copy(masks[min_mask,:,:])
+
+    # box prompt
+    sam_mask_box, _, _ = predictor.predict(
+        point_coords=None,
+        point_labels=None,
+        box = bbox[None,:],
+        multimask_output=False,
+    )
+
+    # box points prompt
+    sam_mask_boxpoint,_,_ = predictor.predict(
+        point_coords=convexhull_points,
+        point_labels=convexhull_labels,
+        box = bbox[None,:],
+        multimask_output=False,
+    )
+    if False:
+        fig, ax = plt.subplots(1, 4, num=7, figsize=(10, 2.5),sharex=True,sharey=True)
+        ax[0].cla()
+        ax[0].imshow(image,origin='lower')
+        show_box(bbox, ax[0])
+        show_points(convexhull_points,convexhull_labels,ax[0],marker_size=10)
+        ax[0].set_title("Input Image and Bounding Box")
+        ax[1].cla()
+        ax[1].imshow(image,origin='lower')
+        show_mask(sam_mask_point[slice], ax[1])
+        ax[1].set_title('points')
+        ax[2].cla()
+        ax[2].imshow(image,origin='lower')
+        show_mask(sam_mask_box[slice],ax[2])
+        ax[3].cla()
+        ax[3].imshow(image,origin='lower')
+        show_mask(sam_mask_boxpoint[slice],ax[3])
+        ax[3].set_title('box-points')
+        plt.show(block=False)
+        a=1
+
+    return (sam_mask_point,sam_mask_box,sam_mask_boxpoint)
+
+
+
+######
+# main
+######
 
 def main(args: argparse.Namespace) -> None:
     
@@ -290,21 +475,27 @@ def main(args: argparse.Namespace) -> None:
     else:
         studydirs = [f for f in os.listdir(args.input) if os.path.isdir(os.path.join(args.input,f))]
 
-    for s in studydirs:
-        spath = os.path.join(args.input,s,'sam')
-        if not os.path.exists(spath):
-            continue
-        files = os.listdir(spath)
-        if len(files) == 0:
-            continue
+    if args.temporal:
+        # process studydirs as a temporal pair
         # for ch,img in zip(['flair','t1+'],['WT','ET']):
         # by definition SAM output from t1+ input is TC, not just ET
         for ch,img in zip(['t1+'],['TC']):
-            images = [ f for f in files if re.match('slice_[0-9]+_'+ch,f) ]
-            images = sorted([os.path.join(spath, f) for f in images])
-            masks = [ f for f in files if re.match('mask_[0-9]+_'+ch,f)]
-            masks = sorted([os.path.join(spath, f) for f in masks])
-            image_pil = PIL.Image.open(images[0])
+            images = {}
+            imagenums = {}
+            masks = {}
+            for i,s in enumerate(studydirs):
+                spath = os.path.join(args.input,s,'sam')
+                if not os.path.exists(spath):
+                    continue
+                files = os.listdir(spath)
+                if len(files) == 0:
+                    continue
+                imagelist = [ f for f in files if re.match('slice_[0-9]+_'+ch,f) ]
+                images[i] = sorted([os.path.join(spath, f) for f in imagelist])
+                imagenums[i] = set(sorted([re.search('([0-9]+)',f).group(1) for f in imagelist]))
+                masklist = [ f for f in files if re.match('mask_[0-9]+_'+ch,f)]
+                masks[i] = sorted([os.path.join(spath, f) for f in masklist])
+            image_pil = PIL.Image.open(images[0][0])
             slicedim = int(image_pil.info['slicedim'])
             affine_enc = image_pil.info['affine'].encode()
             affine_dec = affine_enc.decode('unicode-escape').encode('ISO-8859-1')[2:-1]
@@ -312,92 +503,88 @@ def main(args: argparse.Namespace) -> None:
             sam_mask_point = np.zeros((slicedim,)+image_pil.size[-1::-1])
             sam_mask_box = np.zeros((slicedim,)+image_pil.size[-1::-1])
             sam_mask_boxpoint = np.zeros((slicedim,)+image_pil.size[-1::-1])
+            image_combined = np.zeros((slicedim,)+image_pil.size[-1::-1]+(3,),dtype='uint8')
 
-            # for m,t in zip([masks[0]],[images[0]]):
-            for m,t in zip(masks,images):
-                print(f"Processing '{t}'...")
-                slice = int(re.search('slice_([0-9]+)',t).group(1))
-                image_pil = PIL.Image.open(t)
-                image = np.atleast_3d(np.array(image_pil)[:,:,:3])
-                if image is None:
-                    print(f"Could not load '{t}' as an image, skipping...")
-                    continue
-                mask = np.squeeze(plt.imread(m)[:,:,0]*1).astype(np.uint8)
-                if mask is None:
-                    print('could not load {} as a mask, skipping...'.format(m))
-                    continue
-                predictor.set_image(image)
+            imagenums = sorted(set.intersection(imagenums[0],imagenums[1]))
+            for i in imagenums:
+                slice = int(i)
+                print('slice={}'.format(slice))
+                r = re.compile(i)
+                i0 = list(filter(r.search,images[0]))[0]
+                i1 = list(filter(r.search,images[1]))[0]
+                image_pil = PIL.Image.open(i0)
+                image0 = np.atleast_3d(np.array(image_pil)[:,:,:3])
+                if image0 is None:
+                    print(f"Could not load '{i0}' as an image, skipping...")
+                    return
+                image_pil = PIL.Image.open(i1)
+                image1 = np.atleast_3d(np.array(image_pil)[:,:,:3])
+                if image1 is None:
+                    print(f"Could not load '{i1}' as an image, skipping...")
+                    return
+                image_combined_slice = np.copy(image0)
+                image_combined_slice[:,:,1] = np.copy(image1[:,:,1])
+                image_combined[slice] = np.copy(image_combined_slice)
+                m0 = list(filter(r.search,masks[0]))[0]
+                m1 = list(filter(r.search,masks[1]))[0]
+                mask0 = np.squeeze(plt.imread(m0)[:,:,0]*1).astype(np.uint8)
+                if mask0 is None:
+                    print('could not load {} as a mask, skipping...'.format(m0))
+                    return
+                a=1
+                mask1 = np.squeeze(plt.imread(m1)[:,:,0]*1).astype(np.uint8)
+                if mask1 is None:
+                    print('could not load {} as a mask, skipping...'.format(m1))
+                    return
+                a=1
+                mask_combined = mask0 | mask1
+                sam_mask_point[slice],sam_mask_box[slice],sam_mask_boxpoint[slice] = run_sam2(mask_combined,image_combined_slice,predictor)
+            writenifti(sam_mask_point,os.path.join(args.output,s,'{}_sam_{}_points_tempo.nii'.format(img,'blast')),type=np.uint8,affine=affine)
+            writenifti(sam_mask_box,os.path.join(args.output,s,'{}_sam_{}_box_tempo.nii'.format(img,'blast')),type=np.uint8,affine=affine)
+            writenifti(sam_mask_boxpoint,os.path.join(args.output,s,'{}_sam_{}_boxpoints_tempo.nii'.format(img,'blast')),type=np.uint8,affine=affine)
+            writenifti_color(image_combined,os.path.join(args.output,s,'t1+_combined.nii'),affine=affine)
 
-                bbox = _compute_box_from_mask(mask,box_extension=3)
-                point = np.array(list(map(int,np.mean(np.where(mask),axis=1)))) 
-                ros = np.array(np.where(image[:,:,0]))
-                distances = np.sqrt(np.power(ros[0]-point[0],2)+np.power(ros[1]-point[1],2))
-                arg = np.argsort(np.abs(distances - np.median(distances)))[0]
-                point_bg = np.atleast_2d(np.flip(ros[:,arg])) # flip for xy
-                point = np.atleast_2d(np.flip(point))
-                convexhull = _compute_hull_from_mask(mask,hull_extension=2)
-                convexhull_points = np.concatenate((np.atleast_2d(point),convexhull),axis=0)
-                convexhull_labels = np.array([1]+[0]*len(convexhull))
-                
-                # points prompt
-                # points = np.concatenate((point,point_bg),axis=0)
-                # points_label = np.array([1,0]) # foreground,background
-                masks, scores, _ = predictor.predict(
-                    point_coords=convexhull_points,
-                    point_labels=convexhull_labels,
-                    multimask_output=True,
-                )
-                mask_sizes = np.zeros_like(scores)
-                for i,m in enumerate(masks):
-                    mask_sizes[i] = len(np.where(m)[0])
-                min_mask = np.where(mask_sizes == min(mask_sizes))[0]
-                if np.argmax(scores) == min_mask:
-                    sam_mask_point[slice] = np.copy(masks[np.argmax(scores),:,:])
-                else:
-                    sam_mask_point[slice] = np.copy(masks[min_mask,:,:])
+    else:
 
-                # box prompt
-                sam_mask_box[slice], _, _ = predictor.predict(
-                    point_coords=None,
-                    point_labels=None,
-                    box = bbox[None,:],
-                    multimask_output=False,
-                )
+        # process each studydir as a separate grayscale segmentation
+        for s in studydirs:
+            spath = os.path.join(args.input,s,'sam')
+            if not os.path.exists(spath):
+                continue
+            files = os.listdir(spath)
+            if len(files) == 0:
+                continue
+            # for ch,img in zip(['flair','t1+'],['WT','ET']):
+            # by definition SAM output from t1+ input is TC, not just ET
+            for ch,img in zip(['t1+'],['TC']):
+                images = [ f for f in files if re.match('slice_[0-9]+_'+ch,f) ]
+                images = sorted([os.path.join(spath, f) for f in images])
+                masks = [ f for f in files if re.match('mask_[0-9]+_'+ch,f)]
+                masks = sorted([os.path.join(spath, f) for f in masks])
+                image_pil = PIL.Image.open(images[0])
+                slicedim = int(image_pil.info['slicedim'])
+                affine_enc = image_pil.info['affine'].encode()
+                affine_dec = affine_enc.decode('unicode-escape').encode('ISO-8859-1')[2:-1]
+                affine = np.reshape(np.frombuffer(affine_dec, dtype=np.float64),(4,4))
+                sam_mask_point = np.zeros((slicedim,)+image_pil.size[-1::-1])
+                sam_mask_box = np.zeros((slicedim,)+image_pil.size[-1::-1])
+                sam_mask_boxpoint = np.zeros((slicedim,)+image_pil.size[-1::-1])
 
-                # box points prompt
-                sam_mask_boxpoint[slice],_,_ = predictor.predict(
-                    point_coords=convexhull_points,
-                    point_labels=convexhull_labels,
-                    box = bbox[None,:],
-                    multimask_output=False,
-                )
-                if False:
-                    fig, ax = plt.subplots(1, 4, num=7, figsize=(10, 2.5),sharex=True,sharey=True)
-                    ax[0].cla()
-                    ax[0].imshow(image,origin='lower')
-                    show_box(bbox, ax[0])
-                    show_points(convexhull_points,convexhull_labels,ax[0],marker_size=10)
-                    ax[0].set_title("Input Image and Bounding Box")
-                    ax[1].cla()
-                    ax[1].imshow(image,origin='lower')
-                    show_mask(sam_mask_point[slice], ax[1])
-                    ax[1].set_title('points')
-                    ax[2].cla()
-                    ax[2].imshow(image,origin='lower')
-                    show_mask(sam_mask_box[slice],ax[2])
-                    ax[2].set_title('box')
-                    ax[3].cla()
-                    ax[3].imshow(image,origin='lower')
-                    show_mask(sam_mask_boxpoint[slice],ax[3])
-                    ax[3].set_title('box-points')
-                    plt.show(block=False)
-                    a=1
+                # for m,t in zip([masks[0]],[images[0]]):
+                for m,t in zip(masks,images):
+                    print(f"Processing '{t}'...")
+                    (res_pt,res_box,res_boxpoint) = run_sam(m,t,predictor,)
+                    slice = int(re.search('slice_([0-9]+)',t).group(1))
 
-            writenifti(sam_mask_point,os.path.join(args.output,s,'{}_sam_{}_points.nii'.format(img,args.tag)),type=np.uint8,affine=affine)
-            writenifti(sam_mask_box,os.path.join(args.output,s,'{}_sam_{}_box.nii'.format(img,args.tag)),type=np.uint8,affine=affine)
-            writenifti(sam_mask_boxpoint,os.path.join(args.output,s,'{}_sam_{}_boxpoints.nii'.format(img,args.tag)),type=np.uint8,affine=affine)
+                    sam_mask_point[slice] = res_pt
+                    sam_mask_box[slice] = res_box
+                    sam_mask_boxpoint[slice] = res_boxpoint
 
-            opath = spath
+                writenifti(sam_mask_point,os.path.join(args.output,s,'{}_sam_{}_points.nii'.format(img,args.tag)),type=np.uint8,affine=affine)
+                writenifti(sam_mask_box,os.path.join(args.output,s,'{}_sam_{}_box.nii'.format(img,args.tag)),type=np.uint8,affine=affine)
+                writenifti(sam_mask_boxpoint,os.path.join(args.output,s,'{}_sam_{}_boxpoints.nii'.format(img,args.tag)),type=np.uint8,affine=affine)
+
+                opath = spath
 
 
     print("Done!")
