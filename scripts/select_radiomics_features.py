@@ -125,8 +125,8 @@ dsets = {'RN':{'dir':None,'vv':None},'T':{'dir':None,'vv':None}}
 dset_keys = dsets.keys()
 
 if True:
-    if False:
-        radnecDir = '/media/jbishop/WD4/brainmets/sunnybrook/RAD NEC'
+    if True:
+        radnecDir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
     else:
         # for remote access of window dropbox, direct mount is easiest.
         if not os.path.isdir('/mnt/D'):
@@ -152,12 +152,6 @@ datafile = os.path.join(outputDir,'voxel_radiomics.pkl')
 
 cases = [f for f in files if os.path.isdir(os.path.join(dataDir,f))]
 
-# load master spreadsheet
-mdata = pd.read_excel(os.path.join(radnecDir,'MANUSCRIPT','RAD NEC MET RESULTS','02_21_2024 RAD NEC MET.xlsx'),sheet_name='Montage Jan 2021 - June 2023 ')
-mrows = np.where(mdata['ID'].str.contains(pat='M00',regex=True)==True)[0]
-# working dataframe
-mlrdata = pd.DataFrame({'ID':mdata['ID'][mrows],'Final Dx':mdata['Final Dx'][mrows]})
-
 
 if os.path.exists(datafile):
     t = time.ctime(os.path.getmtime(datafile))
@@ -167,6 +161,12 @@ if os.path.exists(datafile):
         featureset = mlrdata.filter(regex=('(t1|t2).*')).columns.tolist()
 
 else:
+
+    # load master spreadsheet
+    mdata = pd.read_excel(os.path.join(radnecDir,'MANUSCRIPT','RAD NEC MET RESULTS','02_21_2024 RAD NEC MET.xlsx'),sheet_name='Montage Jan 2021 - June 2023 ')
+    mrows = np.where(mdata['ID'].str.contains(pat='M00',regex=True)==True)[0]
+    # working dataframe
+    mlrdata = pd.DataFrame({'ID':mdata['ID'][mrows],'Final Dx':mdata['Final Dx'][mrows]})
 
     files = os.listdir(os.path.join(dataDir,cases[0]))
     # naming convention from pyradiomics
@@ -372,12 +372,12 @@ with open(os.path.join(outputDir,'voxel_radiomics_features.txt'),'w') as fp:
 
     print('\t{:<40}\t{:.2f}'.format('AUC (loocv)',auc_univariate))
     fp.write('\t{:<40}\t{:.2f}\n'.format('AUC (loocv)',auc_univariate))
-    print('\t{:<40}\t{:.2f}'.format('AUC (train)',auc_univariate_train))
-    fp.write('\t{:<40}\t{:.2f}\n'.format('AUC (train)',auc_univariate_train))
+    print('\t{:<40}\t{:.2f}'.format('AUC',auc_univariate_train))
+    fp.write('\t{:<40}\t{:.2f}\n'.format('AUC',auc_univariate_train))
 
 
     print('\n\nTable 3: Top radiomic features by multivariate L1,RFECV\n')
-    fp.write('\n\nTable 2: Top radiomic features by multivariate L1,RFECV\n')
+    fp.write('\n\nTable 3: Top radiomic features by multivariate L1,RFECV\n')
     for i,t in enumerate(featureset_rfecv_loocv):
         im,feature = t.split('_',1)
         fval_RN = [dsets['RN'][case][im][feature]['mu'] for case in cases_RN]
@@ -392,8 +392,8 @@ with open(os.path.join(outputDir,'voxel_radiomics_features.txt'),'w') as fp:
         fp.write(drow_format_mul_f.format('',t.replace('_',' '),mu_RN,se_RN,mu_TP,se_TP,res.pvalue))
     print('\t{:<40}\t{:.2f}'.format('AUC (loocv)',auc_rfecv_loocv))
     fp.write('\t{:<40}\t{:.2f}\n'.format('AUC (loocv)',auc_rfecv_loocv))
-    print('\t{:<40}\t{:.2f}'.format('AUC (train)',auc_rfecv_train))
-    fp.write('\t{:<40}\t{:.2f}\n'.format('AUC (train)',auc_rfecv_train))
+    print('\t{:<40}\t{:.2f}'.format('AUC',auc_rfecv_train))
+    fp.write('\t{:<40}\t{:.2f}\n'.format('AUC',auc_rfecv_train))
 
     # repeating the RFECV with RFE is giving the same results
     if False:
