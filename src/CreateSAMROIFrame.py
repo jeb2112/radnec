@@ -59,6 +59,7 @@ class CreateSAMROIFrame(CreateFrame):
         self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=0)
         self.currentpt = tk.IntVar(value=0)
+        self.pointradius = tk.IntVar(value=5)
         self.roilist = []
 
         ########################
@@ -206,13 +207,25 @@ class CreateSAMROIFrame(CreateFrame):
         self.sliderlabels['T2 hyper']['bc'].grid(row=2,column=2,sticky='e')
 
         # mouse click button
+        self.pointframe = ttk.Frame(self.frame,padding='0')
+        self.pointframe.grid(row=3,column=2,columnspan=2,sticky='ew')
+
         self.currentpt.trace_add('write',self.updatepointlabel)
-        selectPoint= ttk.Button(self.frame,text='add\nPoint',command=self.selectPoint)
-        selectPoint.grid(row=3,column=2,rowspan=3,sticky='nes')
-        removePoint= ttk.Button(self.frame,text='remove\nPoint',command=self.removePoint)
-        removePoint.grid(row=3,column=3,rowspan=3,sticky='nes')
-        self.pointLabel = ttk.Label(self.frame,text=self.currentpt.get(),padding=10)
-        self.pointLabel.grid(row=3,column=1,rowspan=1,sticky='e')
+        selectPoint= ttk.Button(self.pointframe,text='add Point',command=self.selectPoint)
+        selectPoint.grid(row=0,column=1,sticky='snew')
+        removePoint= ttk.Button(self.pointframe,text='remove Point',command=self.removePoint)
+        removePoint.grid(row=1,column=1,sticky='ew')
+        self.pointLabel = ttk.Label(self.pointframe,text=self.currentpt.get(),padding=10)
+        self.pointLabel.grid(row=1,column=0,sticky='e')
+        self.pointradiuslist = [str(i) for i in range(1,6)]
+        self.pointradiusmenu = ttk.OptionMenu(self.pointframe,self.pointradius,self.pointradiuslist[-1],
+                                        *self.pointradiuslist,command=self.pointradius_callback)
+        self.pointradiusmenu.config(width=2)
+        self.pointradiusmenu.grid(row=2,column=1,sticky='ne')
+        pointradius_label = ttk.Label(self.pointframe,text='radius:')
+        pointradius_label.grid(row=2,column=1,sticky='nw')
+
+
         self.frame.update()
 
     #############
@@ -1238,7 +1251,7 @@ class CreateSAMROIFrame(CreateFrame):
             vol = np.array(np.meshgrid(x,y,indexing='xy'))
 
             # circular region of interest around point
-            roi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < pt.radius)
+            roi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < self.pointradius.get())
             # accumulate roi's in image space. not using anymore
             # x = (roi[:, None] != croi).all(-1).all(-1)
         
@@ -1266,3 +1279,6 @@ class CreateSAMROIFrame(CreateFrame):
             self.pointLabel['text'] = '{:d}'.format(self.currentpt.get())
         except KeyError as e:
             print(e)
+
+    def pointradius_callback(self,radius):
+        self.pointradius.set(int(radius))
