@@ -405,17 +405,20 @@ class CreateCaseFrame(CreateFrame):
             casefile = [f for f in files if tag in f]
         else:
             casefile = [f for f in files if f.endswith['.txt']]
-        if len(casefile) != 1:
-            raise ValueError('No single match for case list file with tag {} or endswith .txt'.format(tag))
-        casefile = casefile[0]
-        with open(os.path.join(ddir,casefile),'r') as fp:
-            casesubset = [line.rstrip() for line in fp]
-        # make sure cases listed in file match the actual case directory list
-        casesubset = [c for c in casesubset if c in casedirs]
-        if len(casesubset) == 0:
-            raise ValueError('No cases listed in text file match cases in the directory {}'.format(ddir))
-        
-        return casesubset
+        if len(casefile) > 1:
+            raise ValueError('More than one file for case list exists with tag {} or endswith .txt'.format(tag))
+        elif len(casefile) == 0:
+            return casedirs
+        else:
+            casefile = casefile[0]
+            with open(os.path.join(ddir,casefile),'r') as fp:
+                casesubset = [line.rstrip() for line in fp]
+            # make sure cases listed in file match the actual case directory list
+            casesubset = [c for c in casesubset if c in casedirs]
+            if len(casesubset) == 0:
+                raise ValueError('No cases listed in text file match cases in the directory {}'.format(ddir))
+            
+            return casesubset
 
 
     def resetCase(self):
