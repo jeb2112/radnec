@@ -1,8 +1,5 @@
 # scrip copies and renames brats nifti images
 
-# computes a z-score image for BLAST processing
-# runs nnunet segmentation as well
-
 import shutil
 import re
 import os

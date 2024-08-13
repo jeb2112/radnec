@@ -302,6 +302,9 @@ class CreateCaseFrame(CreateFrame):
                     # sorted above? or here may need a future sort
                     if False:
                         casefiles,casedirs = (list(t) for t in zip(*sorted(zip(casefiles,casedirs))))
+                    # additionally check for a subset list of cases to show
+                    # this may be just a temporary arrangment that is not permanently needed.
+                    casedirs = self.get_casesubset(casedirs,tag='missed')
                     self.caselist['casetags'] = casedirs
                     self.caselist['casedirs'] = casedirs
                     self.w.config(width=max(20,len(casedirs[0])))
@@ -317,6 +320,7 @@ class CreateCaseFrame(CreateFrame):
             if len(self.caselist['casetags']):
                 self.config.UIdataroot = self.casefile_prefix
                 # TODO: will need a better sort here
+                # check for short list of cases to show
                 self.caselist['casetags'] = sorted(self.caselist['casetags'])
                 self.w['values'] = self.caselist['casetags']
                 self.w.current(0)
@@ -390,6 +394,28 @@ class CreateCaseFrame(CreateFrame):
 
         else:
             raise ValueError('Not all directories match a case prefix')
+
+    # further check for a text file indicating a short list of cases
+    # to show. The file should list just the bare case name in 
+    # format 'M[0-9]{5-6}'
+    def get_casesubset(self,casedirs,tag=None):
+        ddir = self.datadir.get()
+        files = os.listdir(ddir)
+        if tag is not None:
+            casefile = [f for f in files if tag in f]
+        else:
+            casefile = [f for f in files if f.endswith['.txt']]
+        if len(casefile) != 1:
+            raise ValueError('No single match for case list file with tag {} or endswith .txt'.format(tag))
+        casefile = casefile[0]
+        with open(os.path.join(ddir,casefile),'r') as fp:
+            casesubset = [line.rstrip() for line in fp]
+        # make sure cases listed in file match the actual case directory list
+        casesubset = [c for c in casesubset if c in casedirs]
+        if len(casesubset) == 0:
+            raise ValueError('No cases listed in text file match cases in the directory {}'.format(ddir))
+        
+        return casesubset
 
 
     def resetCase(self):
