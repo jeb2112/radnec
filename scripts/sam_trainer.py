@@ -11,7 +11,7 @@ if False:
 from torch.utils.data import Dataset
 import torch
 import numpy as np
-import cv2
+import skimage
 import monai
 
 class PromptType:  
@@ -23,7 +23,7 @@ class SAMDataset(Dataset):
         self,   
         dataset,   
         processor,   
-        prompt_type = PromptType.CONTROL_POINTS,  
+        prompt_type = PromptType.BOUNDING_BOX,  
         num_positive = 3,  
         num_negative = 0,  
         erode = True,  
@@ -53,8 +53,8 @@ class SAMDataset(Dataset):
 
     def __getitem__(self, idx):  
         datapoint = self.dataset[idx]  
-        input_image = cv2.resize(np.array(datapoint["image"]), self.image_size)  
-        ground_truth_mask = cv2.resize(np.array(datapoint["label"]), self.mask_size)
+        input_image = skimage.resize(np.array(datapoint["image"]), self.image_size)  
+        ground_truth_mask = skimage.resize(np.array(datapoint["label"]), self.mask_size)
 
         if self.prompt_type == PromptType.CONTROL_POINTS:  
             inputs = self._getitem_ctrlpts(input_image, ground_truth_mask)  
@@ -468,6 +468,7 @@ def training_loop(
         seed:int=42,
         load_checkpoint:str=None,
         model_path_name:str=None,
+        dataset_name = 'v1' # arbitrary tag for now
     ):
     global model_descriptor, best_checkpoint_path, train_losses, validation_losses, iou_scores
 
@@ -642,8 +643,6 @@ def get_current_time():
     current_datetime = datetime.now(pst)
     return current_datetime.strftime("%H:%M %m/%d/%Y")
 
-from accelerate import notebook_launcher
-
 print(f"Training started at {get_current_time()}")
 
 # All provided loss functions will be measured. Model is
@@ -656,15 +655,15 @@ loss_config = LossFunctionsConfig([
 
 prompt_args = {
     # Control points version:
-    "prompt_type": PromptType.CONTROL_POINTS,
-    "num_positive": 5,
-    "num_negative": 0,
-    "erode": True,
-    "multi_mask": "mean",
+    # "prompt_type": PromptType.CONTROL_POINTS,
+    # "num_positive": 5,
+    # "num_negative": 0,
+    # "erode": True,
+    # "multi_mask": "mean",
 
     # Bounding boxes version:
-    # "prompt_type": PromptType.BOUNDING_BOX,
-    # "perturbation": 10,
+    "prompt_type": PromptType.BOUNDING_BOX,
+    "perturbation": 10,
 }
 
 args = (
