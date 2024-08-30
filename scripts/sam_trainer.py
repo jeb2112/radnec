@@ -4,12 +4,15 @@ from torch.utils.data import Dataset
 import torch
 import numpy as np
 import skimage
-from skimage.io import imread
+from skimage.io import imread,imsave
+from skimage.transform import resize
 import monai
 import glob
+import cv2
 import os
 import re
 import nibabel as nb
+from PIL import Image
 import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('TkAgg')
@@ -53,7 +56,8 @@ class SAMDataset(Dataset):
         num_negative = 0,  
         erode = True,  
         multi_mask = "mean",  
-        perturbation = 10,  
+        perturbation = 0,
+        padding = 3,  
         image_size = (1024, 1024),  
         mask_size = (256, 256),  
     ):  
@@ -74,6 +78,7 @@ class SAMDataset(Dataset):
 
         # This is only to be used for BOUNDING_BOX prompts.
         self.perturbation = perturbation
+        self.padding = padding
 
     def __len__(self):  
         return len(self.dataset)
@@ -86,19 +91,83 @@ class SAMDataset(Dataset):
         else:
             ifile = glob.glob(os.path.join(self.datadir,'images','img_' + str(idx).zfill(4) + '_case_???_slice_???.png'))[0]
             input_image = imread(ifile)
-            input_image = skimage.transform.resize(input_image,self.image_size)
-            input_image = np.tile(input_image,(3,1,1))
+            input_image1 = skimage.transform.resize(input_image,self.image_size)
+            # hugface transformers SamImageProcessor claims to support channel dim
+            # first or last and infer from shape of data, but last didn't work and 
+            # first did. 
+            input_image1 = np.tile(input_image1,(3,1,1))
             ifile = glob.glob(os.path.join(self.datadir,'labels','img_' + str(idx).zfill(4) + '_case_???_slice_???.png'))[0]
             ground_truth_mask = imread(ifile)
             ground_truth_mask = skimage.transform.resize(ground_truth_mask,self.mask_size)
-            # ground_truth_mask = np.tile(ground_truth_mask,(3,1,1))
 
         if self.prompt_type == PromptType.CONTROL_POINTS:  
-            inputs = self._getitem_ctrlpts(input_image, ground_truth_mask)  
+            inputs = self._getitem_ctrlpts(input_image1, ground_truth_mask)  
         elif self.prompt_type == PromptType.BOUNDING_BOX:  
-            inputs = self._getitem_bbox(input_image, ground_truth_mask)
+            inputs = self._getitem_bbox(input_image1, ground_truth_mask)
+
+        # adjust scaling to correct for zero background
+        if False:
+            check_image = np.copy(inputs['pixel_values'])
+            mu0 = np.mean(check_image)
+            muROS = np.mean(check_image[np.where(check_image != check_image[0,0,0])])
+            check_image -= muROS
+            inputs['pixel_values'] = torch.from_numpy(check_image)
 
         inputs["ground_truth_mask"] = ground_truth_mask  
+
+        if True:
+            # note matplotlib 3.9.0 vs code 1.92.2 plts stopped showing in debug console,
+            # until using plt.show(block=True), which is the default.
+            # plt.show() and plt.show(block=False do not work anymore
+            # even though they worked for years. 
+            check_image = np.copy(inputs['pixel_values'])[0]
+            bbox = np.array(inputs['input_boxes'][0]).astype('int')
+            if True:
+                bbox = bbox[[1,0,3,2]]
+            vmax = np.max(check_image)
+            rr,cc = skimage.draw.line(bbox[1],bbox[0],bbox[3],bbox[0])
+            check_image[rr,cc] = vmax
+            rr,cc = skimage.draw.line(bbox[1],bbox[2],bbox[3],bbox[2])
+            check_image[rr,cc] = vmax
+            rr,cc = skimage.draw.line(bbox[1],bbox[0],bbox[1],bbox[2])
+            check_image[rr,cc] = vmax
+            rr,cc = skimage.draw.line(bbox[3],bbox[0],bbox[3],bbox[2])
+            check_image[rr,cc] = vmax
+            check_mask = np.copy(ground_truth_mask).astype('uint8')
+            if False:
+                plt.figure(7)
+                plt.subplot(1,2,1)
+                plt.imshow(check_image)
+                plt.plot(bbox[0],bbox[1],'r+')
+                plt.plot(bbox[2],bbox[3],'b+')
+                plt.subplot(1,2,2)
+                plt.imshow(ground_truth_mask)
+                plt.show(block=True)
+
+            if True: # additionally save to file. 
+                # 32 bit tiffs
+                if False:
+                    check_mask = resize(check_mask,np.shape(check_image),order=0).astype('float32') * vmax
+                    check_comb = np.concatenate((check_image,check_mask),axis=1)
+                    ofile = os.path.join(self.datadir,'datacheck','comb_' + str(idx).zfill(4) + '.tiff')
+                    cv2.imwrite(ofile,check_comb)
+                else:
+                # 8 bit pngs
+                    check_image2 = (skimage.transform.resize(input_image,np.shape(check_image))*255).astype('uint8')
+                    check_mask = np.copy(ground_truth_mask)
+                    check_mask = resize(check_mask,np.shape(check_image2),order=0).astype('uint8') * 255
+                    rr,cc = skimage.draw.line(bbox[1],bbox[0],bbox[3],bbox[0])
+                    check_image2[rr,cc] = 255
+                    rr,cc = skimage.draw.line(bbox[1],bbox[2],bbox[3],bbox[2])
+                    check_image2[rr,cc] = 255
+                    rr,cc = skimage.draw.line(bbox[1],bbox[0],bbox[1],bbox[2])
+                    check_image2[rr,cc] = 255
+                    rr,cc = skimage.draw.line(bbox[3],bbox[0],bbox[3],bbox[2])
+                    check_image2[rr,cc] = 255                    
+                    check_comb = np.concatenate((check_image2,check_mask),axis=1).astype('uint8')
+                    ofile = os.path.join(self.datadir,'datacheck','comb_' + str(idx).zfill(4) + '.png')
+                    imsave(ofile,check_comb)
+
         return inputs
     
     # won't do control points to begin with
@@ -137,6 +206,13 @@ class SAMDataset(Dataset):
         x_min, x_max = np.min(x_indices), np.max(x_indices)
         y_min, y_max = np.min(y_indices), np.max(y_indices)
 
+        # add padding
+        ydim,xdim = np.shape(mask)
+        x_min = max(0,x_min - self.padding)
+        y_min = max(0,y_min - self.padding)
+        x_max = min(xdim-1,x_max + self.padding)
+        y_max = min(ydim-1,y_max + self.padding)
+
         if perturbation:  # Add perturbation to bounding box coordinates.
             H, W = mask.shape
             x_min = max(0, x_min + np.random.randint(-perturbation, perturbation))
@@ -144,7 +220,10 @@ class SAMDataset(Dataset):
             y_min = max(0, y_min + np.random.randint(-perturbation, perturbation))
             y_max = min(H, y_max + np.random.randint(-perturbation, perturbation))
 
-        bbox = [x_min, y_min, x_max, y_max]
+        if False: # correct
+            bbox = [x_min, y_min, x_max, y_max]
+        else: # test only
+            bbox = [y_min, x_min, y_max, x_max]
         return bbox
 
     def _getitem_bbox(self, input_image, ground_truth_mask):  
@@ -210,7 +289,7 @@ def get_datasets(
     **kwargs,
 ):
     model_name = get_model_name(model_size)
-    processor = SamProcessor.from_pretrained(model_name)
+    processor = SamProcessor.from_pretrained(model_name,do_rescale=False)
 
     train_dataset = SAMDataset(
         # dataset=training_data, 
@@ -235,13 +314,14 @@ def get_dataloaders(
     num_negative = 0,
     erode = True,
     multi_mask = "mean",
-    perturbation = 10,
+    perturbation = 0,
+    padding = 3,
     image_size = (256, 256),
     mask_size = (256, 256),
     shuffle_train = True,
 ):
     model_name = get_model_name(model_size)
-    processor = SamProcessor.from_pretrained(model_name)
+    processor = SamProcessor.from_pretrained(model_name,do_rescale=False)
 
     train_dataset, validation_dataset = get_datasets(
         model_size=model_size,
@@ -250,6 +330,7 @@ def get_dataloaders(
         num_negative=num_negative,
         erode=erode,
         perturbation=perturbation,
+        padding=padding,
         image_size=image_size,
         mask_size=mask_size,
     )
@@ -714,8 +795,10 @@ prompt_args = {
     # "multi_mask": "mean",
 
     # Bounding boxes version:
+    # perturbation must be small or zero for the very small mets
     "prompt_type": PromptType.BOUNDING_BOX,
-    "perturbation": 10,
+    "perturbation": 0,
+    "padding": 3,
     "multi_mask": None
 }
 
@@ -743,7 +826,7 @@ args = (
         5, # batch_size (batch size per process is batch_size / num_processes)
         prompt_args,  # prompt_args
         42,  # seed
-        None, # load_checkpoint (string path to checkpoint or None)
+        "C:\\Users\\Chris Heyn Lab\\data\sam_models\\checkpoints\\best _base_AdamW_lr=7e-06_wd=0.0002_bs=5_mp=fp16_bbox_10_loss=dice.pth", # load_checkpoint (string path to checkpoint or None)
         None, # model_path_name (override model path or None)
 )
 kwargs = {
@@ -765,7 +848,7 @@ training_loop(loss_config,
               None,
               model_size='base',
               optimizer_name='AdamW',
-              num_epochs=50,
+              num_epochs=10,
               mixed_precision='fp16',
               dataset_name='v1',
               num_processes=1)
