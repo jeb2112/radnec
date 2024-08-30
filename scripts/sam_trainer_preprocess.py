@@ -79,6 +79,9 @@ for tv in tv_set.keys():
     os.makedirs(os.path.join(datadir,tv,'labels'),exist_ok=True)
 
     for idx,C in enumerate(tv_set[tv]['casedirs']):
+        if False: # debugging
+            if idx != 52:
+                continue
         case = tv_set[tv]['cases'][idx]
         cpath = os.path.join(datadir,'training',C)
         opath = os.path.join(datadir,tv)
@@ -87,10 +90,13 @@ for tv in tv_set.keys():
         nslice = np.shape(img_arr_seg)[0]
         nslice_seg = np.zeros(nslice,dtype='int')
         for i in range(nslice):
-            nslice_seg[i] = len(np.where((img_arr_seg[i]==3)|(img_arr_seg[i]==1))[0])
+            npixels = len(np.where((img_arr_seg[i]==3)|(img_arr_seg[i]==1))[0])
+            if npixels > 9:
+                nslice_seg[i] = npixels
         
         c_index = np.argsort(nslice_seg)[-1::-1]
         n_index = len(np.where(nslice_seg[c_index]>0)[0])
+        # pick one large and one small lesion
         s1 = int(n_index/8)
         s2 = int(n_index/2)
         c_slices = c_index[s1],c_index[s2]
@@ -107,9 +113,13 @@ for tv in tv_set.keys():
             mask = ((img_arr_seg[c] == 3) | (img_arr_seg[c] == 1)).astype('uint8')*255
             CC_mask = cc3d.connected_components(mask,connectivity=4)
             nCC_mask = len(np.unique(CC_mask))
-            # randomly select one component
+            # select largest component. occasionally, the mask of a single large and 
+            # complicated lesion will have a few disconnected pixels in a particular slice,
+            # and the general size has been specified by s1,s2, so don't need to make
+            # a random choice here
             if nCC_mask > 2:
-                sel = random.randint(1,nCC_mask-1)
+                # sel = random.randint(1,nCC_mask-1)
+                sel = 1
             else:
                 sel = 1
             mask = (CC_mask == sel).astype('uint8') * 255
