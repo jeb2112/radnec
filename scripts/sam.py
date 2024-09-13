@@ -358,7 +358,7 @@ def run_sam(m,t,predictor):
             multimask_output=False,
         )
     else:
-        sam_mask_boxpoint = None
+        sam_mask_boxpoint = np.zeros_like(mask,dtype='uint8')
 
     if False:
         fig, ax = plt.subplots(1, 4, num=7, figsize=(10, 2.5),sharex=True,sharey=True)

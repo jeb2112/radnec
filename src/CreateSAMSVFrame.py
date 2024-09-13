@@ -685,7 +685,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             except ValueError as e:
                 print(e)
         self.bbox['plot'] = self.axs[self.bbox['ax']].plot(self.bbox['p0'][0],self.bbox['p0'][1],'b+',clip_on=True)[0]
-        self.ui.set_message(msg='point = {:.1f}'.format(self.bbox['p0']))
+        self.ui.set_message(msg='point = {:.1f},{:.1f}'.format(self.bbox['p0'][0],self.bbox['p0'][1]))
 
 
     # remove existing bbox, for using during interactive draw only
@@ -756,7 +756,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         if self.bbox['p1'] is not None:
             self.draw_bbox(self.bbox['p1'][0],self.bbox['p1'][1],self.bbox['ax'])
         else:
-            self.draw_point(self.bbox['p0'],self.bbox['ax'])
+            self.draw_point()
         self.canvas.draw()
 
     # display or remove bbox in the current slice
