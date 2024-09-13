@@ -314,16 +314,20 @@ def run_sam(m,t,predictor):
     arg = np.argsort(np.abs(distances - np.median(distances)))[0]
     point_bg = np.atleast_2d(np.flip(ros[:,arg])) # flip for xy
     point = np.atleast_2d(np.flip(point))
-    convexhull = _compute_hull_from_mask(mask,hull_extension=2)
-    convexhull_points = np.concatenate((np.atleast_2d(point),convexhull),axis=0)
-    convexhull_labels = np.array([1]+[0]*len(convexhull))
+    if False:
+        # optional. add some background points using a convex hull around the mask
+        convexhull = _compute_hull_from_mask(mask,hull_extension=2)
+        convexhull_points = np.concatenate((np.atleast_2d(point),convexhull),axis=0)
+        convexhull_labels = np.array([1]+[0]*len(convexhull))
 
     # points prompt
     # points = np.concatenate((point,point_bg),axis=0)
+    points = point # no background, just single foreground point
     # points_label = np.array([1,0]) # foreground,background
+    points_labels = np.array([1]) # foreground only
     masks, scores, _ = predictor.predict(
-        point_coords=convexhull_points,
-        point_labels=convexhull_labels,
+        point_coords=points,
+        point_labels=points_labels,
         multimask_output=True,
     )
     mask_sizes = np.zeros_like(scores)
@@ -345,13 +349,17 @@ def run_sam(m,t,predictor):
         multimask_output=False,
     )
 
-    # box points prompt
-    sam_mask_boxpoint,_,_ = predictor.predict(
-        point_coords=convexhull_points,
-        point_labels=convexhull_labels,
-        box = bbox[None,:],
-        multimask_output=False,
-    )
+    # box points prompt. also optional
+    if False:
+        sam_mask_boxpoint,_,_ = predictor.predict(
+            point_coords=convexhull_points,
+            point_labels=convexhull_labels,
+            box = bbox[None,:],
+            multimask_output=False,
+        )
+    else:
+        sam_mask_boxpoint = None
+
     if False:
         fig, ax = plt.subplots(1, 4, num=7, figsize=(10, 2.5),sharex=True,sharey=True)
         ax[0].cla()
