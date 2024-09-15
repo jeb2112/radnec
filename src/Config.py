@@ -58,6 +58,10 @@ class Config(object):
         # self.UIpytorch = 'pytorch_sam'
         self.UIpytorch = 'pytorch118_310'
 
+        # sam model
+        # self.SAMModel = 'sam_vit_b_01ec64.pth'
+        self.SAMModel = 'sam_brats2024_10sep24_9000_50epoch.pth'
+
         # automatically load first case in directory
         self.AutoLoad = False
 

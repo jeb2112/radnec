@@ -1093,12 +1093,12 @@ class CreateSAMROIFrame(CreateFrame):
 
         if os.name == 'posix':
             if model == 'medSAM':
-                command = 'conda run -n ptorch python scripts/medsam.py  --checkpoint /media/jbishop/WD4/brainmets/brats2024/sam_models/medsam_vit_b.pth '
+                command = 'conda run -n ptorch python scripts/medsam.py  --checkpoint /media/jbishop/WD4/brainmets/sam_models/medsam_vit_b.pth '
                 command += ' --input ' + self.ui.caseframe.casedir
                 command += ' --output ' + self.ui.caseframe.casedir
                 command += ' --model-type vit_b'
             elif model == 'SAM':
-                command = 'conda run -n ptorch python scripts/sam.py  --checkpoint /media/jbishop/WD4/brainmets/brats2024/sam_models/sam_vit_b_01ec64.pth '
+                command = 'conda run -n ptorch python scripts/sam.py  --checkpoint /media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
                 command += ' --input ' + self.ui.caseframe.casedir
                 command += ' --output ' + self.ui.caseframe.casedir
                 command += ' --tag ' + tag
@@ -1125,7 +1125,7 @@ class CreateSAMROIFrame(CreateFrame):
             username = getpass.getuser()
             command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
             # command2 = 'conda run -n ' + self.ui.config.UIpytorch + ' python scripts/sam.py  --checkpoint "C:\\Users\\' + username + '\\data\\sam_models\\sam_vit_b_01ec64.pth" '
-            command2 = 'conda run python scripts/sam.py  --checkpoint "C:\\Users\\' + username + '\\data\\sam_models\\sam_vit_b_01ec64.pth" '
+            command2 = 'conda run python scripts/sam.py  --checkpoint "C:\\Users\\' + username + '\\data\\sam_models\\' + self.ui.Config.SAMModel +'" '
             command2 += ' --input "' + self.ui.caseframe.casedir
             command2 += '" --output "' + self.ui.caseframe.casedir
             command2 += '" --tag ' + tag

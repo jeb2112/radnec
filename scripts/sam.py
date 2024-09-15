@@ -1,3 +1,5 @@
+# script for loading sam base model and running predictions
+# uses the facebook SamPredictor class
 # run in ptorch env
 import torch
 import argparse
@@ -15,7 +17,6 @@ from scipy.ndimage import binary_dilation
 
 from segment_anything import SamPredictor, sam_model_registry
 from segment_anything.utils.transforms import ResizeLongestSide
-
 
 parser = argparse.ArgumentParser(
     description=(
@@ -293,6 +294,7 @@ def writenifti_color(img_arr,filename,header=None,type='float64',affine=None):
 # main function to segment the prompt, with filename args
 # m = filename of a mask of the target in the image to be segmented, can be used to make a bounding box prompt
 # t = filename of target image to be segmented
+# predictor = instance of facebook SamPredictor class
 def run_sam(m,t,predictor):
     print(f"Processing '{t}'...")
     slice = int(re.search('slice_([0-9]+)',t).group(1))
@@ -383,10 +385,11 @@ def run_sam(m,t,predictor):
 
     return (sam_mask_point,sam_mask_box,sam_mask_boxpoint)
 
-
 # supplemental function to segment the prompt with provided image and mask matrices
+# for the case of two time points encoded as RGB input image
 # m = a mask of the target in the image to be segmented, can be used to make a bounding box prompt
 # t = target image to be segmented
+# predictor = SamPredictor instance
 def run_sam2(mask,image,predictor):
     # print(f"Processing '{t}'...")
  
@@ -468,7 +471,6 @@ def run_sam2(mask,image,predictor):
 
 def main(args: argparse.Namespace) -> None:
     
-    
     print("Loading model...")
     sam = sam_model_registry[args.model_type](checkpoint=args.checkpoint)
     _ = sam.to(device=args.device)
@@ -476,7 +478,6 @@ def main(args: argparse.Namespace) -> None:
     output_mode = "binary_mask"
     amg_kwargs = get_amg_kwargs(args)
     predictor = SamPredictor(sam)
-
 
     if not os.path.isdir(args.input):
         targets = [args.input]
