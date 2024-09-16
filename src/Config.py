@@ -46,9 +46,12 @@ class Config(object):
             self.UIdatadir = os.path.join(os.path.expanduser('~'),'data')
             self.UIlocaldir = os.path.join(os.path.expanduser('~'),'data','radnec_sam')
         elif os.name == 'posix':
-            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases'
-            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
-            # self.UIdatadir = os.path.join(os.path.expanduser('~'),'Data','radnec')
+            # brats dataset
+            # self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases'
+            # self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
+            # dicoms
+            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
+            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti_testcase'
         self.UIdataroot = 'BraTS2021_'
 
         # optional root filename for ground truth masks

@@ -636,11 +636,17 @@ class DcmStudy(Study):
             dpath = os.path.join(d,sd)
             files = sorted(os.listdir(dpath))
             ds0 = pd.dcmread(os.path.join(dpath,files[0]))
-            slice0 = ds0[(0x0020,0x0032)].value[2]
-            ds = pd.dcmread(os.path.join(dpath,files[-1]))
-            dslice = ds[(0x0020,0x0032)].value[2] - slice0
-            if dslice < 0:
-                files = sorted(files,reverse=True)
+            if (0x0020,0x0032) in ds0.keys():
+                slice0 = ds0[(0x0020,0x0032)].value[2]
+                ds = pd.dcmread(os.path.join(dpath,files[-1]))
+                dslice = ds[(0x0020,0x0032)].value[2] - slice0
+                if dslice < 0:
+                    files = sorted(files,reverse=True)
+            elif hasattr(ds0,'SliceThickness'):
+                dslice = float(ds0['SliceThickness'].value)
+            else:
+                print('No slice thickness found, skipping...')
+                continue
             print(ds0.SeriesDescription)
             for t in self.studytimeattrs.keys():
                 if hasattr(ds0,t):
@@ -821,7 +827,7 @@ class DcmStudy(Study):
         # bias correction.
         # self.dbias = {} # working data for calculating z-scores
         # TODO: use viewer mode designation here
-        if False:
+        if True:
             for dt in ['t1','t1+','flair','t2','dwi']:
                 if self.dset['raw'][dt]['ex']:   
                     self.dset['z'][dt]['d'] = np.copy(self.n4bias(self.dset['raw'][dt]['d']))
