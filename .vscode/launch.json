@@ -83,21 +83,24 @@
             "justMyCode": false
         },
         {
-            "name": "sam_hf",
+            "name": "sam_hf2",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/scripts/sam_hf.py",
+            "program": "${workspaceFolder}/scripts/sam_hf2.py",
             "args": [
                 "--input","/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024/M00002",
-                "--output","/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024/M00002",
+                "--output","None",
                 // "--input","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti//M0009",
                 // "--output","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0009",
                 // "--input","C:\\Users\\Chris Heyn Lab\\data\\dicom2nifti_sam_temporal\\M0020",
                 // "--output","C:\\Users\\Chris Heyn Lab\\data\\dicom2nifti_sam_temporal\\M0020",
                 "--checkpoint","/media/jbishop/WD4/brainmets/sam_models/sam_brats2024_10sep24_9000_50epoch.pth",
-                "--pretrained","/media/jbishop/WD4/brainmets/sam_models/sam_vit_b_01ec64.pth",
+                // "--pretrained","/media/jbishop/WD4/brainmets/sam_models/sam_vit_b_01ec64.pth",
+                "--pretrained","None",
+                "--prompt","point",
                 // "--checkpoint","C:\\Users\\Chris Heyn Lab\\data\\sam_models\\sam_vit_b_01ec64.pth",
                 "--model-type","vit_b",
+                "--tag","tuned"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
