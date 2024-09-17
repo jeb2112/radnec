@@ -829,10 +829,14 @@ class CreateSAMROIFrame(CreateFrame):
         roilist = [self.ui.currentroi]
         fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
         if not os.path.exists(fileroot):
-            os.mkdir(fileroot)
+            os.makedirs(os.path.join(fileroot,'images'),exist_ok=True)
+            os.makedirs(os.path.join(fileroot,'labels'),exist_ok=True)
+            os.makedirs(os.path.join(fileroot,'predictions'),exist_ok=True)
         else:
             shutil.rmtree(fileroot)
-            os.mkdir(fileroot)
+            os.makedirs(os.path.join(fileroot,'images'),exist_ok=True)
+            os.makedirs(os.path.join(fileroot,'labels'),exist_ok=True)
+            os.makedirs(os.path.join(fileroot,'predictions'),exist_ok=True)
         roisuffix = ''
         if sam == 0:
             rslice = list(range(self.ui.sliceviewerframe.dim[0])) # do all slices
@@ -851,9 +855,11 @@ class CreateSAMROIFrame(CreateFrame):
                 if dref is not None:
                     for slice in rslice:
                         if len(np.where(rref[slice])[0]):
-                            outputfilename = os.path.join(fileroot,'mask_' + str(slice) + '_' + ch + '.png')
+                            outputfilename = os.path.join(fileroot,'labels',
+                                    'img_' + str(slice-rslice[0]).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
                             plt.imsave(outputfilename,rref[slice],cmap='gray',)
-                            outputfilename = os.path.join(fileroot,'slice_' + str(slice) + '_' + ch +'.png')
+                            outputfilename = os.path.join(fileroot,'images',
+                                    'img_' + str(slice-rslice[0]).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
                             meta = PIL.PngImagePlugin.PngInfo()
                             meta.add_text('slicedim',str(self.ui.sliceviewerframe.dim[0]))
                             meta.add_text('affine',affine_bytes_str)
@@ -1081,7 +1087,7 @@ class CreateSAMROIFrame(CreateFrame):
     # tumour segmenation by SAM
     # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
     # a bit arbitrary, not using it as the SAM prompt. So, layer arg here defaults to 'TC'
-    def segment_sam(self,roi=None,dpath=None,model='SAM',layer='TC',tag=''):
+    def segment_sam(self,roi=None,dpath=None,model='SAM',layer='TC',tag='',prompt='bbox'):
         print('SAM segment tumour')
         if roi is None:
             roi = self.ui.currentroi
@@ -1098,11 +1104,11 @@ class CreateSAMROIFrame(CreateFrame):
                 command += ' --output ' + self.ui.caseframe.casedir
                 command += ' --model-type vit_b'
             elif model == 'SAM':
-                command = 'conda run -n ptorch python scripts/sam.py  --checkpoint /media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
+                command = 'conda run -n ptorch python scripts/sam_hf.py  '
+                command += ' --checkpoint /media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
                 command += ' --input ' + self.ui.caseframe.casedir
-                command += ' --output ' + self.ui.caseframe.casedir
+                command += ' --prompt ' + prompt
                 command += ' --tag ' + tag
-                command += ' --model-type vit_b'
             res = os.system(command)
         elif os.name == 'nt':
             # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()

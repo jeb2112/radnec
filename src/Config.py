@@ -51,7 +51,7 @@ class Config(object):
             # self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
             # dicoms
             self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
-            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti_testcase'
+            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti'
         self.UIdataroot = 'BraTS2021_'
 
         # optional root filename for ground truth masks

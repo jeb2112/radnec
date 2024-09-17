@@ -180,7 +180,7 @@ def main(args):
         }
     }
 
-    if args.pretrained != "None":
+    if args.pretrained is not None:
         # getting a path error on this syntax
         model = SamModel.from_pretrained(args.pretrained)
     else:
@@ -191,48 +191,52 @@ def main(args):
         model.load_state_dict(checkpoint["model_state_dict"])
     model.to(device)
 
-    studydir = os.listdir(args.input)[0] # hard-coded single study dir here, ie S0001
-    spath = os.path.join(args.input,studydir,'sam')
-    if not os.path.exists(spath):
-        raise NotADirectoryError
-    files = os.listdir(spath)
-    if len(files) == 0:
-        raise FileNotFoundError
-    
-    eval_datadir = {'eval':spath}
-    samp = SAMProcessing(eval_datadir,model_size='base',prompt_type=prompt_args[args.prompt]['prompt_type'])
+    sfiles = os.listdir(args.input)
+    studydirs = [s for s in sfiles if os.path.isdir(os.path.join(args.input,s,'sam','images'))]
+    if len(studydirs) == 0:
+        raise FileNotFoundError('No images sub-directory found')
+    for s in studydirs:
+        spath = os.path.join(args.input,s,'sam')
+        if not os.path.exists(spath):
+            raise NotADirectoryError
+        files = os.listdir(spath)
+        if len(files) == 0:
+            raise FileNotFoundError
+        
+        eval_datadir = {'eval':spath}
+        samp = SAMProcessing(eval_datadir,model_size='base',prompt_type=prompt_args[args.prompt]['prompt_type'])
 
-    res = predict_metrics(model,samp.dataloaders['eval'],prompt_args[args.prompt],datadir=spath)
+        res = predict_metrics(model,samp.dataloaders['eval'],prompt_args[args.prompt],datadir=spath)
 
-    # gather the sam-predicted 2d slices into a nifti volume
-    # with the torch DataLoader, the output masks for a set of image files are just in 
-    # plain index order. map these back to the slice positions according to the filenames
-    # of the input image files. it is thus assumed that the DataLoader is processing the image
-    # files in a sorted order since it is batchsize=1 and no shuffling (to be verified)
-    img_files = os.listdir(os.path.join(spath,'images'))
-    images = sorted([ f for f in img_files if re.match('img.*slice_[0-9]{3}',f) ])
-    image_pil = PIL.Image.open(os.path.join(spath,'images',images[0]))
-    # for lack of any better way to pass to this standalone script, these values are encoded in the .png header
-    # when exported form the viewer. this script should be a method in the CreateSAMROIFrame.class
-    slicedim = int(image_pil.info['slicedim'])
-    affine_enc = image_pil.info['affine'].encode()
-    affine_dec = affine_enc.decode('unicode-escape').encode('ISO-8859-1')[2:-1]
-    affine = np.reshape(np.frombuffer(affine_dec, dtype=np.float64),(4,4))
-    sam_predict = np.zeros((slicedim,)+image_pil.size[-1::-1],dtype='uint8')
+        # gather the sam-predicted 2d slices into a nifti volume
+        # with the torch DataLoader, the output masks for a set of image files are just in 
+        # plain index order. map these back to the slice positions according to the filenames
+        # of the input image files. it is thus assumed that the DataLoader is processing the image
+        # files in a sorted order since it is batchsize=1 and no shuffling (to be verified)
+        img_files = os.listdir(os.path.join(spath,'images'))
+        images = sorted([ f for f in img_files if re.match('img.*slice_[0-9]{3}',f) ])
+        image_pil = PIL.Image.open(os.path.join(spath,'images',images[0]))
+        # for lack of any better way to pass to this standalone script, these values are encoded in the .png header
+        # when exported form the viewer. this script should be a method in the CreateSAMROIFrame.class
+        slicedim = int(image_pil.info['slicedim'])
+        affine_enc = image_pil.info['affine'].encode()
+        affine_dec = affine_enc.decode('unicode-escape').encode('ISO-8859-1')[2:-1]
+        affine = np.reshape(np.frombuffer(affine_dec, dtype=np.float64),(4,4))
+        sam_predict = np.zeros((slicedim,)+image_pil.size[-1::-1],dtype='uint8')
 
-    pred_files = os.listdir(os.path.join(spath,'predictions'))
-    pred_masks = sorted([ f for f in pred_files if re.match('pred_mask',f) ])
-    for i,m in zip(images,pred_masks):
-        slice = int(re.search('slice_([0-9]{3})',i).group(1))
-        mask_pil = PIL.Image.open(os.path.join(spath,'predictions',m))
-        mask = skimage.transform.resize(np.array(mask_pil),image_pil.size[-1::-1],order=0)
-        sam_predict[slice] = mask
+        pred_files = os.listdir(os.path.join(spath,'predictions'))
+        pred_masks = sorted([ f for f in pred_files if re.match('pred_mask',f) ])
+        for i,m in zip(images,pred_masks):
+            slice = int(re.search('slice_([0-9]{3})',i).group(1))
+            mask_pil = PIL.Image.open(os.path.join(spath,'predictions',m))
+            mask = skimage.transform.resize(np.array(mask_pil),image_pil.size[-1::-1],order=0)
+            sam_predict[slice] = mask
 
-    if args.output == "None":
-        outputdir = os.path.join(args.input,studydir)
-    else:
-        outputdir = args.output
-    writenifti(sam_predict,os.path.join(outputdir,'{}_sam_{}_{}.nii'.format('TC',args.tag,args.prompt)),type=np.uint8,affine=affine)
+        if args.output is None:
+            outputdir = os.path.join(spath,'predictions')
+        else:
+            outputdir = args.output
+        writenifti(sam_predict,os.path.join(outputdir,'{}_sam_{}_{}.nii'.format('TC',args.tag,args.prompt)),type=np.uint8,affine=affine)
 
 
 
@@ -248,24 +252,26 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output",
         type=str,
-        required=True,
+        required=False,
         help=(
             "Path to the directory where masks will be output. Output will be either a folder "
             "of PNGs per image or a single json with COCO-style masks."
         ),
-        default="None"
+        default=None
     )
     parser.add_argument(
         "--model-type",
         type=str,
-        required=True,
+        required=False,
         help="The type of model to load, in ['default', 'vit_h', 'vit_l', 'vit_b']",
+        default='vit_b'
     )
     parser.add_argument(
         "--pretrained",
         type=str,
-        required=True,
+        required=False,
         help="The path to the SAM pretrained model.",
+        default=None
     ),
     parser.add_argument(
         "--checkpoint",
@@ -277,7 +283,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prompt",
         type=str,
-        required=True,
+        required=False,
         help="bbox|point",
         default='bbox'
     )

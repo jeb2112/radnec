@@ -502,8 +502,12 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         if self.ui.currentslice not in list(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs.keys()):
             print('No bbox defined in current slice')
             return
+        if self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[self.ui.currentslice]['p1'] is None:
+            prompt = 'point'
+        else:
+            prompt = 'bbox'
         self.ui.roiframe.save_prompts(sam=self.ui.currentslice,mask='bbox')
-        self.ui.roiframe.segment_sam(tag='bbox')
+        self.ui.roiframe.segment_sam(tag='bbox',prompt=prompt)
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
