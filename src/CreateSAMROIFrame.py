@@ -1152,7 +1152,8 @@ class CreateSAMROIFrame(CreateFrame):
         self.update_roinumber_options()
 
         roi = self.ui.currentroi
-        self.ui.roi[self.ui.s][roi].data[layer],_ = self.ui.data[self.ui.s].loadnifti(layer+'_sam_'+tag+'_box.nii.gz',self.ui.data[self.ui.s].studydir)
+        self.ui.roi[self.ui.s][roi].data[layer],_ = self.ui.data[self.ui.s].loadnifti(layer+'_sam_'+tag+'_' + prompt + '.nii.gz',
+                                                            os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions'))
         # create a combined seg mask from the three layers
         # using nnunet convention for labels
         # there is currently no WT segmentation in the SAM viewer, and segmentation from ET

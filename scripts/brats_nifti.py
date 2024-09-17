@@ -223,11 +223,13 @@ def tx(img_arr_fixed,img_arr_moving,tx):
 
     return img_arr_tx
 
-# nnunet segmentation
+# nnunet segmentation. currently hard-coded to d138, the BraTS2024 trained model.
+# pytorch118_310 is the default env for the windows machine, specify otherwise
+# on linux
 def segment(C,ddir,pyenv='pytorch118_310'):
     ndir = os.path.join(ddir,'nnunet')
     if os.name == 'posix':
-        command = 'conda run -n ptorch nnUNetv2_predict '
+        command = 'conda run -n ' + pyenv + ' nnUNetv2_predict '
         command += ' -i ' + ndir
         command += ' -o ' + ndir
         command += ' -d138 -c 3d_fullres'
@@ -288,9 +290,9 @@ if __name__ == '__main__':
 
     if os.name == 'posix':
         # brats source dir
-        brats_data_dir = '/media/jbishop/WD4/brainmets/brats2024/raw/training'
+        brats_data_dir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/SAM_BraTS_2024/test_cases'
         # nifti destination dir for BLAST
-        blast_data_dir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
+        blast_data_dir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/SAM_BraTS_2024/brats2nifti'
     elif os.name == 'nt':
         # brats source dir
         if True: # default True
@@ -320,7 +322,7 @@ if __name__ == '__main__':
         cases = sorted(os.listdir(brats_data_dir))
 
     # edit range of cases to process here
-    for C in cases[:5]:
+    for C in cases:
         print('case {}'.format(C))
         dir = os.path.join(brats_data_dir,C)
         files = os.listdir(dir)
@@ -376,7 +378,7 @@ if __name__ == '__main__':
                 l1str += os.path.join(ndir,C+'_'+suffix+'.nii.gz') + '\"'
             os.system(l1str)
         if True:
-            nnunet_seg = segment(C,ddir)
+            nnunet_seg = segment(C,ddir,pyenv='ptorch_sam')
         else: # for debugging
             nnunet_seg = {}
             for dt in ['ET','TC','WT']:
