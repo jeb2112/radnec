@@ -937,18 +937,18 @@ class CreateSAMROIFrame(CreateFrame):
 
         # also output stats to pickle
         if True:
-            self.ui.roi = self.ui.rois['sam']
-            self.ROIstats()
-            for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
-                sdict = {'roi'+str(i+1):{'stats':None,'bbox':None}}
-                sdict['roi'+str(i+1)]['stats'] = r.stats
-                bboxs = {}
-                for k in r.bboxs.keys():
-                    bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1']}
-                sdict['roi'+str(i+1)]['bbox'] = bboxs
-            filename = os.path.join(fileroot,'stats_sam_'+tag+'.json')
-            with open(filename,'w') as fp:
-                json.dump(sdict,fp,indent=4)
+            self.ui.roi = self.ui.rois['sam'] # switch context
+            self.ROIstats(save=True,roitype='sam',tag=tag)
+            # for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
+            #     sdict = {'roi'+str(i+1):{'stats':None,'bbox':None}}
+            #     sdict['roi'+str(i+1)]['stats'] = r.stats
+            #     bboxs = {}
+            #     for k in r.bboxs.keys():
+            #         bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1']}
+            #     sdict['roi'+str(i+1)]['bbox'] = bboxs
+            # filename = os.path.join(fileroot,'stats_sam_'+tag+'.json')
+            # with open(filename,'w') as fp:
+            #     json.dump(sdict,fp,indent=4)
         
 
     # back-copy an existing ROI and overlay from current dataset back into the current roi. 
@@ -1054,9 +1054,13 @@ class CreateSAMROIFrame(CreateFrame):
                 v.append(0)
 
     # various output stats, add more as required
-    def ROIstats(self):
+    # roi - optionally provide the roi number to process. currently, only 1 roi at a time is coded.
+    # tag - additional string for labelling output files
+    # roitype - for sam versus blast. dual roi data structure continues to be awkward.
+    def ROIstats(self,roi=None,save=False,tag=None,roitype='blast'):
         
-        roi = self.ui.get_currentroi()
+        if roi is None:
+            roi = self.ui.get_currentroi() # ie, there is only 1 roi in SAM viewer for now
         s = self.ui.s
         data = self.ui.roi[s][roi].data
         self.ui.roi[s][roi].stats['elapsedtime'] = self.ui.sliceviewerframe.elapsedtime
@@ -1084,6 +1088,29 @@ class CreateSAMROIFrame(CreateFrame):
                 # haunsdorff
                 self.ui.roi[s][roi].stats['hd'][dt] = max(directed_hausdorff(np.array(np.where(gt_lesion)).T,np.array(np.where(data[dt])).T)[0],
                                                         directed_hausdorff(np.array(np.where(data[dt])).T,np.array(np.where(gt_lesion)).T)[0])
+
+        # optional save dict to json
+        # currently this will overwrite, but should have the option to append/update
+        if save:
+            # dummy loop. there is only 1 roi supported for now.  
+            for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy zero ROI
+                sdict = {'roi'+str(i+1):{'stats':None,'bbox':None}}
+                sdict['roi'+str(i+1)]['stats'] = r.stats
+                bboxs = {}
+                # presence of bbox indicates sam versus blast, separate roitype maybe not needed.
+                for k in r.bboxs.keys():
+                    bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1']}
+                sdict['roi'+str(i+1)]['bbox'] = bboxs
+            filename = 'stats_' + roitype
+            if tag is not None:
+                filename += '_' + tag
+            filename += '.json'
+            filename = os.path.join(self.ui.data[self.ui.s].studydir,filename)
+            with open(filename,'w') as fp:
+                json.dump(sdict,fp,indent=4)
+
+
+
     # tumour segmenation by SAM
     # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
     # a bit arbitrary, not using it as the SAM prompt. So, layer arg here defaults to 'TC'
