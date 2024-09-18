@@ -508,7 +508,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             prompt = 'bbox'
         self.ui.roiframe.save_prompts(sam=self.ui.currentslice,mask='bbox')
         self.ui.roiframe.segment_sam(tag='manual',prompt=prompt)
-        self.ui.roiframe.ROIstats(save=True,tag='manual',roitype='sam')
+        self.ui.roiframe.ROIstats(save=True,tag='manual_'+prompt,roitype='sam')
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -738,13 +738,19 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         if self.ui.currentroi == 0:
             self.ui.roiframe.createROI(self.bbox['p0'][0],self.bbox['p0'][1],self.currentslice)
             self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'] = np.zeros(self.dim)
-        self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[self.ui.currentslice] = copy.deepcopy(self.bbox)
-        if self.bbox['p1'] is not None: #bbox
-            self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0'],self.bbox['p1']))
-        else: # pointprompt
+        if 'p1' in self.bbox.keys():
+            if self.bbox['p1'] is not None: #bbox
+                self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0'],self.bbox['p1']))
+            else: # pointprompt
+                self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0']))
+                # also need to plot here since there was no show_bbox from a drag event
+                self.draw_point()
+        else:
+            self.bbox['p1'] = None
             self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0']))
             # also need to plot here since there was no show_bbox from a drag event
             self.draw_point()
+        self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[self.ui.currentslice] = copy.deepcopy(self.bbox)
         if False:
             self.bbox = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
 

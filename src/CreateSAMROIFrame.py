@@ -635,6 +635,11 @@ class CreateSAMROIFrame(CreateFrame):
             self.save_prompts(sam=self.ui.currentslice,mask='ET')
             # automatically run sam but only for current slice
             self.segment_sam(tag='blast')
+            # currently saving 2d single-slice result separately from the ROIstats save in 
+            # the saveROI() method. this is temporary or needs to be fixed properly.
+            # also have bbox hard-coded in tag here, but the blast mask could also 
+            # be used for points prompt
+            self.ui.roiframe.ROIstats(save=True,tag='blast_bbox',roitype='sam')
             # automatically switch to SAM display
             self.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -906,14 +911,14 @@ class CreateSAMROIFrame(CreateFrame):
             # also output stats
             if True:
                 self.ui.roi = self.ui.rois['blast']
-                self.ROIstats()
-                sdict = {}
-                for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
-                    sdict['roi'+str(i+1)] = r.stats
+                self.ROIstats(save=True,roitype='blast')
+                # sdict = {}
+                # for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
+                #     sdict['roi'+str(i+1)] = r.stats
 
-                filename = os.path.join(fileroot,'stats_blast.json')
-                with open(filename,'w') as fp:
-                    json.dump(sdict,fp,indent=4)
+                # filename = os.path.join(fileroot,'stats_blast.json')
+                # with open(filename,'w') as fp:
+                #     json.dump(sdict,fp,indent=4)
 
         # now run the SAM segmentation across all available slice masks
         # this longer process will thus not be counted in the timer.
@@ -1090,24 +1095,36 @@ class CreateSAMROIFrame(CreateFrame):
                                                         directed_hausdorff(np.array(np.where(data[dt])).T,np.array(np.where(gt_lesion)).T)[0])
 
         # optional save dict to json
-        # currently this will overwrite, but should have the option to append/update
         if save:
+            studydir = self.ui.data[self.ui.s].studydir
+            statsfile = os.path.join(studydir,'stats.json')
+            if os.path.exists(statsfile):
+                fp = open(statsfile,'r+')
+                sdict = json.load(fp)
+                fp.seek(0)
+                sdict[tag] = {}
+            else:
+                fp = open(statsfile,'w')
+                sdict = {tag:{}}
             # dummy loop. there is only 1 roi supported for now.  
             for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy zero ROI
-                sdict = {'roi'+str(i+1):{'stats':None,'bbox':None}}
-                sdict['roi'+str(i+1)]['stats'] = r.stats
+                sdict[tag] = {'roi'+str(i+1):{'stats':None,'bbox':None}}
+                sdict[tag]['roi'+str(i+1)]['stats'] = r.stats
                 bboxs = {}
                 # presence of bbox indicates sam versus blast, separate roitype maybe not needed.
-                for k in r.bboxs.keys():
-                    bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1']}
-                sdict['roi'+str(i+1)]['bbox'] = bboxs
-            filename = 'stats_' + roitype
-            if tag is not None:
-                filename += '_' + tag
-            filename += '.json'
-            filename = os.path.join(self.ui.data[self.ui.s].studydir,filename)
-            with open(filename,'w') as fp:
-                json.dump(sdict,fp,indent=4)
+                if hasattr(r,'bboxs'):
+                    for k in r.bboxs.keys():
+                        bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1']}
+                    sdict[tag]['roi'+str(i+1)]['bbox'] = bboxs
+            # filename = 'stats_' + roitype
+            # if tag is not None:
+            #     filename += '_' + tag
+            # filename += '.json'
+            # filename = os.path.join(self.ui.data[self.ui.s].studydir,filename)
+
+            json.dump(sdict,fp,indent=4)
+            fp.truncate()
+            fp.close()
 
 
 
