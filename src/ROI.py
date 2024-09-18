@@ -9,6 +9,9 @@ class ROI():
         self.status = False
 
         # segmentation/contour masks
+        # seg_fusion - an overlay image
+        # seg_fusion_d - a copy of overaly image for display purposes
+        # bbox - 3d volume of 2d bbox prompts of each in-plane slice, for use with SAM
         self.data = {'WT':None,'ET':None,'TC':None,'contour':{'WT':None,'ET':None},
                      'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
@@ -21,7 +24,7 @@ class ROI():
         self.coords[compartment]['y'] = ypos
         self.coords[compartment]['slice'] = slice
 
-        # SAM drawn bbox coordinates and values
+        # SAM drawn bbox coordinates and values, or bbox from BLAST mask
         self.bboxs = {}
 
         # threshold gates saved as intermediate values

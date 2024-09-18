@@ -1,5 +1,7 @@
-# script for loading checkpoint results 
-# for sam fine-tuning with BraTS2024
+# script for loading checkpoint results
+# and running a prediction
+#  
+# from sam fine-tuning with BraTS2024
 
 import numpy as np
 import os

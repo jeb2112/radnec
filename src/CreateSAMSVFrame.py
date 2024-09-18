@@ -697,7 +697,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
     def clear_bbox(self):
         if self.bbox['plot'] is not None:
             self.axs[self.bbox['ax']].lines[0].remove() # coded for only 1 line
-        self.bbox = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
+        self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
         self.ui.clear_message()
         self.canvas.draw()
 
@@ -750,6 +750,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0']))
             # also need to plot here since there was no show_bbox from a drag event
             self.draw_point()
+        # here slice is the key for a group of multiple bboxs.
         self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[self.ui.currentslice] = copy.deepcopy(self.bbox)
         if False:
             self.bbox = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}

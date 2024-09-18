@@ -177,10 +177,8 @@ class SAMDataset(Dataset):
             y_min = max(0, y_min + np.random.randint(-perturbation, perturbation))
             y_max = min(H, y_max + np.random.randint(-perturbation, perturbation))
 
-        if True: # original code
-            bbox = [x_min, y_min, x_max, y_max]
-        else: # apparent correction for sam bbox convention is needed
-            bbox = [y_min, x_min, y_max, x_max]
+        bbox = [x_min, y_min, x_max, y_max]
+        
         return bbox
 
     def _getitem_bbox(self, input_image, ground_truth_mask):  

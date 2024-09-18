@@ -635,6 +635,11 @@ class CreateSAMROIFrame(CreateFrame):
             self.save_prompts(sam=self.ui.currentslice,mask='ET')
             # automatically run sam but only for current slice
             self.segment_sam(tag='blast')
+            # also generate the bbox, so it can be saved in stats.json. 
+            # this duplicates code, but the standalone script doesn't 
+            # have any arrangement for saving bbox's.
+            # this should all get integrated as the SAM project moves forward.
+            self.get_input_bbox()
             # currently saving 2d single-slice result separately from the ROIstats save in 
             # the saveROI() method. this is temporary or needs to be fixed properly.
             # also have bbox hard-coded in tag here, but the blast mask could also 
@@ -823,7 +828,7 @@ class CreateSAMROIFrame(CreateFrame):
         return None
 
     # temp output for sam segmentation prompts
-    # using tmpfiles so ptorch not needed in the blast env
+    # using tmpfiles and standalone script for separate ptorch env. ultimately should add ptorch to the blast env
     def save_prompts(self,sam=0,mask='ET'):
 
         # roi context
@@ -912,13 +917,6 @@ class CreateSAMROIFrame(CreateFrame):
             if True:
                 self.ui.roi = self.ui.rois['blast']
                 self.ROIstats(save=True,roitype='blast')
-                # sdict = {}
-                # for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
-                #     sdict['roi'+str(i+1)] = r.stats
-
-                # filename = os.path.join(fileroot,'stats_blast.json')
-                # with open(filename,'w') as fp:
-                #     json.dump(sdict,fp,indent=4)
 
         # now run the SAM segmentation across all available slice masks
         # this longer process will thus not be counted in the timer.
@@ -943,18 +941,7 @@ class CreateSAMROIFrame(CreateFrame):
         # also output stats to pickle
         if True:
             self.ui.roi = self.ui.rois['sam'] # switch context
-            self.ROIstats(save=True,roitype='sam',tag=tag)
-            # for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy 
-            #     sdict = {'roi'+str(i+1):{'stats':None,'bbox':None}}
-            #     sdict['roi'+str(i+1)]['stats'] = r.stats
-            #     bboxs = {}
-            #     for k in r.bboxs.keys():
-            #         bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1']}
-            #     sdict['roi'+str(i+1)]['bbox'] = bboxs
-            # filename = os.path.join(fileroot,'stats_sam_'+tag+'.json')
-            # with open(filename,'w') as fp:
-            #     json.dump(sdict,fp,indent=4)
-        
+            self.ROIstats(save=True,roitype='sam',tag=tag)        
 
     # back-copy an existing ROI and overlay from current dataset back into the current roi. 
     # not sure if still needed though
@@ -1111,11 +1098,16 @@ class CreateSAMROIFrame(CreateFrame):
                 sdict[tag] = {'roi'+str(i+1):{'stats':None,'bbox':None}}
                 sdict[tag]['roi'+str(i+1)]['stats'] = r.stats
                 bboxs = {}
-                # presence of bbox indicates sam versus blast, separate roitype maybe not needed.
-                if hasattr(r,'bboxs'):
+                # currently have separate storage for SAM bbox versus blast bbox.
+                # presence of SAM bbox indicates sam versus blast, separate roitype maybe not needed.
+                if bool(r.bboxs): # SAM
                     for k in r.bboxs.keys():
-                        bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1']}
-                    sdict[tag]['roi'+str(i+1)]['bbox'] = bboxs
+                        bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1','slice']}
+                elif bool(r.data['bbox']): # BLAST
+                    for k in r.data['bbox'].keys():
+                        bboxs[k] = {k2:r.data['bbox'][k][k2] for k2 in ['p0','p1','slice']}
+
+                sdict[tag]['roi'+str(i+1)]['bbox'] = bboxs
             # filename = 'stats_' + roitype
             # if tag is not None:
             #     filename += '_' + tag
@@ -1218,6 +1210,47 @@ class CreateSAMROIFrame(CreateFrame):
 
         return 
     
+
+    # calculate bbox from BLAST mask
+    # duplicate code. copied from SAMDataset.py.
+    # the huggingface SAM classes are currently separate
+    # from the viewer code and only used in standalone script
+    # sam_hf.py. If SAM development continues,
+    # this should become integrated and duplication removed.
+    def get_input_bbox(self,mask=None,perturbation=0,padding=3):
+
+        roi = self.ui.get_currentroi()
+        s = self.ui.s
+        slice = self.ui.currentslice
+        if mask is None:
+            mask = self.ui.roi[s][roi].data['ET'][slice]
+        # Find minimum mask bounding all included mask points.
+        y_indices, x_indices = np.where(mask > 0)
+        x_min, x_max = np.min(x_indices), np.max(x_indices)
+        y_min, y_max = np.min(y_indices), np.max(y_indices)
+
+        # add padding
+        ydim,xdim = np.shape(mask)
+        x_min = max(0,x_min - padding)
+        y_min = max(0,y_min - padding)
+        x_max = min(xdim-1,x_max + padding)
+        y_max = min(ydim-1,y_max + padding)
+
+        if perturbation:  # Add perturbation to bounding box coordinates.
+            H, W = mask.shape
+            x_min = max(0, x_min + np.random.randint(-perturbation, perturbation))
+            x_max = min(W, x_max + np.random.randint(-perturbation, perturbation))
+            y_min = max(0, y_min + np.random.randint(-perturbation, perturbation))
+            y_max = min(H, y_max + np.random.randint(-perturbation, perturbation))
+
+        # duplicates sliceviewerframe bbox
+        bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
+        bbox['p0'] = [int(x_min), int(y_min)]
+        bbox['p1'] = [int(x_max), int(y_max)]
+        self.ui.roi[s][roi].bboxs[slice] = copy.deepcopy(bbox)
+
+        return
+
 
     #############################
     # methods for point selection
