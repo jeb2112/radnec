@@ -644,7 +644,7 @@ class CreateSAMROIFrame(CreateFrame):
             # the saveROI() method. this is temporary or needs to be fixed properly.
             # also have bbox hard-coded in tag here, but the blast mask could also 
             # be used for points prompt
-            self.ui.roiframe.ROIstats(save=True,tag='blast_bbox',roitype='sam')
+            self.ui.roiframe.ROIstats(save=True,tag='blast_bbox',roitype='sam',slice=self.ui.currentslice)
             # automatically switch to SAM display
             self.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -1049,12 +1049,13 @@ class CreateSAMROIFrame(CreateFrame):
     # roi - optionally provide the roi number to process. currently, only 1 roi at a time is coded.
     # tag - additional string for labelling output files
     # roitype - for sam versus blast. dual roi data structure continues to be awkward.
-    def ROIstats(self,roi=None,save=False,tag=None,roitype='blast'):
+    # slice - process given slice or whole volume if None
+    def ROIstats(self,roi=None,save=False,tag=None,roitype='blast',slice=None):
         
         if roi is None:
             roi = self.ui.get_currentroi() # ie, there is only 1 roi in SAM viewer for now
         s = self.ui.s
-        data = self.ui.roi[s][roi].data
+        data = copy.deepcopy(self.ui.roi[s][roi].data)
         self.ui.roi[s][roi].stats['elapsedtime'] = self.ui.sliceviewerframe.elapsedtime
 
         for dt in ['ET','TC','WT']:
@@ -1063,7 +1064,13 @@ class CreateSAMROIFrame(CreateFrame):
                 continue
             elif data[dt] is None:
                 continue
-            self.ui.roi[s][roi].stats['vol'][dt] = len(np.where(data[dt])[0])
+            if np.max(data[dt]) > 1:
+                data[dt] = data[dt] == np.max(data[dt])
+            if slice is None:
+                dset = data[dt]
+            else:
+                dset = data[dt][slice]
+            self.ui.roi[s][roi].stats['vol'][dt] = len(np.where(dset)[0])
 
             # ground truth comparisons
             if self.ui.data[self.ui.s].mask['gt'][dt]['ex']:
@@ -1074,13 +1081,17 @@ class CreateSAMROIFrame(CreateFrame):
                 centroid_point = np.array(list(map(int,np.mean(np.where(data[dt]),axis=1)))) 
                 objectnumber = CC_labeled[centroid_point[0],centroid_point[1],centroid_point[2]]
                 gt_lesion = (CC_labeled == objectnumber).astype('uint8')
+                if slice is not None:
+                    gt_lesion = gt_lesion[slice]
 
                 # dice
-                self.ui.roi[s][roi].stats['dsc'][dt] = 1-dice(gt_lesion.flatten(),data[dt].flatten()) 
+                self.ui.roi[s][roi].stats['dsc'][dt] = 1-dice(gt_lesion.flatten(),dset.flatten()) 
                 # haunsdorff
-                self.ui.roi[s][roi].stats['hd'][dt] = max(directed_hausdorff(np.array(np.where(gt_lesion)).T,np.array(np.where(data[dt])).T)[0],
-                                                        directed_hausdorff(np.array(np.where(data[dt])).T,np.array(np.where(gt_lesion)).T)[0])
-
+                self.ui.roi[s][roi].stats['hd'][dt] = max(directed_hausdorff(np.array(np.where(gt_lesion)).T,np.array(np.where(dset)).T)[0],
+                                                        directed_hausdorff(np.array(np.where(dset)).T,np.array(np.where(gt_lesion)).T)[0])
+            else:
+                raise ValueError('No ground truth mask available')
+            
         # optional save dict to json
         if save:
             studydir = self.ui.data[self.ui.s].studydir
@@ -1098,21 +1109,11 @@ class CreateSAMROIFrame(CreateFrame):
                 sdict[tag] = {'roi'+str(i+1):{'stats':None,'bbox':None}}
                 sdict[tag]['roi'+str(i+1)]['stats'] = r.stats
                 bboxs = {}
-                # currently have separate storage for SAM bbox versus blast bbox.
-                # presence of SAM bbox indicates sam versus blast, separate roitype maybe not needed.
-                if bool(r.bboxs): # SAM
+                if bool(r.bboxs): # this should now be populated both for manual prompts and BLAST prompt
                     for k in r.bboxs.keys():
                         bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1','slice']}
-                elif bool(r.data['bbox']): # BLAST
-                    for k in r.data['bbox'].keys():
-                        bboxs[k] = {k2:r.data['bbox'][k][k2] for k2 in ['p0','p1','slice']}
 
                 sdict[tag]['roi'+str(i+1)]['bbox'] = bboxs
-            # filename = 'stats_' + roitype
-            # if tag is not None:
-            #     filename += '_' + tag
-            # filename += '.json'
-            # filename = os.path.join(self.ui.data[self.ui.s].studydir,filename)
 
             json.dump(sdict,fp,indent=4)
             fp.truncate()

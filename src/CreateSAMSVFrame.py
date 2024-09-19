@@ -508,7 +508,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             prompt = 'bbox'
         self.ui.roiframe.save_prompts(sam=self.ui.currentslice,mask='bbox')
         self.ui.roiframe.segment_sam(tag='manual',prompt=prompt)
-        self.ui.roiframe.ROIstats(save=True,tag='manual_'+prompt,roitype='sam')
+        self.ui.roiframe.ROIstats(save=True,tag='manual_'+prompt,roitype='sam',slice=self.ui.currentslice)
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
