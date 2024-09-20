@@ -32,7 +32,7 @@ import cc3d
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
-from src.ROI import ROI,ROIPoint
+from src.ROI import ROIBLAST,ROISAM,ROIPoint
 
 # contains various ROI methods and variables for 'SAM' mode
 class CreateSAMROIFrame(CreateFrame):
@@ -52,7 +52,7 @@ class CreateSAMROIFrame(CreateFrame):
         self.thresholds['ET']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[0])
         self.thresholds['T2 hyper']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[1])
         self.overlay_type = tk.IntVar(value=0)
-        self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all'],'sam':['ET','TC','WT','all']}
+        self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all'],'sam':['TC']}
         self.layer = tk.StringVar(value='ET')
         self.layerROI = tk.StringVar(value='ET')
         self.layerSAM = tk.StringVar(value='ET')
@@ -357,6 +357,7 @@ class CreateSAMROIFrame(CreateFrame):
             self.updateData()
 
         if updateslice:
+            self.ui.set_currentslice(self.ui.roi[self.ui.s][roi].coords['slice'])
             self.ui.updateslice()
         
         # restore roi context
@@ -395,7 +396,10 @@ class CreateSAMROIFrame(CreateFrame):
 
         self.ui.set_currentroi()
         # reference or copy
-        self.layerROI_callback(updatedata=True)
+        if self.overlay_value['BLAST'].get():
+            self.layerROI_callback(updatedata=True)
+        elif self.overlay_value['SAM'].get():
+            self.layerSAM_callback(updatedata=True)
         self.ui.updateslice()
         return
     
@@ -565,12 +569,12 @@ class CreateSAMROIFrame(CreateFrame):
                 # same compartment, it will be updated.
                 if roi > 0:
                     if self.ui.roi[self.ui.s][roi].data['ET'] is not None and self.ui.roi[self.ui.s][roi].data['WT'] is not None:
-                        self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
+                        self.createROI(coords = (int(event.xdata),int(event.ydata),self.ui.get_currentslice()) )
                     else:
                         self.updateROI(event)
                 else:
                     # for the SAM viewer, there should only ever be 1 ROI active
-                    self.createROI(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
+                    self.createROI(coords = (int(event.xdata),int(event.ydata),self.ui.get_currentslice()) )
             
         roi = self.ui.get_currentroi()
 
@@ -662,10 +666,14 @@ class CreateSAMROIFrame(CreateFrame):
         return None
     
     # records button press coords in a new ROI object
-    def createROI(self,x,y,slice):
-        compartment = self.layer.get()
-        roi = ROI(x,y,slice,compartment=compartment)
-        self.ui.roi[self.ui.s].append(roi)
+    # create a parallel list of SAM and BLAST roi's. 
+    def createROI(self,coords=(0,0,0),bbox={}):
+        blast_layer = self.layer.get()
+        roi = ROIBLAST(coords,dim=self.ui.sliceviewerframe.dim,layer=blast_layer)
+        self.ui.rois['blast'][self.ui.s].append(roi)
+        roi2 = ROISAM(bbox,dim=self.ui.sliceviewerframe.dim,layer='TC')
+        self.ui.rois['sam'][self.ui.s].append(roi2)
+ 
         self.currentroi.set(self.currentroi.get() + 1)
         self.updateROIData()
         self.update_roinumber_options()

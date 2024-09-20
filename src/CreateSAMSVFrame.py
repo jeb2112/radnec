@@ -731,25 +731,23 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         # for SAM bbox prompt mode, it is hard-coded for one ROI only
         # self.ui.currentroi should always equal 1
-        if self.ui.currentroi > 1 or len(self.ui.roiframe.roilist) > 1:
-            print('All existing ROI\'s must be cleared before generating a bbox ROI')
-            self.ui.set_message('All existing ROI\'s must be cleared before generating a bbox ROI')
-            return
-        if self.ui.currentroi == 0:
-            self.ui.roiframe.createROI(self.bbox['p0'][0],self.bbox['p0'][1],self.currentslice)
-            self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'] = np.zeros(self.dim)
-        if 'p1' in self.bbox.keys():
-            if self.bbox['p1'] is not None: #bbox
-                self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0'],self.bbox['p1']))
-            else: # pointprompt
-                self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0']))
-                # also need to plot here since there was no show_bbox from a drag event
-                self.draw_point()
-        else:
-            self.bbox['p1'] = None
-            self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0']))
+        # if self.ui.currentroi > 1 or len(self.ui.roiframe.roilist) > 1:
+        #     print('All existing ROI\'s must be cleared before generating a bbox ROI')
+        #     self.ui.set_message('All existing ROI\'s must be cleared before generating a bbox ROI')
+        #     return
+        # if self.ui.currentroi == 0:
+        self.ui.roiframe.createROI(bbox = self.bbox)
+        # should be in createROI
+        # self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'] = np.zeros(self.dim)
+        assert 'p1' in self.bbox.keys()
+        # if self.bbox['p1'] is not None: #bbox
+        #     self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0'],self.bbox['p1']))
+        # else: # pointprompt
+        #     self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0']))
             # also need to plot here since there was no show_bbox from a drag event
+        if self.bbox['p1'] is None:
             self.draw_point()
+        
         # here slice is the key for a group of multiple bboxs.
         self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[self.ui.currentslice] = copy.deepcopy(self.bbox)
         if False:
