@@ -765,9 +765,11 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         self.bbox = copy.deepcopy(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[self.ui.currentslice])
         self.bbox['plot'] = None
+        if self.bbox['ax'] is None:
+            return
         if self.bbox['p1'] is not None:
             self.draw_bbox(self.bbox['p1'][0],self.bbox['p1'][1],self.bbox['ax'])
-        else:
+        elif self.bbox['p0'] is not None:
             self.draw_point()
         self.canvas.draw()
 

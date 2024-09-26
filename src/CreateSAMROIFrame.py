@@ -568,7 +568,8 @@ class CreateSAMROIFrame(CreateFrame):
                 # if current roi has segmentations for both compartments, start a new ROI
                 # otherwise if only 1 segmentation is present and the mouse click is for that
                 # same compartment, it will be updated.
-                if roi > 0:
+                # however, in this branch for SAM analysis there is no WT, so any event is a new ROI
+                if roi > 0 and False:
                     if self.ui.roi[self.ui.s][roi].data['ET'] is not None and self.ui.roi[self.ui.s][roi].data['WT'] is not None:
                         self.createROI(coords = (int(event.xdata),int(event.ydata),self.ui.get_currentslice()) )
                     else:
@@ -1073,7 +1074,7 @@ class CreateSAMROIFrame(CreateFrame):
 
     # various output stats, add more as required
     # roi - optionally provide the roi number to process. currently, only 1 roi at a time is coded.
-    # tag - additional string for labelling output files
+    # tag - top-level section key for output .json file. 
     # roitype - for sam versus blast. dual roi data structure continues to be awkward.
     # slice - process given slice or whole volume if None
     def ROIstats(self,roi=None,save=False,tag=None,roitype='blast',slice=None):
@@ -1133,7 +1134,7 @@ class CreateSAMROIFrame(CreateFrame):
                 sdict = {tag:{}}
             # dummy loop. there is only 1 roi supported for now.  
             for i,r in enumerate(self.ui.rois[roitype][self.ui.s][1:]): # skip dummy zero ROI
-                sdict[tag] = {'roi'+str(i+1):{'stats':None,'bbox':None}}
+                sdict[tag]['roi'+str(i+1)] = {'stats':None,'bbox':None}
                 sdict[tag]['roi'+str(i+1)]['stats'] = r.stats
                 if hasattr(r,'bboxs'):
                     bboxs = {}
