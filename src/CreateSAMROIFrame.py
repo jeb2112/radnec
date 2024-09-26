@@ -1081,8 +1081,9 @@ class CreateSAMROIFrame(CreateFrame):
         if roi is None:
             roi = self.ui.get_currentroi() # ie, there is only 1 roi in SAM viewer for now
         s = self.ui.s
-        data = copy.deepcopy(self.ui.roi[s][roi].data)
-        self.ui.roi[s][roi].stats['elapsedtime'] = self.ui.sliceviewerframe.elapsedtime
+        r = self.ui.rois[roitype][s][roi]
+        data = copy.deepcopy(r.data)
+        r.stats['elapsedtime'] = self.ui.sliceviewerframe.elapsedtime
 
         for dt in ['ET','TC','WT']:
             # check for a complete segmentation
@@ -1096,7 +1097,7 @@ class CreateSAMROIFrame(CreateFrame):
                 dset = data[dt]
             else:
                 dset = data[dt][slice]
-            self.ui.roi[s][roi].stats['vol'][dt] = len(np.where(dset)[0])
+            r.stats['vol'][dt] = len(np.where(dset)[0])
 
             # ground truth comparisons
             if self.ui.data[self.ui.s].mask['gt'][dt]['ex']:
@@ -1111,9 +1112,9 @@ class CreateSAMROIFrame(CreateFrame):
                     gt_lesion = gt_lesion[slice]
 
                 # dice
-                self.ui.roi[s][roi].stats['dsc'][dt] = 1-dice(gt_lesion.flatten(),dset.flatten()) 
+                r.stats['dsc'][dt] = 1-dice(gt_lesion.flatten(),dset.flatten()) 
                 # haunsdorff
-                self.ui.roi[s][roi].stats['hd'][dt] = max(directed_hausdorff(np.array(np.where(gt_lesion)).T,np.array(np.where(dset)).T)[0],
+                r.stats['hd'][dt] = max(directed_hausdorff(np.array(np.where(gt_lesion)).T,np.array(np.where(dset)).T)[0],
                                                         directed_hausdorff(np.array(np.where(dset)).T,np.array(np.where(gt_lesion)).T)[0])
             else:
                 raise ValueError('No ground truth mask available')

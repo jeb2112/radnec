@@ -48,7 +48,7 @@ class ROISAM(ROI):
         self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None,'slice':None} 
         # dict of bbox's, with key = slice
         self.bboxs = {}
-        # if this is just a duplicate placeholder ROI for a BLAST ROI, bbox is empty {}       
+        # if this is just a duplicate placeholder ROI parallel to a BLAST ROI, bbox is empty {}       
         if bool(bbox):
             for k in bbox.keys():
                 if k in list(self.bbox.keys()):
