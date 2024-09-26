@@ -648,9 +648,10 @@ class CreateSAMROIFrame(CreateFrame):
             # this should all get integrated as the SAM project moves forward.
             self.get_input_bbox()
             # currently saving 2d single-slice result separately from the ROIstats save in 
-            # the saveROI() method. this is temporary or needs to be fixed properly.
-            # also have bbox hard-coded in tag here, but the blast mask could also 
-            # be used for points prompt
+            # the saveROI() method. this is temporary and needs some reconciliation to 
+            # avoid over-writing. 
+            # so far only creating a bbox prompt from the blast mask but could also 
+            # derive a points prompt
             self.ui.roiframe.ROIstats(save=True,tag='blast_bbox',roitype='sam',slice=self.ui.currentslice)
             # automatically switch to SAM display
             self.set_overlay('SAM')
@@ -931,13 +932,10 @@ class CreateSAMROIFrame(CreateFrame):
 
         # now run the SAM segmentation across all available slice masks
         # this longer process will thus not be counted in the timer.
-        # currently assuming only 1 roi exists at a time hard-coded [1], and that roi is either
-        # a BLAST segmentation, or a handdrawn bbox SAM segmentation. 
         # currently, if handdrawn, it is assumed at least one currentslice segmentation has been performed
-        # from handdrawn bbox, to populate data['bbox']. that distinction is being 
-        # used to decide which prompt to use for final 3d SAM here. awkward, but data structure
-        # is not fully parallelized between SAM, BLAST, bbox and blast sam prompts,
-        # because this viewer might be just a one-off. 
+        # from handdrawn bbox, to populate the 'bboxs' dict. that distinction is being 
+        # used to decide which prompt to use for final 3d SAM here. awkward, 
+        # could be improved.
         if len(list(self.ui.rois['sam'][self.ui.s][self.ui.currentroi].bboxs.keys())) > 0:
             tag = 'bbox'
             self.save_prompts(mask='bbox')
@@ -1072,8 +1070,10 @@ class CreateSAMROIFrame(CreateFrame):
             else:
                 v.append(0)
 
-    # various output stats, add more as required
-    # roi - optionally provide the roi number to process. currently, only 1 roi at a time is coded.
+    # various output stats, add more as required. 
+    # an existing stats file is read in if present, and values added for the current roi,
+    # 
+    # roi - optionally provide the roi number to process. 
     # tag - top-level section key for output .json file. 
     # roitype - for sam versus blast. dual roi data structure continues to be awkward.
     # slice - process given slice or whole volume if None
@@ -1132,7 +1132,7 @@ class CreateSAMROIFrame(CreateFrame):
             else:
                 fp = open(statsfile,'w')
                 sdict = {tag:{}}
-            # dummy loop. there is only 1 roi supported for now.  
+
             for i,r in enumerate(self.ui.rois[roitype][self.ui.s][1:]): # skip dummy zero ROI
                 sdict[tag]['roi'+str(i+1)] = {'stats':None,'bbox':None}
                 sdict[tag]['roi'+str(i+1)]['stats'] = r.stats
@@ -1147,7 +1147,6 @@ class CreateSAMROIFrame(CreateFrame):
             json.dump(sdict,fp,indent=4)
             fp.truncate()
             fp.close()
-
 
 
     # tumour segmenation by SAM
