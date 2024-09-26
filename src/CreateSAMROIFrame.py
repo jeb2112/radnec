@@ -354,10 +354,11 @@ class CreateSAMROIFrame(CreateFrame):
                                                         overlay_intensity=self.config.OverlayIntensity)
 
         if updatedata:
-            self.updateData()
+            self.updateSAMData()
 
         if updateslice:
-            self.ui.set_currentslice(self.ui.roi[self.ui.s][roi].coords['slice'])
+            # ie the most recent bbox from the list of bboxs.
+            self.ui.set_currentslice(self.ui.roi[self.ui.s][roi].bbox['slice'])
             self.ui.updateslice()
         
         # restore roi context
@@ -579,16 +580,17 @@ class CreateSAMROIFrame(CreateFrame):
         roi = self.ui.get_currentroi()
 
         # awkward hack: create a duplicate ROI for 'sam'
-        if roi == 1:
-            compartment = self.layer.get()
-            roi_forsam = ROI(self.ui.roi[self.ui.s][roi].coords[compartment]['x'],
-                            self.ui.roi[self.ui.s][roi].coords[compartment]['y'],
-                            self.ui.get_currentslice(),compartment=compartment)
-            self.ui.roi = self.ui.rois['sam']
-            self.ui.roi[self.ui.s].append(roi_forsam)
-            self.ui.roi = self.ui.rois['blast']
-        else:
-            raise ValueError('Only one ROI is supported for SAM')
+        # that is now done in createROI
+        # if roi == 1:
+        #     compartment = self.layer.get()
+        #     roi_forsam = ROI(self.ui.roi[self.ui.s][roi].coords[compartment]['x'],
+        #                     self.ui.roi[self.ui.s][roi].coords[compartment]['y'],
+        #                     self.ui.get_currentslice(),compartment=compartment)
+        #     self.ui.roi = self.ui.rois['sam']
+        #     self.ui.roi[self.ui.s].append(roi_forsam)
+        #     self.ui.roi = self.ui.rois['blast']
+        # else:
+        #     raise ValueError('Only one ROI is supported for SAM')
 
         try:
             self.closeROI(self.ui.data[self.ui.s].dset['seg_raw'][self.ui.chselection]['d'],self.ui.get_currentslice(),do3d=do3d)
@@ -639,7 +641,7 @@ class CreateSAMROIFrame(CreateFrame):
             self.save_prompts(sam=self.ui.currentslice,mask='ET')
             # automatically run sam but only for current slice
             self.segment_sam(tag='blast')
-            # also generate the bbox, so it can be saved in stats.json. 
+            # also generate the bbox and store in SAM roi, so it can be saved in stats.json. 
             # this duplicates code, but the standalone script doesn't 
             # have any arrangement for saving bbox's.
             # this should all get integrated as the SAM project moves forward.
@@ -1001,6 +1003,22 @@ class CreateSAMROIFrame(CreateFrame):
                 self.ui.data[s].mask[dt]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
         self.updatesliders()
 
+    # forward-copy certain results from the SAM ROI to the main dataset
+    # duplicates updateData except hard-coded for 'TC', should combine better.
+    def updateSAMData(self,updatemask=False):
+        s = self.ui.s
+        # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
+        layer = self.layer.get()
+        for dt in ['seg_fusion']:
+            for ch in [self.ui.chselection,'flair']:
+                self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt][ch])
+        for dt in ['TC']:
+            self.ui.data[s].mask['sam'][dt]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt])
+            self.ui.data[s].mask['sam'][dt]['ex'] = True
+            if self.ui.sliceviewerframes['overlay'] is not None:
+                self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
+
+
     # eliminate latest ROI if there are multiple ROIs in current case
     # not updated for SAM viewer yet
     def clearROI(self):
@@ -1113,15 +1131,16 @@ class CreateSAMROIFrame(CreateFrame):
                 fp = open(statsfile,'w')
                 sdict = {tag:{}}
             # dummy loop. there is only 1 roi supported for now.  
-            for i,r in enumerate(self.ui.roi[self.ui.s][1:]): # skip dummy zero ROI
+            for i,r in enumerate(self.ui.rois[roitype][self.ui.s][1:]): # skip dummy zero ROI
                 sdict[tag] = {'roi'+str(i+1):{'stats':None,'bbox':None}}
                 sdict[tag]['roi'+str(i+1)]['stats'] = r.stats
-                bboxs = {}
-                if bool(r.bboxs): # this should now be populated both for manual prompts and BLAST prompt
-                    for k in r.bboxs.keys():
-                        bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1','slice']}
+                if hasattr(r,'bboxs'):
+                    bboxs = {}
+                    if bool(r.bboxs): # this should now be populated both for manual prompts and BLAST prompt
+                        for k in r.bboxs.keys():
+                            bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1','slice']}
 
-                sdict[tag]['roi'+str(i+1)]['bbox'] = bboxs
+                    sdict[tag]['roi'+str(i+1)]['bbox'] = bboxs
 
             json.dump(sdict,fp,indent=4)
             fp.truncate()
@@ -1206,8 +1225,9 @@ class CreateSAMROIFrame(CreateFrame):
         self.ui.roi[self.ui.s][roi].data['seg'] = 2*self.ui.roi[self.ui.s][roi].data[layer] #+ \
                                                 # 1*self.ui.roi[self.ui.s][roi].data['WT_sam']
         # need to add this to updateData() or create similar method
-        self.ui.data[self.ui.s].mask['sam'][layer]['d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data[layer])
-        self.ui.data[self.ui.s].mask['sam'][layer]['ex'] = True
+        if False:
+            self.ui.data[self.ui.s].mask['sam'][layer]['d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data[layer])
+            self.ui.data[self.ui.s].mask['sam'][layer]['ex'] = True
 
         # restore roi context
         if tag == 'blast':
@@ -1256,7 +1276,10 @@ class CreateSAMROIFrame(CreateFrame):
         bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
         bbox['p0'] = [int(x_min), int(y_min)]
         bbox['p1'] = [int(x_max), int(y_max)]
-        self.ui.roi[s][roi].bboxs[slice] = copy.deepcopy(bbox)
+        bbox['slice'] = slice
+        self.ui.rois['sam'][s][roi].bboxs[slice] = copy.deepcopy(bbox)
+        # this could be just a reference
+        self.ui.rois['sam'][s][roi].bbox = copy.deepcopy(bbox)
 
         return
 

@@ -44,11 +44,17 @@ class ROIBLAST(ROI):
 class ROISAM(ROI):
     def __init__(self,bbox,dim,layer='TC'):
         super().__init__(dim)
-        # SAM drawn bbox coordinates and values, or bbox from BLAST mask
-        if bbox is None:
-            self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None}        
-        else:
-            self.bboxs = bbox
+        # a SAM drawn bbox coordinates and values, or bbox from BLAST mask
+        self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None,'slice':None} 
+        # dict of bbox's, with key = slice
+        self.bboxs = {}
+        # if this is just a duplicate placeholder ROI for a BLAST ROI, bbox is empty {}       
+        if bool(bbox):
+            for k in bbox.keys():
+                if k in list(self.bbox.keys()):
+                    self.bbox[k] = bbox[k]
+                else:
+                    raise KeyError
         self.mask = None
 
         # segmentation masks
@@ -63,7 +69,8 @@ class ROISAM(ROI):
                      'bbox':None
                      }
         self.data['bbox'] = np.zeros(dim,dtype='uint8')
-        self.create_mask_from_bbox()
+        if bool(bbox): # ie a non-empty dict
+            self.create_mask_from_bbox()
 
     # compute mask array from bounding box. 
     # this is a round-about arrangement, since sam.py script
@@ -73,8 +80,8 @@ class ROISAM(ROI):
     def create_mask_from_bbox(self, box_extension=0):
         mask = np.zeros((self.dim[1],self.dim[2]),dtype='uint8')
         if self.bbox['p1'] is None:
-            bbox = np.round(np.array(bbox)).astype('int')
-            mask[self.bbox['p0'][1],self.bbox['p0'][0]] = 1
+            bbox = np.round(np.array(self.bbox['p0'])).astype('int')
+            mask[bbox[1],bbox[0]] = 1
         else:
             vxy = np.array([[self.bbox['p0'][0],self.bbox['p0'][1]],
                         [self.bbox['p1'][0],self.bbox['p0'][1]],

@@ -736,15 +736,17 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         #     self.ui.set_message('All existing ROI\'s must be cleared before generating a bbox ROI')
         #     return
         # if self.ui.currentroi == 0:
+
+        assert 'p1' in self.bbox.keys()
         self.ui.roiframe.createROI(bbox = self.bbox)
         # should be in createROI
         # self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'] = np.zeros(self.dim)
-        assert 'p1' in self.bbox.keys()
         # if self.bbox['p1'] is not None: #bbox
         #     self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0'],self.bbox['p1']))
         # else: # pointprompt
         #     self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0']))
-            # also need to plot here since there was no show_bbox from a drag event
+
+        # also need to plot here since there was no show_bbox from a drag event
         if self.bbox['p1'] is None:
             self.draw_point()
         
