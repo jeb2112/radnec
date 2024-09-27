@@ -1077,14 +1077,19 @@ class CreateSAMROIFrame(CreateFrame):
     # tag - top-level section key for output .json file. 
     # roitype - for sam versus blast. dual roi data structure continues to be awkward.
     # slice - process given slice or whole volume if None
-    def ROIstats(self,roi=None,save=False,tag=None,roitype='blast',slice=None):
+    # timer - read the SVFrame timer and record
+    def ROIstats(self,roi=None,save=False,tag=None,roitype='blast',slice=None,timer=True):
         
         if roi is None:
             roi = self.ui.get_currentroi() # ie, there is only 1 roi in SAM viewer for now
         s = self.ui.s
         r = self.ui.rois[roitype][s][roi]
         data = copy.deepcopy(r.data)
-        r.stats['elapsedtime'] = self.ui.sliceviewerframe.elapsedtime
+        if timer and self.ui.sliceviewerframe.timing.get():
+            currenttime = time.time()
+            elapsedtime = currenttime - self.ui.sliceviewerframe.prevtime
+            r.stats['elapsedtime'] = np.round(elapsedtime*10)/10
+            self.ui.sliceviewerframe.prevtime = currenttime
 
         for dt in ['ET','TC','WT']:
             # check for a complete segmentation

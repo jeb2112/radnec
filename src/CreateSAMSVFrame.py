@@ -62,7 +62,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
         self.sliceinc = 0
-        self.prevtime = 0
         # image dimensions
         self.dim = self.ui.config.ImageDim
         self.canvas = None
@@ -73,6 +72,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.ui = ui
         # user interaction time
         self.dwelltime = None
+        # previous time for timer
+        self.prevtime = None
         self.timingtext = tk.StringVar(value='off')
         self.timing = tk.IntVar(value=0)
         self.elapsedtime = 0
@@ -795,7 +796,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
     def timer(self):
         if self.timing.get():
             self.tstart = time.time()
-            self.ct = np.copy(self.tstart)
+            self.prevtime = np.copy(self.tstart)
             self.timingtext.set('on')
         else:
             self.tstop = time.time()
