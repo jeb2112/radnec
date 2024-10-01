@@ -133,7 +133,8 @@ class CreateSAMROIFrame(CreateFrame):
         saveROI.grid(row=1,column=8,sticky='w')
 
         # clear ROI button
-        # using resetROI until multiple ROI's are coded properly
+        # using resetROI for now, but should restore this functionality to apply to 
+        # current ROI only.
         clearROI = ttk.Button(self.frame,text='clear ROI',command = self.resetROI)
         clearROI.grid(row=1,column=7,sticky='w')
         self.frame.update()
@@ -1036,7 +1037,12 @@ class CreateSAMROIFrame(CreateFrame):
                 self.resetROI()
                 self.ui.updateslice()
 
-    # eliminate all ROIs, ie for loading another case. 
+    # eliminate all ROIs at once. 
+    # note that this does not presently clear threshold settings saved in 
+    # blastdata even though it resets the values shown in the slider bars. 
+    # this is a loose end that should be resolved, depending on whether it 
+    # is preferred to reset the blastdata, or retain it and not change the 
+    # slider bars. 
     def resetROI(self,data=True):
         self.currentroi.set(0)
         self.set_overlay('')

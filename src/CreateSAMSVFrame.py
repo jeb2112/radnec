@@ -656,9 +656,12 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.ui.root.bind('<ButtonRelease-1>',self.b1record)
 
     # record bbox after left-button release
-    def b1record(self,event=None):
+    # runsam option is hard-coded here
+    def b1record(self,event=None,runsam=True):
         self.record_bbox()
         self.ui.root.unbind('<ButtonRelease-1>')
+        if runsam:
+            self.sam2d_callback()
 
     # draw line for current linear bbox
     def draw_bbox(self,x,y,ax):
