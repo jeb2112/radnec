@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib.path import Path
 
-# collectding various ROI stats and data
+# collecting various ROI stats and data
 # for BLAST/SAM segmentations
 class ROI():
     def __init__(self,dim):

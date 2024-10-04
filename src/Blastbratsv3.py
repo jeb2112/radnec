@@ -86,21 +86,39 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
     # values, otherwise use the slider values for rectangular gate. 
     if layer == 'ET':
         bd = blastdata['blastpoint']['params'][layer]
+        layer_paths = []
+        # if points are available
         if (len(bd['meanflair']) > 0):
             pointclustersize = 1
-            combined_pointverts = None
-            for mu_t1,mu_flair,std_t1,std_flair in zip(bd['meant12'],bd['meanflair'],bd['stdt12'],bd['stdflair']):
-                point_perimeter = Ellipse((mu_flair, mu_t1), 2*pointclustersize*std_flair,2*pointclustersize*std_t1)
-                unitverts = point_perimeter.get_path().vertices
-                pointverts = point_perimeter.get_patch_transform().transform(unitverts)
-                if combined_pointverts is None:
-                    combined_pointverts = pointverts
-                    xy_layerverts = np.copy(combined_pointverts)
-                else: # for multiple points, easier to combine into an approx hull than figure out the compound elliptic path
-                    combined_pointverts = np.concatenate((combined_pointverts,pointverts),axis=0)
-                    hull = ConvexHull(combined_pointverts)
-                    xy_layerverts = np.transpose(np.vstack((combined_pointverts[hull.vertices,0],combined_pointverts[hull.vertices,1])))
-                    xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
+
+            # a. convex hull comprising all points. not using this for now
+            if False:
+                combined_pointverts = None
+                for mu_t1,mu_flair,std_t1,std_flair in zip(bd['meant12'],bd['meanflair'],bd['stdt12'],bd['stdflair']):
+                    # currently 2 is additionally hard-coded here
+                    point_perimeter = Ellipse((mu_flair, mu_t1), 2*pointclustersize*std_flair,2*pointclustersize*std_t1)
+                    unitverts = point_perimeter.get_path().vertices
+                    pointverts = point_perimeter.get_patch_transform().transform(unitverts)
+                    if combined_pointverts is None:
+                        combined_pointverts = pointverts
+                        xy_layerverts = np.copy(combined_pointverts)
+                    else: # for multiple points, easier to combine into an approx hull than figure out the compound elliptic path
+                        combined_pointverts = np.concatenate((combined_pointverts,pointverts),axis=0)
+                hull = ConvexHull(combined_pointverts)
+                xy_layerverts = np.transpose(np.vstack((combined_pointverts[hull.vertices,0],combined_pointverts[hull.vertices,1])))
+                xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
+                layer_paths.append(Path(xy_layerverts,closed=True))
+            # regions in parameter space are accumlated per individual point and might not overlap
+            else:
+                for mu_t1,mu_flair,std_t1,std_flair in zip(bd['meant12'],bd['meanflair'],bd['stdt12'],bd['stdflair']):
+                    # currently 2 is additionally hard-coded here
+                    point_perimeter = Ellipse((mu_flair, mu_t1), 2*pointclustersize*std_flair,2*pointclustersize*std_t1)
+                    unitverts = point_perimeter.get_path().vertices
+                    pointverts = point_perimeter.get_patch_transform().transform(unitverts)
+                    xy_layerverts = np.transpose(np.vstack((pointverts[:,0],pointverts[:,1])))
+                    # already closed
+                    # xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
+                    layer_paths.append(Path(xy_layerverts,closed=True))
 
         # define ET threshold gate >= (t2gate,t1gate). upper right quadrant
         else:
@@ -109,6 +127,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             # form vertices for slider-selected rectangular foreground gate
             xy_layerverts = np.vstack((xv_gate,yv_gate)).T
             xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
+            layer_paths.append(Path(xy_layerverts,closed=True))
     elif layer == 'T2 hyper':
         if False: # ie plain T2 not available
             # define NET threshold gate, >= ,flairgate,>= t2gate. upper right quadrant
@@ -121,6 +140,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
         # form vertices for slider-selected rectangular foreground gate
         xy_layerverts = np.vstack((xv_gate,yv_gate)).T
         xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
+        layer_paths.append(Path(xy_layerverts,closed=True))
 
     # find the gated pixels
     stack_shape = np.shape(t1)
@@ -169,10 +189,11 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             brain_gate[region_of_support] = braingate_pts.values.get().astype('int').flatten()
     else:
         brain_path = Path(xy_brainverts,closed=True)
-        layer_path = Path(xy_layerverts,closed=True)
+        # layer_path = Path(xy_layerverts,closed=True)
         if blastdata['blast']['gates'][layer] is None:
             layer_gate = np.zeros(np.shape(t1stack),dtype='uint8')
-            layer_gate[region_of_support] = layer_path.contains_points(t1t2verts).flatten()
+            for p in layer_paths:
+                layer_gate[region_of_support] = layer_gate[region_of_support] | p.contains_points(t1t2verts).flatten()
         if blastdata['blast']['gates']['brain '+layer] is None:
             brain_gate = np.zeros(np.shape(t1stack),dtype='uint8')
             brain_gate[region_of_support] = brain_path.contains_points(t1t2verts).flatten()

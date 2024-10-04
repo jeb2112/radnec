@@ -90,30 +90,34 @@ class CreateSAMROIFrame(CreateFrame):
         self.layermenu.grid(row=0,column=1,sticky='w')
 
         # ROI buttons for final smoothed segmentation
+        # this option will not be used in the SAM viewer
         finalROI_overlay = ttk.Checkbutton(self.frame,text='',
                                            variable=self.overlay_value['finalROI'],
                                            command=self.finalROI_overlay_callback)
-        finalROI_overlay.grid(row=1,column=3,sticky='w')
+        if False:
+           finalROI_overlay.grid(row=1,column=3,sticky='w')
         layerlabel = ttk.Label(self.frame,text='ROI layer:')
-        layerlabel.grid(row=0,column=2,sticky='w')
+        if False:
+            layerlabel.grid(row=0,column=2,sticky='w')
         self.layerROI.trace_add('write',lambda *args: self.layerROI.get())
         self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['seg'][0],
                                            *self.layerlist['seg'],command=self.layerROI_callback)
         self.layerROImenu.config(width=4)
-        self.layerROImenu.grid(row=0,column=3,sticky='w')
+        if False:
+            self.layerROImenu.grid(row=0,column=3,sticky='w')
 
         # ROI button for SAM segmentation
         SAM_overlay = ttk.Checkbutton(self.frame,text='',
                                            variable=self.overlay_value['SAM'],
                                            command=self.SAM_overlay_callback)
-        SAM_overlay.grid(row=1,column=5,sticky='w')
+        SAM_overlay.grid(row=1,column=3,sticky='w')
         layerlabel = ttk.Label(self.frame,text='SAM layer:')
-        layerlabel.grid(row=0,column=4,sticky='w')
+        layerlabel.grid(row=0,column=2,sticky='w')
         self.layerSAM.trace_add('write',lambda *args: self.layerSAM.get())
         self.layerSAMmenu = ttk.OptionMenu(self.frame,self.layerSAM,self.layerlist['sam'][0],
                                            *self.layerlist['sam'],command=self.layerSAM_callback)
         self.layerSAMmenu.config(width=4)
-        self.layerSAMmenu.grid(row=0,column=5,sticky='w')
+        self.layerSAMmenu.grid(row=0,column=3,sticky='w')
 
         # for multiple roi's, n'th roi number choice
         roinumberlabel = ttk.Label(self.frame,text='ROI number:')
@@ -143,8 +147,15 @@ class CreateSAMROIFrame(CreateFrame):
         # layout for the sliders
         ########################
 
+        s = ttk.Style()
+        s.configure('debugframe.TFrame',background='green')
         # frames for sliders
         self.sliderframe = {}
+        # dummy frame to hide slider bars
+        # slider bars might not be used in the SAM viewer anymore
+        self.sliderframe['dummy'] = ttk.Frame(self.frame,padding='0')
+        self.sliderframe['dummy'].grid(row=3,column=2,columnspan=7,sticky='nesw')
+
         self.sliderframe['ET'] = ttk.Frame(self.frame,padding='0')
         self.sliderframe['ET'].grid(row=3,column=2,columnspan=7,sticky='e')
         self.sliderframe['T2 hyper'] = ttk.Frame(self.frame,padding='0')
@@ -207,7 +218,10 @@ class CreateSAMROIFrame(CreateFrame):
         self.sliderlabels['T2 hyper']['bc'] = ttk.Label(self.sliderframe['T2 hyper'],text=self.thresholds['T2 hyper']['bc'].get())
         self.sliderlabels['T2 hyper']['bc'].grid(row=2,column=2,sticky='e')
 
-        # mouse click button
+        #########################################
+        # layout for the Point selection workflow
+        # #######################################
+        
         self.pointframe = ttk.Frame(self.frame,padding='0')
         self.pointframe.grid(row=3,column=2,columnspan=2,sticky='ew')
 
@@ -226,7 +240,11 @@ class CreateSAMROIFrame(CreateFrame):
         pointradius_label = ttk.Label(self.pointframe,text='radius:')
         pointradius_label.grid(row=2,column=1,sticky='nw')
 
-
+        # currently not using sliders in the SAM viewer, just the point selection
+        self.sliderframe['dummy'].lift()
+        self.sliderframe['ET'].lower(self.sliderframe['dummy'])
+        self.sliderframe['T2 hyper'].lower(self.sliderframe['dummy'])
+        self.pointframe.lift(self.sliderframe['dummy'])
         self.frame.update()
 
     #############
