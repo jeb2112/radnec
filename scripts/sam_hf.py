@@ -205,10 +205,10 @@ def main(args):
         if len(files) == 0:
             raise FileNotFoundError
         
-        eval_datadir = {'eval':spath}
+        eval_datadir = {'test':spath}
         samp = SAMProcessing(eval_datadir,model_size='base',prompt_type=prompt_args[args.prompt]['prompt_type'])
 
-        res = predict_metrics(model,samp.dataloaders['eval'],prompt_args[args.prompt],datadir=spath)
+        res = predict_metrics(model,samp.dataloaders['test'],prompt_args[args.prompt],datadir=spath)
 
         # gather the sam-predicted 2d slices into a nifti volume
         # with the torch DataLoader, the output masks for a set of image files are just in 

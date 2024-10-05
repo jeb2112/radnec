@@ -21,7 +21,7 @@ class SAMProcessing():
         self.datasets = {}
         self.dataloaders = {}
         for d in self.dkeys:
-            if d in ['test','validate']:
+            if d in ['test','validate','eval']:
                 shuffle_train = False
             else:
                 shuffle_train = True

@@ -90,15 +90,16 @@
             "args": [
                 // "--input","/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024/M00002",
                 // "--output","None",
-                "--input","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001",
+                // "--input","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001",
+                "--input","/media/jbishop/WD4/brainmets/sunnybrook/metastases/SAM_BraTS_2024/brats2nifti/M00012",
                 // "--input","C:\\Users\\Chris Heyn Lab\\data\\dicom2nifti_sam_temporal\\M0020",
                 "--checkpoint","/media/jbishop/WD4/brainmets/sam_models/sam_brats2024_10sep24_9000_50epoch.pth",
                 // "--pretrained","/media/jbishop/WD4/brainmets/sam_models/sam_vit_b_01ec64.pth",
                 // "--pretrained","None",
-                "--prompt","point",
+                "--prompt","bbox",
                 // "--checkpoint","C:\\Users\\Chris Heyn Lab\\data\\sam_models\\sam_vit_b_01ec64.pth",
                 "--model-type","vit_b",
-                "--tag","tuned"
+                "--tag","blast"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",

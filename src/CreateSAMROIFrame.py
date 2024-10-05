@@ -894,17 +894,19 @@ class CreateSAMROIFrame(CreateFrame):
                 affine_bytes = self.ui.data[self.ui.s].dset['raw'][ch]['affine'].tobytes()
                 affine_bytes_str = str(affine_bytes)
                 if dref is not None:
+                    idx = 0
                     for slice in rslice:
                         if len(np.where(rref[slice])[0]):
                             outputfilename = os.path.join(fileroot,'labels',
-                                    'img_' + str(slice-rslice[0]).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
+                                    'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
                             plt.imsave(outputfilename,rref[slice],cmap='gray',)
                             outputfilename = os.path.join(fileroot,'images',
-                                    'img_' + str(slice-rslice[0]).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
+                                    'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
                             meta = PIL.PngImagePlugin.PngInfo()
                             meta.add_text('slicedim',str(self.ui.sliceviewerframe.dim[0]))
                             meta.add_text('affine',affine_bytes_str)
                             plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
+                            idx += 1
 
         # restore context
         self.ui.roi = self.ui.rois['blast']
@@ -949,13 +951,14 @@ class CreateSAMROIFrame(CreateFrame):
                 self.ui.roi = self.ui.rois['blast']
                 self.ROIstats(save=True,roitype='blast')
 
-        # now run the SAM segmentation across all available slice masks
-        # this longer process will thus not be counted in the timer.
-        # currently, if handdrawn, it is assumed at least one currentslice segmentation has been performed
-        # from handdrawn bbox, to populate the 'bboxs' dict. that distinction is being 
-        # used to decide which prompt to use for final 3d SAM here. awkward, 
-        # could be improved.
-        if len(list(self.ui.rois['sam'][self.ui.s][self.ui.currentroi].bboxs.keys())) > 0:
+        # run the SAM segmentation
+        # there are two contexts:
+        # 1. single slice with a prompt derived from handrawn point/bbox,
+        # or a bbox (ie mask='bbox') from current BLAST 3d roi in just the current slice.
+        # 2. all slices in the current BLAST 3d roi (ie mask='ET'). 
+        # If #1 is completed then the 'TC' data is populated and that distinction is being 
+        # used to run the full 3d on all slices. awkward, needs to be fixed but can't add more buttons. 
+        if self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data['TC'] is None:
             tag = 'bbox'
             self.save_prompts(mask='bbox')
             self.segment_sam(tag=tag)
