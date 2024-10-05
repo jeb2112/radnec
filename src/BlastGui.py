@@ -71,7 +71,7 @@ class BlastGui(object):
                                },
                             },
                             'blastpoint':
-                            {'params':{'ET':{'stdt12':[],'stdflair':[],'meant12':[],'meanflair':[]}}}
+                            {'params':{'ET':{'stdt12':[],'stdflair':[],'meant12':[],'meanflair':[],'pt':[]}}}
         }
         # currently hard-coded for two studies
         self.blastdata = {0:copy.deepcopy(self.blastdatadict),1:copy.deepcopy(self.blastdatadict)}
@@ -105,7 +105,7 @@ class BlastGui(object):
         if self.debug:
 
             # load a nifti case for BLAST and create a ROI
-            if True:
+            if False:
                 if True:
                     caseselect = 'M00001'
                     caseslice = 85
@@ -139,6 +139,15 @@ class BlastGui(object):
                 if False:
                     self.roiframe.createROI(pointxyz[0],pointxyz[1],pointxyz[2])
                     self.roiframe.ROIclick(event=None)
+
+            # load a nifti case for BLAST 
+            if True:
+                caseselect = 'M00012'
+                caseslice = 75
+                self.caseframe.casename.set(caseselect)
+                self.caseframe.case_callback()
+                self.sliceviewerframe.currentslice.set(caseslice)
+                self.sliceviewerframe.normalslice_callback()
 
 
     #########

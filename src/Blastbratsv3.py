@@ -95,7 +95,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             if False:
                 combined_pointverts = None
                 for mu_t1,mu_flair,std_t1,std_flair in zip(bd['meant12'],bd['meanflair'],bd['stdt12'],bd['stdflair']):
-                    # currently 2 is additionally hard-coded here
+                    # currently pointclustersize is hard-coded here
                     point_perimeter = Ellipse((mu_flair, mu_t1), 2*pointclustersize*std_flair,2*pointclustersize*std_t1)
                     unitverts = point_perimeter.get_path().vertices
                     pointverts = point_perimeter.get_patch_transform().transform(unitverts)
@@ -190,25 +190,32 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
     else:
         brain_path = Path(xy_brainverts,closed=True)
         # layer_path = Path(xy_layerverts,closed=True)
-        if blastdata['blast']['gates'][layer] is None:
+        if blastdata['blast']['gates'][layer] is None or True:
             layer_gate = np.zeros(np.shape(t1stack),dtype='uint8')
             for p in layer_paths:
-                layer_gate[region_of_support] = layer_gate[region_of_support] | p.contains_points(t1t2verts).flatten()
+                # layer_gate[region_of_support] = (layer_gate[region_of_support]) | (p.contains_points(t1t2verts))
+                layer_gate[region_of_support] = np.logical_or(layer_gate[region_of_support],p.contains_points(t1t2verts))
         if blastdata['blast']['gates']['brain '+layer] is None:
             brain_gate = np.zeros(np.shape(t1stack),dtype='uint8')
             brain_gate[region_of_support] = brain_path.contains_points(t1t2verts).flatten()
 
-    if False:
-        plt.figure(7)
+    if True:
+        plt.figure(7,figsize=(6,6))
         if layer == 'ET':
-            ax = plt.subplot(1,2,1)
+            ax = plt.subplot(1,1,1)
             ax.cla()
             plt.scatter(t1t2verts[:,0],t1t2verts[:,1],c='b',s=1)
             layergate = np.where(layer_gate>0)
             braingate = np.where(brain_gate>0)
-            plt.scatter(flairstack[layergate],t1stack[layergate],c='g',s=2)
-            plt.scatter(flairstack[braingate],t1stack[braingate],c='w',s=2)
-            plt.scatter(xy_layerverts[:,0],xy_layerverts[:,1],c='r',s=20)
+            if len(layer_paths):
+                for i,p in enumerate(layer_paths):
+                    if len(blastdata['blastpoint']['params']['ET']['pt']):
+                        plt.plot(blastdata['blastpoint']['params']['ET']['pt'][i][0],blastdata['blastpoint']['params']['ET']['pt'][i][1],'c+')
+                    plt.plot(p.vertices[:,0],p.vertices[:,1],'r-',linewidth=0.5)
+            else:
+                plt.scatter(xy_layerverts[:,0],xy_layerverts[:,1],c='r',s=10)
+            plt.scatter(flairstack[layergate],t1stack[layergate],c='g',s=1)
+            plt.scatter(flairstack[braingate],t1stack[braingate],c='w',s=1)
             ax.set_aspect('equal')
             ax.set_xlim(left=-maxZ,right=maxZ)
             ax.set_ylim(bottom=-maxZ,top=maxZ)
@@ -232,7 +239,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             plt.text(0,1.02,'flair {:.3f},{:.3f}'.format(np.mean(flairchannel),np.std(flairchannel)))
             plt.xlabel('flair')
             plt.ylabel('t2')
-        plt.savefig('/home/jbishop/Pictures/scatterplot.png')
+        plt.savefig('/home/jbishop/Pictures/scatterplot.png',dpi=100)
         # plt.clf()
         # plt.show(block=False)
 

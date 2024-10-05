@@ -15,6 +15,10 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backend_bases import _Mode
 matplotlib.use('TkAgg')
+
+from matplotlib.path import Path
+from matplotlib.patches import Ellipse
+
 import SimpleITK as sitk
 import nibabel as nb
 import PIL
@@ -221,7 +225,7 @@ class CreateSAMROIFrame(CreateFrame):
         #########################################
         # layout for the Point selection workflow
         # #######################################
-        
+
         self.pointframe = ttk.Frame(self.frame,padding='0')
         self.pointframe.grid(row=3,column=2,columnspan=2,sticky='ew')
 
@@ -275,12 +279,8 @@ class CreateSAMROIFrame(CreateFrame):
         # when switching layers, raise/lower the corresponding sliders
         # slider values switch but no need to run re-blast immediately. 
         self.updatesliders()
-        if layer == 'T2 hyper':
+        if self.ui.function.get() != 'SAM': # not using sliders for now in SAM
             self.sliderframe[layer].lift()
-            # self.sliders['ET'].lower()
-        else:
-            self.sliderframe[layer].lift()
-            # self.sliders['T2 hyper'].lower()
 
         # generate a new overlay
         # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
@@ -1349,7 +1349,7 @@ class CreateSAMROIFrame(CreateFrame):
             #     return
             else:
                 # self.update_pointnumber_options()
-                self.createPoint(int(event.xdata),int(event.ydata),self.ui.get_currentslice())
+                self.createPoint(int(np.round(event.xdata)),int(np.round(event.ydata)),self.ui.get_currentslice())
             
         self.updateBLASTMask()
         # self.layer_callback(layer='ET',updateslice=True,overlay=True)
@@ -1373,6 +1373,7 @@ class CreateSAMROIFrame(CreateFrame):
         if len(self.ui.pt[self.ui.s]) == 0:
             self.set_overlay() # deactivate any overlay
             self.enhancingROI_overlay_callback()
+            self.ui.blastdata[self.ui.s]['blast']['ET'] = None
         else:
             self.updateBLASTMask()
         return
@@ -1384,27 +1385,50 @@ class CreateSAMROIFrame(CreateFrame):
         self.set_currentpt(1)
 
     # create updated BLAST seg from collection of ROI Points
+    # currently this is only coded for ET
     def updateBLASTMask(self):
         for k in self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET'].keys():
             self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET'][k] = []
         for i,pt in enumerate(self.ui.pt[self.ui.s]):
             dslice_t1 = self.ui.data[self.ui.s].dset['z']['t1+']['d'][pt.coords['slice']]
             dslice_flair = self.ui.data[self.ui.s].dset['z']['flair']['d'][pt.coords['slice']]
+            if i == 0:
+                dslice_mask = np.zeros_like(dslice_t1)
+            else:
+                dslice_mask = self.ui.blastdata[self.ui.s]['blast']['ET'][pt.coords['slice']]
+            dpt_t1 = dslice_t1[pt.coords['y'],pt.coords['x']]
+            dpt_flair = dslice_flair[pt.coords['y'],pt.coords['x']]
+            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['pt'].append((dpt_flair,dpt_t1))
 
             # create grid
             x = np.arange(0,self.ui.sliceviewerframe.dim[2])
             y = np.arange(0,self.ui.sliceviewerframe.dim[1])
             vol = np.array(np.meshgrid(x,y,indexing='xy'))
 
-            # circular region of interest around point
+            # circular region of interest around point. should check and exclude background pixels though.
             roi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < self.pointradius.get())
-            # accumulate roi's in image space. not using anymore
-            # x = (roi[:, None] != croi).all(-1).all(-1)
-        
-            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdt12'].append(np.std(dslice_t1[roi]))
-            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdflair'].append(np.std(dslice_flair[roi]))
-            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meant12'].append(np.mean(dslice_t1[roi]))
-            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meanflair'].append(np.mean(dslice_flair[roi]))
+            mu_t1 = np.mean(dslice_t1[roi])
+            mu_flair = np.mean(dslice_flair[roi])
+            std_t1 = np.std(dslice_t1[roi])
+            std_flair = np.std(dslice_flair[roi])
+            e = copy.copy(std_flair) / copy.copy(std_t1)
+            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meant12'].append(mu_t1)
+            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meanflair'].append(mu_flair)
+            # if the selected point is outside the elliptical roi in parameter space, increase the standard 
+            # deviations proportionally to include it. ie pointclustersize is arbitrary.
+            # this is copied from Blastbratsv3.py should combine into one available method
+            pointclustersize = 1
+            point_perimeter = Ellipse((mu_flair, mu_t1), 2*pointclustersize*std_flair,2*pointclustersize*std_t1)
+            unitverts = point_perimeter.get_path().vertices
+            pointverts = point_perimeter.get_patch_transform().transform(unitverts)
+            xy_layerverts = np.transpose(np.vstack((pointverts[:,0],pointverts[:,1])))
+            p = Path(xy_layerverts,closed=True)
+            if not p.contains_point((dpt_flair,dpt_t1)):
+                std_flair = np.sqrt((dpt_flair-mu_flair)**2 + (dpt_t1-mu_t1)**2 / (std_t1/std_flair)**2) * 1.01
+                std_t1 = std_flair / e
+
+            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdt12'].append(std_t1)
+            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdflair'].append(std_flair)
 
         # functionality similar to updateslider()
         self.set_overlay('BLAST')
