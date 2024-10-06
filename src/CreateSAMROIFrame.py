@@ -579,7 +579,9 @@ class CreateSAMROIFrame(CreateFrame):
             # convert coords from dummy label axis
             s = event.inaxes.format_coord(event.xdata,event.ydata)
             event.xdata,event.ydata = map(float,re.findall(r"(?:\d*\.\d+)",s))
-            if event.xdata < 0 or event.ydata < 0:
+            xdata = int(np.round(event.xdata))
+            ydata = int(np.round(event.ydata))
+            if xdata < 0 or ydata < 0:
                 return None
             # elif self.ui.data['raw'][0,self.ui.get_currentslice(),int(event.x),int(event.y)] == 0:
             #     print('Clicked in background')
@@ -599,23 +601,9 @@ class CreateSAMROIFrame(CreateFrame):
                     else:
                         self.updateROI(event)
                 else:
-                    # for the SAM viewer, there should only ever be 1 ROI active
-                    self.createROI(coords = (int(event.xdata),int(event.ydata),self.ui.get_currentslice()) )
+                    self.createROI(coords = (xdata,ydata,self.ui.get_currentslice()) )
             
         roi = self.ui.get_currentroi()
-
-        # awkward hack: create a duplicate ROI for 'sam'
-        # that is now done in createROI
-        # if roi == 1:
-        #     compartment = self.layer.get()
-        #     roi_forsam = ROI(self.ui.roi[self.ui.s][roi].coords[compartment]['x'],
-        #                     self.ui.roi[self.ui.s][roi].coords[compartment]['y'],
-        #                     self.ui.get_currentslice(),compartment=compartment)
-        #     self.ui.roi = self.ui.rois['sam']
-        #     self.ui.roi[self.ui.s].append(roi_forsam)
-        #     self.ui.roi = self.ui.rois['blast']
-        # else:
-        #     raise ValueError('Only one ROI is supported for SAM')
 
         try:
             self.closeROI(self.ui.data[self.ui.s].dset['seg_raw'][self.ui.chselection]['d'],self.ui.get_currentslice(),do3d=do3d)
@@ -666,17 +654,15 @@ class CreateSAMROIFrame(CreateFrame):
             self.save_prompts(sam=self.ui.currentslice,mask='ET')
             # automatically run sam but only for current slice
             self.segment_sam(tag='blast')
-            # also generate the bbox and store in SAM roi, so it can be saved in stats.json. 
+            # also generate a prompt and store in SAM roi, so it can be saved in stats.json. 
             # this duplicates code, but the standalone script doesn't 
             # have any arrangement for saving bbox's.
             # this should all get integrated as the SAM project moves forward.
-            self.get_input_bbox()
+            self.get_prompt(pt=(xdata,ydata))
             # currently saving 2d single-slice result separately from the ROIstats save in 
-            # the saveROI() method. this is temporary and needs some reconciliation to 
-            # avoid over-writing. 
-            # so far only creating a bbox prompt from the blast mask but could also 
-            # derive a points prompt
-            self.ui.roiframe.ROIstats(save=True,tag='blast_bbox',roitype='sam',slice=self.ui.currentslice)
+            # the saveROI() method. 'tag' arg is hard-coded here to put the results in separate attributes
+            # in the json. 
+            self.ui.roiframe.ROIstats(save=True,tag='point',roitype='sam',slice=self.ui.currentslice)
             # automatically switch to SAM display
             self.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -890,27 +876,30 @@ class CreateSAMROIFrame(CreateFrame):
             rslice = [sam] # do given slice
 
         for ch,m in zip(['t1+'],[mask]):
-            for roi in roilist: # assuming just one roi for sam
+            for roi in roilist:
                 if len(roilist) > 1:
                     roisuffix = '_roi'+roi
                 # available masks for prompt: 'ET' for BLAST, 'bbox' for manual
-                rref = self.ui.roi[self.ui.s][roi].data[m]
+                rref = self.ui.roi[self.ui.s][roi]
                 dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']
                 affine_bytes = self.ui.data[self.ui.s].dset['raw'][ch]['affine'].tobytes()
                 affine_bytes_str = str(affine_bytes)
                 if dref is not None:
                     idx = 0
                     for slice in rslice:
-                        if len(np.where(rref[slice])[0]):
+                        if len(np.where(rref.data[m][slice])[0]):
                             outputfilename = os.path.join(fileroot,'labels',
                                     'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
-                            plt.imsave(outputfilename,rref[slice],cmap='gray',)
+                            plt.imsave(outputfilename,rref.data[m][slice],cmap='gray',)
                             outputfilename = os.path.join(fileroot,'images',
                                     'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
                             meta = PIL.PngImagePlugin.PngInfo()
                             meta.add_text('slicedim',str(self.ui.sliceviewerframe.dim[0]))
                             meta.add_text('affine',affine_bytes_str)
                             plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
+
+                            # also record the bbox
+                            self.get_prompt(slice=slice)
                             idx += 1
 
         # restore context
@@ -954,7 +943,7 @@ class CreateSAMROIFrame(CreateFrame):
             # also output stats
             if True:
                 self.ui.roi = self.ui.rois['blast']
-                self.ROIstats(save=True,roitype='blast')
+                self.ROIstats(save=True,roitype='blast',tag='blast')
 
         # run the SAM segmentation
         # there are two contexts:
@@ -969,7 +958,7 @@ class CreateSAMROIFrame(CreateFrame):
             self.segment_sam(tag=tag)
             self.layerSAM_callback(layer='TC')
         elif self.ui.data[self.ui.s].dset['seg_raw']['t1+']['ex']:
-            tag = 'blast'
+            tag = 'blast_bbox'
             self.save_prompts(mask='ET')
             self.segment_sam(tag=tag)
             self.layerSAM_callback(layer='TC')
@@ -1278,43 +1267,54 @@ class CreateSAMROIFrame(CreateFrame):
         return 
     
 
-    # calculate bbox from BLAST mask
-    # duplicate code. copied from SAMDataset.py.
+    # calculate a point or bbox prompt
+    # duplicate code. the bbox part is copied from SAMDataset.py.
     # the huggingface SAM classes are currently separate
     # from the viewer code and only used in standalone script
     # sam_hf.py. If SAM development continues,
     # this should become integrated and duplication removed.
-    def get_input_bbox(self,mask=None,perturbation=0,padding=3):
+    def get_prompt(self,mask=None,pt=None,slice=None,perturbation=0,padding=3):
 
         roi = self.ui.get_currentroi()
         s = self.ui.s
-        slice = self.ui.currentslice
-        if mask is None:
-            mask = self.ui.roi[s][roi].data['ET'][slice]
-        # Find minimum mask bounding all included mask points.
-        y_indices, x_indices = np.where(mask > 0)
-        x_min, x_max = np.min(x_indices), np.max(x_indices)
-        y_min, y_max = np.min(y_indices), np.max(y_indices)
+        if slice is None:
+            slice = self.ui.currentslice
 
-        # add padding
-        ydim,xdim = np.shape(mask)
-        x_min = max(0,x_min - padding)
-        y_min = max(0,y_min - padding)
-        x_max = min(xdim-1,x_max + padding)
-        y_max = min(ydim-1,y_max + padding)
+        # if point specified, derive a point prompt
+        if pt is not None:
+            bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
+            bbox['p0'] = [pt[0], pt[1]]
+            bbox['slice'] = slice
 
-        if perturbation:  # Add perturbation to bounding box coordinates.
-            H, W = mask.shape
-            x_min = max(0, x_min + np.random.randint(-perturbation, perturbation))
-            x_max = min(W, x_max + np.random.randint(-perturbation, perturbation))
-            y_min = max(0, y_min + np.random.randint(-perturbation, perturbation))
-            y_max = min(H, y_max + np.random.randint(-perturbation, perturbation))
+        # otherwise, derive a bbox prompt from a mask
+        else:
+            if mask is None:
+                mask = self.ui.roi[s][roi].data['ET'][slice]
+            # Find minimum mask bounding all included mask points.
+            y_indices, x_indices = np.where(mask > 0)
+            x_min, x_max = np.min(x_indices), np.max(x_indices)
+            y_min, y_max = np.min(y_indices), np.max(y_indices)
 
-        # duplicates sliceviewerframe bbox
-        bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
-        bbox['p0'] = [int(x_min), int(y_min)]
-        bbox['p1'] = [int(x_max), int(y_max)]
-        bbox['slice'] = slice
+            # add padding
+            ydim,xdim = np.shape(mask)
+            x_min = max(0,x_min - padding)
+            y_min = max(0,y_min - padding)
+            x_max = min(xdim-1,x_max + padding)
+            y_max = min(ydim-1,y_max + padding)
+
+            if perturbation:  # Add perturbation to bounding box coordinates.
+                H, W = mask.shape
+                x_min = max(0, x_min + np.random.randint(-perturbation, perturbation))
+                x_max = min(W, x_max + np.random.randint(-perturbation, perturbation))
+                y_min = max(0, y_min + np.random.randint(-perturbation, perturbation))
+                y_max = min(H, y_max + np.random.randint(-perturbation, perturbation))
+
+            # duplicates sliceviewerframe bbox
+            bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
+            bbox['p0'] = [int(x_min), int(y_min)]
+            bbox['p1'] = [int(x_max), int(y_max)]
+            bbox['slice'] = slice
+
         self.ui.rois['sam'][s][roi].bboxs[slice] = copy.deepcopy(bbox)
         # this could be just a reference
         self.ui.rois['sam'][s][roi].bbox = copy.deepcopy(bbox)

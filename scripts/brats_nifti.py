@@ -18,10 +18,11 @@ import subprocess
 from scipy.spatial.distance import dice,directed_hausdorff
 import cc3d
 import json
+import time
 
 # various output stats, add more as required
 # data,groundtruth dict 'ET','TC','WT'
-def ROIstats(data,groundtruth):
+def ROIstats(data,groundtruth,time=0):
     
     # output stats
     stats0 = {'spec':{'ET':None,'TC':None,'WT':None},
@@ -31,7 +32,7 @@ def ROIstats(data,groundtruth):
         'hd':{'ET':None,'TC':None,'WT':None},
         'coords_gt':{'ET':None,'TC':None,'WT':None}
         }
-    roistats = {}
+    roistats = {'elapsed_time':time}
     
     # ground truth comparisons
     # multiple lesions tallied
@@ -233,7 +234,9 @@ def segment(C,ddir,pyenv='pytorch118_310'):
         command += ' -i ' + ndir
         command += ' -o ' + ndir
         command += ' -d138 -c 3d_fullres'
+        tstart = time.time()
         res = os.system(command)
+        elapsed_time = time.time() - tstart
     elif os.name == 'nt':
         # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
         # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
@@ -278,7 +281,7 @@ def segment(C,ddir,pyenv='pytorch118_310'):
     writenifti(WT,os.path.join(ddir,'WT_unet.nii'),affine=affine)
     os.rename(os.path.join(ndir,sfile),os.path.join(ndir,C+'-unet.nii.gz'))
     nnunet_seg = {'ET':ET,'TC':TC,'WT':WT}
-    return nnunet_seg
+    return nnunet_seg,elapsed_time
 
 
 ######
@@ -378,7 +381,7 @@ if __name__ == '__main__':
                 l1str += os.path.join(ndir,C+'_'+suffix+'.nii.gz') + '\"'
             os.system(l1str)
         if True:
-            nnunet_seg = segment(C,ddir,pyenv='ptorch_sam')
+            nnunet_seg,elapsed_time = segment(C,ddir,pyenv='ptorch_sam')
         else: # for debugging
             nnunet_seg = {}
             for dt in ['ET','TC','WT']:
@@ -392,5 +395,5 @@ if __name__ == '__main__':
         gt['TC'] = np.zeros_like(gt_seg)
         # convert brats definition of TC to BLAST definition
         gt['TC'][(gt_seg == 1) | (gt_seg == 3) ] = 1
-        ROIstats(nnunet_seg,gt)
+        ROIstats(nnunet_seg,gt,time=elapsed_time)
 
