@@ -151,8 +151,8 @@ class CreateSAMROIFrame(CreateFrame):
         # layout for the sliders
         ########################
 
-        s = ttk.Style()
-        s.configure('debugframe.TFrame',background='green')
+        self.s = ttk.Style()
+        self.s.configure('debugframe.TFrame',background='green')
         # frames for sliders
         self.sliderframe = {}
         # dummy frame to hide slider bars
@@ -230,8 +230,11 @@ class CreateSAMROIFrame(CreateFrame):
         self.pointframe.grid(row=3,column=2,columnspan=2,sticky='ew')
 
         self.currentpt.trace_add('write',self.updatepointlabel)
-        selectPoint= ttk.Button(self.pointframe,text='add Point',command=self.selectPoint)
-        selectPoint.grid(row=0,column=1,sticky='snew')
+
+        self.SUNKABLE_BUTTON = 'SunkableButton.TButton'
+        self.selectPointbutton= ttk.Button(self.pointframe,text='add Point',command=self.selectPoint,style=self.SUNKABLE_BUTTON)
+        self.selectPointbutton.grid(row=0,column=1,sticky='snew')
+        self.selectPointstate = False
         removePoint= ttk.Button(self.pointframe,text='remove Point',command=self.removePoint)
         removePoint.grid(row=1,column=1,sticky='ew')
         self.pointLabel = ttk.Label(self.pointframe,text=self.currentpt.get(),padding=10)
@@ -545,6 +548,8 @@ class CreateSAMROIFrame(CreateFrame):
 
     # creates a ROI selection button press event
     def selectROI(self,event=None):
+        if self.selectPointstate:
+            self.selectPoint()
         if self.overlay_value['BLAST'].get(): # only activate cursor in BLAST mode
             self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.ROIclick)
             self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
@@ -1321,14 +1326,35 @@ class CreateSAMROIFrame(CreateFrame):
     # methods for point selection
     #############################
 
-    # creates a Point selection button press event
+    # activates/deactivates Point selection button press events
     def selectPoint(self,event=None):
-        if len(self.ui.pt[self.ui.s]) == 0:
-            self.set_overlay() # deactivate any overlay
-            self.enhancingROI_overlay_callback()
-        self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.selectPointClick)
-        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
+        if not self.selectPointstate:
+            if len(self.ui.pt[self.ui.s]) == 0:
+                self.set_overlay() # deactivate any overlay
+                self.enhancingROI_overlay_callback()
+            self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.selectPointClick)
+            self.setCursor('crosshair')
+            self.selectPointstart()
+        else:
+            self.selectPointstop()
+            self.setCursor()
+            if self.buttonpress_id:
+                self.ui.sliceviewerframe.canvas.callbacks.disconnect(self.buttonpress_id)
+                self.buttonpress_id = None
+        return
 
+    def selectPointstart(self):
+        self.selectPointbutton.state(['pressed', '!disabled'])
+        self.s.configure(self.SUNKABLE_BUTTON, relief=tk.SUNKEN, foreground='green')
+        self.selectPointstate = True
+        # point and slider selection not used interchangeably.
+        # but also need a better way to reset blastdata
+        self.ui.blastdata[self.ui.s] = copy.deepcopy(self.ui.blastdatadict)
+
+    def selectPointstop(self):
+        self.selectPointbutton.state(['!pressed', '!disabled'])
+        self.s.configure(self.SUNKABLE_BUTTON, relief=tk.RAISED, foreground='black')
+        self.selectPointstate = False
 
     # processes a cursor selection button press event for generating/updating raw BLAST seg
     def selectPointClick(self,event=None):
@@ -1336,34 +1362,35 @@ class CreateSAMROIFrame(CreateFrame):
             if event.button > 1: # ROI selection on left mouse only
                 return
             
-        # self.ui.sliceviewerframe.canvas.widgetlock.release(self.ui.sliceviewerframe)
-        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='watch')
-        self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
+        if False: # not using this anymore
+            self.setCursor('watch')
         if event:
             # print(event.xdata,event.ydata)
             # need check for inbounds
             # convert coords from dummy label axis
             s = event.inaxes.format_coord(event.xdata,event.ydata)
             event.xdata,event.ydata = map(float,re.findall(r"(?:\d*\.\d+)",s))
-            if event.xdata < 0 or event.ydata < 0:
+            xdata = int(np.round(event.xdata))
+            ydata = int(np.round(event.ydata))
+            if xdata < 0 or ydata < 0:
                 return None
             # elif self.ui.data['raw'][0,self.ui.get_currentslice(),int(event.x),int(event.y)] == 0:
             #     print('Clicked in background')
             #     return
-            else:
-                # self.update_pointnumber_options()
-                self.createPoint(int(np.round(event.xdata)),int(np.round(event.ydata)),self.ui.get_currentslice())
+
+            elif self.ui.blastdata[self.ui.s]['blast']['ET'] is not None:
+                if self.ui.blastdata[self.ui.s]['blast']['ET'][self.ui.currentslice][ydata,xdata]:
+                # if point is in the existing mask then skip.
+                # don't have any good logic to snap to a nearby unmasked 
+                # point becuase the intended segmentation isn't really known.
+                    return None
+
+            self.createPoint(xdata,ydata,self.ui.get_currentslice())
             
         self.updateBLASTMask()
-        # self.layer_callback(layer='ET',updateslice=True,overlay=True)
 
-        # if triggered by a button event
-        if self.buttonpress_id:
-            self.ui.sliceviewerframe.canvas.callbacks.disconnect(self.buttonpress_id)
-            self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='')
-            self.buttonpress_id = None
-        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='arrow')
-        self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
+        # keep the crosshair cursor until button is unset.
+        self.setCursor('crosshair')
 
         return None        
 
@@ -1376,9 +1403,12 @@ class CreateSAMROIFrame(CreateFrame):
         if len(self.ui.pt[self.ui.s]) == 0:
             self.set_overlay() # deactivate any overlay
             self.enhancingROI_overlay_callback()
-            self.ui.blastdata[self.ui.s]['blast']['ET'] = None
+            # points and sliders are not used interchangeably.
+            self.ui.blastdata[self.ui.s] = copy.deepcopy(self.ui.blastdatadict)
         else:
             self.updateBLASTMask()
+        if 'pressed' in self.selectPointbutton.state():
+            self.setCursor('crosshair')
         return
 
     # records button press coords in a new ROI object
@@ -1386,6 +1416,14 @@ class CreateSAMROIFrame(CreateFrame):
         pt = ROIPoint(x,y,slice)
         self.ui.pt[self.ui.s].append(pt)
         self.set_currentpt(1)
+
+    # convenience method for canvas updates
+    # probably should be in SVFrame
+    def setCursor(self,cursor=None):
+        if cursor is None:
+            cursor = 'arrow'
+        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor=cursor)
+        self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
     # create updated BLAST seg from collection of ROI Points
     # currently this is only coded for ET
@@ -1395,10 +1433,7 @@ class CreateSAMROIFrame(CreateFrame):
         for i,pt in enumerate(self.ui.pt[self.ui.s]):
             dslice_t1 = self.ui.data[self.ui.s].dset['z']['t1+']['d'][pt.coords['slice']]
             dslice_flair = self.ui.data[self.ui.s].dset['z']['flair']['d'][pt.coords['slice']]
-            if i == 0:
-                dslice_mask = np.zeros_like(dslice_t1)
-            else:
-                dslice_mask = self.ui.blastdata[self.ui.s]['blast']['ET'][pt.coords['slice']]
+
             dpt_t1 = dslice_t1[pt.coords['y'],pt.coords['x']]
             dpt_flair = dslice_flair[pt.coords['y'],pt.coords['x']]
             self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['pt'].append((dpt_flair,dpt_t1))
@@ -1409,11 +1444,12 @@ class CreateSAMROIFrame(CreateFrame):
             vol = np.array(np.meshgrid(x,y,indexing='xy'))
 
             # circular region of interest around point. should check and exclude background pixels though.
-            roi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < self.pointradius.get())
-            mu_t1 = np.mean(dslice_t1[roi])
-            mu_flair = np.mean(dslice_flair[roi])
-            std_t1 = np.std(dslice_t1[roi])
-            std_flair = np.std(dslice_flair[roi])
+            croi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < self.pointradius.get())
+
+            mu_t1 = np.mean(dslice_t1[croi])
+            mu_flair = np.mean(dslice_flair[croi])
+            std_t1 = np.std(dslice_t1[croi])
+            std_flair = np.std(dslice_flair[croi])
             e = copy.copy(std_flair) / copy.copy(std_t1)
             self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meant12'].append(mu_t1)
             self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meanflair'].append(mu_flair)

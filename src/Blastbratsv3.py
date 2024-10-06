@@ -219,8 +219,8 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             ax.set_aspect('equal')
             ax.set_xlim(left=-maxZ,right=maxZ)
             ax.set_ylim(bottom=-maxZ,top=maxZ)
-            plt.text(0,1.02,'flair {:.3f},{:.3f}'.format(np.mean(flairchannel),np.std(flairchannel)))
-            plt.text(0,1.1,'t1 {:.3f},{:.3f}'.format(np.mean(t1channel),np.std(t1channel)))
+            # plt.text(0,1.02,'flair {:.3f},{:.3f}'.format(np.mean(flairchannel),np.std(flairchannel)))
+            # plt.text(0,1.1,'t1 {:.3f},{:.3f}'.format(np.mean(t1channel),np.std(t1channel)))
             plt.xlabel('flair')
             plt.ylabel('t1')
         elif layer == 'T2 hyper':
@@ -239,7 +239,8 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             plt.text(0,1.02,'flair {:.3f},{:.3f}'.format(np.mean(flairchannel),np.std(flairchannel)))
             plt.xlabel('flair')
             plt.ylabel('t2')
-        plt.savefig('/home/jbishop/Pictures/scatterplot.png',dpi=100)
+        filename = 'scatterplot' + str(len(layer_paths)) + '.png'
+        plt.savefig(os.path.join('/home/jbishop/Pictures',filename),dpi=100)
         # plt.clf()
         # plt.show(block=False)
 
