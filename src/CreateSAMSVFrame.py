@@ -733,14 +733,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # switch roi context
         self.ui.roi = self.ui.rois['sam']
 
-        # for SAM bbox prompt mode, it is hard-coded for one ROI only
-        # self.ui.currentroi should always equal 1
-        # if self.ui.currentroi > 1 or len(self.ui.roiframe.roilist) > 1:
-        #     print('All existing ROI\'s must be cleared before generating a bbox ROI')
-        #     self.ui.set_message('All existing ROI\'s must be cleared before generating a bbox ROI')
-        #     return
-        # if self.ui.currentroi == 0:
-
         assert 'p1' in self.bbox.keys()
         self.ui.roiframe.createROI(bbox = self.bbox)
         # should be in createROI

@@ -70,7 +70,8 @@ class SAMDataset(Dataset):
             input_image1 = np.tile(input_image1[:,:,0],(3,1,1))
         elif len(np.shape(input_image1)) == 2:
             input_image1 = np.tile(input_image1,(3,1,1))
-        ifile = glob.glob(os.path.join(self.datadir,'labels','img_' + str(idx).zfill(5) + '_case_*_slice_???.png'))[0]
+        # subdir 'prompts' is hard-coded here
+        ifile = glob.glob(os.path.join(self.datadir,'prompts','img_' + str(idx).zfill(5) + '_case_*_slice_???.png'))[0]
         # again, masks prepared by viewer code are currently rgba, float. 
         ground_truth_mask = imread(ifile,as_gray=True).astype('uint8') * 255
         # note. skimage resize is one of the many resize algorithms that has an easy option for

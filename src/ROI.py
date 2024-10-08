@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib.path import Path
+import copy
 
 # collecting various ROI stats and data
 # for BLAST/SAM segmentations
@@ -42,56 +43,93 @@ class ROIBLAST(ROI):
         self.gate = {'brain':None,'ET':None,'T2 hyper':None}
 
 class ROISAM(ROI):
-    def __init__(self,bbox,dim,layer='TC'):
+    def __init__(self,dim,bbox={},layer='TC'):
         super().__init__(dim)
         # a SAM drawn bbox coordinates and values, or bbox from BLAST mask
         self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None,'slice':None} 
-        # dict of bbox's, with key = slice
+        # dict of bbox's, with key = slice. 
+        # this information duplicates self.data['bbox] but can be exported to stats.json
         self.bboxs = {}
-        # if this is just a duplicate placeholder ROI parallel to a BLAST ROI, bbox is empty {}       
-        if bool(bbox):
-            for k in bbox.keys():
-                if k in list(self.bbox.keys()):
-                    self.bbox[k] = bbox[k]
-                else:
-                    raise KeyError
         self.mask = None
 
         # segmentation masks
-        # seg_fusion - an overlay image
+        # 'TC' - the SAM segmentation, interpreted as tumour core for now
+        # seg_fusion - an overlay image of 'TC' over t1+ or flair
         # seg_fusion_d - a copy of overaly image for display purposes
-        # seg - a composite mask of the ROI segmentation combining ET,TC,WT
-        # bbox - 3d volume of 2d bbox prompts of each in-plane slice, for use with SAM
+        # seg - a composite mask of a multi-compartment segmentation combining ET,TC,WT. not currently used in SAM viewer
+        # bbox - 3d volume of 2d bbox prompts of each in-plane slice, to be exported as .png files for use with SAM
         self.data = {'TC':None,
                      'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg':None,
-                     'bbox':None
+                     'bbox':np.zeros(dim,dtype='uint8')
                      }
-        self.data['bbox'] = np.zeros(dim,dtype='uint8')
-        if bool(bbox): # ie a non-empty dict
-            self.create_mask_from_bbox()
+        # initializing with a one-slice bbox might no longer be needed, use set_bbox instead. 
+        if bool(bbox):
+            self.set_bbox(bbox)
 
-    # compute mask array from bounding box. 
-    # this is a round-about arrangement, since sam.py script
-    # recomputes the bbox from the mask, better to implement
-    # external file storage for bbox's directly. 
-    # TODO. box extension
-    def create_mask_from_bbox(self, box_extension=0):
+    # create a multi-slice set of point|bbox prompts from a 3d mask such as BLAST ROI
+    # these prompts are stored both as a mask and as coordinates in a dict
+    def create_prompts_from_mask(self,mask,type='bbox'):
+        rslice = range(np.shape(mask)[0]) # do all slices
+        for r in rslice:
+            if len(np.where(mask[r])[0]):
+                if type == 'bbox':
+                    self.data['bbox'][r],self.bboxs[r] = self.get_bbox_mask(mask[r])
+                elif type == 'point':
+                    self.data['bbox'][r],self.bboxs[r] = self.get_point_mask(mask[r])
+        
+    def get_point_mask(self,mask):
+        cy,cx = np.round(np.mean(np.where(mask),axis=1)).astype('int')
+        mask = np.zeros_like(mask)
+        mask[cy,cx] = 1
+
+        bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
+        bbox['p0'] = [cx,cy]
+
+        return mask,bbox
+
+    def get_bbox_mask(self,mask):
+        # Find minimum mask bounding all included mask points.
+        y_indices, x_indices = np.where(mask > 0)
+        x_min, x_max = np.min(x_indices), np.max(x_indices)
+        y_min, y_max = np.min(y_indices), np.max(y_indices)
+        mask[y_min:y_max+1,x_min:x_max+1] = 1
+
+        bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
+        bbox['p0'] = [int(x_min), int(y_min)]
+        bbox['p1'] = [int(x_max), int(y_max)]
+
+        return mask,bbox
+
+    # set a bbox for a given slice    
+    def set_bbox(self,bbox):
+        for k in bbox.keys():
+            if k in list(self.bbox.keys()):
+                self.bbox[k] = bbox[k]
+            else:
+                raise KeyError
+        self.create_prompt_from_bbox()
+
+    # compute one-slice prompt from bounding box in a given slice. 
+    def create_prompt_from_bbox(self, bbox=None, box_extension=0):
         mask = np.zeros((self.dim[1],self.dim[2]),dtype='uint8')
-        if self.bbox['p1'] is None:
-            bbox = np.round(np.array(self.bbox['p0'])).astype('int')
-            mask[bbox[1],bbox[0]] = 1
+        if bbox is None:
+            bbox = self.bbox
+        if bbox['p1'] is None:
+            bbox_pts = np.round(np.array(self.bbox['p0'])).astype('int')
+            mask[bbox_pts[1],bbox_pts[0]] = 1
         else:
-            vxy = np.array([[self.bbox['p0'][0],self.bbox['p0'][1]],
-                        [self.bbox['p1'][0],self.bbox['p0'][1]],
-                        [self.bbox['p1'][0],self.bbox['p1'][1]],
-                        [self.bbox['p0'][0],self.bbox['p1'][1]]])
+            vxy = np.array([[bbox['p0'][0],bbox['p0'][1]],
+                        [bbox['p1'][0],bbox['p0'][1]],
+                        [bbox['p1'][0],bbox['p1'][1]],
+                        [bbox['p0'][0],bbox['p1'][1]]])
             vyx = np.flip(vxy,axis=1)
             bbox_path = Path(vyx,closed=False)
             mask = bbox_path.contains_points(np.array(np.where(mask==0)).T)
             mask = np.reshape(mask,(self.dim[1],self.dim[2]))     
-        self.data['bbox'][self.bbox['slice']] = mask
+        self.data['bbox'][bbox['slice']] = mask
+
 
 
 # for linear measurements in 4panel viewer

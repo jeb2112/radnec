@@ -550,6 +550,9 @@ class CreateSAMROIFrame(CreateFrame):
     def selectROI(self,event=None):
         if self.selectPointstate:
             self.selectPoint()
+        # furthermore, clear the points list
+        self.ui.reset_pt()
+
         if self.overlay_value['BLAST'].get(): # only activate cursor in BLAST mode
             self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.ROIclick)
             self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
@@ -633,13 +636,13 @@ class CreateSAMROIFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='arrow')
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
-        # currently this logic jumps immediately to SAM segmentation
-        # from the raw blast ROI. 
         roi = self.ui.get_currentroi()
         # in the SAM viewer, there is only ET/TC, so the ROI status is set true immediately
-        # once ET is available
+        # once ET BLAST segmentation is available. Now, run the SAM segmentation only on the current slice
+        # to illustrate whether the BLAST ROI is adequate for prompting.
+        # in the SAM viewer, the BLAST ROI itself isn't displayed, just jump directly to 
+        # the SAM result.
         if self.ui.roi[self.ui.s][roi].status:
-            # don't stop to display the BLAST finalROI, jump directly to SAM
             if False:
                 self.overlay_value['finalROI'].set(True)
                 self.overlay_value['BLAST'].set(False)
@@ -650,19 +653,22 @@ class CreateSAMROIFrame(CreateFrame):
                 else:
                     self.layer_callback(layer='ET')
 
-            # output current slice only of the BLAST ROI to file for follow-on SAM processing
-            self.save_prompts(sam=self.ui.currentslice,mask='ET')
-            # automatically run sam but only for current slice
+            # update SAM roi with prompts derived from BLAST roi
+            # roi2.bboxs are roi1.bboxs. 
+            self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
+            self.save_prompts(slice=self.ui.currentslice)
             self.segment_sam(tag='blast')
-            # also generate a prompt and store in SAM roi, so it can be saved in stats.json. 
-            # this duplicates code, but the standalone script doesn't 
-            # have any arrangement for saving bbox's.
-            # this should all get integrated as the SAM project moves forward.
-            self.get_prompt(pt=(xdata,ydata))
-            # currently saving 2d single-slice result separately from the ROIstats save in 
+            # save to stats.json
+            # optionally saving 2d single-slice point prompt result separately from the ROIstats save in 
             # the saveROI() method. 'tag' arg is hard-coded here to put the results in separate attributes
-            # in the json. 
-            self.ui.roiframe.ROIstats(save=True,tag='point',roitype='sam',slice=self.ui.currentslice)
+            # in the json. Note that by this arrangement, the same roi number is used for both
+            # the 2d save and the later multi-slice 3d save in saveROI, and the one-slice results
+            # in the roi instance are recalculated with the blast bbox prompt and over-written during 
+            # the multi-slice SAM segmentation.
+            # This arrangement is not great, but this 2d one-slice save
+            # is temporary for experimental purposes and will later be removed.
+            if True:
+                self.ui.roiframe.ROIstats(save=True,tag='point',roitype='sam',slice=self.ui.currentslice)
             # automatically switch to SAM display
             self.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -685,7 +691,7 @@ class CreateSAMROIFrame(CreateFrame):
         blast_layer = self.layer.get()
         roi = ROIBLAST(coords,dim=self.ui.sliceviewerframe.dim,layer=blast_layer)
         self.ui.rois['blast'][self.ui.s].append(roi)
-        roi2 = ROISAM(bbox,dim=self.ui.sliceviewerframe.dim,layer='TC')
+        roi2 = ROISAM(dim=self.ui.sliceviewerframe.dim,bbox=bbox,layer='TC')
         self.ui.rois['sam'][self.ui.s].append(roi2)
  
         self.currentroi.set(self.currentroi.get() + 1)
@@ -849,61 +855,48 @@ class CreateSAMROIFrame(CreateFrame):
 
         return None
 
-    # temp output for sam segmentation prompts
+    # output images and prompts for sam segmentation
     # using tmpfiles and standalone script for separate ptorch env. ultimately should add ptorch to the blast env
-    def save_prompts(self,sam=0,mask='ET'):
+    def save_prompts(self,slice=None):
 
-        # roi context
-        if mask == 'bbox':
-            self.ui.roi = self.ui.rois['sam']
-            self.update_roinumber_options()
-
-        roilist = [self.ui.currentroi]
-        fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
-        if not os.path.exists(fileroot):
-            os.makedirs(os.path.join(fileroot,'images'),exist_ok=True)
-            os.makedirs(os.path.join(fileroot,'labels'),exist_ok=True)
-            os.makedirs(os.path.join(fileroot,'predictions'),exist_ok=True)
-        else:
-            shutil.rmtree(fileroot)
-            os.makedirs(os.path.join(fileroot,'images'),exist_ok=True)
-            os.makedirs(os.path.join(fileroot,'labels'),exist_ok=True)
-            os.makedirs(os.path.join(fileroot,'predictions'),exist_ok=True)
-        roisuffix = ''
-        if sam == 0:
+        if slice == None:
             rslice = list(range(self.ui.sliceviewerframe.dim[0])) # do all slices
         else:
-            rslice = [sam] # do given slice
+            if isinstance(slice,list):
+                rslice = slice
+            else:
+                rslice = [slice] # do given slice(s)
 
-        for ch,m in zip(['t1+'],[mask]):
-            for roi in roilist:
-                if len(roilist) > 1:
-                    roisuffix = '_roi'+roi
-                # available masks for prompt: 'ET' for BLAST, 'bbox' for manual
-                rref = self.ui.roi[self.ui.s][roi]
-                dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']
-                affine_bytes = self.ui.data[self.ui.s].dset['raw'][ch]['affine'].tobytes()
-                affine_bytes_str = str(affine_bytes)
-                if dref is not None:
-                    idx = 0
-                    for slice in rslice:
-                        if len(np.where(rref.data[m][slice])[0]):
-                            outputfilename = os.path.join(fileroot,'labels',
-                                    'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
-                            plt.imsave(outputfilename,rref.data[m][slice],cmap='gray',)
-                            outputfilename = os.path.join(fileroot,'images',
-                                    'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
-                            meta = PIL.PngImagePlugin.PngInfo()
-                            meta.add_text('slicedim',str(self.ui.sliceviewerframe.dim[0]))
-                            meta.add_text('affine',affine_bytes_str)
-                            plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
+        fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
+        if os.path.exists(fileroot):
+            shutil.rmtree(fileroot)
+        os.makedirs(os.path.join(fileroot,'images'),exist_ok=True)
+        os.makedirs(os.path.join(fileroot,'prompts'),exist_ok=True)
+        os.makedirs(os.path.join(fileroot,'predictions'),exist_ok=True)
 
-                            # also record the bbox
-                            self.get_prompt(slice=slice)
-                            idx += 1
+        # these image channel and prompt keys could later be generalized as args
+        for ch,prompt in zip(['t1+'],['bbox']):
+            # roi.data['bbox'] is the multi-slice mask for prompting SAM
+            rref = self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data[prompt]
+            dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']
+            if dref is None:
+                raise ValueError
+            affine_bytes = self.ui.data[self.ui.s].dset['raw'][ch]['affine'].tobytes()
+            affine_bytes_str = str(affine_bytes)
+            idx = 0
+            for slice in rslice:
+                if len(np.where(rref[slice])[0]):
+                    outputfilename = os.path.join(fileroot,'prompts',
+                            'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
+                    plt.imsave(outputfilename,rref[slice],cmap='gray',)
+                    outputfilename = os.path.join(fileroot,'images',
+                            'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
+                    meta = PIL.PngImagePlugin.PngInfo()
+                    meta.add_text('slicedim',str(self.ui.sliceviewerframe.dim[0]))
+                    meta.add_text('affine',affine_bytes_str)
+                    plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
 
-        # restore context
-        self.ui.roi = self.ui.rois['blast']
+                    idx += 1
 
     # for exporting BLAST/SAM segmentations.
     def saveROI(self,roi=None,outputpath=None):
@@ -931,7 +924,7 @@ class CreateSAMROIFrame(CreateFrame):
             for img in ['ET','TC','WT']:
                 for roi in roilist:
                     if len(roilist) > 1:
-                        roisuffix = '_roi'+roi
+                        roisuffix = '_roi' + str(roi)
                         outputfilename = os.path.join(fileroot,'{}_{}_blast.nii'.format(img,roisuffix))
                     else:
                         outputfilename = os.path.join(fileroot,'{}_blast.nii'.format(img))
@@ -940,33 +933,29 @@ class CreateSAMROIFrame(CreateFrame):
                                                             outputfilename,
                                                             affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
                     
-            # also output stats
-            if True:
-                self.ui.roi = self.ui.rois['blast']
-                self.ROIstats(save=True,roitype='blast',tag='blast')
+            # output BLAST stats
+            # tag is hard-coded here for a unique key in stats.sjon
+            self.ROIstats(save=True,roitype='blast',tag='blast')
 
         # run the SAM segmentation
-        # there are two contexts:
-        # 1. single slice with a prompt derived from handrawn point/bbox,
-        # or a bbox (ie mask='bbox') from current BLAST 3d roi in just the current slice.
-        # 2. all slices in the current BLAST 3d roi (ie mask='ET'). 
-        # If #1 is completed then the 'TC' data is populated and that distinction is being 
-        # used to run the full 3d on all slices. awkward, needs to be fixed but can't add more buttons. 
-        if self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data['TC'] is None:
-            tag = 'bbox'
-            self.save_prompts(mask='bbox')
-            self.segment_sam(tag=tag)
-            self.layerSAM_callback(layer='TC')
-        elif self.ui.data[self.ui.s].dset['seg_raw']['t1+']['ex']:
-            tag = 'blast_bbox'
-            self.save_prompts(mask='ET')
-            self.segment_sam(tag=tag)
-            self.layerSAM_callback(layer='TC')
+        # tag is hard-coded here for a unique key in stats.json and output filenames
+        tag = 'blast_bbox'
+        self.save_prompts()
+        self.segment_sam(tag=tag)
+        self.layerSAM_callback(layer='TC')
+        # output SAM stats
+        self.ROIstats(save=True,roitype='sam',tag=tag)       
 
-        # also output stats to pickle
-        if True:
-            self.ui.roi = self.ui.rois['sam'] # switch context
-            self.ROIstats(save=True,roitype='sam',tag=tag)        
+        # experiment
+        # optionally run the SAM segmentation with point prompts
+        if False:
+            tag = 'blast_point'
+            self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(self.ui.rois['blast'][self.ui.s][roi].data['ET'],type='point')
+            self.save_prompts()
+            self.segment_sam(tag=tag, prompt='point')
+            self.layerSAM_callback(layer='TC')
+            self.ROIstats(save=True,roitype='sam',tag=tag)       
+
 
     # back-copy an existing ROI and overlay from current dataset back into the current roi. 
     # not sure if still needed though
@@ -1159,15 +1148,27 @@ class CreateSAMROIFrame(CreateFrame):
                 fp = open(statsfile,'w')
                 sdict = {tag:{}}
 
+            # r = self.ui.rois[roitype][self.ui.s][roi]
+            # for better sorting of the file, rewrite the whole thing
             for i,r in enumerate(self.ui.rois[roitype][self.ui.s][1:]): # skip dummy zero ROI
+                r2 = copy.deepcopy(r)
                 sdict[tag]['roi'+str(i+1)] = {'stats':None,'bbox':None}
-                sdict[tag]['roi'+str(i+1)]['stats'] = r.stats
-                if hasattr(r,'bboxs'):
+                sdict[tag]['roi'+str(i+1)]['stats'] = r2.stats
+                if hasattr(r2,'bboxs'):
                     bboxs = {}
-                    if bool(r.bboxs): # this should now be populated both for manual prompts and BLAST prompt
-                        for k in r.bboxs.keys():
-                            bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1','slice']}
-
+                    if bool(r2.bboxs):
+                        if slice is None:
+                            kset = r2.bboxs.keys()
+                        else:
+                            if slice in r2.bboxs.keys():
+                                kset = [slice]
+                            else:
+                                continue
+                        for k in kset:
+                            try:
+                                bboxs[k] = {k2:r2.bboxs[k][k2] for k2 in ['p0','p1','slice']}
+                            except KeyError:
+                                pass
                     sdict[tag]['roi'+str(i+1)]['bbox'] = bboxs
 
             json.dump(sdict,fp,indent=4)
