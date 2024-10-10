@@ -325,7 +325,7 @@ if __name__ == '__main__':
         cases = sorted(os.listdir(brats_data_dir))
 
     # edit range of cases to process here
-    for C in cases:
+    for C in cases[13:]:
         print('case {}'.format(C))
         dir = os.path.join(brats_data_dir,C)
         files = os.listdir(dir)

@@ -1456,8 +1456,14 @@ class CreateSAMROIFrame(CreateFrame):
             # circular region of interest around point. should check and exclude background pixels though.
             croi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < self.pointradius.get())
 
-            mu_t1 = np.mean(dslice_t1[croi])
-            mu_flair = np.mean(dslice_flair[croi])
+            # centroid of ellipse is mean of circular roi
+            if False:
+                mu_t1 = np.mean(dslice_t1[croi])
+                mu_flair = np.mean(dslice_flair[croi])
+            # centroid of the ellipse will be the clicked point
+            else:
+                mu_t1 = dpt_t1
+                mu_flair = dpt_flair
             std_t1 = np.std(dslice_t1[croi])
             std_flair = np.std(dslice_flair[croi])
             e = copy.copy(std_flair) / copy.copy(std_t1)
