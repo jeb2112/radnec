@@ -654,7 +654,6 @@ class CreateSAMROIFrame(CreateFrame):
                     self.layer_callback(layer='ET')
 
             # update SAM roi with prompts derived from BLAST roi
-            # roi2.bboxs are roi1.bboxs. 
             self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
             self.save_prompts(slice=self.ui.currentslice)
             self.segment_sam(tag='blast')
@@ -668,7 +667,7 @@ class CreateSAMROIFrame(CreateFrame):
             # This arrangement is not great, but this 2d one-slice save
             # is temporary for experimental purposes and will later be removed.
             if True:
-                self.ui.roiframe.ROIstats(save=True,tag='point',roitype='sam',slice=self.ui.currentslice)
+                self.ui.roiframe.ROIstats(save=True,tag='point',roitype='sam',slice=self.ui.currentslice,timer=False)
             # automatically switch to SAM display
             self.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -901,10 +900,11 @@ class CreateSAMROIFrame(CreateFrame):
     # for exporting BLAST/SAM segmentations.
     def saveROI(self,roi=None,outputpath=None):
 
-        # if timer running, stop it
-        if self.ui.sliceviewerframe.timing.get() == True:
-            self.ui.sliceviewerframe.timing.set(False)
-            self.ui.sliceviewerframe.timer()
+        # depending on the experiment, stop the timer
+        if False:
+            if self.ui.sliceviewerframe.timing.get() == True:
+                self.ui.sliceviewerframe.timing.set(False)
+                self.ui.sliceviewerframe.timer()
 
         if outputpath is None:
             outputpath = self.ui.caseframe.casedir
@@ -935,7 +935,7 @@ class CreateSAMROIFrame(CreateFrame):
                     
             # output BLAST stats
             # tag is hard-coded here for a unique key in stats.sjon
-            self.ROIstats(save=True,roitype='blast',tag='blast')
+            self.ROIstats(save=True,roitype='blast',tag='blast',timer=False)
 
         # run the SAM segmentation
         # tag is hard-coded here for a unique key in stats.json and output filenames
@@ -943,10 +943,17 @@ class CreateSAMROIFrame(CreateFrame):
         self.save_prompts()
         self.segment_sam(tag=tag)
         self.layerSAM_callback(layer='TC')
+
+        # depending on the experiment, stop the timer
+        if True:
+            if self.ui.sliceviewerframe.timing.get() == True:
+                self.ui.sliceviewerframe.timing.set(False)
+                self.ui.sliceviewerframe.timer()
+
         # output SAM stats
         self.ROIstats(save=True,roitype='sam',tag=tag)       
 
-        # experiment
+        # depending on the experiment
         # optionally run the SAM segmentation with point prompts
         if False:
             tag = 'blast_point'
@@ -1095,11 +1102,15 @@ class CreateSAMROIFrame(CreateFrame):
         s = self.ui.s
         r = self.ui.rois[roitype][s][roi]
         data = copy.deepcopy(r.data)
-        if timer and self.ui.sliceviewerframe.timing.get():
-            currenttime = time.time()
-            elapsedtime = currenttime - self.ui.sliceviewerframe.prevtime
-            r.stats['elapsedtime'] = np.round(elapsedtime*10)/10
-            self.ui.sliceviewerframe.prevtime = currenttime
+        # if timer and self.ui.sliceviewerframe.timing.get():
+        if timer:
+            # currenttime = time.time()
+            # elapsedtime = currenttime - self.ui.sliceviewerframe.prevtime
+            r.stats['elapsedtime'] = np.round(self.ui.sliceviewerframe.elapsedtime*10)/10
+            # depending on the experiment, the state of the timer could 
+            # be edited here
+            if False:
+                self.ui.sliceviewerframe.prevtime = currenttime
 
         for dt in ['ET','TC','WT']:
             # check for a complete segmentation
@@ -1142,34 +1153,32 @@ class CreateSAMROIFrame(CreateFrame):
             if os.path.exists(statsfile):
                 fp = open(statsfile,'r+')
                 sdict = json.load(fp)
+                if tag not in sdict.keys():
+                    sdict[tag] = {}
                 fp.seek(0)
-                sdict[tag] = {}
             else:
                 fp = open(statsfile,'w')
                 sdict = {tag:{}}
 
-            # r = self.ui.rois[roitype][self.ui.s][roi]
-            # for better sorting of the file, rewrite the whole thing
-            for i,r in enumerate(self.ui.rois[roitype][self.ui.s][1:]): # skip dummy zero ROI
-                r2 = copy.deepcopy(r)
-                sdict[tag]['roi'+str(i+1)] = {'stats':None,'bbox':None}
-                sdict[tag]['roi'+str(i+1)]['stats'] = r2.stats
-                if hasattr(r2,'bboxs'):
-                    bboxs = {}
-                    if bool(r2.bboxs):
-                        if slice is None:
-                            kset = r2.bboxs.keys()
-                        else:
-                            if slice in r2.bboxs.keys():
-                                kset = [slice]
-                            else:
-                                continue
+            r2 = self.ui.rois[roitype][self.ui.s][roi]
+            sdict[tag]['roi'+str(roi)] = {'stats':None,'bbox':None}
+            sdict[tag]['roi'+str(roi)]['stats'] = r2.stats
+            if hasattr(r2,'bboxs'):
+                bboxs = {}
+                if bool(r2.bboxs):
+                    kset = []
+                    if slice is None:
+                        kset = r2.bboxs.keys()
+                    else:
+                        if slice in r2.bboxs.keys():
+                            kset = [slice]
+                    if len(kset):
                         for k in kset:
                             try:
                                 bboxs[k] = {k2:r2.bboxs[k][k2] for k2 in ['p0','p1','slice']}
                             except KeyError:
                                 pass
-                    sdict[tag]['roi'+str(i+1)]['bbox'] = bboxs
+                sdict[tag]['roi'+str(roi)]['bbox'] = bboxs
 
             json.dump(sdict,fp,indent=4)
             fp.truncate()
