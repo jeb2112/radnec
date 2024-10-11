@@ -141,9 +141,7 @@ class CreateSAMROIFrame(CreateFrame):
         saveROI.grid(row=1,column=8,sticky='w')
 
         # clear ROI button
-        # using resetROI for now, but should restore this functionality to apply to 
-        # current ROI only.
-        clearROI = ttk.Button(self.frame,text='clear ROI',command = self.resetROI)
+        clearROI = ttk.Button(self.frame,text='clear ROI',command = self.clearROI)
         clearROI.grid(row=1,column=7,sticky='w')
         self.frame.update()
 
@@ -643,31 +641,25 @@ class CreateSAMROIFrame(CreateFrame):
         # in the SAM viewer, the BLAST ROI itself isn't displayed, just jump directly to 
         # the SAM result.
         if self.ui.roi[self.ui.s][roi].status:
-            if False:
-                self.overlay_value['finalROI'].set(True)
-                self.overlay_value['BLAST'].set(False)
-                self.ui.dataselection = 'seg_fusion'
-                if self.ui.roi[self.ui.s][roi].data['WT'] is None:
-                    # removed T2 hyper here. should this be layerROI_callback?
-                    self.layer_callback(layer='ET')
-                else:
-                    self.layer_callback(layer='ET')
 
-            # update SAM roi with prompts derived from BLAST roi
-            self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
-            self.save_prompts(slice=self.ui.currentslice)
-            self.segment_sam(tag='blast')
-            # save to stats.json
-            # optionally saving 2d single-slice point prompt result separately from the ROIstats save in 
-            # the saveROI() method. 'tag' arg is hard-coded here to put the results in separate attributes
+            # temporary. experiment.
+            # record the 2d SAM point prompt result, based on the clicked point
+            # note. saving 2d single-slice point prompt result separately from the ROIstats save in 
+            # the saveROI() method. 'tag' ROIstats arg is hard-coded here to put the results in separate attributes
             # in the json. Note that by this arrangement, the same roi number is used for both
-            # the 2d save and the later multi-slice 3d save in saveROI, and the one-slice results
-            # in the roi instance are recalculated with the blast bbox prompt and over-written during 
-            # the multi-slice SAM segmentation.
-            # This arrangement is not great, but this 2d one-slice save
-            # is temporary for experimental purposes and will later be removed.
+            # the 2d save and the later multi-slice 3d save in saveROI.
             if True:
+                # update SAM roi with prompts derived from BLAST roi
+                self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']),type='point',slice=self.ui.currentslice)
+                self.save_prompts(slice=self.ui.currentslice)
+                self.segment_sam(tag='blast',prompt='point')
                 self.ui.roiframe.ROIstats(save=True,tag='point',roitype='sam',slice=self.ui.currentslice,timer=False)
+            else:
+                # normally use 'bbox' and don't save.
+                self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
+                self.save_prompts(slice=self.ui.currentslice)
+                self.segment_sam(tag='blast')
+                
             # automatically switch to SAM display
             self.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -1031,11 +1023,11 @@ class CreateSAMROIFrame(CreateFrame):
 
 
     # eliminate latest ROI if there are multiple ROIs in current case
-    # not updated for SAM viewer yet
     def clearROI(self):
         n = len(self.ui.roi[self.ui.s])
         if n>1:    
-            self.ui.roi[self.ui.s].pop(self.ui.currentroi)
+            self.ui.rois['sam'][self.ui.s].pop(self.ui.currentroi)
+            self.ui.rois['blast'][self.ui.s].pop(self.ui.currentroi)
             n -= 1
             if self.ui.currentroi > 1 or n==1:
                 # new current roi is decremented as an arbitrary choice
@@ -1184,6 +1176,12 @@ class CreateSAMROIFrame(CreateFrame):
             fp.truncate()
             fp.close()
 
+    def clear_stats(self):
+        studydir = self.ui.data[self.ui.s].studydir
+        statsfile = os.path.join(studydir,'stats.json')
+        if os.path.exists(statsfile):
+            os.remove(statsfile)
+
 
     # tumour segmenation by SAM
     # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
@@ -1276,61 +1274,6 @@ class CreateSAMROIFrame(CreateFrame):
 
         return 
     
-
-    # calculate a point or bbox prompt
-    # duplicate code. the bbox part is copied from SAMDataset.py.
-    # the huggingface SAM classes are currently separate
-    # from the viewer code and only used in standalone script
-    # sam_hf.py. If SAM development continues,
-    # this should become integrated and duplication removed.
-    def get_prompt(self,mask=None,pt=None,slice=None,perturbation=0,padding=3):
-
-        roi = self.ui.get_currentroi()
-        s = self.ui.s
-        if slice is None:
-            slice = self.ui.currentslice
-
-        # if point specified, derive a point prompt
-        if pt is not None:
-            bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
-            bbox['p0'] = [pt[0], pt[1]]
-            bbox['slice'] = slice
-
-        # otherwise, derive a bbox prompt from a mask
-        else:
-            if mask is None:
-                mask = self.ui.roi[s][roi].data['ET'][slice]
-            # Find minimum mask bounding all included mask points.
-            y_indices, x_indices = np.where(mask > 0)
-            x_min, x_max = np.min(x_indices), np.max(x_indices)
-            y_min, y_max = np.min(y_indices), np.max(y_indices)
-
-            # add padding
-            ydim,xdim = np.shape(mask)
-            x_min = max(0,x_min - padding)
-            y_min = max(0,y_min - padding)
-            x_max = min(xdim-1,x_max + padding)
-            y_max = min(ydim-1,y_max + padding)
-
-            if perturbation:  # Add perturbation to bounding box coordinates.
-                H, W = mask.shape
-                x_min = max(0, x_min + np.random.randint(-perturbation, perturbation))
-                x_max = min(W, x_max + np.random.randint(-perturbation, perturbation))
-                y_min = max(0, y_min + np.random.randint(-perturbation, perturbation))
-                y_max = min(H, y_max + np.random.randint(-perturbation, perturbation))
-
-            # duplicates sliceviewerframe bbox
-            bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
-            bbox['p0'] = [int(x_min), int(y_min)]
-            bbox['p1'] = [int(x_max), int(y_max)]
-            bbox['slice'] = slice
-
-        self.ui.rois['sam'][s][roi].bboxs[slice] = copy.deepcopy(bbox)
-        # this could be just a reference
-        self.ui.rois['sam'][s][roi].bbox = copy.deepcopy(bbox)
-
-        return
-
 
     #############################
     # methods for point selection

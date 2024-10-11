@@ -70,8 +70,11 @@ class ROISAM(ROI):
 
     # create a multi-slice set of point|bbox prompts from a 3d mask such as BLAST ROI
     # these prompts are stored both as a mask and as coordinates in a dict
-    def create_prompts_from_mask(self,mask,type='bbox'):
-        rslice = range(np.shape(mask)[0]) # do all slices
+    def create_prompts_from_mask(self,mask,type='bbox',slice=None):
+        if slice is None:
+            rslice = range(np.shape(mask)[0]) # do all slices
+        else:
+            rslice = [slice]
         for r in rslice:
             if len(np.where(mask[r])[0]):
                 if type == 'bbox':
@@ -80,7 +83,7 @@ class ROISAM(ROI):
                     self.data['bbox'][r],self.bboxs[r] = self.get_point_mask(mask[r])
         
     def get_point_mask(self,mask):
-        cy,cx = np.round(np.mean(np.where(mask),axis=1)).astype('int')
+        cy,cx = map(int,np.round(np.mean(np.where(mask),axis=1)))
         mask = np.zeros_like(mask)
         mask[cy,cx] = 1
 

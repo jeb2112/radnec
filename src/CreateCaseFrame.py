@@ -133,6 +133,7 @@ class CreateCaseFrame(CreateFrame):
         self.ui.dataselection = 'raw'
         self.ui.sliceviewerframe.tbar.home()
         self.ui.updateslice()
+        self.ui.roiframe.clear_stats()
         # self.ui.sliceviewerframe.dwell()
 
     def study_callback(self,event=None):
