@@ -635,11 +635,13 @@ class CreateSAMROIFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
         roi = self.ui.get_currentroi()
+
+
         # in the SAM viewer, there is only ET/TC, so the ROI status is set true immediately
         # once ET BLAST segmentation is available. Now, run the SAM segmentation only on the current slice
         # to illustrate whether the BLAST ROI is adequate for prompting.
         # in the SAM viewer, the BLAST ROI itself isn't displayed, just jump directly to 
-        # the SAM result.
+        # the SAM result. This code should move to a separate function.
         if self.ui.roi[self.ui.s][roi].status:
 
             # temporary. experiment.
@@ -653,18 +655,23 @@ class CreateSAMROIFrame(CreateFrame):
                 self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']),type='point',slice=self.ui.currentslice)
                 self.save_prompts(slice=self.ui.currentslice)
                 self.segment_sam(tag='blast',prompt='point')
-                self.ui.roiframe.ROIstats(save=True,tag='point',roitype='sam',slice=self.ui.currentslice,timer=False)
+                # saveROI here
+                self.ui.roiframe.ROIstats(save=True,tag='SAM2d_point',roitype='sam',slice=self.ui.currentslice)
+                self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
             else:
                 # normally use 'bbox' and don't save.
                 self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
                 self.save_prompts(slice=self.ui.currentslice)
                 self.segment_sam(tag='blast')
-                
+
             # automatically switch to SAM display
             self.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
             self.layerSAM_callback(layer='TC')
             # TODO. reload segmentations to viewer
+
+            # activate 3d SAM button
+            self.ui.sliceviewerframe.run3dSAM.configure(state='active')
         else:
             # this workflow option shouldn't be triggered in the current implementation of 
             # SAM (ET/TC) only.
@@ -890,13 +897,16 @@ class CreateSAMROIFrame(CreateFrame):
                     idx += 1
 
     # for exporting BLAST/SAM segmentations.
-    def saveROI(self,roi=None,outputpath=None):
+    # tag - unique string for output filenames
+    def saveROI(self,roitype=None,roi=None,outputpath=None,tag=None):
 
-        # depending on the experiment, stop the timer
-        if False:
-            if self.ui.sliceviewerframe.timing.get() == True:
-                self.ui.sliceviewerframe.timing.set(False)
-                self.ui.sliceviewerframe.timer()
+        if roitype is None:
+            roitype = ['blast','sam']
+        else: 
+            if type(roitype) == list:
+                roitype = roitype
+            else:
+                roitype = [roitype]
 
         if outputpath is None:
             outputpath = self.ui.caseframe.casedir
@@ -909,51 +919,29 @@ class CreateSAMROIFrame(CreateFrame):
                 roilist = [roi]
 
         fileroot = self.ui.data[self.ui.s].studydir
-        # BLAST finalROI outputs. 
-        # hack for sam: have to check here if a regular BLAST segmentation has been done
-        # otherwise don't try to output anything.
-        if len(self.ui.rois['blast'][self.ui.s]) > self.ui.currentroi: # > for 1-based indexing
-            for img in ['ET','TC','WT']:
-                for roi in roilist:
-                    if len(roilist) > 1:
-                        roisuffix = '_roi' + str(roi)
-                        outputfilename = os.path.join(fileroot,'{}_{}_blast.nii'.format(img,roisuffix))
-                    else:
-                        outputfilename = os.path.join(fileroot,'{}_blast.nii'.format(img))
-                        if self.ui.roi[self.ui.s][int(roi)].data[img] is not None:
-                            self.ui.data[self.ui.s].writenifti(self.ui.roi[self.ui.s][int(roi)].data[img],
-                                                            outputfilename,
-                                                            affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
+
+        for r in roitype:
+            if tag is None:
+                tag = r
+            else:
+                tag = r + '_' + tag
+            # not sure if this check is needed?
+            if len(self.ui.rois[r][self.ui.s]) > self.ui.currentroi: # > for 1-based indexing
+                for img in ['ET','TC','WT']:
+                    if self.ui.rois[r][self.ui.s][1].data[img] is None:
+                        continue
+                    img_output = np.zeros(self.ui.sliceviewerframe.dim)
+                    for roinumber in roilist:
+                        img_output += self.ui.rois[r][self.ui.s][int(roinumber)].data[img]
+                    outputfilename = os.path.join(fileroot,'{}_'.format(img) + tag + '.nii')
+                    self.ui.data[self.ui.s].writenifti(img_output,
+                                                        outputfilename,
+                                                        affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
                     
-            # output BLAST stats
-            # tag is hard-coded here for a unique key in stats.sjon
-            self.ROIstats(save=True,roitype='blast',tag='blast',timer=False)
-
-        # run the SAM segmentation
-        # tag is hard-coded here for a unique key in stats.json and output filenames
-        tag = 'blast_bbox'
-        self.save_prompts()
-        self.segment_sam(tag=tag)
-        self.layerSAM_callback(layer='TC')
-
-        # depending on the experiment, stop the timer
-        if True:
-            if self.ui.sliceviewerframe.timing.get() == True:
-                self.ui.sliceviewerframe.timing.set(False)
-                self.ui.sliceviewerframe.timer()
-
-        # output SAM stats
-        self.ROIstats(save=True,roitype='sam',tag=tag)       
-
-        # depending on the experiment
-        # optionally run the SAM segmentation with point prompts
-        if False:
-            tag = 'blast_point'
-            self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(self.ui.rois['blast'][self.ui.s][roi].data['ET'],type='point')
-            self.save_prompts()
-            self.segment_sam(tag=tag, prompt='point')
-            self.layerSAM_callback(layer='TC')
-            self.ROIstats(save=True,roitype='sam',tag=tag)       
+            # output stats
+            # tag is for a unique key in stats.sjon
+            for roinumber in roilist:
+                self.ROIstats(save=True,roi=roinumber,roitype=r,tag=tag)
 
 
     # back-copy an existing ROI and overlay from current dataset back into the current roi. 
@@ -1064,6 +1052,9 @@ class CreateSAMROIFrame(CreateFrame):
                     self.updatesliderlabel(l,sl)
         # additionally clear any point selections
         self.ui.reset_pt()
+        # deactivate 3d SAM
+        self.ui.sliceviewerframe.run3dSAM.configure(state='disabled')
+
 
     def set_roi(self,roi=None):
         self.roistate = 'blast'
@@ -1087,22 +1078,13 @@ class CreateSAMROIFrame(CreateFrame):
     # roitype - for sam versus blast. dual roi data structure continues to be awkward.
     # slice - process given slice or whole volume if None
     # timer - read the SVFrame timer and record
-    def ROIstats(self,roi=None,save=False,tag=None,roitype='blast',slice=None,timer=True):
+    def ROIstats(self,roi=None,save=False,tag=None,roitype='blast',slice=None):
         
         if roi is None:
             roi = self.ui.get_currentroi() # ie, there is only 1 roi in SAM viewer for now
         s = self.ui.s
         r = self.ui.rois[roitype][s][roi]
         data = copy.deepcopy(r.data)
-        # if timer and self.ui.sliceviewerframe.timing.get():
-        if timer:
-            # currenttime = time.time()
-            # elapsedtime = currenttime - self.ui.sliceviewerframe.prevtime
-            r.stats['elapsedtime'] = np.round(self.ui.sliceviewerframe.elapsedtime*10)/10
-            # depending on the experiment, the state of the timer could 
-            # be edited here
-            if False:
-                self.ui.sliceviewerframe.prevtime = currenttime
 
         for dt in ['ET','TC','WT']:
             # check for a complete segmentation

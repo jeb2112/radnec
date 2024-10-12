@@ -109,6 +109,9 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # button to run 2d SAM on current prompt (point or bbox)
         self.run2dSAM = ttk.Button(self.normal_frame,text='run SAM',command=self.sam2d_callback,state='disabled')
         self.run2dSAM.grid(row=1,column=3,sticky='w')
+        # button to run 3d SAM on current BLAST ROI (bbox)
+        self.run3dSAM = ttk.Button(self.normal_frame,text='run 3d SAM',command=self.sam3d_callback,state='disabled')
+        self.run3dSAM.grid(row=1,column=4,sticky='w')
 
         # messages text frame
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -490,7 +493,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
 
     # run 2d SAM on available prompt. currently this is either a bbox or a single point
-    # the ROI is hardcoded [1], there can't be multiple roi's.
     def sam2d_callback(self):
 
         # switch roi context
@@ -515,19 +517,37 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
         self.ui.roiframe.layerSAM_callback(layer='TC')
 
-    # run 3d SAM on all bbox's. currently this is only for handdrawn not BLAST
-    # might not be needed and not properly coded
+    # run 3d SAM on all bbox's as available from a BLAST ROI. 
     def sam3d_callback(self):
-        print('run sam 3D')
-        if len(list(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs.keys())) == 0:
-            print('No bbox\'s defined')
+        # check for an available blast segmentation
+        if not self.ui.rois['blast'][self.ui.s][self.ui.currentroi].status:
             return
-        self.ui.roiframe.saveROI(mask='bbox')
-        self.ui.roiframe.segment_sam(tag='bbox')
+        
+        print('run SAM 3d')
+        # run the SAM segmentation
+        # tag is hard-coded here for a unique key in stats.json
+        self.ui.roiframe.save_prompts()
+        self.ui.roiframe.segment_sam(tag='blast_bbox_3d')
+
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
         self.ui.roiframe.layerSAM_callback(layer='TC')
+
+        # experimental option. if timer running, stop it.
+        if True:
+            if self.timing.get() == True:
+                self.timing.set(False)
+                self.timer()
+                self.ui.rois['sam'][self.ui.s][self.ui.currentroi].stats['elapsedtime'] = np.round(self.elapsedtime*10)/10
+
+        self.ui.set_message(msg="SAM 3d complete")
+
+    
+        # experimental. optionally save automatically 
+        if False: 
+            self.ui.roiframe.saveROI(mask='bbox')
+
 
     #######################
     # mouse/keyboard events

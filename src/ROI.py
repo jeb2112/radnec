@@ -58,7 +58,7 @@ class ROISAM(ROI):
         # seg_fusion_d - a copy of overaly image for display purposes
         # seg - a composite mask of a multi-compartment segmentation combining ET,TC,WT. not currently used in SAM viewer
         # bbox - 3d volume of 2d bbox prompts of each in-plane slice, to be exported as .png files for use with SAM
-        self.data = {'TC':None,
+        self.data = {'TC':None,'ET':None,'WT':None,
                      'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg':None,

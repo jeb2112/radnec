@@ -91,7 +91,7 @@ else:
             for r in d[c][p].keys(): # list or roi's for this case
                 res['dsc'][p].append(d[c][p][r]['stats']['dsc']['TC'])
                 res['speed'][p].append(d[c][p][r]['stats']['elapsedtime'])
-                if p == 'point':    
+                if p == 'SAM2d_point':    
                     slice = list(d[c][p][r]['bbox'].keys())[0]
                     # bbox coords were stored x,y,slice
                     coords =  np.reshape(np.array(d[c][p][r]['bbox'][slice]['p0']+[int(slice)] ),(-1,1))
@@ -156,17 +156,17 @@ m = [mean_res['speed'][k] for k in prompts]
 se = [se_res['speed'][k] for k in prompts]
 plt.sca(ax[1,0])
 ax[1,0].cla()
-for i,p in enumerate(prompts):
-    plt.errorbar(p,m[i],yerr=se[i],fmt='+',c=defcolors[i])
-ax[1,0].set_ylim((0,25))
+for i,p in enumerate(['SAM_bbox','unet']):
+    plt.errorbar(p,m[i+2],yerr=se[i+2],fmt='+',c=defcolors[i])
+ax[1,0].set_ylim((0,800))
 plt.ylabel('mean time +/- se')
 plt.xticks(fontsize=8)
 
 plt.sca(ax[1,1])
 ax[1,1].cla()
-sdata = {k:res['speed'][k] for k in prompts}
+sdata = {k:res['speed'][k] for k in ['SAM_bbox','unet']}
 sns.boxplot(data=sdata)
-ax[1,1].set_ylim((0,25))
+ax[1,1].set_ylim((0,800))
 plt.ylabel('time (sec)')
 plt.xticks(fontsize=8)
 
