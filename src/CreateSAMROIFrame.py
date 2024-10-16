@@ -652,12 +652,14 @@ class CreateSAMROIFrame(CreateFrame):
             # the 2d save and the later multi-slice 3d save in saveROI.
             if True:
                 # update SAM roi with prompts derived from BLAST roi
-                self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']),type='point',slice=self.ui.currentslice)
-                self.save_prompts(slice=self.ui.currentslice)
-                self.segment_sam(tag='blast',prompt='point')
+                self.ui.sliceviewerframe.sam2d_callback(prompt='point')
+                # self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']),type='point',slice=self.ui.currentslice)
+                # self.save_prompts(slice=self.ui.currentslice)
+                # self.segment_sam(tag='blast',prompt='point')
                 # saveROI here
-                self.ui.roiframe.ROIstats(save=True,tag='SAM2d_point',roitype='sam',slice=self.ui.currentslice)
-                self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
+                self.saveROI(roitype='sam',roi=self.ui.currentroi,tag='point_slice'+str(self.ui.currentslice))
+                # self.ui.roiframe.ROIstats(save=True,tag='SAM2d_point',roitype='sam',slice=self.ui.currentslice)
+                # self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
             else:
                 # normally use 'bbox' and don't save.
                 self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
@@ -941,7 +943,12 @@ class CreateSAMROIFrame(CreateFrame):
             # output stats
             # tag is for a unique key in stats.sjon
             for roinumber in roilist:
-                self.ROIstats(save=True,roi=roinumber,roitype=r,tag=tag)
+                # temporary arrangement for experiment.
+                if 'slice' in tag:
+                    rtag = '_'.join(tag.split('_')[:2])
+                else:
+                    rtag = tag
+                self.ROIstats(save=True,roi=roinumber,roitype=r,tag=rtag)
 
 
     # back-copy an existing ROI and overlay from current dataset back into the current roi. 
@@ -1163,6 +1170,12 @@ class CreateSAMROIFrame(CreateFrame):
         statsfile = os.path.join(studydir,'stats.json')
         if os.path.exists(statsfile):
             os.remove(statsfile)
+        # experiment temporary. remove all individual slice nifti's.
+        files = os.listdir(studydir)
+        slicefiles = [os.path.join(studydir,f) for f in files if 'slice' in f]
+        if len(slicefiles):
+            for f in slicefiles:
+                os.remove(f)
 
 
     # tumour segmenation by SAM

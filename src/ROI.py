@@ -53,7 +53,7 @@ class ROISAM(ROI):
         self.mask = None
 
         # segmentation masks
-        # 'TC' - the SAM segmentation, interpreted as tumour core for now
+        # 'TC' - the SAM segmentation, interpreted as tumour core for now. 'ET','WT' are not used
         # seg_fusion - an overlay image of 'TC' over t1+ or flair
         # seg_fusion_d - a copy of overaly image for display purposes
         # seg - a composite mask of a multi-compartment segmentation combining ET,TC,WT. not currently used in SAM viewer
@@ -70,16 +70,16 @@ class ROISAM(ROI):
 
     # create a multi-slice set of point|bbox prompts from a 3d mask such as BLAST ROI
     # these prompts are stored both as a mask and as coordinates in a dict
-    def create_prompts_from_mask(self,mask,type='bbox',slice=None):
+    def create_prompts_from_mask(self,mask,prompt='bbox',slice=None):
         if slice is None:
             rslice = range(np.shape(mask)[0]) # do all slices
         else:
             rslice = [slice]
         for r in rslice:
             if len(np.where(mask[r])[0]):
-                if type == 'bbox':
+                if prompt == 'bbox':
                     self.data['bbox'][r],self.bboxs[r] = self.get_bbox_mask(mask[r])
-                elif type == 'point':
+                elif prompt == 'point':
                     self.data['bbox'][r],self.bboxs[r] = self.get_point_mask(mask[r])
         
     def get_point_mask(self,mask):

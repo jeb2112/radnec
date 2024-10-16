@@ -51,7 +51,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
         self.sagcordisplay = tk.IntVar(value=0)
         self.overlay_type = tk.IntVar(value=self.config.BlastOverlayType)
-        self.slicevolume_norm = tk.IntVar(value=1)
+        # self.slicevolume_norm = tk.IntVar(value=1)
+        self.prompt_type = tk.StringVar(value='bbox')
         # window/level stuff will need further tidying up
         # window/level values for T1,T2
         self.window = np.array([1.,1.],dtype='float')
@@ -112,6 +113,12 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # button to run 3d SAM on current BLAST ROI (bbox)
         self.run3dSAM = ttk.Button(self.normal_frame,text='run 3d SAM',command=self.sam3d_callback,state='disabled')
         self.run3dSAM.grid(row=1,column=4,sticky='w')
+        # button to select prompt type
+        prompt_point_button = ttk.Radiobutton(self.normal_frame,text='point',variable=self.prompt_type,value='point')
+        prompt_point_button.grid(row=2,column=3,sticky='w')
+        prompt_bbox_button = ttk.Radiobutton(self.normal_frame,text='bbox',variable=self.prompt_type,value='bbox')
+        prompt_bbox_button.grid(row=2,column=4,sticky='w')
+
 
         # messages text frame
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -493,25 +500,17 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
 
     # run 2d SAM on available prompt. currently this is either a bbox or a single point
-    def sam2d_callback(self):
+    def sam2d_callback(self,prompt='bbox'):
 
         # switch roi context
         self.ui.roi = self.ui.rois['sam']
         
         print('run sam 2D')
-        if len(list(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs.keys())) == 0:
-            print('No bbox\'s defined')
-            return
-        if self.ui.currentslice not in list(self.ui.roi[self.ui.s][self.ui.currentroi].bboxs.keys()):
-            print('No bbox defined in current slice')
-            return
-        if self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[self.ui.currentslice]['p1'] is None:
-            prompt = 'point'
-        else:
-            prompt = 'bbox'
-        self.ui.roiframe.save_prompts(sam=self.ui.currentslice,mask='bbox')
-        self.ui.roiframe.segment_sam(tag='manual',prompt=prompt)
-        self.ui.roiframe.ROIstats(save=True,tag='manual_'+prompt,roitype='sam',slice=self.ui.currentslice)
+
+        self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data['ET']),prompt='point',slice=self.ui.currentslice)
+        self.ui.roiframe.save_prompts(slice=self.ui.currentslice)
+        self.ui.roiframe.segment_sam(tag='2d',prompt=prompt)
+        # self.ui.roiframe.ROIstats(save=True,tag='2d_'+prompt,roitype='sam',slice=self.ui.currentslice)
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -526,8 +525,11 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         print('run SAM 3d')
         # run the SAM segmentation
         # tag is hard-coded here for a unique key in stats.json
+        # prompt type bbox currently hard-coded.
+        prompt = self.prompt_type.get()
+        self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data['ET']),prompt=prompt)
         self.ui.roiframe.save_prompts()
-        self.ui.roiframe.segment_sam(tag='blast_bbox_3d')
+        self.ui.roiframe.segment_sam(tag='blast_'+prompt+'_3d')
 
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
@@ -535,13 +537,13 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.ui.roiframe.layerSAM_callback(layer='TC')
 
         # experimental option. if timer running, stop it.
-        if True:
-            if self.timing.get() == True:
-                self.timing.set(False)
-                self.timer()
-                self.ui.rois['sam'][self.ui.s][self.ui.currentroi].stats['elapsedtime'] = np.round(self.elapsedtime*10)/10
-
-        self.ui.set_message(msg="SAM 3d complete")
+        if self.timing.get() == True:
+            self.timing.set(False)
+            self.timer()
+            self.ui.rois['sam'][self.ui.s][self.ui.currentroi].stats['elapsedtime'] = np.round(self.elapsedtime*10)/10
+            self.ui.set_message(msg='elapsed time = {:.1f}'.format(self.elapsedtime))
+        else:
+            self.ui.set_message(msg="SAM 3d complete")
 
     
         # experimental. optionally save automatically 

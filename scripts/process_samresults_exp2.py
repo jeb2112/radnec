@@ -40,6 +40,7 @@ expdir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/SAM_BraTS_2024/expe
 
 res_file = os.path.join(expdir,'experiment2','results.pkl')
 if os.path.exists(res_file):
+    print('Reloading prior results')
     with open(res_file,'rb') as fp:
         (mean_res,se_res,res) = pickle.load(fp)
     prompts = list(res['dsc'].keys())
@@ -91,7 +92,7 @@ else:
             for r in d[c][p].keys(): # list or roi's for this case
                 res['dsc'][p].append(d[c][p][r]['stats']['dsc']['TC'])
                 res['speed'][p].append(d[c][p][r]['stats']['elapsedtime'])
-                if p == 'SAM2d_point':    
+                if p == 'sam_point':    
                     slice = list(d[c][p][r]['bbox'].keys())[0]
                     # bbox coords were stored x,y,slice
                     coords =  np.reshape(np.array(d[c][p][r]['bbox'][slice]['p0']+[int(slice)] ),(-1,1))
@@ -112,8 +113,6 @@ else:
                         if cdist < cmin:
                             cmin = np.copy(cdist)
                             rmin = copy.copy(r2)
-                    # if u[c][r2]['dsc']['TC'] is None:
-                    #     continue
                     res['dsc']['unet'].append(u[c][rmin]['dsc']['TC'])
                     res['speed']['unet'].append(u[c]['elapsed_time'])
                     pass
@@ -156,7 +155,7 @@ m = [mean_res['speed'][k] for k in prompts]
 se = [se_res['speed'][k] for k in prompts]
 plt.sca(ax[1,0])
 ax[1,0].cla()
-for i,p in enumerate(['SAM_bbox','unet']):
+for i,p in enumerate(['sam_blast','unet']):
     plt.errorbar(p,m[i+2],yerr=se[i+2],fmt='+',c=defcolors[i])
 ax[1,0].set_ylim((0,800))
 plt.ylabel('mean time +/- se')
@@ -164,7 +163,7 @@ plt.xticks(fontsize=8)
 
 plt.sca(ax[1,1])
 ax[1,1].cla()
-sdata = {k:res['speed'][k] for k in ['SAM_bbox','unet']}
+sdata = {k:res['speed'][k] for k in ['sam_blast','unet']}
 sns.boxplot(data=sdata)
 ax[1,1].set_ylim((0,800))
 plt.ylabel('time (sec)')
