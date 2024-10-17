@@ -315,7 +315,7 @@ class CreateCaseFrame(CreateFrame):
                 elif len(dcmdirs):
                     dcmdirs = self.group_dcmdirs(dcmdirs)
                     for c in dcmdirs.keys():
-                        case = Case(c,dcmdirs[c],self.config)
+                        case = Case(c,dcmdirs[c],self.datadir.get(),self.config)
                     return
 
             if len(self.caselist['casetags']):

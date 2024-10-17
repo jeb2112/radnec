@@ -36,33 +36,42 @@ class Config(object):
             filehandler = logging.FileHandler(os.path.join(self.LogFilePath,self.LogFileName),mode='w')
             self.logger.addHandler(filehandler)
 
-        # Path to data files
-        self.DataFilePath = os.path.join(os.path.expanduser('~'), 'Documents', 'RADNEC', 'Data')
-        if not os.path.exists(self.LogFilePath):
-            os.makedirs(self.LogFilePath)
 
-        # Path to dataset images
+        # Image paths
+
+        # UIdatadir - intended as a path to fixed resources that wouldn't generally change during  
+        # use of the viewer. currently only the mni talairach atlas uses this path.
+        # UIlocaldir - a convenient default starting point for input data directory in the files
+        # and directory dialog. Once the dialog is used to select some different directory, 
+        # this hard-coded value is no longer used. 
         if os.name == 'nt':
             self.UIdatadir = os.path.join(os.path.expanduser('~'),'data')
             self.UIlocaldir = os.path.join(os.path.expanduser('~'),'data','radnec_sam')
         elif os.name == 'posix':
             # brats dataset
-            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/SAM_BraTS_2024'
-            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/SAM_BraTS_2024/brats2nifti'
+            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
+            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/indigo'
             # dicoms
             # self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
             # self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti'
+
+        # the value here is no longer being using, instead the default is assigned in CreateCaseFrame
         self.UIdataroot = 'BraTS2021_'
 
-        # optional root filename for ground truth masks
+        # a regex for root filename of ground truth masks in the BraTS context
+        # but could be generalized
         self.UIgroundtruth = re.compile('BraTS-MET-[0-9]{5}-000-seg.nii.gz')
 
-        # pytorch env for SAM and nnUNet
+        # pytorch env for SAM and nnUNet, hard-coded here according to whatever machine
+        # is being used
+
         # self.UIpytorch = 'pytorch_sam'
         self.UIpytorch = 'pytorch118_310'
 
         # sam model
+        # base SAM
         # self.SAMModel = 'sam_vit_b_01ec64.pth'
+        # SAM fine-tuned on BraTS2024 MET
         self.SAMModel = 'sam_brats2024_10sep24_9000_50epoch.pth'
 
         # automatically load first case in directory

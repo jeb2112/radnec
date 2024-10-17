@@ -39,12 +39,16 @@ def cp(item):
 # viewer.
 
 # a collection of dicom studies at several time points
+# datadir - root directory containing one or mulitple cases
+# casename - main directory of the current case, naming convention is 'M' + 5 digits for now
+# studydirs - list of study directories in the current case
 class Case():
-    def __init__(self,casename,studydirs,config):
+    def __init__(self,casename,studydirs,datadir,config):
 
         self.config = config
         self.case = casename
-        self.casedir = os.path.join(self.config.UIlocaldir,self.case)
+        self.datadir = datadir
+        self.casedir = os.path.join(self.datadir,self.case)
         self.studydirs = studydirs
         self.studies = []
         # convention for two displayed images: the left image is more recent/index1, and right image is earlier/index0
@@ -105,7 +109,7 @@ class Case():
 
     # resample,register,bias correction
     def process_studydirs(self):
-        pname = os.path.join(self.config.UIlocaldir,self.case,'studies.pkl')
+        pname = os.path.join(self.datadir,self.case,'studies.pkl')
         if os.path.exists(pname):
             with open(pname,'rb') as fp:
                 self.studies = []
@@ -139,7 +143,7 @@ class Case():
         # register the designated reference image to the talairach coords
         s.dset['raw'][dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset['raw'][dref]['d'],transform='Rigid')
         if False:
-            s.writenifti(s.dset['raw'][dref]['d'],os.path.join(self.config.UIlocaldir,self.case,dref+'_talairach.nii'),affine=s.dset['ref']['affine'])
+            s.writenifti(s.dset['raw'][dref]['d'],os.path.join(self.datadir,self.case,dref+'_talairach.nii'),affine=s.dset['ref']['affine'])
         # apply that same registration transform to all remaining images in this study
         for dc in ['raw','z','cbv','adc']:
             for dt in list(s.channels.values()):
@@ -175,7 +179,7 @@ class Case():
     # save all data to nifti files for future use
     def write_all(self):
         for s in self.studies:
-            localstudydir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
+            localstudydir = os.path.join(self.datadir,self.case,s.studytimeattrs['StudyDate'])
             for dc in ['raw','z','cbv','adc']:
                 for dt in list(s.channels.values()):
                     if s.dset[dc][dt]['ex']:
@@ -191,7 +195,7 @@ class Case():
     # run nnunet segmentation                
     def segment(self):
         for s in self.studies:
-            s.localstudydir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
+            s.localstudydir = os.path.join(self.datadir,self.case,s.studytimeattrs['StudyDate'])
             s.segment()
 
     # assumes there are just two time points for now
@@ -601,7 +605,8 @@ class DcmStudy(Study):
         self.dset['adc'] = {v:cp(self.dprop) for v in self.channels.values()}
 
         self.config = config
-        self.localcasedir = os.path.join(self.config.UIlocaldir,self.case)
+        # re-generating this path for output plots but awkward, needs better arrangement
+        self.localcasedir = self.studydir.split(case)[0]+case
         # list of time attributes to check
         self.seriestimeattrs = ['AcquisitionTime']
         self.studytimeattrs = {'StudyDate':None,'StudyTime':None}
@@ -753,10 +758,14 @@ class DcmStudy(Study):
 
     # main routine for the preprocessing pipeline
     # eg resampling, registration, bias correction
-    def preprocess(self):
+    def preprocess(self,extract=False):
 
         print('case = {},{}'.format(self.case,self.studydir))
-        self.localstudydir = os.path.join(self.config.UIlocaldir,self.case,self.studytimeattrs['StudyDate'])
+        # TODO. don't have a great arrangement for parallel dicom and nifti directories 
+        # currently localstudydir just creates an output directory for nifti files based on the 
+        # StudyDate attribute.
+        self.localstudydir = os.path.join(self.localcasedir,self.studytimeattrs['StudyDate'])
+        # self.localstudydir = os.path.join(self.ui.caseframe.datadir.get(),self.case,self.studytimeattrs['StudyDate'])
         if not os.path.exists(self.localstudydir):
             os.makedirs(self.localstudydir)
 
@@ -782,8 +791,12 @@ class DcmStudy(Study):
         # hd-bet model extraction
         for dt in ['t1+','t2','t1','flair','dwi']:
             if self.dset['raw'][dt]['ex']:
-                self.dset['raw'][dt]['d'],self.dset['raw'][dt]['mask'] = self.extractbrain2(self.dset['raw'][dt]['d'],
-                                                                                            affine=self.dset['raw'][dt]['affine'],fname=dt)
+                if extract:
+                    self.dset['raw'][dt]['d'],self.dset['raw'][dt]['mask'] = self.extractbrain2(self.dset['raw'][dt]['d'],
+                                                                                                affine=self.dset['raw'][dt]['affine'],fname=dt)
+                else:
+                    self.dset['raw'][dt]['mask'] = np.zeros_like(self.dset['raw'][dt]['d'])
+                                                                                                
         # For ADC can just use the DWI mask
         if self.dset['adc']['dwi']['ex']:
             self.dset['adc']['dwi']['d'] *= self.dset['raw']['dwi']['mask']
