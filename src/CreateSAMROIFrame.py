@@ -847,11 +847,12 @@ class CreateSAMROIFrame(CreateFrame):
                                                     2*self.ui.roi[s][roi].data['TC'] + \
                                                     1*self.ui.roi[s][roi].data['WT']
                 self.ui.roi[s][roi].status = True # ROI has both compartments selected
-            # WT contouring. not updated lately.
-            objectmask_contoured = {}
-            for sl in range(self.config.ImageDim[0]):
-                objectmask_contoured[sl] = find_contours(self.ui.roi[s][roi].data['WT'][sl,:,:])
-            self.ui.roi[s][roi].data['contour']['WT'] = objectmask_contoured
+            if False:
+                # WT contouring. not updated lately.
+                objectmask_contoured = {}
+                for sl in range(self.config.ImageDim[0]):
+                    objectmask_contoured[sl] = find_contours(self.ui.roi[s][roi].data['WT'][sl,:,:])
+                self.ui.roi[s][roi].data['contour']['WT'] = objectmask_contoured
 
         return None
 
@@ -1048,7 +1049,7 @@ class CreateSAMROIFrame(CreateFrame):
         self.update_roinumber_options(n=1)
         self.ui.roiframe.layertype.set('blast')
         self.ui.roiframe.layer.set('ET')
-        self.ui.chselection = 't1+'
+        self.ui.chselection = self.config.DefaultChannel
         # awkward check here due to using resetROI for clearROI
         if self.ui.sliceviewerframe.canvas is not None and data:
             self.enhancingROI_overlay_callback()
@@ -1374,60 +1375,66 @@ class CreateSAMROIFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
     # create updated BLAST seg from collection of ROI Points
-    # currently this is only coded for ET
-    def updateBLASTMask(self):
-        for k in self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET'].keys():
-            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET'][k] = []
-        for i,pt in enumerate(self.ui.pt[self.ui.s]):
-            dslice_t1 = self.ui.data[self.ui.s].dset['z']['t1+']['d'][pt.coords['slice']]
-            dslice_flair = self.ui.data[self.ui.s].dset['z']['flair']['d'][pt.coords['slice']]
+    def updateBLASTMask(self,layer=None):
+        if layer is None:
+            layers = ['ET','T2 hyper']
+        else:
+            layers = [layer]
+        for l in layers:
+            for k in self.ui.blastdata[self.ui.s]['blastpoint']['params'][l].keys():
+                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l][k] = []
+            for i,pt in enumerate(self.ui.pt[self.ui.s]):
+                dslice_t1 = self.ui.data[self.ui.s].dset['z']['t1+']['d'][pt.coords['slice']]
+                dslice_flair = self.ui.data[self.ui.s].dset['z']['flair']['d'][pt.coords['slice']]
 
-            dpt_t1 = dslice_t1[pt.coords['y'],pt.coords['x']]
-            dpt_flair = dslice_flair[pt.coords['y'],pt.coords['x']]
-            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['pt'].append((dpt_flair,dpt_t1))
+                dpt_t1 = dslice_t1[pt.coords['y'],pt.coords['x']]
+                dpt_flair = dslice_flair[pt.coords['y'],pt.coords['x']]
+                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['pt'].append((dpt_flair,dpt_t1))
 
-            # create grid
-            x = np.arange(0,self.ui.sliceviewerframe.dim[2])
-            y = np.arange(0,self.ui.sliceviewerframe.dim[1])
-            vol = np.array(np.meshgrid(x,y,indexing='xy'))
+                # create grid
+                x = np.arange(0,self.ui.sliceviewerframe.dim[2])
+                y = np.arange(0,self.ui.sliceviewerframe.dim[1])
+                vol = np.array(np.meshgrid(x,y,indexing='xy'))
 
-            # circular region of interest around point. should check and exclude background pixels though.
-            croi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < self.pointradius.get())
+                # circular region of interest around point. should check and exclude background pixels though.
+                croi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < self.pointradius.get())
 
-            # centroid of ellipse is mean of circular roi
-            if False:
-                mu_t1 = np.mean(dslice_t1[croi])
-                mu_flair = np.mean(dslice_flair[croi])
-            # centroid of the ellipse will be the clicked point
-            else:
-                mu_t1 = dpt_t1
-                mu_flair = dpt_flair
-            std_t1 = np.std(dslice_t1[croi])
-            std_flair = np.std(dslice_flair[croi])
-            e = copy.copy(std_flair) / copy.copy(std_t1)
-            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meant12'].append(mu_t1)
-            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['meanflair'].append(mu_flair)
-            # if the selected point is outside the elliptical roi in parameter space, increase the standard 
-            # deviations proportionally to include it. ie pointclustersize is arbitrary.
-            # this is copied from Blastbratsv3.py should combine into one available method
-            pointclustersize = 1
-            point_perimeter = Ellipse((mu_flair, mu_t1), 2*pointclustersize*std_flair,2*pointclustersize*std_t1)
-            unitverts = point_perimeter.get_path().vertices
-            pointverts = point_perimeter.get_patch_transform().transform(unitverts)
-            xy_layerverts = np.transpose(np.vstack((pointverts[:,0],pointverts[:,1])))
-            p = Path(xy_layerverts,closed=True)
-            if not p.contains_point((dpt_flair,dpt_t1)):
-                std_flair = np.sqrt((dpt_flair-mu_flair)**2 + (dpt_t1-mu_t1)**2 / (std_t1/std_flair)**2) * 1.01
-                std_t1 = std_flair / e
+                # centroid of ellipse is mean of circular roi
+                if False:
+                    mu_t1 = np.mean(dslice_t1[croi])
+                    mu_flair = np.mean(dslice_flair[croi])
+                # centroid of the ellipse will be the clicked point
+                else:
+                    mu_t1 = dpt_t1
+                    mu_flair = dpt_flair
+                std_t1 = np.std(dslice_t1[croi])
+                std_flair = np.std(dslice_flair[croi])
+                e = copy.copy(std_flair) / copy.copy(std_t1)
+                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['meant12'].append(mu_t1)
+                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['meanflair'].append(mu_flair)
+                # if the selected point is outside the elliptical roi in parameter space, increase the standard 
+                # deviations proportionally to include it. ie pointclustersize is arbitrary.
+                # this is copied from Blastbratsv3.py should combine into one available method
+                pointclustersize = 1
+                point_perimeter = Ellipse((mu_flair, mu_t1), 2*pointclustersize*std_flair,2*pointclustersize*std_t1)
+                unitverts = point_perimeter.get_path().vertices
+                pointverts = point_perimeter.get_patch_transform().transform(unitverts)
+                xy_layerverts = np.transpose(np.vstack((pointverts[:,0],pointverts[:,1])))
+                p = Path(xy_layerverts,closed=True)
+                if not p.contains_point((dpt_flair,dpt_t1)):
+                    std_flair = np.sqrt((dpt_flair-mu_flair)**2 + (dpt_t1-mu_t1)**2 / (std_t1/std_flair)**2) * 1.01
+                    std_t1 = std_flair / e
 
-            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdt12'].append(std_t1)
-            self.ui.blastdata[self.ui.s]['blastpoint']['params']['ET']['stdflair'].append(std_flair)
+                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['stdt12'].append(std_t1)
+                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['stdflair'].append(std_flair)
 
         # functionality similar to updateslider()
         self.set_overlay('BLAST')
         self.enhancingROI_overlay_callback()
         self.ui.blastdata[self.ui.s]['blast']['gates']['ET'] = None
+        self.ui.blastdata[self.ui.s]['blast']['gates']['T2 hyper'] = None
         self.ui.update_blast(layer='ET')
+        self.ui.update_blast(layer='T2 hyper')
         self.ui.runblast(currentslice=True)
 
         return

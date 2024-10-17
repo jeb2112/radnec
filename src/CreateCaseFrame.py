@@ -129,7 +129,7 @@ class CreateCaseFrame(CreateFrame):
         self.ui.set_casename(val=case)
         print('Loading case {}'.format(case))
         self.loadCase(files=files)
-        self.ui.chselection = 't1+'
+        self.ui.chselection = self.config.DefaultChannel
         self.ui.dataselection = 'raw'
         self.ui.sliceviewerframe.tbar.home()
         self.ui.updateslice()
@@ -137,7 +137,7 @@ class CreateCaseFrame(CreateFrame):
         # self.ui.sliceviewerframe.dwell()
 
     def study_callback(self,event=None):
-        self.ui.chselection = 't1+'
+        self.ui.chselection = self.config.DefaultChannel
         self.ui.dataselection = 'raw'
         self.ui.sliceviewerframe.tbar.home()
         if self.ui.function.get() == 'BLAST':
@@ -182,7 +182,12 @@ class CreateCaseFrame(CreateFrame):
                     'flair':{'d':None,'ex':False},'ref':{'d':None,'mask':None,'ex':False}}
             # by convention, study dir name is the date of the study. this will be used in place
             # of accession number. simple sort thus resolves studies in correct time order.
-            studies = sorted([f for f in os.listdir(self.casedir) if os.path.isdir(os.path.join(self.casedir,f)) ])
+            # additional check to exclude any dirs that aren't study directories.
+            dirs = sorted([f for f in os.listdir(self.casedir) if os.path.isdir(os.path.join(self.casedir,f)) ])
+            studies = []
+            for d in dirs:
+                if len([f for f in os.listdir(os.path.join(self.casedir,d)) if re.match('.*\.(nii|nii\.gz)',f.lower())]):
+                    studies.append(d)
             for i,sname in enumerate(studies):
                 self.ui.data[i] = NiftiStudy(self.casename.get(),os.path.join(self.casedir,sname),groundtruth=self.config.UIgroundtruth)
                 self.ui.data[i].loaddata()
@@ -276,6 +281,7 @@ class CreateCaseFrame(CreateFrame):
 
                 niftidirs,dcmdirs = self.get_imagedirs(dir)
                 # niftidirs option could be a single case, or a directory of multiple cases 
+                # if both nifti and dicoms are present, this will load the nifti dirs preferentially
                 if len(niftidirs):
                     self.datadir.set(dir)
 
@@ -287,7 +293,7 @@ class CreateCaseFrame(CreateFrame):
                     # tag for a single nifti file
                     # the casedir is a sub-directory path between the upper datadir,
                     # and the parent of the dicom series dirs where the nifti's get stored
-                    if len(niftidirs) > 1:
+                    if len(niftidirs) > 0:
                         niftidirs = self.group_dcmdirs(niftidirs)
                         # casefiles = [re.split(r'/|\\\\',d[len(self.datadir.get())+1:])[0] for d in niftidirs]
                         casedirs = sorted([k for k in niftidirs.keys()])
@@ -298,8 +304,7 @@ class CreateCaseFrame(CreateFrame):
                             if casedirs[0] in datadir:
                                 self.datadir.set(os.path.split(datadir)[0])
                         doload = self.config.AutoLoad
-                    elif len(niftidirs) == 1:
-                        raise ValueError('Only one image directory found for this case')
+ 
                     # sorted above? or here may need a future sort
                     if False:
                         casefiles,casedirs = (list(t) for t in zip(*sorted(zip(casefiles,casedirs))))

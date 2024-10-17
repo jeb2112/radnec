@@ -117,3 +117,6 @@ class Config(object):
 
         # default viewer type
         self.DefaultViewer = 'SAM'
+
+        # default channel. 
+        self.DefaultChannel = 'flair'

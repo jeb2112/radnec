@@ -126,10 +126,13 @@ class Case():
 
 
     # register time point0 to talairach, and all subsequent time points to time point 0
-    def process_timepoints(self):
+    def process_timepoints(self,flip=False):
         s = self.studies[0]
-        # ant register can't handle this flip.
-        if True:
+        # TODO. there is a possible flip in axis=1 that comes down from 
+        # something that is missed/undone in the prior dicom processing.
+        # ant register can't handle an exact flip in this dimension.
+        # until it is figured out properly, just flip the data here to facilitate ants
+        if flip:
             for dc in ['raw','z','cbv','adc']:
                 for dt in list(s.channels.values()):
                     if s.dset[dc][dt]['ex']:

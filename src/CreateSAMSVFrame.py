@@ -461,8 +461,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # T2 hyper values will just be the same as ET since we do not have plain T2 available for rad nec.
         X['T2 hyper'] = np.column_stack((vset[1],vset[0]))
 
-        # no T2 hyper processing in SAM viewer
-        for i,layer in enumerate(['ET']):
+        for i,layer in enumerate(['ET','T2 hyper']):
             np.random.seed(1)
             kmeans = KMeans(n_clusters=2,n_init='auto').fit(X[layer])
             background_cluster = np.argmin(np.power(kmeans.cluster_centers_[:,0],2)+np.power(kmeans.cluster_centers_[:,1],2))

@@ -84,9 +84,10 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
 
     # elliptical gate for ET masking will be formed from a selected point(s) if there are
     # values, otherwise use the slider values for rectangular gate. 
-    if layer == 'ET':
+    layer_paths = []
+    # if layer == 'ET':
+    if layer in ['ET','T2 hyper']:
         bd = blastdata['blastpoint']['params'][layer]
-        layer_paths = []
         # if points are available
         if (len(bd['meanflair']) > 0):
             pointclustersize = 1

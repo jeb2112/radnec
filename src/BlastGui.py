@@ -53,7 +53,7 @@ class BlastGui(object):
         # top level of data structure, could be raw data or overlay image
         self.dataselection = 'raw'
         # 2nd level of data structure is image channel, either as raw data or underlay data
-        self.chselection = 't1+' 
+        self.chselection = self.config.DefaultChannel 
 
         # viewer functions. overlay mode, or BLAST segmentation mode
         self.functionlist = {'overlay':0,'BLAST':1,'4panel':2,'SAM':3}
@@ -71,7 +71,8 @@ class BlastGui(object):
                                },
                             },
                             'blastpoint':
-                            {'params':{'ET':{'stdt12':[],'stdflair':[],'meant12':[],'meanflair':[],'pt':[]}}}
+                            {'params':{'ET':{'stdt12':[],'stdflair':[],'meant12':[],'meanflair':[],'pt':[]},
+                                       'T2 hyper':{'stdt12':[],'stdflair':[],'meant12':[],'meanflair':[],'pt':[]}}}
         }
         # currently hard-coded for two studies
         self.blastdata = {0:copy.deepcopy(self.blastdatadict),1:copy.deepcopy(self.blastdatadict)}
@@ -215,7 +216,7 @@ class BlastGui(object):
         # state of current data selection whether overlay or base
         # for now just revert to a base display
         self.dataselection = 'raw'
-        self.chselection = 't1+'
+        self.chselection = self.config.DefaultChannel
         if update:
             self.sliceviewerframe.updateslice()
         # if blast or 4panel, activate study menu
@@ -432,7 +433,7 @@ class BlastGui(object):
         self.normalslice = None
         self.currentslice = None
         self.dataselection = 'raw'
-        self.chselection = 't1+'
+        self.chselection = self.config.DefaultChannel
 
         self.data = {}
         self.blastdata = {0:copy.deepcopy(self.blastdatadict),1:copy.deepcopy(self.blastdatadict)}
