@@ -56,7 +56,7 @@ class CreateSAMROIFrame(CreateFrame):
         self.thresholds['ET']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[0])
         self.thresholds['T2 hyper']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[1])
         self.overlay_type = tk.IntVar(value=0)
-        self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all'],'sam':['TC']}
+        self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all'],'sam':['TC','WT']}
         self.layer = tk.StringVar(value='ET')
         self.layerROI = tk.StringVar(value='ET')
         self.layerSAM = tk.StringVar(value='ET')
@@ -350,7 +350,10 @@ class CreateSAMROIFrame(CreateFrame):
         return
     
     # method for displaying SAM results
-    def layerSAM_callback(self,layer='TC',updateslice=True, updatedata=True):
+    def layerSAM_callback(self,layer=None,updateslice=True, updatedata=True):
+
+        if layer is None:
+            layer = self.layerROI.get()
 
         # switch roi context
         self.ui.roi = self.ui.rois['sam']
@@ -383,6 +386,10 @@ class CreateSAMROIFrame(CreateFrame):
         
         # restore roi context
         self.ui.roi = self.ui.rois['blast']
+
+        # set layer if necessary
+        if layer != self.layerSAM.get():
+            self.layerSAM.set(layer)
         
         return
 
@@ -650,7 +657,7 @@ class CreateSAMROIFrame(CreateFrame):
             # the saveROI() method. 'tag' ROIstats arg is hard-coded here to put the results in separate attributes
             # in the json. Note that by this arrangement, the same roi number is used for both
             # the 2d save and the later multi-slice 3d save in saveROI.
-            if True:
+            if False:
                 # update SAM roi with prompts derived from BLAST roi
                 self.ui.sliceviewerframe.sam2d_callback(prompt='point')
                 # self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']),type='point',slice=self.ui.currentslice)
@@ -662,14 +669,15 @@ class CreateSAMROIFrame(CreateFrame):
                 # self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
             else:
                 # normally use 'bbox' and don't save.
-                self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
-                self.save_prompts(slice=self.ui.currentslice)
-                self.segment_sam(tag='blast')
+                self.ui.sliceviewerframe.sam2d_callback(prompt='bbox')
+                # self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
+                # self.save_prompts(slice=self.ui.currentslice)
+                # self.segment_sam(tag='blast')
 
             # automatically switch to SAM display
             self.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
-            self.layerSAM_callback(layer='TC')
+            self.layerSAM_callback()
             # TODO. reload segmentations to viewer
 
             # activate 3d SAM button
@@ -691,7 +699,11 @@ class CreateSAMROIFrame(CreateFrame):
         blast_layer = self.layer.get()
         roi = ROIBLAST(coords,dim=self.ui.sliceviewerframe.dim,layer=blast_layer)
         self.ui.rois['blast'][self.ui.s].append(roi)
-        roi2 = ROISAM(dim=self.ui.sliceviewerframe.dim,bbox=bbox,layer='TC')
+        if blast_layer in ['ET','TC']:
+            sam_layer = 'TC'
+        else:
+            sam_layer = blast_layer
+        roi2 = ROISAM(dim=self.ui.sliceviewerframe.dim,bbox=bbox,layer=sam_layer)
         self.ui.rois['sam'][self.ui.s].append(roi2)
  
         self.currentroi.set(self.currentroi.get() + 1)
@@ -834,11 +846,11 @@ class CreateSAMROIFrame(CreateFrame):
                                                      1*self.ui.roi[s][roi].data['WT']
                 self.ui.roi[s][roi].status = True # ie ROI has both compartments selected
 
-        # this no longer part of SAM viewer
         elif m == 'WT': # WT gets no additional processing. just create a combined seg mask from the three layers
                         # nnunet convention for labels
             if self.ui.roi[s][roi].data['ET'] is None:
                 self.ui.roi[s][roi].data['seg'] = 1*self.ui.roi[s][roi].data['WT']
+                self.ui.roi[s][roi].status = True # ie either single compartment ET/WT for ROI is sufficient
             else:
                 # update WT based on smoothing for TC
                 self.ui.roi[s][roi].data['WT'] = self.ui.roi[s][roi].data['WT'] | self.ui.roi[s][roi].data['TC']
@@ -1003,7 +1015,7 @@ class CreateSAMROIFrame(CreateFrame):
         self.updatesliders()
 
     # forward-copy certain results from the SAM ROI to the main dataset
-    # duplicates updateData except hard-coded for 'TC', should combine better.
+    # duplicates updateData might be able to combine better.
     def updateSAMData(self,updatemask=False):
         s = self.ui.s
         # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
@@ -1011,7 +1023,7 @@ class CreateSAMROIFrame(CreateFrame):
         for dt in ['seg_fusion']:
             for ch in [self.ui.chselection,'flair']:
                 self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt][ch])
-        for dt in ['TC']:
+        for dt in ['TC','WT']:
             self.ui.data[s].mask['sam'][dt]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt])
             self.ui.data[s].mask['sam'][dt]['ex'] = True
             if self.ui.sliceviewerframes['overlay'] is not None:
@@ -1182,10 +1194,12 @@ class CreateSAMROIFrame(CreateFrame):
     # tumour segmenation by SAM
     # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
     # a bit arbitrary, not using it as the SAM prompt. So, layer arg here defaults to 'TC'
-    def segment_sam(self,roi=None,dpath=None,model='SAM',layer='TC',tag='',prompt='bbox'):
+    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox'):
         print('SAM segment tumour')
         if roi is None:
             roi = self.ui.currentroi
+        if layer is None:
+            layer = self.layerROI.get()
 
         if dpath is None:
             dpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
@@ -1203,6 +1217,7 @@ class CreateSAMROIFrame(CreateFrame):
                 command += ' --checkpoint /media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
                 command += ' --input ' + self.ui.caseframe.casedir
                 command += ' --prompt ' + prompt
+                command += ' --layer ' + layer
                 command += ' --tag ' + tag
             res = os.system(command)
         elif os.name == 'nt':
@@ -1248,13 +1263,12 @@ class CreateSAMROIFrame(CreateFrame):
 
         roi = self.ui.currentroi
         self.ui.roi[self.ui.s][roi].data[layer],_ = self.ui.data[self.ui.s].loadnifti(layer+'_sam_'+tag+'_' + prompt + '.nii.gz',
-                                                            os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions'))
+                                                            os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions'),
+                                                            type='uint8')
         # create a combined seg mask from the three layers
         # using nnunet convention for labels
-        # there is currently no WT segmentation in the SAM viewer, and segmentation from ET
-        # bounding box is interpreted directly as TC
-        self.ui.roi[self.ui.s][roi].data['seg'] = 2*self.ui.roi[self.ui.s][roi].data[layer] #+ \
-                                                # 1*self.ui.roi[self.ui.s][roi].data['WT_sam']
+        self.ui.roi[self.ui.s][roi].data['seg'] = 2*self.ui.roi[self.ui.s][roi].data['TC'] + \
+                                                1*self.ui.roi[self.ui.s][roi].data['WT']
         # need to add this to updateData() or create similar method
         if False:
             self.ui.data[self.ui.s].mask['sam'][layer]['d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data[layer])

@@ -238,7 +238,9 @@ def main(args):
             outputdir = os.path.join(spath,'predictions')
         else:
             outputdir = args.output
-        writenifti(sam_predict,os.path.join(outputdir,'{}_sam_{}_{}.nii'.format('TC',args.tag,args.prompt)),type=np.uint8,affine=affine)
+        if np.max(sam_predict) > 1:
+            sam_predict[np.where(sam_predict)] = 1
+        writenifti(sam_predict,os.path.join(outputdir,'{}_sam_{}_{}.nii'.format(args.layer,args.tag,args.prompt)),type=np.uint8,affine=affine)
 
 
 
@@ -291,6 +293,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("--device", type=str, default="cuda", help="The device to run generation on.")
     parser.add_argument("--tag",type=str, default="",help="Tag word for file naming")
+    parser.add_argument("--layer",type=str, default="",help="TC|WT annotation of output file")
     args = parser.parse_args()
+    print(args)
     main(args)
 

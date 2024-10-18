@@ -506,14 +506,14 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         
         print('run sam 2D')
 
-        self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data['ET']),prompt='point',slice=self.ui.currentslice)
+        self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerROI.get()]),prompt=prompt,slice=self.ui.currentslice)
         self.ui.roiframe.save_prompts(slice=self.ui.currentslice)
         self.ui.roiframe.segment_sam(tag='2d',prompt=prompt)
         # self.ui.roiframe.ROIstats(save=True,tag='2d_'+prompt,roitype='sam',slice=self.ui.currentslice)
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
-        self.ui.roiframe.layerSAM_callback(layer='TC')
+        self.ui.roiframe.layerSAM_callback()
 
     # run 3d SAM on all bbox's as available from a BLAST ROI. 
     def sam3d_callback(self):
