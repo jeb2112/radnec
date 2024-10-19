@@ -888,7 +888,7 @@ class CreateSAMROIFrame(CreateFrame):
         os.makedirs(os.path.join(fileroot,'predictions'),exist_ok=True)
 
         # these image channel and prompt keys could later be generalized as args
-        for ch,prompt in zip(['t1+'],['bbox']):
+        for ch,prompt in zip([self.ui.chselection],['bbox']):
             # roi.data['bbox'] is the multi-slice mask for prompting SAM
             rref = self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data[prompt]
             dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']

@@ -47,8 +47,7 @@ class ROISAM(ROI):
         super().__init__(dim)
         # a SAM drawn bbox coordinates and values, or bbox from BLAST mask
         self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None,'slice':None} 
-        # dict of bbox's, with key = slice. 
-        # this information duplicates self.data['bbox] but can be exported to stats.json
+        # dict of multiple bbox's, with key = slice. 
         self.bboxs = {}
         self.mask = None
 

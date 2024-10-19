@@ -526,14 +526,13 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # tag is hard-coded here for a unique key in stats.json
         # prompt type bbox currently hard-coded.
         prompt = self.prompt_type.get()
-        self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data['ET']),prompt=prompt)
+        self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerSAM.get()]),prompt=prompt)
         self.ui.roiframe.save_prompts()
         self.ui.roiframe.segment_sam(tag='blast_'+prompt+'_3d')
 
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
-        # in SAM, the ET bounding box segmentation is interpreted directly as TC
-        self.ui.roiframe.layerSAM_callback(layer='TC')
+        self.ui.roiframe.layerSAM_callback()
 
         # experimental option. if timer running, stop it.
         if self.timing.get() == True:
