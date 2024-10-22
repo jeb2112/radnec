@@ -124,6 +124,14 @@ def predict_plot(gt,pred,bbox,shape):
 # misc functions
 ################
          
+def set_slice(idx,img_arr_3d,img_arr_2d,orient):
+    if orient == 'ax':
+        img_arr_3d[idx] = copy.deepcopy(img_arr_2d)
+    elif orient == 'sag':
+        img_arr_3d[:,:,idx] = copy.deepcopy(img_arr_2d)
+    elif orient == 'cor':
+        img_arr_3d[:,idx,:] = copy.deepcopy(img_arr_2d)
+
 def load_model_checkpoint(checkpoint_path, model: SamModel):
     checkpoint = torch.load(checkpoint_path)
 
@@ -224,7 +232,12 @@ def main(args):
         affine_enc = image_pil.info['affine'].encode()
         affine_dec = affine_enc.decode('unicode-escape').encode('ISO-8859-1')[2:-1]
         affine = np.reshape(np.frombuffer(affine_dec, dtype=np.float64),(4,4))
-        sam_predict = np.zeros((slicedim,)+image_pil.size[-1::-1],dtype='uint8')
+        if args.orient == 'ax':
+            sam_predict = np.zeros((slicedim,)+image_pil.size[-1::-1],dtype='uint8')
+        elif args.orient == 'sag':
+            sam_predict = np.zeros(image_pil.size[-1::-1]+(slicedim,),dtype='uint8')
+        elif args.orient == 'cor': 
+            sam_predict = np.zeros((image_pil.size[-1],slicedim,image_pil.size[0]),dtype='uint8')
 
         pred_files = os.listdir(os.path.join(spath,'predictions'))
         pred_masks = sorted([ f for f in pred_files if re.match('pred_mask',f) ])
@@ -232,16 +245,17 @@ def main(args):
             slice = int(re.search('slice_([0-9]{3})',i).group(1))
             mask_pil = PIL.Image.open(os.path.join(spath,'predictions',m))
             mask = skimage.transform.resize(np.array(mask_pil),image_pil.size[-1::-1],order=0)
-            sam_predict[slice] = mask
+            set_slice(slice,sam_predict,mask,args.orient)
+            # sam_predict[slice] = mask
 
         if args.output is None:
-            outputdir = os.path.join(spath,'predictions')
+            outputdir = os.path.join(spath,'predictions_nifti')
         else:
             outputdir = args.output
         if np.max(sam_predict) > 1:
             sam_predict[np.where(sam_predict)] = 1
-        writenifti(sam_predict,os.path.join(outputdir,'{}_sam_{}_{}.nii'.format(args.layer,args.tag,args.prompt)),type=np.uint8,affine=affine)
-
+        fname = '{}_sam_{}_{}_{}.nii'.format(args.layer,args.prompt,args.tag,args.orient)
+        writenifti(sam_predict,os.path.join(outputdir,fname),type=np.uint8,affine=affine)
 
 
 if __name__ == "__main__":
@@ -294,6 +308,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cuda", help="The device to run generation on.")
     parser.add_argument("--tag",type=str, default="",help="Tag word for file naming")
     parser.add_argument("--layer",type=str, default="",help="TC|WT annotation of output file")
+    parser.add_argument("--orient",type=str, default="ax",help="orientation of 2d SAM slice")
     args = parser.parse_args()
     print(args)
     main(args)

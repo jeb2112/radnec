@@ -144,7 +144,7 @@ class BlastGui(object):
             # load a nifti case for BLAST 
             if True:
                 caseselect = 'M00001'
-                caseslice = 55
+                caseslice = 75
                 self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
                 self.sliceviewerframe.currentslice.set(caseslice)

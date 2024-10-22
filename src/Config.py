@@ -73,6 +73,8 @@ class Config(object):
         # self.SAMModel = 'sam_vit_b_01ec64.pth'
         # SAM fine-tuned on BraTS2024 MET
         self.SAMModel = 'sam_brats2024_10sep24_9000_50epoch.pth'
+        # improve 3d SAM with orthogonal segmentations
+        self.doSAMortho = True
 
         # automatically load first case in directory
         self.AutoLoad = False

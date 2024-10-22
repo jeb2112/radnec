@@ -508,7 +508,11 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerROI.get()]),prompt=prompt,slice=self.ui.currentslice)
         self.ui.roiframe.save_prompts(slice=self.ui.currentslice)
+        start_time = time.time()
         self.ui.roiframe.segment_sam(tag='2d',prompt=prompt)
+        self.ui.roiframe.load_sam(tag='2d',prompt=prompt)
+        elapsed_time = time.time() - start_time
+        self.ui.set_message(msg='elapsed time = {:0f}'.format(elapsed_time))
         # self.ui.roiframe.ROIstats(save=True,tag='2d_'+prompt,roitype='sam',slice=self.ui.currentslice)
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
@@ -516,20 +520,31 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.ui.roiframe.layerSAM_callback()
 
     # run 3d SAM on all bbox's as available from a BLAST ROI. 
-    def sam3d_callback(self):
+    def sam3d_callback(self,do_ortho=None):
         # check for an available blast segmentation
         if not self.ui.rois['blast'][self.ui.s][self.ui.currentroi].status:
             return
         
         print('run SAM 3d')
-        # run the SAM segmentation
-        # tag is hard-coded here for a unique key in stats.json
-        # prompt type bbox currently hard-coded.
-        prompt = self.prompt_type.get()
-        self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerSAM.get()]),prompt=prompt)
-        self.ui.roiframe.save_prompts()
-        self.ui.roiframe.segment_sam(tag='blast_'+prompt+'_3d')
+        if do_ortho is None:
+            do_ortho = self.ui.config.doSAMortho
+        if do_ortho:
+            planes = ['ax','sag','cor']
+        else:
+            planes = ['ax']
 
+        for orient in planes:
+            # run the SAM segmentation
+            # tag is hard-coded here for a unique key in stats.json
+            # prompt type bbox currently hard-coded.
+            self.ui.set_message(msg='SAM 3d '+orient)
+            prompt = self.prompt_type.get()
+            self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
+                np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerSAM.get()]),prompt=prompt,orient=orient)
+            self.ui.roiframe.save_prompts(orient=orient)
+            self.ui.roiframe.segment_sam(orient=orient,tag='blast_3d')
+        
+        self.ui.roiframe.load_sam(tag = 'blast_3d',prompt=prompt,do_ortho=do_ortho)
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
         self.ui.roiframe.layerSAM_callback()
@@ -542,12 +557,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.ui.set_message(msg='elapsed time = {:.1f}'.format(self.elapsedtime))
         else:
             self.ui.set_message(msg="SAM 3d complete")
-
     
-        # experimental. optionally save automatically 
-        if False: 
-            self.ui.roiframe.saveROI(mask='bbox')
-
+        return
 
     #######################
     # mouse/keyboard events
@@ -755,12 +766,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         assert 'p1' in self.bbox.keys()
         self.ui.roiframe.createROI(bbox = self.bbox)
-        # should be in createROI
-        # self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'] = np.zeros(self.dim)
-        # if self.bbox['p1'] is not None: #bbox
-        #     self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0'],self.bbox['p1']))
-        # else: # pointprompt
-        #     self.ui.roi[self.ui.s][self.ui.currentroi].data['bbox'][self.ui.currentslice] = self.create_mask_from_bbox((self.bbox['p0']))
 
         # also need to plot here since there was no show_bbox from a drag event
         if self.bbox['p1'] is None:

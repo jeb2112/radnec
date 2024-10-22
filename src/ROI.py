@@ -61,7 +61,7 @@ class ROISAM(ROI):
                      'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg':None,
-                     'bbox':np.zeros(dim,dtype='uint8')
+                     'bbox':{'ax':np.zeros(dim,dtype='uint8'),'sag':np.zeros(dim,dtype='uint8'),'cor':np.zeros(dim,dtype='uint8')}
                      }
         # initializing with a one-slice bbox might no longer be needed, use set_bbox instead. 
         if bool(bbox):
@@ -69,17 +69,43 @@ class ROISAM(ROI):
 
     # create a multi-slice set of point|bbox prompts from a 3d mask such as BLAST ROI
     # these prompts are stored both as a mask and as coordinates in a dict
-    def create_prompts_from_mask(self,mask,prompt='bbox',slice=None):
-        if slice is None:
-            rslice = range(np.shape(mask)[0]) # do all slices
-        else:
-            rslice = [slice]
-        for r in rslice:
-            if len(np.where(mask[r])[0]):
-                if prompt == 'bbox':
-                    self.data['bbox'][r],self.bboxs[r] = self.get_bbox_mask(mask[r])
-                elif prompt == 'point':
-                    self.data['bbox'][r],self.bboxs[r] = self.get_point_mask(mask[r])
+    def create_prompts_from_mask(self,mask,prompt='bbox',slice=None,orient='ax'):
+        if orient == 'ax':
+            if slice is None:
+                rslice = range(np.shape(mask)[0]) # do all slices
+            else:
+                rslice = [slice]
+            for r in rslice:
+                if len(np.where(mask[r])[0]):
+                    if prompt == 'bbox':
+                        self.data['bbox'][orient][r],self.bboxs[r] = self.get_bbox_mask(mask[r])
+                    elif prompt == 'point':
+                        self.data['bbox'][orient][r],self.bboxs[r] = self.get_point_mask(mask[r])  
+        elif orient == 'sag':
+            if slice is None:
+                rslice = range(np.shape(mask)[2]) # do all slices
+            else:
+                rslice = [slice]
+            for r in rslice:
+                if len(np.where(mask[:,:,r])[0]):
+                    if prompt == 'bbox':
+                        self.data['bbox'][orient][:,:,r],_ = self.get_bbox_mask(mask[:,:,r])
+                    elif prompt == 'point':
+                        self.data['bbox'][orient][:,:,r],_ = self.get_point_mask(mask[:,:,r])  
+        elif orient == 'cor':
+            if slice is None:
+                rslice = range(np.shape(mask)[1]) # do all slices
+            else:
+                rslice = [slice]
+            for r in rslice:
+                if len(np.where(mask[:,r,:])[0]):
+                    if prompt == 'bbox':
+                        self.data['bbox'][orient][:,r,:],_ = self.get_bbox_mask(mask[:,r,:])
+                    elif prompt == 'point':
+                        self.data['bbox'][orient][:,r,:],_ = self.get_point_mask(mask[:,r,:])  
+
+
+
         
     def get_point_mask(self,mask):
         cy,cx = map(int,np.round(np.mean(np.where(mask),axis=1)))
@@ -114,7 +140,7 @@ class ROISAM(ROI):
         self.create_prompt_from_bbox()
 
     # compute one-slice prompt from bounding box in a given slice. 
-    def create_prompt_from_bbox(self, bbox=None, box_extension=0):
+    def create_prompt_from_bbox(self, bbox=None, box_extension=0, orient='ax'):
         mask = np.zeros((self.dim[1],self.dim[2]),dtype='uint8')
         if bbox is None:
             bbox = self.bbox
@@ -130,7 +156,7 @@ class ROISAM(ROI):
             bbox_path = Path(vyx,closed=False)
             mask = bbox_path.contains_points(np.array(np.where(mask==0)).T)
             mask = np.reshape(mask,(self.dim[1],self.dim[2]))     
-        self.data['bbox'][bbox['slice']] = mask
+        self.data['bbox'][orient][bbox['slice']] = mask
 
 
 

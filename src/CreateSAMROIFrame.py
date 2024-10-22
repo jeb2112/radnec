@@ -870,27 +870,39 @@ class CreateSAMROIFrame(CreateFrame):
 
     # output images and prompts for sam segmentation
     # using tmpfiles and standalone script for separate ptorch env. ultimately should add ptorch to the blast env
-    def save_prompts(self,slice=None):
+    def save_prompts(self,slice=None,orient='ax'):
 
         if slice == None:
-            rslice = list(range(self.ui.sliceviewerframe.dim[0])) # do all slices
+            if orient == 'ax':
+                slicedim = self.ui.sliceviewerframe.dim[0]
+                rslice = list(range(slicedim)) # do all slices
+            elif orient == 'sag':
+                slicedim = self.ui.sliceviewerframe.dim[2]
+                rslice = list(range(slicedim)) # do all slices
+            elif orient == 'cor':
+                slicedim = self.ui.sliceviewerframe.dim[1]
+                rslice = list(range(slicedim)) # do all slices
         else:
             if isinstance(slice,list):
                 rslice = slice
             else:
                 rslice = [slice] # do given slice(s)
+            slicedim = self.ui.sliceviewerframe.dim[0]
 
         fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
-        if os.path.exists(fileroot):
-            shutil.rmtree(fileroot)
-        os.makedirs(os.path.join(fileroot,'images'),exist_ok=True)
-        os.makedirs(os.path.join(fileroot,'prompts'),exist_ok=True)
-        os.makedirs(os.path.join(fileroot,'predictions'),exist_ok=True)
+        for d in ['images','prompts','predictions']:
+            filedir = os.path.join(fileroot,d)
+            if os.path.exists(filedir):
+                shutil.rmtree(filedir)
+            os.makedirs(os.path.join(filedir),exist_ok=True)
+        filedir = os.path.join(fileroot,'predictions_nifti')
+        if not os.path.exists(filedir):
+            os.makedirs(filedir)
 
         # these image channel and prompt keys could later be generalized as args
         for ch,prompt in zip([self.ui.chselection],['bbox']):
             # roi.data['bbox'] is the multi-slice mask for prompting SAM
-            rref = self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data[prompt]
+            rref = self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data[prompt][orient]
             dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']
             if dref is None:
                 raise ValueError
@@ -898,18 +910,27 @@ class CreateSAMROIFrame(CreateFrame):
             affine_bytes_str = str(affine_bytes)
             idx = 0
             for slice in rslice:
-                if len(np.where(rref[slice])[0]):
+                if len(np.where(self.get_prompt_slice(slice,rref,orient))[0]):
                     outputfilename = os.path.join(fileroot,'prompts',
                             'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
-                    plt.imsave(outputfilename,rref[slice],cmap='gray',)
+                    plt.imsave(outputfilename,self.get_prompt_slice(slice,rref,orient),cmap='gray',)
                     outputfilename = os.path.join(fileroot,'images',
                             'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
                     meta = PIL.PngImagePlugin.PngInfo()
-                    meta.add_text('slicedim',str(self.ui.sliceviewerframe.dim[0]))
+                    meta.add_text('slicedim',str(slicedim))
                     meta.add_text('affine',affine_bytes_str)
-                    plt.imsave(outputfilename,dref[slice],cmap='gray',pil_kwargs={'pnginfo':meta})
+                    plt.imsave(outputfilename,self.get_prompt_slice(slice,dref,orient),cmap='gray',pil_kwargs={'pnginfo':meta})
 
                     idx += 1
+
+    # convenience method, could use rotations instead
+    def get_prompt_slice(self,idx,img_arr,orient):
+        if orient == 'ax':
+            return img_arr[idx]
+        elif orient == 'sag':
+            return img_arr[:,:,idx]
+        elif orient == 'cor':
+            return img_arr[:,idx,:]
 
     # for exporting BLAST/SAM segmentations.
     # tag - unique string for output filenames
@@ -1194,7 +1215,7 @@ class CreateSAMROIFrame(CreateFrame):
     # tumour segmenation by SAM
     # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
     # a bit arbitrary, not using it as the SAM prompt. So, layer arg here defaults to 'TC'
-    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox'):
+    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox',orient='ax'):
         print('SAM segment tumour')
         if roi is None:
             roi = self.ui.currentroi
@@ -1219,6 +1240,7 @@ class CreateSAMROIFrame(CreateFrame):
                 command += ' --prompt ' + prompt
                 command += ' --layer ' + layer
                 command += ' --tag ' + tag
+                command += ' --orient ' + orient
             res = os.system(command)
         elif os.name == 'nt':
             # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
@@ -1256,34 +1278,52 @@ class CreateSAMROIFrame(CreateFrame):
             if res:
                 raise subprocess.CalledProcessError(res,cstr)
                 print(res)
+
+        return
+    
+    # load the results of SAM
+    def load_sam(self,layer=None,tag='',prompt='bbox',do_ortho=False):
                 
-        # switch roi context
-        self.ui.roi = self.ui.rois['sam']
+        if layer is None:
+            layer = self.layerROI.get()
+
+        # shouldn't be needed?
         self.update_roinumber_options()
 
         roi = self.ui.currentroi
-        self.ui.roi[self.ui.s][roi].data[layer],_ = self.ui.data[self.ui.s].loadnifti(layer+'_sam_'+tag+'_' + prompt + '.nii.gz',
-                                                            os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions'),
+        rref = self.ui.rois['sam'][self.ui.s][roi]
+        if do_ortho:
+            img_ortho = {}
+            for p in ['ax','sag','cor']:
+                fname = layer+'_sam_' + prompt + '_' + tag + '_' + p + '.nii.gz'
+                img_ortho[p],_ = self.ui.data[self.ui.s].loadnifti(fname,
+                                                            os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
+                                                            type='uint8')
+            img_comp = img_ortho['ax']
+            for p in ['sag','cor']:
+                img_comp = (img_comp) & (img_ortho[p])
+            rref.data[layer] = copy.deepcopy(img_comp)
+
+        else:
+            fname = layer+'_sam_' + prompt + '_' + tag + '_ax.nii.gz'
+            rref.data[layer],_ = self.ui.data[self.ui.s].loadnifti(fname,
+                                                            os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
                                                             type='uint8')
         # create a combined seg mask from the three layers
         # using nnunet convention for labels
-        self.ui.roi[self.ui.s][roi].data['seg'] = 2*self.ui.roi[self.ui.s][roi].data['TC'] + \
-                                                1*self.ui.roi[self.ui.s][roi].data['WT']
+        rref.data['seg'] = 2*rref.data['TC'] + 1*rref.data['WT']
         # need to add this to updateData() or create similar method
         if False:
             self.ui.data[self.ui.s].mask['sam'][layer]['d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data[layer])
             self.ui.data[self.ui.s].mask['sam'][layer]['ex'] = True
 
-        # restore roi context
-        if tag == 'blast':
-            self.ui.roi = self.ui.rois['blast']
-            self.update_roinumber_options()
-
-        if False:
-            os.remove(os.path.join(dpath,sfile))
+        # shouldn't be needed?
+        self.update_roinumber_options()
 
         return 
     
+    def collate_sam(self,tag=None):
+        pass
 
     #############################
     # methods for point selection
