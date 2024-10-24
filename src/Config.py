@@ -74,7 +74,9 @@ class Config(object):
         # SAM fine-tuned on BraTS2024 MET
         self.SAMModel = 'sam_brats2024_10sep24_9000_50epoch.pth'
         # improve 3d SAM with orthogonal segmentations
-        self.doSAMortho = True
+        self.SAMortho = True
+        # auto-update the SAM 2d in current slice during assembly of the BLAST ROI
+        self.SAM2dauto = True
 
         # automatically load first case in directory
         self.AutoLoad = False

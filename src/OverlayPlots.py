@@ -1,3 +1,5 @@
+# some functions for creating overlay plots
+
 from typing import Tuple, Union
 import numpy as np
 import pandas as pd
@@ -34,15 +36,10 @@ def generate_blast_overlay(input_image: np.ndarray, segmentation: np.ndarray = N
                      overlay_intensity: float = 0.6):
     """
     image can be 2d or 3d grayscale, with a multi-channel dimension prepended.
-
     Segmentation must be label map of same shape as 2d or 3d image (w/o color channels)
-
     Contour is a dict containing a list of order pairs for each 2d slice
-
     mapping can be label_id -> idx_in_cycle or None
-
     layer is a string in layerdict
-
     """
     # create a copy of image
     imagestack = np.copy(input_image)
@@ -128,7 +125,8 @@ def get_cmap(colormap):
     else:
         return None
 
-# create overlays for z-score, cbv, tempo                 
+# create overlays for z-score, cbv, tempo 
+# mostly for the Overlay version of the viewer                
 def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.ndarray = None, 
                      image_wl: np.ndarray = None, overlay_wl: np.ndarray = None,
                      overlay_intensity: float = 1.0, colormap: str = 'viridis'):
@@ -187,4 +185,49 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.nda
     image[mask_ros] = overlay_cmap[mask_ros]
                      
     return image.astype(np.float32)
+
+# composite overlay of BLAST plus SAM plus clicked points
+# similar to generate_overlay above, uses RGBA for transparency
+# but in this context the overlay is a 2d mask in a single slice of the volume.
+
+def generate_comp_overlay(input_image: np.ndarray, overlay: np.ndarray = None, slice: int = 0, layer: str = None,
+                     overlay_intensity: float = 0.6):
+    """
+    image can be 2d or 3d grayscale, with a multi-channel dimension prepended.
+    Segmentation must be label map of same shape as 2d or 3d image (w/o color channels)
+    Contour is a dict containing a list of order pairs for each 2d slice
+    mapping can be label_id -> idx_in_cycle or None
+    layer is a string in layerdict
+    """
+    # create a copy of image
+    image = np.copy(input_image)
+    image = np.tile(image[:,:,:,np.newaxis], (1,1,1,3))
+
+    # rescale image to [0, 1]
+    image = image - image.min()
+    image = image / image.max() * 1
+
+    uniques = [0,1,2,4]
+    mapping = {i: c for c, i in enumerate(uniques)} 
+    overlay_color = overlay_intensity * np.array(hex_to_rgb(color_cycle[mapping[1]]))
+    overlay_color /= 255
+    overlay_ros = np.where(overlay)
+
+    alpha = np.zeros_like(overlay,dtype='float32')
+    alpha = np.tile(alpha[:,:,np.newaxis],(1,1,3))
+    alpha[overlay==1] = overlay_color * 1
+    alpha[overlay==5] = overlay_color * 0.6
+    alpha[overlay==6] = overlay_color * 0.6
+    alpha[overlay==8] = np.array([1,1,1])
+    output_image = np.copy(image)
+    output_image[slice][overlay_ros] = alpha[overlay_ros]
+    plt.clf()
+    plt.imshow(output_image[slice])
+
+    # rescale result to [0,1]
+    output_image = output_image / output_image.max() * 1
+    output_image = np.squeeze(output_image)
+
+    return output_image.astype(np.float32)
+
 

@@ -144,7 +144,7 @@ class BlastGui(object):
             # load a nifti case for BLAST 
             if True:
                 caseselect = 'M00001'
-                caseslice = 75
+                caseslice = 55
                 self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
                 self.sliceviewerframe.currentslice.set(caseslice)
@@ -401,6 +401,7 @@ class BlastGui(object):
         else:
             self.message.set(msg)
         self.sliceviewerframe.messagelabel['text'] = msg
+        self.root.update_idletasks()
 
     # not sure if this will be needed
     def set_dataselection(self,s=None):

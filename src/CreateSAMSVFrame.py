@@ -499,6 +499,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
 
     # run 2d SAM on available prompt. currently this is either a bbox or a single point
+    # this method should probably be in ROIFrame
     def sam2d_callback(self,prompt='bbox'):
 
         # switch roi context
@@ -520,29 +521,31 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.ui.roiframe.layerSAM_callback()
 
     # run 3d SAM on all bbox's as available from a BLAST ROI. 
+    # this method should probably be in ROIFrame
     def sam3d_callback(self,do_ortho=None):
         # check for an available blast segmentation
         if not self.ui.rois['blast'][self.ui.s][self.ui.currentroi].status:
             return
         
         print('run SAM 3d')
+        self.ui.roiframe.selectPoint()
+        self.ui.roiframe.setCursor('watch')
         if do_ortho is None:
-            do_ortho = self.ui.config.doSAMortho
+            do_ortho = self.ui.config.SAMortho
         if do_ortho:
             planes = ['ax','sag','cor']
         else:
             planes = ['ax']
 
-        for orient in planes:
+        for p in planes:
             # run the SAM segmentation
             # tag is hard-coded here for a unique key in stats.json
-            # prompt type bbox currently hard-coded.
-            self.ui.set_message(msg='SAM 3d '+orient)
+            self.ui.set_message(msg='SAM 3d '+p)
             prompt = self.prompt_type.get()
             self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
-                np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerSAM.get()]),prompt=prompt,orient=orient)
-            self.ui.roiframe.save_prompts(orient=orient)
-            self.ui.roiframe.segment_sam(orient=orient,tag='blast_3d')
+                np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerSAM.get()]),prompt=prompt,orient=p)
+            self.ui.roiframe.save_prompts(orient=p)
+            self.ui.roiframe.segment_sam(orient=p,tag='blast_3d')
         
         self.ui.roiframe.load_sam(tag = 'blast_3d',prompt=prompt,do_ortho=do_ortho)
         # switch to SAM display
@@ -558,6 +561,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         else:
             self.ui.set_message(msg="SAM 3d complete")
     
+        self.ui.roiframe.setCursor('arrow')
         return
 
     #######################

@@ -571,7 +571,10 @@ class CreateSAMROIFrame(CreateFrame):
         return None
         
     # processes a ROI selection button press event
-    def ROIclick(self,event=None,do3d=True):
+    # do3d is a dummy arg that is only passed on to closeROI()
+    # do2d is a flag indicating the method is called during points clicked
+    # for assembly of the BLAST ROI. 
+    def ROIclick(self,event=None,do2d=False,do3d=True):
         if event:
             if event.button > 1: # ROI selection on left mouse only
                 return
@@ -579,8 +582,7 @@ class CreateSAMROIFrame(CreateFrame):
                 return
             
         # self.ui.sliceviewerframe.canvas.widgetlock.release(self.ui.sliceviewerframe)
-        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='watch')
-        self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
+        self.setCursor('watch')
         if event:
             # print(event.xdata,event.ydata)
             # need check for inbounds
@@ -599,16 +601,21 @@ class CreateSAMROIFrame(CreateFrame):
                 self.ui.roi = self.ui.rois['blast']
                 self.update_roinumber_options()
                 roi = self.ui.get_currentroi()
-                # if current roi has segmentations for both compartments, start a new ROI
-                # otherwise if only 1 segmentation is present and the mouse click is for that
-                # same compartment, it will be updated.
-                # however, in this branch for SAM analysis there is no WT, so any event is a new ROI
-                if roi > 0 and False:
-                    if self.ui.roi[self.ui.s][roi].data['ET'] is not None and self.ui.roi[self.ui.s][roi].data['WT'] is not None:
-                        self.createROI(coords = (int(event.xdata),int(event.ydata),self.ui.get_currentslice()) )
-                    else:
-                        self.updateROI(event)
+                # in this branch for SAM analysis there are two workflows, both make use
+                # of this method. do2d selects the workflow. note this is separate from
+                # do3d, which is only a pass-through arg to closeROI.
+                # do2d True. a intermediate SAM evaluation on the current point clicked 
+                # during the assembly of the BLAST ROI, and just on the current slice
+                # do2d False. a full multi-slice SAM after a BLAST ROI has been completed
+                if do2d and self.ui.config.SAM2dauto:
+                    if roi == 0:
+                        self.createROI(coords = (xdata,ydata,self.ui.get_currentslice()) )
+                    else: # for 2d this is only a dummy ROI so re-use it.
+                        self.updateROI(coords = (xdata,ydata,self.ui.get_currentslice()))
                 else:
+                    # the current ROI is a dummy, clear it before creating the actual BLAST ROI
+                    if self.ui.config.SAM2dauto:
+                        self.clearROI()
                     self.createROI(coords = (xdata,ydata,self.ui.get_currentslice()) )
             
         roi = self.ui.get_currentroi()
@@ -623,32 +630,30 @@ class CreateSAMROIFrame(CreateFrame):
         # update layer menu
         self.update_layermenu_options(self.ui.roi[self.ui.s][roi])
 
-        # might want to avoid including this processing time in the overall elapsed?
         if True:
             # note some duplicate calls to generate_overlay should be removed
-            for ch in [self.ui.chselection,'flair']:
+            for ch in [self.ui.chselection]:
                 fusionstack = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
                                                 self.ui.roi[self.ui.s][roi].data['seg'],
                                                 layer=self.ui.roiframe.layer.get(),
                                                 overlay_intensity=self.config.OverlayIntensity)
                 self.ui.roi[self.ui.s][roi].data['seg_fusion'][ch] = fusionstack
 
-        # if triggered by a button event
-        if self.buttonpress_id:
-            self.ui.sliceviewerframe.canvas.callbacks.disconnect(self.buttonpress_id)
-            self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='')
-            self.buttonpress_id = None
-        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='arrow')
-        self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
+        # if triggered by selectROI button event
+        if not do2d:
+            if self.buttonpress_id:
+                self.ui.sliceviewerframe.canvas.callbacks.disconnect(self.buttonpress_id)
+                self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='')
+                self.buttonpress_id = None
+            self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='arrow')
+            self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
         roi = self.ui.get_currentroi()
 
-
-        # in the SAM viewer, there is only ET/TC, so the ROI status is set true immediately
-        # once ET BLAST segmentation is available. Now, run the SAM segmentation only on the current slice
+        # in the SAM viewer, there is only ET/TC or WT but not both, so the ROI status is set true immediately
+        # once a BLAST segmentation is available in either layer. Now, run the SAM segmentation only on the current slice
         # to illustrate whether the BLAST ROI is adequate for prompting.
-        # in the SAM viewer, the BLAST ROI itself isn't displayed, just jump directly to 
-        # the SAM result. This code should move to a separate function.
+        # This code should move to a separate function to be called from ROIclick.
         if self.ui.roi[self.ui.s][roi].status:
 
             # temporary. experiment.
@@ -660,26 +665,16 @@ class CreateSAMROIFrame(CreateFrame):
             if False:
                 # update SAM roi with prompts derived from BLAST roi
                 self.ui.sliceviewerframe.sam2d_callback(prompt='point')
-                # self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']),type='point',slice=self.ui.currentslice)
-                # self.save_prompts(slice=self.ui.currentslice)
-                # self.segment_sam(tag='blast',prompt='point')
                 # saveROI here
                 self.saveROI(roitype='sam',roi=self.ui.currentroi,tag='point_slice'+str(self.ui.currentslice))
-                # self.ui.roiframe.ROIstats(save=True,tag='SAM2d_point',roitype='sam',slice=self.ui.currentslice)
-                # self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
             else:
                 # normally use 'bbox' and don't save.
                 self.ui.sliceviewerframe.sam2d_callback(prompt='bbox')
-                # self.ui.rois['sam'][self.ui.s][roi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][roi].data['ET']))
-                # self.save_prompts(slice=self.ui.currentslice)
-                # self.segment_sam(tag='blast')
 
             # automatically switch to SAM display
             self.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
             self.layerSAM_callback()
-            # TODO. reload segmentations to viewer
-
             # activate 3d SAM button
             self.ui.sliceviewerframe.run3dSAM.configure(state='active')
         else:
@@ -710,14 +705,15 @@ class CreateSAMROIFrame(CreateFrame):
         self.updateROIData()
         self.update_roinumber_options()
 
-    # adds button press coords for second layer (ie 'WT' after 'ET')
-    def updateROI(self,event):
-        compartment = self.layer.get()
-        roi = self.ui.roi[self.ui.s][self.ui.get_currentroi()]
-        roi.coords[compartment]['x'] = int(event.xdata)
-        roi.coords[compartment]['y'] = int(event.ydata)
-        roi.coords[compartment]['slice'] = self.ui.get_currentslice()
-        self.updateROIData()
+    # updates button press coords for current ROI
+    def updateROI(self,coords=(0,0,0)):
+        blast_layer = self.layer.get()
+        roi = self.ui.rois['blast'][self.ui.s][self.ui.get_currentroi()]
+        roi.coords[blast_layer]['x'] = coords[0]
+        roi.coords[blast_layer]['y'] = coords[1]
+        roi.coords[blast_layer]['slice'] = coords[2]
+
+        # self.updateROIData()
 
     # main method for creating a smoothed final ROI from a raw BLAST segmentation
     # needs tidyup
@@ -1043,9 +1039,9 @@ class CreateSAMROIFrame(CreateFrame):
         layer = self.layer.get()
         for dt in ['seg_fusion']:
             for ch in [self.ui.chselection,'flair']:
-                self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt][ch])
+                self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.rois['sam'][s][self.ui.currentroi].data[dt][ch])
         for dt in ['TC','WT']:
-            self.ui.data[s].mask['sam'][dt]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt])
+            self.ui.data[s].mask['sam'][dt]['d'] = copy.deepcopy(self.ui.rois['sam'][s][self.ui.currentroi].data[dt])
             self.ui.data[s].mask['sam'][dt]['ex'] = True
             if self.ui.sliceviewerframes['overlay'] is not None:
                 self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
@@ -1385,13 +1381,35 @@ class CreateSAMROIFrame(CreateFrame):
                 if self.ui.blastdata[self.ui.s]['blast']['ET'][self.ui.currentslice][ydata,xdata]:
                 # if point is in the existing mask then skip.
                 # don't have any good logic to snap to a nearby unmasked 
-                # point becuase the intended segmentation isn't really known.
+                # point becuase the intended segmentation can never be inferred by any simple computer logic.
                     return None
 
             self.createPoint(xdata,ydata,self.ui.get_currentslice())
             
         self.updateBLASTMask()
 
+        # optionally run SAM 2d directly on the partial BLAST ROI, in the current slice only
+        # this requires to form a temporary BLAST ROI from the current raw mask, by interpreting the current click event
+        # as the ROI selection click, and then delete that ROI immediately afterwards. 
+        if self.ui.config.SAM2dauto:
+            # rref = self.ui.roi[self.ui.s][self.ui.currentroi].data['seg_fusion'][self.ui.chselection]
+            dref = self.ui.data[self.ui.s].dset['seg_fusion'][self.ui.chselection]
+            self.ROIclick(event=event,do2d=True)
+            self.createCOMBOmask()
+            for ch in [self.ui.chselection]:
+                fusion = generate_comp_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
+                                                self.ui.rois['sam'][self.ui.s][self.ui.currentroi].mask,self.ui.currentslice,
+                                                layer=self.ui.roiframe.layer.get(),
+                                                overlay_intensity=self.config.OverlayIntensity)
+                # if rref is None:
+                #     rref = np.zeros(self.ui.sliceviewerframe.dim)
+                # for now will set data directly instead of via updateData()
+                # if dref['d'] is None:
+                #     dref['d'] = np.zeros(self.ui.sliceviewerframe.dim)
+                dref['d'] = np.copy(fusion)
+            # self.ui.set_dataselection('seg_fusion')
+            self.ui.updateslice()
+            
         # keep the crosshair cursor until button is unset.
         self.setCursor('crosshair')
 
@@ -1482,7 +1500,7 @@ class CreateSAMROIFrame(CreateFrame):
                 self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['stdt12'].append(std_t1)
                 self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['stdflair'].append(std_flair)
 
-        # functionality similar to updateslider()
+        # functionality similar to updateslider() should reconcile
         self.set_overlay('BLAST')
         self.enhancingROI_overlay_callback()
         self.ui.blastdata[self.ui.s]['blast']['gates']['ET'] = None
@@ -1506,3 +1524,22 @@ class CreateSAMROIFrame(CreateFrame):
 
     def pointradius_callback(self,radius):
         self.pointradius.set(int(radius))
+
+    # create a composite mask from a SAM and a BLAST raw mask
+    # only in current slice
+    def createCOMBOmask(self):
+        s = self.ui.s
+        roi = self.ui.currentroi
+        layer = self.layerSAM.get()
+        rref = self.ui.rois['sam'][s][roi]
+        self.ui.rois['sam'][s][roi].mask = 5*self.ui.rois['blast'][s][roi].data[layer][self.ui.currentslice] + \
+                                                     1*self.ui.rois['sam'][s][roi].data[layer][self.ui.currentslice]
+
+        for i,pt in enumerate(self.ui.pt[self.ui.s]):
+            rref.mask[pt.coords['y'],pt.coords['x']] = 8
+
+        # create a combined seg mask from the three layers
+        # using nnunet convention for labels
+        if False:
+            rref.data['seg'] = 2*rref.data['TC'] + 1*rref.data['WT']
+        return
