@@ -380,7 +380,7 @@ class CreateSAMROIFrame(CreateFrame):
             self.updateSAMData()
 
         if updateslice:
-            # ie the most recent bbox from the list of bboxs.
+            # ie the most recent bbox from the list of bboxs. or maybe currentslice is already correct?
             self.ui.set_currentslice(self.ui.roi[self.ui.s][roi].bbox['slice'])
             self.ui.updateslice()
         
@@ -674,7 +674,8 @@ class CreateSAMROIFrame(CreateFrame):
             # automatically switch to SAM display
             self.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
-            self.layerSAM_callback()
+            if False: # calling this from sam2d_callback now
+                self.layerSAM_callback()
             # activate 3d SAM button
             self.ui.sliceviewerframe.run3dSAM.configure(state='active')
         else:
@@ -868,22 +869,20 @@ class CreateSAMROIFrame(CreateFrame):
     # using tmpfiles and standalone script for separate ptorch env. ultimately should add ptorch to the blast env
     def save_prompts(self,slice=None,orient='ax'):
 
+        if orient == 'ax':
+            slicedim = self.ui.sliceviewerframe.dim[0]
+        elif orient == 'sag':
+            slicedim = self.ui.sliceviewerframe.dim[2]
+        elif orient == 'cor':
+            slicedim = self.ui.sliceviewerframe.dim[1]
+
         if slice == None:
-            if orient == 'ax':
-                slicedim = self.ui.sliceviewerframe.dim[0]
-                rslice = list(range(slicedim)) # do all slices
-            elif orient == 'sag':
-                slicedim = self.ui.sliceviewerframe.dim[2]
-                rslice = list(range(slicedim)) # do all slices
-            elif orient == 'cor':
-                slicedim = self.ui.sliceviewerframe.dim[1]
                 rslice = list(range(slicedim)) # do all slices
         else:
             if isinstance(slice,list):
                 rslice = slice
             else:
                 rslice = [slice] # do given slice(s)
-            slicedim = self.ui.sliceviewerframe.dim[0]
 
         fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
         for d in ['images','prompts','predictions']:
@@ -1038,7 +1037,7 @@ class CreateSAMROIFrame(CreateFrame):
         # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
         layer = self.layer.get()
         for dt in ['seg_fusion']:
-            for ch in [self.ui.chselection,'flair']:
+            for ch in [self.ui.chselection]:
                 self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.rois['sam'][s][self.ui.currentroi].data[dt][ch])
         for dt in ['TC','WT']:
             self.ui.data[s].mask['sam'][dt]['d'] = copy.deepcopy(self.ui.rois['sam'][s][self.ui.currentroi].data[dt])
@@ -1278,7 +1277,7 @@ class CreateSAMROIFrame(CreateFrame):
         return
     
     # load the results of SAM
-    def load_sam(self,layer=None,tag='',prompt='bbox',do_ortho=False):
+    def load_sam(self,layer=None,tag='',prompt='bbox',do_ortho=False,do3d=True):
                 
         if layer is None:
             layer = self.layerROI.get()
@@ -1295,10 +1294,19 @@ class CreateSAMROIFrame(CreateFrame):
                 img_ortho[p],_ = self.ui.data[self.ui.s].loadnifti(fname,
                                                             os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
                                                             type='uint8')
-            img_comp = img_ortho['ax']
-            for p in ['sag','cor']:
-                img_comp = (img_comp) & (img_ortho[p])
-            rref.data[layer] = copy.deepcopy(img_comp)
+            # in 3d take the AND composite segmentation
+            if do3d:
+                img_comp = img_ortho['ax']
+                for p in ['sag','cor']:
+                    img_comp = (img_comp) & (img_ortho[p])
+                rref.data[layer] = copy.deepcopy(img_comp)
+            # in 2d use the individual slice segmentations by OR
+            else:
+                img_comp = img_ortho['ax']
+                for p in ['sag','cor']:
+                    img_comp = (img_comp) | (img_ortho[p])
+                rref.data[layer] = copy.deepcopy(img_comp)
+
 
         else:
             fname = layer+'_sam_' + prompt + '_' + tag + '_ax.nii.gz'
@@ -1318,8 +1326,6 @@ class CreateSAMROIFrame(CreateFrame):
 
         return 
     
-    def collate_sam(self,tag=None):
-        pass
 
     #############################
     # methods for point selection
@@ -1394,20 +1400,16 @@ class CreateSAMROIFrame(CreateFrame):
         if self.ui.config.SAM2dauto:
             # rref = self.ui.roi[self.ui.s][self.ui.currentroi].data['seg_fusion'][self.ui.chselection]
             dref = self.ui.data[self.ui.s].dset['seg_fusion'][self.ui.chselection]
+            self.ui.sliceviewerframe.set_ortho_slice(event)
             self.ROIclick(event=event,do2d=True)
-            self.createCOMBOmask()
+            self.create_comp_mask()
             for ch in [self.ui.chselection]:
                 fusion = generate_comp_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
                                                 self.ui.rois['sam'][self.ui.s][self.ui.currentroi].mask,self.ui.currentslice,
                                                 layer=self.ui.roiframe.layer.get(),
                                                 overlay_intensity=self.config.OverlayIntensity)
-                # if rref is None:
-                #     rref = np.zeros(self.ui.sliceviewerframe.dim)
-                # for now will set data directly instead of via updateData()
-                # if dref['d'] is None:
-                #     dref['d'] = np.zeros(self.ui.sliceviewerframe.dim)
+                # setting data directly instead of via roi.data and updateData()
                 dref['d'] = np.copy(fusion)
-            # self.ui.set_dataselection('seg_fusion')
             self.ui.updateslice()
             
         # keep the crosshair cursor until button is unset.
@@ -1527,7 +1529,7 @@ class CreateSAMROIFrame(CreateFrame):
 
     # create a composite mask from a SAM and a BLAST raw mask
     # only in current slice
-    def createCOMBOmask(self):
+    def create_comp_mask(self):
         s = self.ui.s
         roi = self.ui.currentroi
         layer = self.layerSAM.get()

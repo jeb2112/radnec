@@ -500,20 +500,39 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
     # run 2d SAM on available prompt. currently this is either a bbox or a single point
     # this method should probably be in ROIFrame
-    def sam2d_callback(self,prompt='bbox'):
+    def sam2d_callback(self,prompt='bbox',do_ortho=None):
 
         # switch roi context
         self.ui.roi = self.ui.rois['sam']
         
         print('run sam 2D')
 
-        self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask(np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerROI.get()]),prompt=prompt,slice=self.ui.currentslice)
-        self.ui.roiframe.save_prompts(slice=self.ui.currentslice)
-        start_time = time.time()
-        self.ui.roiframe.segment_sam(tag='2d',prompt=prompt)
-        self.ui.roiframe.load_sam(tag='2d',prompt=prompt)
-        elapsed_time = time.time() - start_time
-        self.ui.set_message(msg='elapsed time = {:0f}'.format(elapsed_time))
+        if do_ortho is None:
+            do_ortho = self.ui.config.SAMortho
+        if do_ortho:
+            planes = ['ax','sag','cor']
+        else:
+            planes = ['ax']
+
+        for p in planes:
+             
+            currentslice = self.ui.get_currentslice(ax=p)
+            if True:
+                self.ui.root.after(1000,Command(self.ui.set_message,msg='SAM 2d '+p))
+                self.ui.root.after(1000,self.ui.root.update_idletasks)
+            else:
+                self.ui.set_message(msg='SAM 2d '+p)
+            self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
+                np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerROI.get()]),prompt=prompt,slice=currentslice,orient=p)
+            self.ui.roiframe.save_prompts(slice=currentslice,orient=p)
+            start_time = time.time()
+            self.ui.roiframe.segment_sam(orient=p,tag='2d',prompt=prompt)
+            elapsed_time = time.time() - start_time
+            self.ui.set_message(msg='elapsed time = {:.1f}'.format(elapsed_time))
+            self.ui.root.update_idletasks()
+
+        self.ui.set_message(msg="SAM 2d complete")
+        self.ui.roiframe.load_sam(tag='2d',prompt=prompt,do_ortho=do_ortho,do3d=False)
         # self.ui.roiframe.ROIstats(save=True,tag='2d_'+prompt,roitype='sam',slice=self.ui.currentslice)
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
@@ -618,6 +637,18 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # repeating this here because there are some automatic tk backend events which 
         # can reset it during a sequence of multiple drags
         self.canvas.get_tk_widget().config(cursor='tcross')
+
+    # convenience method related to the b1motion crosshair
+    # for now this is just hard-coded to axis 'A' but should be
+    # developed generally
+    def set_ortho_slice(self,event,ax='A'):
+        if ax == 'A':
+            x,y = self.axs[ax].transData.inverted().transform((event.x,event.y))
+            if False:
+                y = self.dim[1]-y
+            self.currentsagslice.set(int(x))
+            self.currentcorslice.set(int(y))
+        self.updateslice()
 
 
     # methods for drawing bounding boxes

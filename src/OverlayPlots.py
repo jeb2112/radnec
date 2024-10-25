@@ -215,10 +215,32 @@ def generate_comp_overlay(input_image: np.ndarray, overlay: np.ndarray = None, s
 
     alpha = np.zeros_like(overlay,dtype='float32')
     alpha = np.tile(alpha[:,:,np.newaxis],(1,1,3))
-    alpha[overlay==1] = overlay_color * 1
-    alpha[overlay==5] = overlay_color * 0.6
-    alpha[overlay==6] = overlay_color * 0.6
-    alpha[overlay==8] = np.array([1,1,1])
+    # SAM
+    alpha[overlay==1] = overlay_color * 1.0
+    # BLAST/SAM
+    # alpha[overlay==5] = overlay_color * 0.6
+    alpha[overlay==6] = overlay_color * 1.0
+
+    # clicked point
+    if True: # small circle
+        clickedpts = np.where(overlay == 8)
+        dim_y,dim_x = np.shape(input_image)[1:]
+        x = np.arange(0,dim_x)
+        y = np.arange(0,dim_y)
+        cmask = np.zeros((dim_y,dim_x),dtype='uint8')
+        for p in zip(clickedpts[1],clickedpts[0]):
+            # create grid
+            vol = np.array(np.meshgrid(x,y,indexing='xy'))
+            cmask1 = np.copy(cmask)
+            cmask1[np.where(np.sqrt(np.power((vol[0,:]-p[0]),2)+np.power((vol[1,:]-p[1]),2)) < 4.5)] = 1
+            cmask2 = np.copy(cmask)
+            cmask2[np.where(np.sqrt(np.power((vol[0,:]-p[0]),2)+np.power((vol[1,:]-p[1]),2)) > 3.5)] = 1
+            cmask = (cmask1) & (cmask2)
+            alpha[cmask == 1] = overlay_color * 0.7
+        alpha[overlay == 8] = overlay_color * 1.0
+    else: # single point
+        alpha[overlay==8] = np.array([0,0,0])
+
     output_image = np.copy(image)
     output_image[slice][overlay_ros] = alpha[overlay_ros]
     plt.clf()

@@ -148,7 +148,7 @@ class BlastGui(object):
                 self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
                 self.sliceviewerframe.currentslice.set(caseslice)
-                # self.sliceviewerframe.normalslice_callback()
+                self.sliceviewerframe.normalslice_callback()
 
 
     #########
@@ -351,8 +351,13 @@ class BlastGui(object):
             self.sliceviewerframe.currentslice.set(val)
         self.currentslice = self.sliceviewerframe.currentslice.get()
 
-    def get_currentslice(self):
-        return self.currentslice
+    def get_currentslice(self,ax=None):
+        if ax == 'ax' or ax is None:
+            return self.sliceviewerframe.currentslice.get()
+        elif ax == 'sag':
+            return self.sliceviewerframe.currentsagslice.get()
+        elif ax == 'cor':
+            return self.sliceviewerframe.currentcorslice.get()
     
     def set_casename(self,val=None):
         if val:
