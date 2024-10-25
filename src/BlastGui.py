@@ -148,7 +148,7 @@ class BlastGui(object):
                 self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
                 self.sliceviewerframe.currentslice.set(caseslice)
-                self.sliceviewerframe.normalslice_callback()
+                # self.sliceviewerframe.normalslice_callback()
 
 
     #########

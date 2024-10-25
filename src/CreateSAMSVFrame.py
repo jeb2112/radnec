@@ -214,7 +214,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
                                      figsize=figsize,dpi=self.ui.dpi)
         self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
         self.ax3_img = self.axs['C'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
-        self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[1])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
+        self.ax4_img = self.axs['D'].imshow(np.zeros((self.dim[0],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
         self.ax_img.format_cursor_data = self.make_cursordata_format()
         self.ax3_img.format_cursor_data = self.make_cursordata_format()
         self.ax4_img.format_cursor_data = self.make_cursordata_format()
