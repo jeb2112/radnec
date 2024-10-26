@@ -232,7 +232,7 @@ class BlastGui(object):
     # BLAST method
     ##############
 
-    def runblast(self,currentslice=None,layer=None):
+    def runblast(self,currentslice=None,layer=None,showblast=False):
         if currentslice: # 2d in a single slice
             currentslice=None # for now will run full 3d by default every update
         else: # entire volume
@@ -247,9 +247,6 @@ class BlastGui(object):
         clustersize = self.get_bcsize(layer=layer)
         t12_threshold = self.roiframe.sliders[layer]['t12'].get()
         flair_threshold = self.roiframe.sliders[layer]['flair'].get()
-
-        # if self.config.WLClip:
-        #     self.sliceviewerframe.clipwl_raw()
 
         if False:
             with Profile() as profile:
@@ -279,12 +276,6 @@ class BlastGui(object):
             except ValueError as e:
                 self.set_message(e)
 
-        # if self.config.WLClip:
-        #     self.sliceviewerframe.restorewl_raw()
-        #     self.sliceviewerframe.window = np.array([1.,1.],dtype='float')
-        #     self.sliceviewerframe.level = np.array([0.5,0.5],dtype='float')
-        #     self.updateslice()
-
         chlist = [self.chselection]
         if self.function.get() == 'BLAST':
             chlist.append('flair')
@@ -293,33 +284,21 @@ class BlastGui(object):
             self.data[s].dset['seg_raw_fusion'][ch]['d'+layer] = generate_blast_overlay(self.data[s].dset['raw'][ch]['d'],
                                                         self.data[s].dset['seg_raw'][self.chselection]['d'],layer=self.roiframe.layer.get(),
                                                         overlay_intensity=self.config.OverlayIntensity)
-            self.data[s].dset['seg_raw_fusion'][ch]['ex'] = True
-            # self.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.data[s].dset['seg_raw_fusion'][ch]['d'+layer])
-            
-        if self.roiframe.overlay_value['finalROI'].get() == True:
-            self.dataselection = 'seg_fusion'
-        else:
-            self.dataselection = 'seg_raw_fusion'
+            self.data[s].dset['seg_raw_fusion'][ch]['ex'] = True            
                 
-        if currentslice is None:
-            self.updateslice(wl=True,layer=layer)
-        else:
-            self.updateslice()
-        
-        # in this 2d preview mode, the enhancing lesion is only being calculated slice by slice
-        # nonetheless the latency is still measurable, so only want to update when button click
-        # is released. not using 2d preview anymore
-        if False:
-            if currentslice:
-                self.sliceviewerframe.vsliceslider['command'] = None
-                if self.roiframe.overlay_value['BLAST'].get() == True:
-                    self.sliceviewerframe.vsliceslider.bind("<ButtonRelease-1>",self.sliceviewerframe.updateslice_blast)
-                elif self.roiframe.overlay_value['finalROI'].get() == True:
-                    self.sliceviewerframe.vsliceslider.bind("<ButtonRelease-1>",self.sliceviewerframe.updateslice_roi)
+        # in the SAM viewer, may not need to see the raw BLAST overlay anymore
+        if showblast:
+            if self.roiframe.overlay_value['finalROI'].get() == True:
+                self.dataselection = 'seg_fusion'
             else:
-                self.sliceviewerframe.vsliceslider.unbind("<ButtonRelease-1>")
-                self.sliceviewerframe.vsliceslider['command'] = self.updateslice
-        
+                self.dataselection = 'seg_raw_fusion'
+            if currentslice is None:
+                self.updateslice(wl=True,layer=layer)
+            else:
+                self.updateslice()
+        else:
+            self.dataselection = 'raw'
+                
         self.root.config(cursor='arrow')
         self.root.update_idletasks()
 
