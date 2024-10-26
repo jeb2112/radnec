@@ -187,17 +187,12 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.nda
     return image.astype(np.float32)
 
 # composite overlay of BLAST plus SAM plus clicked points
-# similar to generate_overlay above, uses RGBA for transparency
-# but in this context the overlay is a 2d mask in a single slice of the volume.
 
 def generate_comp_overlay(input_image: np.ndarray, overlay: np.ndarray = None, slice: int = 0, layer: str = None,
                      overlay_intensity: float = 0.6):
     """
     image can be 2d or 3d grayscale, with a multi-channel dimension prepended.
     Segmentation must be label map of same shape as 2d or 3d image (w/o color channels)
-    Contour is a dict containing a list of order pairs for each 2d slice
-    mapping can be label_id -> idx_in_cycle or None
-    layer is a string in layerdict
     """
     # create a copy of image
     image = np.copy(input_image)
@@ -207,14 +202,15 @@ def generate_comp_overlay(input_image: np.ndarray, overlay: np.ndarray = None, s
     image = image - image.min()
     image = image / image.max() * 1
 
-    uniques = [0,1,2,4]
+    uniques = [0,1,5,6,8] # these values are currently hard-coded in create_comp_mask
     mapping = {i: c for c, i in enumerate(uniques)} 
+    # for now just using 1 for WT 
     overlay_color = overlay_intensity * np.array(hex_to_rgb(color_cycle[mapping[1]]))
     overlay_color /= 255
     overlay_ros = np.where(overlay)
 
     alpha = np.zeros_like(overlay,dtype='float32')
-    alpha = np.tile(alpha[:,:,np.newaxis],(1,1,3))
+    alpha = np.tile(alpha[:,:,:,np.newaxis],(1,1,1,3))
     # SAM
     alpha[overlay==1] = overlay_color * 1.0
     # BLAST/SAM
@@ -224,25 +220,27 @@ def generate_comp_overlay(input_image: np.ndarray, overlay: np.ndarray = None, s
     # clicked point
     if True: # small circle
         clickedpts = np.where(overlay == 8)
-        dim_y,dim_x = np.shape(input_image)[1:]
+        dim_z,dim_y,dim_x = np.shape(input_image)
         x = np.arange(0,dim_x)
         y = np.arange(0,dim_y)
-        cmask = np.zeros((dim_y,dim_x),dtype='uint8')
-        for p in zip(clickedpts[1],clickedpts[0]):
+        z = np.arange(0,dim_z)
+        cmask = np.zeros_like(input_image,dtype='uint8')
+        for p in zip(clickedpts[0],clickedpts[1],clickedpts[2]):
             # create grid
-            vol = np.array(np.meshgrid(x,y,indexing='xy'))
+            vol = np.array(np.meshgrid(z,y,x,indexing='ij'))
             cmask1 = np.copy(cmask)
-            cmask1[np.where(np.sqrt(np.power((vol[0,:]-p[0]),2)+np.power((vol[1,:]-p[1]),2)) < 4.5)] = 1
+            cmask1[np.where(np.sqrt(np.power((vol[0,:]-p[0]),2)+np.power((vol[1,:]-p[1]),2)+np.power((vol[2,:]-p[2]),2)) < 4.5)] = 1
             cmask2 = np.copy(cmask)
-            cmask2[np.where(np.sqrt(np.power((vol[0,:]-p[0]),2)+np.power((vol[1,:]-p[1]),2)) > 3.5)] = 1
+            cmask2[np.where(np.sqrt(np.power((vol[0,:]-p[0]),2)+np.power((vol[1,:]-p[1]),2)+np.power((vol[2,:]-p[2]),2)) > 3.5)] = 1
             cmask = (cmask1) & (cmask2)
             alpha[cmask == 1] = overlay_color * 0.7
         alpha[overlay == 8] = overlay_color * 1.0
     else: # single point
-        alpha[overlay==8] = np.array([0,0,0])
+        # alpha[overlay==8] = np.array(hex_to_rgb('69F570'))/255.
+        alpha[overlay==8] = np.array(hex_to_rgb('000000'))/255.
 
     output_image = np.copy(image)
-    output_image[slice][overlay_ros] = alpha[overlay_ros]
+    output_image[overlay_ros] = alpha[overlay_ros]
     plt.clf()
     plt.imshow(output_image[slice])
 

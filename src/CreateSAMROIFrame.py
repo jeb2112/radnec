@@ -680,7 +680,7 @@ class CreateSAMROIFrame(CreateFrame):
             self.ui.sliceviewerframe.run3dSAM.configure(state='active')
         else:
             # this workflow option shouldn't be triggered in the current implementation of 
-            # SAM (ET/TC) only.
+            # SAM viewer
             self.set_overlay('BLAST')
             self.ui.dataselection = 'seg_raw_fusion'
             self.ui.sliceviewerframe.updateslice()
@@ -1528,20 +1528,15 @@ class CreateSAMROIFrame(CreateFrame):
         self.pointradius.set(int(radius))
 
     # create a composite mask from a SAM and a BLAST raw mask
-    # only in current slice
     def create_comp_mask(self):
         s = self.ui.s
         roi = self.ui.currentroi
         layer = self.layerSAM.get()
         rref = self.ui.rois['sam'][s][roi]
-        self.ui.rois['sam'][s][roi].mask = 5*self.ui.rois['blast'][s][roi].data[layer][self.ui.currentslice] + \
-                                                     1*self.ui.rois['sam'][s][roi].data[layer][self.ui.currentslice]
-
+        self.ui.rois['sam'][s][roi].mask = 5*self.ui.rois['blast'][s][roi].data[layer] + \
+                                                     1*self.ui.rois['sam'][s][roi].data[layer]
+        # add BLAST selection points
         for i,pt in enumerate(self.ui.pt[self.ui.s]):
-            rref.mask[pt.coords['y'],pt.coords['x']] = 8
+            rref.mask[pt.coords['slice'],pt.coords['y'],pt.coords['x']] = 8
 
-        # create a combined seg mask from the three layers
-        # using nnunet convention for labels
-        if False:
-            rref.data['seg'] = 2*rref.data['TC'] + 1*rref.data['WT']
         return

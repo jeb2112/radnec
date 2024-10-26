@@ -646,8 +646,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             x,y = self.axs[ax].transData.inverted().transform((event.x,event.y))
             if False:
                 y = self.dim[1]-y
-            self.currentsagslice.set(int(x))
-            self.currentcorslice.set(int(y))
+            self.currentsagslice.set(int(np.round(x)))
+            self.currentcorslice.set(int(np.round(y)))
         self.updateslice()
 
 
