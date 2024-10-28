@@ -11,14 +11,14 @@ import matplotlib.pyplot as plt
 from importlib import metadata
 
 from src import Blastbratsv3
-from src.CreateOverlaySVFrame import CreateOverlaySVFrame
-from src.CreateBlastSVFrame import CreateBlastSVFrame
-from src.CreateSAMSVFrame import CreateSAMSVFrame
-from src.Create4PanelSVFrame import Create4PanelSVFrame
+from src.sliceviewer.CreateOverlaySVFrame import CreateOverlaySVFrame
+from src.sliceviewer.CreateBlastSVFrame import CreateBlastSVFrame
+from src.sliceviewer.CreateSAMSVFrame import CreateSAMSVFrame
+from src.sliceviewer.Create4PanelSVFrame import Create4PanelSVFrame
 from src.CreateCaseFrame import CreateCaseFrame
-from src.CreateSAMROIFrame import CreateSAMROIFrame
+from src.roi.CreateSAMROIFrame import CreateSAMROIFrame
 from src.CreateOverlayFrame import CreateOverlayFrame
-from src.Create4PanelROIFrame import Create4PanelROIFrame
+from src.roi.Create4PanelROIFrame import Create4PanelROIFrame
 from src.CreateFrame import Command
 from src.OverlayPlots import *
 
