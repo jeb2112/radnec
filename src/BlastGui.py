@@ -232,7 +232,7 @@ class BlastGui(object):
     # BLAST method
     ##############
 
-    def runblast(self,currentslice=None,layer=None,showblast=False):
+    def runblast(self,currentslice=None,layer=None,showblast=True):
         if currentslice: # 2d in a single slice
             currentslice=None # for now will run full 3d by default every update
         else: # entire volume
@@ -297,6 +297,7 @@ class BlastGui(object):
             else:
                 self.updateslice()
         else:
+            # still missing the population of the 'dET','dT2 hyper' volumes here.
             self.dataselection = 'raw'
                 
         self.root.config(cursor='arrow')

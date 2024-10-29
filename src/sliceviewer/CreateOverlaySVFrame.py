@@ -28,7 +28,7 @@ from scipy.spatial.distance import dice
 from src.NavigationBar import NavigationBar
 from src.FileDialog import FileDialog
 
-from src.CreateSVFrame import *
+from src.sliceviewer.CreateSVFrame import *
 
 
 ###########################

@@ -36,7 +36,8 @@ import cc3d
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
-from src.ROI import ROIBLAST,ROISAM,ROIPoint
+from src.roi.ROI import ROIBLAST,ROISAM,ROIPoint
+from src.SSHSession import SSHSession
 
 # contains various ROI methods and variables for 'SAM' mode
 class CreateSAMROIFrame(CreateFrame):
@@ -1210,7 +1211,7 @@ class CreateSAMROIFrame(CreateFrame):
     # tumour segmenation by SAM
     # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
     # a bit arbitrary, not using it as the SAM prompt. So, layer arg here defaults to 'TC'
-    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox',orient='ax'):
+    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox',orient='ax',remote=False):
         print('SAM segment tumour')
         if roi is None:
             roi = self.ui.currentroi
@@ -1223,12 +1224,49 @@ class CreateSAMROIFrame(CreateFrame):
                 os.mkdir(dpath)
 
         if os.name == 'posix':
-            if model == 'medSAM':
-                command = 'conda run -n ptorch python scripts/medsam.py  --checkpoint /media/jbishop/WD4/brainmets/sam_models/medsam_vit_b.pth '
-                command += ' --input ' + self.ui.caseframe.casedir
-                command += ' --output ' + self.ui.caseframe.casedir
-                command += ' --model-type vit_b'
-            elif model == 'SAM':
+            if remote:
+                user = 'ec2-user'
+                host = 'ec2-35-183-70-179.ca-central-1.compute.amazonaws.com'
+                s1 = SSHSession(user,host)
+                casedir = self.ui.caseframe.casedir.replace(self.config.UIlocaldir,self.config.UIawsdir)
+                studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
+                dpath_remote = os.path.join(studydir,'sam')
+
+                # 1. prep dirs
+                for d in ['images','prompts','predictions','predictions_nifti']:
+                    try:
+                        s1.sftp.remove_dir(os.path.join(dpath_remote,d))
+                    except Exception as e:
+                        pass
+                    s1.sftp.mkdir(os.path.join(dpath_remote,d))
+
+                # 2. upload prompts
+                for d in ['images','prompts']:
+                    localpath = os.path.join(dpath,d)
+                    remotepath = os.path.join(dpath_remote,d)
+                    s1.sftp.put_dir(localpath,remotepath)
+                # command = 'scp -i /home/jbishop/keystores/aws/awstest.pem -r ' + localpath + ' ' + remotepath
+                # s1.run_command(command)
+
+                # 3. run SAM
+                command = 'conda run -n pytorch python /home/ec2-user/scripts/sam_hf.py  '
+                command += ' --checkpoint /home/ec2-user/sam_models/' + self.ui.config.SAMModelAWS
+                command += ' --input ' + casedir
+                command += ' --prompt ' + prompt
+                command += ' --layer ' + layer
+                command += ' --tag ' + tag
+                command += ' --orient ' + orient
+                res = s1.run_command(command)
+
+                # 4. download results
+
+                localpath = os.path.join(dpath,'predictions_nifti')
+                remotepath = os.path.join(dpath_remote,'predictions_nifti')
+                s1.sftp.get_dir(remotepath,localpath)
+
+                s1.close()
+
+            else: 
                 command = 'conda run -n ptorch python scripts/sam_hf.py  '
                 command += ' --checkpoint /media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
                 command += ' --input ' + self.ui.caseframe.casedir
@@ -1236,7 +1274,7 @@ class CreateSAMROIFrame(CreateFrame):
                 command += ' --layer ' + layer
                 command += ' --tag ' + tag
                 command += ' --orient ' + orient
-            res = os.system(command)
+                res = os.system(command)
         elif os.name == 'nt':
             # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
             # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here

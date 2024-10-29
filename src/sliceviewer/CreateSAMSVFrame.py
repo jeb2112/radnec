@@ -28,7 +28,7 @@ import scipy
 
 from src.NavigationBar import NavigationBar
 
-from src.CreateSVFrame import *
+from src.sliceviewer.CreateSVFrame import *
 
 #####################################
 # Slice Viewer for SAM segmentation
@@ -559,12 +559,20 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         for p in planes:
             # run the SAM segmentation
             # tag is hard-coded here for a unique key in stats.json
-            self.ui.set_message(msg='SAM 3d '+p)
+            if True:
+                self.ui.root.after(1000,Command(self.ui.set_message,msg='SAM 3d '+p))
+                self.ui.root.after(1000,self.ui.root.update_idletasks)
+            else:
+                self.ui.set_message(msg='SAM 3d '+p)
             prompt = self.prompt_type.get()
             self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
                 np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerSAM.get()]),prompt=prompt,orient=p)
             self.ui.roiframe.save_prompts(orient=p)
+            start_time = time.time()
             self.ui.roiframe.segment_sam(orient=p,tag='blast_3d')
+            elapsed_time = time.time() - start_time
+            self.ui.set_message(msg='elapsed time = {:.1f}'.format(elapsed_time))
+            self.ui.root.update_idletasks()
         
         self.ui.roiframe.load_sam(tag = 'blast_3d',prompt=prompt,do_ortho=do_ortho)
         # switch to SAM display

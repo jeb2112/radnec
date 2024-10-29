@@ -25,7 +25,7 @@ from scipy.io import savemat
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
-from src.ROI import ROILinear
+from src.roi.ROI import ROILinear
 from src.CreateTranscription import *
 
 # contains various ROI methods and variables for 'overlay' mode

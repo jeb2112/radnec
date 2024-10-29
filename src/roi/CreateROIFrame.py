@@ -29,7 +29,7 @@ import cc3d
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
-from src.ROI import ROI
+from src.roi.ROI import ROI
 
 # contains various ROI methods and variables for 'BLAST' mode
 class CreateROIFrame(CreateFrame):

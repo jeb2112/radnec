@@ -29,7 +29,7 @@ import scipy
 
 from src.NavigationBar import NavigationBar
 
-from src.CreateSVFrame import *
+from src.sliceviewer.CreateSVFrame import *
 
 #####################################
 # Slice Viewer for Blast segmentation
