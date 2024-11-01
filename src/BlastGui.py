@@ -184,7 +184,8 @@ class BlastGui(object):
         # overlay/blast function mode
         self.functionmenu = ttk.OptionMenu(self.mainframe,self.function,self.functionlist['overlay'],
                                         *self.functionlist,command=Command(self.function_callback,update=True))
-        self.functionmenu.grid(row=0,column=1,sticky='e')
+        if False: # not for general use
+            self.functionmenu.grid(row=0,column=1,sticky='e')
         self.function_callback()
 
         # initialize default directory. no longer needed?

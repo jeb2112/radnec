@@ -1,6 +1,6 @@
 [project]
 name = "radnec"
-description = "RADNEC/SAM user interface"
+description = "SAM user interface"
 dynamic=["version"]
 authors = [
     {name = "JB", email = "j.bishop@utoronto.ca"}

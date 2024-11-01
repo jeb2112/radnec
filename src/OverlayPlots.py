@@ -207,14 +207,18 @@ def generate_comp_overlay(input_image: np.ndarray, overlay: np.ndarray = None, s
     # for now just using 1 for WT 
     overlay_color = overlay_intensity * np.array(hex_to_rgb(color_cycle[mapping[1]]))
     overlay_color /= 255
-    overlay_ros = np.where(overlay)
+    # currently want to exclude raw BLAST pixels that are separate from the SAM mask
+    overlay_ros = np.where((overlay>0) & (overlay != 5))
 
     alpha = np.zeros_like(overlay,dtype='float32')
     alpha = np.tile(alpha[:,:,:,np.newaxis],(1,1,1,3))
-    # SAM
+    # SAM only pixels
     alpha[overlay==1] = overlay_color * 1.0
-    # BLAST/SAM
-    # alpha[overlay==5] = overlay_color * 0.6
+    # BLAST only pixels
+    # for now, not showing any raw BLAST pixel that is separate from the SAM roi.
+    if False:
+        alpha[overlay==5] = overlay_color * 0.6
+    # SAM+BLAST pixels
     alpha[overlay==6] = overlay_color * 1.0
 
     # clicked point
