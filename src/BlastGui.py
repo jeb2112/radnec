@@ -36,7 +36,7 @@ class BlastGui(object):
             self.version = metadata.version('radnec')
         except metadata.PackageNotFoundError:
             self.version = ''
-        self.titletext = 'RadNec/SAM User Interface v' + self.version
+        self.titletext = 'SAM User Interface v' + self.version
 
         self.root.title(self.titletext)
         self.config = config
