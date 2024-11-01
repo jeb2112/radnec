@@ -7,7 +7,8 @@ import numpy as np
 import os
 import stat
 from paramiko import SSHClient,RSAKey,SFTPClient,Transport
-import pssh
+from pssh.clients.ssh import SSHClient as SSHClient2
+from pssh.clients.ssh import ParallelSSHClient
 import boto3
 import pssh.clients
 
@@ -61,8 +62,12 @@ class SSHSession(object):
         self.transport = self.client.get_transport()
         self.transport.default_window_size = np.power(2,21)
         self.sftp = MySFTPClient.from_transport(self.transport)
-        # parallel ssh
-        self.client = pssh.clients.SSHClient(self.hostname,user=self.username,pkey=self.pkey)
+        # parallel ssh. tricky.
+        # pssh.clients.SSHClient() appears in the documentation but fails to auth public key
+        # pssh.clients.ssh.SSHClient() is mentioned on github issues as the solution to the above problem but doesn't exist no modul
+        # from pssh.clients.ssh import SSHClient exists and auths public key
+        self.client2 = SSHClient2(self.hostname,user=self.username,pkey="/home/{}/.ssh/awstest.pem".format(getpass.getuser()))
+        self.client2parallel = ParallelSSHClient(list(self.hostname),user=self.username,pkey="/home/{}/.ssh/awstest.pem".format(getpass.getuser()))
 
         self.dirlist = None
             
@@ -86,6 +91,24 @@ class SSHSession(object):
         err = stderr.read().decode().strip()
         err = str(err) or None
         return (out,err)
+
+    def run_command2(self,c,block=False):
+        res = self.client2.run_command(c)
+        # SSHClient is async. consuming the output creates the delay
+        # until the command is complete
+        for line in res.stdout:
+            print(line)
+        return res.stdout
+
+    def run_command2parallel(self,c,block=False):
+        res = self.client2parallel.run_command(c)
+        self.client2.join()
+        for host_output in res:
+            hostname = host_output.host
+            stdout = list(host_output.stdout)
+            print("Host %s: exit code %s, output %s" % (
+                hostname, host_output.exit_code, stdout))        
+        return (hostname,host_output.exit_code,stdout)
 
     def close(self):
         if self.client:

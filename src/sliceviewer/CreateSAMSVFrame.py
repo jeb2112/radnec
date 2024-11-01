@@ -501,7 +501,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
     # run 2d SAM on available prompt. currently this is either a bbox or a single point
     # this method should probably be in ROIFrame
-    def sam2d_callback(self,prompt='bbox',do_ortho=None,remote=False):
+    def sam2d_callback(self,prompt='bbox',do_ortho=None,remote=True):
 
         # switch roi context
         self.ui.roi = self.ui.rois['sam']
@@ -510,7 +510,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         if remote:
             user = 'ec2-user'
-            host = 'ec2-3-99-184-105.ca-central-1.compute.amazonaws.com'
+            host = 'ec2-35-182-19-168.ca-central-1.compute.amazonaws.com'
             s1 = SSHSession(user,host)
             # res = s1.run_command('conda activate pytorch')
             # res = s1.run_command('conda info')
@@ -551,12 +551,22 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
     # run 3d SAM on all bbox's as available from a BLAST ROI. 
     # this method should probably be in ROIFrame
-    def sam3d_callback(self,do_ortho=None):
+    def sam3d_callback(self,do_ortho=None,remote=True):
         # check for an available blast segmentation
         if not self.ui.rois['blast'][self.ui.s][self.ui.currentroi].status:
             return
         
         print('run SAM 3d')
+
+        if remote:
+            user = 'ec2-user'
+            host = 'ec2-35-182-19-168.ca-central-1.compute.amazonaws.com'
+            s1 = SSHSession(user,host)
+            # res = s1.run_command('conda activate pytorch')
+            # res = s1.run_command('conda info')
+        else:
+            s1 = None
+
         self.ui.roiframe.selectPoint()
         self.ui.roiframe.setCursor('watch')
         if do_ortho is None:
@@ -579,7 +589,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
                 np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerSAM.get()]),prompt=prompt,orient=p)
             self.ui.roiframe.save_prompts(orient=p)
             start_time = time.time()
-            self.ui.roiframe.segment_sam(orient=p,tag='blast_3d')
+            self.ui.roiframe.segment_sam(orient=p,tag='blast_3d',session=s1)
             elapsed_time = time.time() - start_time
             # self.ui.set_message(msg='elapsed time = {:.1f}'.format(elapsed_time))
             # self.ui.root.update_idletasks()

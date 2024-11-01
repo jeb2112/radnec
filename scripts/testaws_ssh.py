@@ -12,9 +12,9 @@ from pstats import SortKey,Stats
 from src.SSHSession import SSHSession
 
 user = 'ec2-user'
-host = 'ec2-3-99-184-105.ca-central-1.compute.amazonaws.com'
+host = 'ec2-35-182-19-168.ca-central-1.compute.amazonaws.com'
 session = SSHSession(user,host)
-command = 'ls -la'
+command = 'sleep 4'
 with Profile() as profile_command:
     ret = session.run_command(command)
     (
