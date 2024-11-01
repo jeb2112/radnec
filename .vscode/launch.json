@@ -48,6 +48,15 @@
             "justMyCode": false
         },
         {
+            "name": "aws ssh",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/testaws_ssh.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
             "name": "medsam",
             "type": "debugpy",
             "request": "launch",
@@ -57,26 +66,6 @@
                 "--output","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0002",
                 "--checkpoint","/media/jbishop/WD4/brainmets/sam/medsam_vit_b.pth",
                 "--model-type","vit_b"
-            ],
-            "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal",
-            "justMyCode": false
-        },
-        {
-            "name": "sam",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/scripts/sam.py",
-            "args": [
-                "--input","/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024/M00002",
-                "--output","/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024/M00002",
-                // "--input","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti//M0009",
-                // "--output","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0009",
-                // "--input","C:\\Users\\Chris Heyn Lab\\data\\dicom2nifti_sam_temporal\\M0020",
-                // "--output","C:\\Users\\Chris Heyn Lab\\data\\dicom2nifti_sam_temporal\\M0020",
-                "--checkpoint","C:\\Users\\Chris Heyn Lab\\data\\sam_models\\sam_vit_b_01ec64.pth",
-                "--model-type","vit_b",
-                // "--temporal"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
@@ -98,8 +87,9 @@
                 // "--pretrained","None",
                 "--prompt","bbox",
                 "--model-type","vit_b",
-                "--tag","blast_bbox_3d_cor",
-                "--orient","cor",
+                // "--tag","blast_bbox_3d_cor",
+                "--tag","test",
+                "--orient","sag",
                 "--layer","WT"
             ],
             "cwd": "${workspaceFolder}",

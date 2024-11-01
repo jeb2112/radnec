@@ -1,13 +1,15 @@
-# class for a ssh session and functions
+# simple class for ssh,scp functionality
 
 import logging
 import re
-import difflib
+import getpass
+import numpy as np
 import os
 import stat
 from paramiko import SSHClient,RSAKey,SFTPClient,Transport
-from scp import SCPClient
+import pssh
 import boto3
+import pssh.clients
 
 logging.getLogger("paramiko").setLevel(logging.ERROR)
 
@@ -37,7 +39,7 @@ class MySFTPClient(SFTPClient):
                 self.get(os.path.join(source,fileattr.filename), os.path.join(target,fileattr.filename))
                 # self.get(os.path.join(source, item), '%s/%s' % (target, item))
 
-    # overrides rmdir for non-empty dir
+    # rmdir for non-empty dir
     # assumes no sub-dirs
     def remove_dir(self,target):
         for item in self.listdir(target):
@@ -49,17 +51,22 @@ class SSHSession(object):
     def __init__(self,username,hostname,password=False):
         self.username = username
         self.hostname = hostname
-        self.client = SSHClient()
-        self.dirlist = None
         if password is False:
-            # self.pkey = RSAKey.from_private_key_file("/home/{}/.ssh/id_rsa_{}".format(self.username,self.hostname))
-            self.pkey = RSAKey.from_private_key_file("/home/jbishop/keystores/aws/awstest.pem")
-            self.client.load_system_host_keys()
-            self.client.connect(self.hostname,username=self.username,pkey=self.pkey,timeout=5000)
+            self.pkey = RSAKey.from_private_key_file("/home/{}/keystores/aws/awstest.pem".format(getpass.getuser()))
+
+        #paramiko
+        self.client = SSHClient()
+        self.client.load_system_host_keys()
+        self.client.connect(self.hostname,username=self.username,pkey=self.pkey,timeout=5000)
+        self.transport = self.client.get_transport()
+        self.transport.default_window_size = np.power(2,21)
+        self.sftp = MySFTPClient.from_transport(self.transport)
+        # parallel ssh
+        self.client = pssh.clients.SSHClient(self.hostname,user=self.username,pkey=self.pkey)
+
+        self.dirlist = None
             
-        self.scp = SCPClient(self.client.get_transport())
-        self.sftp = MySFTPClient.from_transport(self.client.get_transport())
-        self.root = "//PMIFS03.pmiad.profoundmedical.com./ClinicalData$/Clinical Trial Pivotal (TACT)"
+            
         self.site = None
         self.localdir = None
         self.log = logging.getLogger(__name__)
@@ -70,28 +77,11 @@ class SSHSession(object):
         os.environ["AWS_SECRET_ACCESS_KEY"] = credentials.secret_key
         os.environ["AWS_SESSION_TOKEN"] = credentials.token
 
-
-    # get contents of AX SAG folders at fpath
-    def get_folder(self,fpath,destpath):
-        self.run_command('rm /c/tmp/test.zip')
-        out,err = self.run_command('cd \'{}\'; zip -r /c/tmp/test.zip Anatomy??'.format(fpath))
-        if err is not None:
-            self.log.error('failed to zip {}, {}'.format(fpath,err))
-            raise OSError
-
     def run_command(self,c,block=False):
         stdin,stdout,stderr = self.client.exec_command(c)
         if block:
             exit_status = stdout.channel.recv_exit_status()
-        out = stdout.read().decode().strip()
-        err = stderr.read().decode().strip()
-        err = str(err) or None
-        return (out,err)
-    
-    def run_scp(self,c,block=False):
-        stdin,stdout,stderr = self.scp.exec_command(c)
-        if block:
-            exit_status = stdout.channel.recv_exit_status()
+            return exit_status
         out = stdout.read().decode().strip()
         err = stderr.read().decode().strip()
         err = str(err) or None
@@ -100,6 +90,6 @@ class SSHSession(object):
     def close(self):
         if self.client:
             self.client.close()
-        if self.scp:
-            self.scp.close()
+        if self.sftp:
+            self.sftp.close()
 

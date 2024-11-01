@@ -29,6 +29,7 @@ import scipy
 from src.NavigationBar import NavigationBar
 
 from src.sliceviewer.CreateSVFrame import *
+from src.SSHSession import SSHSession
 
 #####################################
 # Slice Viewer for SAM segmentation
@@ -500,12 +501,21 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
     # run 2d SAM on available prompt. currently this is either a bbox or a single point
     # this method should probably be in ROIFrame
-    def sam2d_callback(self,prompt='bbox',do_ortho=None):
+    def sam2d_callback(self,prompt='bbox',do_ortho=None,remote=False):
 
         # switch roi context
         self.ui.roi = self.ui.rois['sam']
-        
+    
         print('run sam 2D')
+
+        if remote:
+            user = 'ec2-user'
+            host = 'ec2-3-99-184-105.ca-central-1.compute.amazonaws.com'
+            s1 = SSHSession(user,host)
+            # res = s1.run_command('conda activate pytorch')
+            # res = s1.run_command('conda info')
+        else:
+            s1 = None
 
         if do_ortho is None:
             do_ortho = self.ui.config.SAMortho
@@ -517,7 +527,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         for p in planes:
              
             currentslice = self.ui.get_currentslice(ax=p)
-            if True:
+            if False:
                 self.ui.root.after(1000,Command(self.ui.set_message,msg='SAM 2d '+p))
                 self.ui.root.after(1000,self.ui.root.update_idletasks)
             else:
@@ -526,10 +536,10 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
                 np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerROI.get()]),prompt=prompt,slice=currentslice,orient=p)
             self.ui.roiframe.save_prompts(slice=currentslice,orient=p)
             start_time = time.time()
-            self.ui.roiframe.segment_sam(orient=p,tag='2d',prompt=prompt)
+            self.ui.roiframe.segment_sam(orient=p,tag='2d',prompt=prompt,session=s1)
             elapsed_time = time.time() - start_time
-            self.ui.set_message(msg='elapsed time = {:.1f}'.format(elapsed_time))
-            self.ui.root.update_idletasks()
+            # self.ui.set_message(msg='elapsed time = {:.1f}'.format(elapsed_time))
+            # self.ui.root.update_idletasks()
 
         self.ui.set_message(msg="SAM 2d complete")
         self.ui.roiframe.load_sam(tag='2d',prompt=prompt,do_ortho=do_ortho,do3d=False)
@@ -559,7 +569,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         for p in planes:
             # run the SAM segmentation
             # tag is hard-coded here for a unique key in stats.json
-            if True:
+            if False:
                 self.ui.root.after(1000,Command(self.ui.set_message,msg='SAM 3d '+p))
                 self.ui.root.after(1000,self.ui.root.update_idletasks)
             else:
@@ -571,8 +581,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             start_time = time.time()
             self.ui.roiframe.segment_sam(orient=p,tag='blast_3d')
             elapsed_time = time.time() - start_time
-            self.ui.set_message(msg='elapsed time = {:.1f}'.format(elapsed_time))
-            self.ui.root.update_idletasks()
+            # self.ui.set_message(msg='elapsed time = {:.1f}'.format(elapsed_time))
+            # self.ui.root.update_idletasks()
         
         self.ui.roiframe.load_sam(tag = 'blast_3d',prompt=prompt,do_ortho=do_ortho)
         # switch to SAM display

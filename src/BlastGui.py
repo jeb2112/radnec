@@ -232,7 +232,7 @@ class BlastGui(object):
     # BLAST method
     ##############
 
-    def runblast(self,currentslice=None,layer=None,showblast=True):
+    def runblast(self,currentslice=None,layer=None,showblast=False):
         if currentslice: # 2d in a single slice
             currentslice=None # for now will run full 3d by default every update
         else: # entire volume
@@ -297,8 +297,13 @@ class BlastGui(object):
             else:
                 self.updateslice()
         else:
-            # still missing the population of the 'dET','dT2 hyper' volumes here.
-            self.dataselection = 'raw'
+            # in the new workflow, once a SAM roi exists keep the SAM roi displayed at all times
+            if self.roiframe.overlay_value['SAM'].get():
+                self.updateslice()
+            else:
+                self.roiframe.set_overlay()
+                self.dataselection = 'raw'
+                self.updateslice()
                 
         self.root.config(cursor='arrow')
         self.root.update_idletasks()

@@ -18,6 +18,8 @@ matplotlib.use('TkAgg')
 
 from matplotlib.path import Path
 from matplotlib.patches import Ellipse
+from cProfile import Profile
+from pstats import SortKey,Stats
 
 import SimpleITK as sitk
 import nibabel as nb
@@ -579,8 +581,10 @@ class CreateSAMROIFrame(CreateFrame):
         if event:
             if event.button > 1: # ROI selection on left mouse only
                 return
+            # in the new workflow, BLAST roi is not being depicted, so this check no longer applies
             if self.overlay_value['BLAST'].get() == False: # no selection if BLAST mode not active
-                return
+                pass
+                # return
             
         # self.ui.sliceviewerframe.canvas.widgetlock.release(self.ui.sliceviewerframe)
         self.setCursor('watch')
@@ -670,7 +674,15 @@ class CreateSAMROIFrame(CreateFrame):
                 self.saveROI(roitype='sam',roi=self.ui.currentroi,tag='point_slice'+str(self.ui.currentslice))
             else:
                 # normally use 'bbox' and don't save.
-                self.ui.sliceviewerframe.sam2d_callback(prompt='bbox')
+                with Profile() as profile:
+                    self.ui.sliceviewerframe.sam2d_callback(prompt='bbox')
+                    print('sam2d_callback')
+                    (
+                        Stats(profile)
+                        .strip_dirs()
+                        .sort_stats(SortKey.TIME)
+                        .print_stats(15)
+                    )
 
             # automatically switch to SAM display
             self.set_overlay('SAM')
@@ -1211,7 +1223,7 @@ class CreateSAMROIFrame(CreateFrame):
     # tumour segmenation by SAM
     # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
     # a bit arbitrary, not using it as the SAM prompt. So, layer arg here defaults to 'TC'
-    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox',orient='ax',remote=False):
+    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox',orient='ax',remote=True,session=None):
         print('SAM segment tumour')
         if roi is None:
             roi = self.ui.currentroi
@@ -1224,47 +1236,68 @@ class CreateSAMROIFrame(CreateFrame):
                 os.mkdir(dpath)
 
         if os.name == 'posix':
-            if remote:
-                user = 'ec2-user'
-                host = 'ec2-35-183-70-179.ca-central-1.compute.amazonaws.com'
-                s1 = SSHSession(user,host)
-                casedir = self.ui.caseframe.casedir.replace(self.config.UIlocaldir,self.config.UIawsdir)
-                studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
-                dpath_remote = os.path.join(studydir,'sam')
+            if session is not None:
 
-                # 1. prep dirs
-                for d in ['images','prompts','predictions','predictions_nifti']:
-                    try:
-                        s1.sftp.remove_dir(os.path.join(dpath_remote,d))
-                    except Exception as e:
-                        pass
-                    s1.sftp.mkdir(os.path.join(dpath_remote,d))
+                with Profile() as profile:
+                    # user = 'ec2-user'
+                    # host = 'ec2-35-182-58-71.ca-central-1.compute.amazonaws.com'
+                    # session = SSHSession(user,host)
+                    casedir = self.ui.caseframe.casedir.replace(self.config.UIlocaldir,self.config.UIawsdir)
+                    studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
+                    dpath_remote = os.path.join(studydir,'sam')
 
-                # 2. upload prompts
-                for d in ['images','prompts']:
-                    localpath = os.path.join(dpath,d)
-                    remotepath = os.path.join(dpath_remote,d)
-                    s1.sftp.put_dir(localpath,remotepath)
-                # command = 'scp -i /home/jbishop/keystores/aws/awstest.pem -r ' + localpath + ' ' + remotepath
-                # s1.run_command(command)
+                    # 1. prep dirs
+                    for d in ['images','prompts','predictions','predictions_nifti']:
+                        try:
+                            session.sftp.remove_dir(os.path.join(dpath_remote,d))
+                        except Exception as e:
+                            pass
+                        session.sftp.mkdir(os.path.join(dpath_remote,d))
 
-                # 3. run SAM
-                command = 'conda run -n pytorch python /home/ec2-user/scripts/sam_hf.py  '
-                command += ' --checkpoint /home/ec2-user/sam_models/' + self.ui.config.SAMModelAWS
-                command += ' --input ' + casedir
-                command += ' --prompt ' + prompt
-                command += ' --layer ' + layer
-                command += ' --tag ' + tag
-                command += ' --orient ' + orient
-                res = s1.run_command(command)
+                    # 2. upload prompts
+                    for d in ['images','prompts']:
+                        localpath = os.path.join(dpath,d)
+                        remotepath = os.path.join(dpath_remote,d)
+                        session.sftp.put_dir(localpath,remotepath)
 
-                # 4. download results
+                    # 3. run SAM
+                    if True:
+                        # command = 'conda run -n pytorch python /home/ec2-user/scripts/sam_hf.py  '
+                        command = 'python /home/ec2-user/scripts/sam_hf.py  '
+                        command += ' --checkpoint /home/ec2-user/sam_models/' + self.ui.config.SAMModelAWS
+                        command += ' --input ' + casedir
+                        command += ' --prompt ' + prompt
+                        command += ' --layer ' + layer
+                        command += ' --tag ' + tag
+                        command += ' --orient ' + orient
+                    else:
+                        # command = 'conda run -n pytorch ls -la'
+                        command = 'ls -la'
+                    with Profile() as profile_command:
+                        res = session.run_command2(command)
+                        print('Profile: segment_sam, remote, run_command')
+                        (
+                            Stats(profile_command)
+                            .strip_dirs()
+                            .sort_stats(SortKey.TIME)
+                            .print_stats(15)
+                        )
 
-                localpath = os.path.join(dpath,'predictions_nifti')
-                remotepath = os.path.join(dpath_remote,'predictions_nifti')
-                s1.sftp.get_dir(remotepath,localpath)
+                    # 4. download results
 
-                s1.close()
+                    localpath = os.path.join(dpath,'predictions_nifti')
+                    remotepath = os.path.join(dpath_remote,'predictions_nifti')
+                    session.sftp.get_dir(remotepath,localpath)
+
+                    # session.close()
+
+                    print('Profile: segment_sam, remote')
+                    (
+                        Stats(profile)
+                        .strip_dirs()
+                        .sort_stats(SortKey.TIME)
+                        .print_stats(25)
+                    )
 
             else: 
                 command = 'conda run -n ptorch python scripts/sam_hf.py  '
@@ -1274,7 +1307,17 @@ class CreateSAMROIFrame(CreateFrame):
                 command += ' --layer ' + layer
                 command += ' --tag ' + tag
                 command += ' --orient ' + orient
-                res = os.system(command)
+
+                with Profile() as profile:
+                    res = os.system(command)
+                    print('Profile: segment_sam, local')
+                    (
+                        Stats(profile)
+                        .strip_dirs()
+                        .sort_stats(SortKey.TIME)
+                        .print_stats(25)
+                    )
+
         elif os.name == 'nt':
             # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
             # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
@@ -1541,8 +1584,12 @@ class CreateSAMROIFrame(CreateFrame):
                 self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['stdflair'].append(std_flair)
 
         # functionality similar to updateslider() should reconcile
-        self.set_overlay('BLAST')
-        self.enhancingROI_overlay_callback()
+        # in the original workflow, the raw BLAST mask was being shown
+        if False:
+            self.set_overlay('BLAST')
+            self.enhancingROI_overlay_callback()
+        else: # in the new workflow, only the SAM ROI mask is depicted
+            self.SAM_overlay_callback()
         self.ui.blastdata[self.ui.s]['blast']['gates']['ET'] = None
         self.ui.blastdata[self.ui.s]['blast']['gates']['T2 hyper'] = None
         self.ui.update_blast(layer='ET')

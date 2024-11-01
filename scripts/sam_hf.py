@@ -12,6 +12,8 @@ from scipy.spatial.distance import dice,directed_hausdorff
 from collections import defaultdict
 import copy
 import argparse
+from cProfile import Profile
+from pstats import SortKey,Stats
 
 import skimage
 from skimage.io import imread,imsave
@@ -216,7 +218,8 @@ def main(args):
         eval_datadir = {'test':spath}
         samp = SAMProcessing(eval_datadir,model_size='base',prompt_type=prompt_args[args.prompt]['prompt_type'])
 
-        res = predict_metrics(model,samp.dataloaders['test'],prompt_args[args.prompt],datadir=spath)
+        if args.debug == False:
+            res = predict_metrics(model,samp.dataloaders['test'],prompt_args[args.prompt],datadir=spath)
 
         # gather the sam-predicted 2d slices into a nifti volume
         # with the torch DataLoader, the output masks for a set of image files are just in 
@@ -309,7 +312,16 @@ if __name__ == "__main__":
     parser.add_argument("--tag",type=str, default="",help="Tag word for file naming")
     parser.add_argument("--layer",type=str, default="",help="TC|WT annotation of output file")
     parser.add_argument("--orient",type=str, default="ax",help="orientation of 2d SAM slice")
+    parser.add_argument('--debug',action = 'store_true',default=False)
     args = parser.parse_args()
     print(args)
-    main(args)
+    with Profile() as profile:
+        main(args)
+        (
+            Stats(profile)
+            .strip_dirs()
+            .sort_stats(SortKey.TIME)
+            .print_stats(15)
+        )
+
 
