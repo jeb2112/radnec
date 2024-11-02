@@ -7,6 +7,7 @@ import numpy as np
 import os
 import re
 import matplotlib.pyplot as plt
+import shutil
 from sklearn.metrics import f1_score, precision_score
 from scipy.spatial.distance import dice,directed_hausdorff
 from collections import defaultdict
@@ -203,12 +204,26 @@ def main(args):
         model.load_state_dict(checkpoint["model_state_dict"])
     model.to(device)
 
+
     sfiles = os.listdir(args.input)
-    studydirs = [s for s in sfiles if os.path.isdir(os.path.join(args.input,s,'sam','images'))]
+    studydirs = [s for s in sfiles if os.path.isdir(os.path.join(args.input,s,'sam',args.orient,'images'))]
     if len(studydirs) == 0:
         raise FileNotFoundError('No images sub-directory found')
-    for s in studydirs:
-        spath = os.path.join(args.input,s,'sam')
+    for s in studydirs: # only coded for 1 actual dir right now
+
+        # prepare output dir. When orthogonal planes are being predicted, 'ax' will be first.
+        if args.output is None:
+            outputdir = os.path.join(args.input,s,'sam','predictions_nifti')
+        else:
+            outputdir = args.output
+        # if args.orient == 'ax':
+        #     if os.path.exists(outputdir):
+        #         shutil.rmtree(outputdir)
+        #     os.mkdir(outputdir)
+        if not os.path.exists(outputdir):
+            os.mkdir(outputdir)
+
+        spath = os.path.join(args.input,s,'sam',args.orient)
         if not os.path.exists(spath):
             raise NotADirectoryError
         files = os.listdir(spath)
@@ -251,14 +266,15 @@ def main(args):
             set_slice(slice,sam_predict,mask,args.orient)
             # sam_predict[slice] = mask
 
-        if args.output is None:
-            outputdir = os.path.join(spath,'predictions_nifti')
-        else:
-            outputdir = args.output
         if np.max(sam_predict) > 1:
             sam_predict[np.where(sam_predict)] = 1
         fname = '{}_sam_{}_{}_{}.nii'.format(args.layer,args.prompt,args.tag,args.orient)
         writenifti(sam_predict,os.path.join(outputdir,fname),type=np.uint8,affine=affine)
+
+        # clean up working directories
+        shutil.rmtree(spath)
+        for d in ['images','prompts','predictions']:
+            os.mkdir(os.path.join(spath,d))
 
 
 if __name__ == "__main__":

@@ -510,7 +510,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         if remote:
             user = 'ec2-user'
-            host = 'ec2-35-182-19-168.ca-central-1.compute.amazonaws.com'
+            host = 'ec2-99-79-7-141.ca-central-1.compute.amazonaws.com'
             s1 = SSHSession(user,host)
             # res = s1.run_command('conda activate pytorch')
             # res = s1.run_command('conda info')
@@ -527,21 +527,34 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         for p in planes:
              
             currentslice = self.ui.get_currentslice(ax=p)
-            if False:
-                self.ui.root.after(1000,Command(self.ui.set_message,msg='SAM 2d '+p))
-                self.ui.root.after(1000,self.ui.root.update_idletasks)
-            else:
-                self.ui.set_message(msg='SAM 2d '+p)
+            # if False:
+            #     self.ui.root.after(1000,Command(self.ui.set_message,msg='SAM 2d '+p))
+            #     self.ui.root.after(1000,self.ui.root.update_idletasks)
+            # else:
+            #     self.ui.set_message(msg='SAM 2d '+p)
             self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
                 np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerROI.get()]),prompt=prompt,slice=currentslice,orient=p)
             self.ui.roiframe.save_prompts(slice=currentslice,orient=p)
-            start_time = time.time()
-            self.ui.roiframe.segment_sam(orient=p,tag='2d',prompt=prompt,session=s1)
-            elapsed_time = time.time() - start_time
-            # self.ui.set_message(msg='elapsed time = {:.1f}'.format(elapsed_time))
-            # self.ui.root.update_idletasks()
 
-        self.ui.set_message(msg="SAM 2d complete")
+        # upload prompts to remote
+        if remote:
+            st1 = time.time()
+            self.ui.roiframe.put_prompts_remote(session=s1)
+            upload_time = time.time() - st1
+        else:
+            upload_time = 0
+
+        st2 = time.time()
+        self.ui.roiframe.segment_sam(orient=None,tag='2d',prompt=prompt,session=s1)
+        # download results if remote
+        if remote:
+            download_time = self.ui.roiframe.get_predictions_remote(session=s1)
+        else:
+            download_time = 0
+        elapsed_time = time.time() - st2
+        self.ui.set_message(msg='SAM 2d up = {:.1f}, elapse = {:.1f}, down = {:.1f}'.format(upload_time,elapsed_time,download_time))
+        self.ui.root.update_idletasks()
+
         self.ui.roiframe.load_sam(tag='2d',prompt=prompt,do_ortho=do_ortho,do3d=False)
         # self.ui.roiframe.ROIstats(save=True,tag='2d_'+prompt,roitype='sam',slice=self.ui.currentslice)
         # switch to SAM display
@@ -560,10 +573,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         if remote:
             user = 'ec2-user'
-            host = 'ec2-35-182-19-168.ca-central-1.compute.amazonaws.com'
+            host = 'ec2-99-79-7-141.ca-central-1.compute.amazonaws.com'
             s1 = SSHSession(user,host)
-            # res = s1.run_command('conda activate pytorch')
-            # res = s1.run_command('conda info')
         else:
             s1 = None
 
@@ -579,21 +590,31 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         for p in planes:
             # run the SAM segmentation
             # tag is hard-coded here for a unique key in stats.json
-            if False:
-                self.ui.root.after(1000,Command(self.ui.set_message,msg='SAM 3d '+p))
-                self.ui.root.after(1000,self.ui.root.update_idletasks)
-            else:
-                self.ui.set_message(msg='SAM 3d '+p)
+            # if False:
+            #     self.ui.root.after(1000,Command(self.ui.set_message,msg='SAM 3d '+p))
+            #     self.ui.root.after(1000,self.ui.root.update_idletasks)
+            # else:
+            #     self.ui.set_message(msg='SAM 3d '+p)
             prompt = self.prompt_type.get()
             self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
                 np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerSAM.get()]),prompt=prompt,orient=p)
             self.ui.roiframe.save_prompts(orient=p)
-            start_time = time.time()
-            self.ui.roiframe.segment_sam(orient=p,tag='blast_3d',session=s1)
-            elapsed_time = time.time() - start_time
-            # self.ui.set_message(msg='elapsed time = {:.1f}'.format(elapsed_time))
-            # self.ui.root.update_idletasks()
+
+        # upload prompts to remote
+        if remote:
+            st1 = time.time()
+            self.ui.roiframe.put_prompts_remote(session=s1,do2d=False)
+            upload_time = time.time() - st1
+
+        st2 = time.time()
+        self.ui.roiframe.segment_sam(orient=None,tag='blast_3d',session=s1)
         
+        if remote:
+            download_time = self.ui.roiframe.get_predictions_remote(tag = 'blast_3d',session=s1)
+        elapsed_time = time.time() - st2
+        self.ui.set_message(msg='SAM 3d up = {:.1f}, elapse = {:.1f}, down = {:.1f}'.format(upload_time,elapsed_time,download_time))
+        self.ui.root.update_idletasks()
+
         self.ui.roiframe.load_sam(tag = 'blast_3d',prompt=prompt,do_ortho=do_ortho)
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
@@ -606,7 +627,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.ui.rois['sam'][self.ui.s][self.ui.currentroi].stats['elapsedtime'] = np.round(self.elapsedtime*10)/10
             self.ui.set_message(msg='elapsed time = {:.1f}'.format(self.elapsedtime))
         else:
-            self.ui.set_message(msg="SAM 3d complete")
+            pass
+            # self.ui.set_message(msg="SAM 3d complete")
     
         self.ui.roiframe.setCursor('arrow')
         return

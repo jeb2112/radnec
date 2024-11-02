@@ -899,7 +899,7 @@ class CreateSAMROIFrame(CreateFrame):
 
         fileroot = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
         for d in ['images','prompts','predictions']:
-            filedir = os.path.join(fileroot,d)
+            filedir = os.path.join(fileroot,orient,d)
             if os.path.exists(filedir):
                 shutil.rmtree(filedir)
             os.makedirs(os.path.join(filedir),exist_ok=True)
@@ -919,10 +919,10 @@ class CreateSAMROIFrame(CreateFrame):
             idx = 0
             for slice in rslice:
                 if len(np.where(self.get_prompt_slice(slice,rref,orient))[0]):
-                    outputfilename = os.path.join(fileroot,'prompts',
+                    outputfilename = os.path.join(fileroot,orient,'prompts',
                             'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
                     plt.imsave(outputfilename,self.get_prompt_slice(slice,rref,orient),cmap='gray',)
-                    outputfilename = os.path.join(fileroot,'images',
+                    outputfilename = os.path.join(fileroot,orient,'images',
                             'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
                     meta = PIL.PngImagePlugin.PngInfo()
                     meta.add_text('slicedim',str(slicedim))
@@ -930,6 +930,16 @@ class CreateSAMROIFrame(CreateFrame):
                     plt.imsave(outputfilename,self.get_prompt_slice(slice,dref,orient),cmap='gray',pil_kwargs={'pnginfo':meta})
 
                     idx += 1
+
+        # create tar file if multi-slice
+        if len(rslice) > 1:
+            for d in ['prompts','images']:
+                command = 'tar -cvf '
+                command += os.path.join(fileroot,orient,d,'png.tar')
+                command += ' -C ' + os.path.join(fileroot,orient,d)
+                command += ' .'
+                os.system(command)
+        return
 
     # convenience method, could use rotations instead
     def get_prompt_slice(self,idx,img_arr,orient):
@@ -1223,7 +1233,7 @@ class CreateSAMROIFrame(CreateFrame):
     # tumour segmenation by SAM
     # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
     # a bit arbitrary, not using it as the SAM prompt. So, layer arg here defaults to 'TC'
-    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox',orient='ax',remote=True,session=None):
+    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox',orient=None,remote=True,session=None):
         print('SAM segment tumour')
         if roi is None:
             roi = self.ui.currentroi
@@ -1235,88 +1245,50 @@ class CreateSAMROIFrame(CreateFrame):
             if not os.path.exists(dpath):
                 os.mkdir(dpath)
 
+        if orient is None:
+            orient = ['ax','sag','cor']
+
         if os.name == 'posix':
             if session is not None:
 
-                with Profile() as profile:
-                    # user = 'ec2-user'
-                    # host = 'ec2-35-182-58-71.ca-central-1.compute.amazonaws.com'
-                    # session = SSHSession(user,host)
-                    casedir = self.ui.caseframe.casedir.replace(self.config.UIlocaldir,self.config.UIawsdir)
-                    studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
-                    dpath_remote = os.path.join(studydir,'sam')
+                # user = 'ec2-user'
+                # host = 'ec2-35-182-58-71.ca-central-1.compute.amazonaws.com'
+                # session = SSHSession(user,host)
+                casedir = self.ui.caseframe.casedir.replace(self.config.UIlocaldir,self.config.UIawsdir)
+                studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
+                dpath_remote = os.path.join(studydir,'sam')
 
-                    # 1. prep dirs
-                    for d in ['images','prompts','predictions','predictions_nifti']:
-                        try:
-                            session.sftp.remove_dir(os.path.join(dpath_remote,d))
-                        except Exception as e:
-                            pass
-                        session.sftp.mkdir(os.path.join(dpath_remote,d))
-
-                    # 2. upload prompts
-                    for d in ['images','prompts']:
-                        localpath = os.path.join(dpath,d)
-                        remotepath = os.path.join(dpath_remote,d)
-                        session.sftp.put_dir(localpath,remotepath)
-
-                    # 3. run SAM
-                    if True:
-                        # command = 'conda run -n pytorch python /home/ec2-user/scripts/sam_hf.py  '
-                        command = 'python /home/ec2-user/scripts/sam_hf.py  '
-                        command += ' --checkpoint /home/ec2-user/sam_models/' + self.ui.config.SAMModelAWS
-                        command += ' --input ' + casedir
-                        command += ' --prompt ' + prompt
-                        command += ' --layer ' + layer
-                        command += ' --tag ' + tag
-                        command += ' --orient ' + orient
-                    else:
-                        # command = 'conda run -n pytorch ls -la'
-                        command = 'ls -la'
-                    with Profile() as profile_command:
-                        res = session.run_command2(command)
-                        print('Profile: segment_sam, remote, run_command')
-                        (
-                            Stats(profile_command)
-                            .strip_dirs()
-                            .sort_stats(SortKey.TIME)
-                            .print_stats(15)
-                        )
-
-                    # 4. download results
-
-                    localpath = os.path.join(dpath,'predictions_nifti')
-                    remotepath = os.path.join(dpath_remote,'predictions_nifti')
-                    session.sftp.get_dir(remotepath,localpath)
-
-                    # session.close()
-
-                    print('Profile: segment_sam, remote')
-                    (
-                        Stats(profile)
-                        .strip_dirs()
-                        .sort_stats(SortKey.TIME)
-                        .print_stats(25)
-                    )
+                # run SAM
+                for p in orient:
+                # command = 'conda run -n pytorch python /home/ec2-user/scripts/sam_hf.py  '
+                    command = 'python /home/ec2-user/scripts/sam_hf.py  '
+                    command += ' --checkpoint /home/ec2-user/sam_models/' + self.ui.config.SAMModelAWS
+                    command += ' --input ' + casedir
+                    command += ' --prompt ' + prompt
+                    command += ' --layer ' + layer
+                    command += ' --tag ' + tag
+                    command += ' --orient ' + p
+                    res = session.run_command2(command,block=False)
 
             else: 
-                command = 'conda run -n ptorch python scripts/sam_hf.py  '
-                command += ' --checkpoint /media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
-                command += ' --input ' + self.ui.caseframe.casedir
-                command += ' --prompt ' + prompt
-                command += ' --layer ' + layer
-                command += ' --tag ' + tag
-                command += ' --orient ' + orient
+                for p in orient:
+                    command = 'conda run -n ptorch python scripts/sam_hf.py  '
+                    command += ' --checkpoint /media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
+                    command += ' --input ' + self.ui.caseframe.casedir
+                    command += ' --prompt ' + prompt
+                    command += ' --layer ' + layer
+                    command += ' --tag ' + tag
+                    command += ' --orient ' + p
 
-                with Profile() as profile:
-                    res = os.system(command)
-                    print('Profile: segment_sam, local')
-                    (
-                        Stats(profile)
-                        .strip_dirs()
-                        .sort_stats(SortKey.TIME)
-                        .print_stats(25)
-                    )
+                    with Profile() as profile:
+                        res = os.system(command)
+                        print('Profile: segment_sam, local')
+                        (
+                            Stats(profile)
+                            .strip_dirs()
+                            .sort_stats(SortKey.TIME)
+                            .print_stats(25)
+                        )
 
         elif os.name == 'nt':
             # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
@@ -1357,6 +1329,74 @@ class CreateSAMROIFrame(CreateFrame):
 
         return
     
+    # upload prompts to remote
+    def put_prompts_remote(self,session=None,do2d=True):
+        dpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
+        studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
+        dpath_remote = os.path.join(studydir,'sam')
+
+        for d in ['ax','sag','cor','predictions_nifti']:
+            if False:
+                try:
+                    session.sftp.remove_dir(os.path.join(dpath_remote,d))
+                except FileNotFoundError:
+                    pass
+                except OSError as e:
+                    raise e
+                except Exception as e:
+                    pass
+                session.sftp.mkdir(os.path.join(dpath_remote,d))
+
+        for d in ['ax','sag','cor']:
+            if do2d:
+                localpath = os.path.join(dpath,d)
+                remotepath = os.path.join(dpath_remote,d)
+                session.sftp.put_dir(localpath,remotepath)
+            else:
+                for d2 in ['images','prompts']:
+                    localpath = os.path.join(dpath,d,d2)
+                    localfile = os.path.join(localpath,'png.tar')
+                    remotepath = os.path.join(dpath_remote,d,d2)
+                    remotefile = os.path.join(remotepath,'png.tar')
+                    command = 'mkdir -p ' + remotepath
+                    session.run_command2(command,block=True)
+                    session.sftp.put(localfile,remotefile)
+                    command = 'tar -xvf ' + remotefile + ' -C ' + remotepath
+                    command += '; rm ' + remotefile
+                    session.run_command2(command,block=False)
+                for d2 in ['predictions']:
+                    remotepath = os.path.join(dpath_remote,d,d2)
+                    command = 'mkdir -p ' + remotepath
+                    session.run_command2(command,block=False)                    
+
+    # get the SAM results from remote.
+    def get_predictions_remote(self,tag='',session=None):
+
+        dpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
+        localpath = os.path.join(dpath,'predictions_nifti')
+        studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
+        dpath_remote = os.path.join(studydir,'sam')
+        remotepath = os.path.join(dpath_remote,'predictions_nifti')
+
+        # poll until results are complete
+        while True:
+            command = 'ls ' + remotepath
+            res = session.run_command(command)
+            if len(res[0].split()) == 3:
+                break
+            else:
+                time.sleep(.1)
+
+        # download results
+        start_time = time.time()
+        session.sftp.get_dir(remotepath,localpath)
+    
+        # clean up results dir
+        command = 'rm -rf ' + remotepath
+        session.run_command2(command,block=False)
+
+        return time.time() - start_time
+
     # load the results of SAM
     def load_sam(self,layer=None,tag='',prompt='bbox',do_ortho=False,do3d=True):
                 
