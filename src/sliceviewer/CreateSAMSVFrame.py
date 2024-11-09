@@ -501,7 +501,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
     # run 2d SAM on available prompt. currently this is either a bbox or a single point
     # this method should probably be in ROIFrame
-    def sam2d_callback(self,prompt='bbox',do_ortho=None,remote=True):
+    def sam2d_callback(self,prompt='bbox',do_ortho=None,remote=False):
 
         # switch roi context
         self.ui.roi = self.ui.rois['sam']
@@ -510,7 +510,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         if remote:
             user = 'ec2-user'
-            host = 'ec2-99-79-7-141.ca-central-1.compute.amazonaws.com'
+            host = 'ec2-35-182-153-217.ca-central-1.compute.amazonaws.com'
             s1 = SSHSession(user,host)
             # res = s1.run_command('conda activate pytorch')
             # res = s1.run_command('conda info')
@@ -573,7 +573,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         if remote:
             user = 'ec2-user'
-            host = 'ec2-99-79-7-141.ca-central-1.compute.amazonaws.com'
+            host = 'ec2-35-182-153-217.ca-central-1.compute.amazonaws.com'
             s1 = SSHSession(user,host)
         else:
             s1 = None

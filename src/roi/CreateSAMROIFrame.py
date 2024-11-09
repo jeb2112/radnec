@@ -30,7 +30,8 @@ from scipy.spatial.distance import dice,directed_hausdorff
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
 if os.name == 'posix':
-    from cucim.skimage.morphology import binary_closing as cucim_binary_closing
+    # from cucim.skimage.morphology import binary_closing as cucim_binary_closing
+    from cupyx.scipy.ndimage import binary_closing as cucim_binary_closing
 elif os.name == 'nt':
     from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
 import cupy as cp
@@ -1272,7 +1273,8 @@ class CreateSAMROIFrame(CreateFrame):
 
             else: 
                 for p in orient:
-                    command = 'conda run -n ptorch python scripts/sam_hf.py  '
+                    # command = 'conda run -n ptorch python scripts/main_sam_hf.py  '
+                    command = 'python scripts/main_sam_hf.py  '
                     command += ' --checkpoint /media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
                     command += ' --input ' + self.ui.caseframe.casedir
                     command += ' --prompt ' + prompt
@@ -1349,9 +1351,16 @@ class CreateSAMROIFrame(CreateFrame):
 
         for d in ['ax','sag','cor']:
             if do2d:
-                localpath = os.path.join(dpath,d)
-                remotepath = os.path.join(dpath_remote,d)
-                session.sftp.put_dir(localpath,remotepath)
+                if True: # use paramiko. 
+                    localpath = os.path.join(dpath,d)
+                    remotepath = os.path.join(dpath_remote,d) # note here d must exist but be empty
+                    session.sftp.put_dir(localpath,remotepath)
+                    pass
+                else: # use system
+                    localpath = os.path.join(dpath,d)
+                    remotepath = os.path.join(dpath_remote) # note here d does not exist and is copied
+                    command = 'scp -i ~/keystores/aws/awstest.pem -r ' + localpath + ' ec2-user@ec2-35-183-0-25.ca-central-1.compute.amazonaws.com:/' + remotepath
+                    os.system(command)
             else:
                 for d2 in ['images','prompts']:
                     localpath = os.path.join(dpath,d,d2)
