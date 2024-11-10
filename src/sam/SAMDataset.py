@@ -57,8 +57,11 @@ class SAMDataset(Dataset):
         if False: # former syntax
             ifile = glob.glob(os.path.join(self.datadir,'images','img_' + str(idx).zfill(5) + '_case_???_slice_???.png'))[0]
         else: # new syntax
-            ifile = glob.glob(os.path.join(self.datadir,'images','img_' + str(idx).zfill(5) + '_case_*_slice_???.png'))[0]
-
+            try:
+                ifile = glob.glob(os.path.join(self.datadir,'images','img_' + str(idx).zfill(5) + '_case_*_slice_???.png'))[0]
+            except IndexError as e:
+                print(e,idx)
+                raise IndexError
         input_image = imread(ifile)
         input_image1 = skimage.transform.resize(input_image,self.image_size)
         # huggingface transformers SamImageProcessor claims to support channel dim

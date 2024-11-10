@@ -676,7 +676,7 @@ class CreateSAMROIFrame(CreateFrame):
             else:
                 # normally use 'bbox' and don't save.
                 with Profile() as profile:
-                    self.ui.sliceviewerframe.sam2d_callback(prompt='bbox')
+                    self.ui.sliceviewerframe.sam2d_callback(prompt='bbox',remote=self.ui.config.AWS)
                     print('sam2d_callback')
                     (
                         Stats(profile)
@@ -932,14 +932,15 @@ class CreateSAMROIFrame(CreateFrame):
 
                     idx += 1
 
-        # create tar file if multi-slice
-        if len(rslice) > 1:
-            for d in ['prompts','images']:
-                command = 'tar -cvf '
-                command += os.path.join(fileroot,orient,d,'png.tar')
-                command += ' -C ' + os.path.join(fileroot,orient,d)
-                command += ' .'
-                os.system(command)
+        # create tar file for multi-slice if remote processing
+        if self.ui.sam.remote:
+            if len(rslice) > 1:
+                for d in ['prompts','images']:
+                    command = 'tar -cvf '
+                    command += os.path.join(fileroot,orient,d,'png.tar')
+                    command += ' -C ' + os.path.join(fileroot,orient,d)
+                    command += ' .'
+                    os.system(command)
         return
 
     # convenience method, could use rotations instead
@@ -1234,7 +1235,7 @@ class CreateSAMROIFrame(CreateFrame):
     # tumour segmenation by SAM
     # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
     # a bit arbitrary, not using it as the SAM prompt. So, layer arg here defaults to 'TC'
-    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox',orient=None,remote=True,session=None):
+    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox',orient=None,remote=False,session=None):
         print('SAM segment tumour')
         if roi is None:
             roi = self.ui.currentroi

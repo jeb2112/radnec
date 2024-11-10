@@ -104,7 +104,7 @@ class BlastGui(object):
         self.caseframe.datadirentry_callback()
 
         # SAM for inferences
-        self.sam = SAM()
+        self.sam = SAM(remote=self.config.AWS)
 
         # hard-coded entries for debugging
         if self.debug:

@@ -126,3 +126,6 @@ class Config(object):
 
         # default channel. 
         self.DefaultChannel = 'flair'
+
+        # use aws cloud
+        self.AWS = False

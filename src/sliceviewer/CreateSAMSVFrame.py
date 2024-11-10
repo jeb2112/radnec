@@ -112,7 +112,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.run2dSAM = ttk.Button(self.normal_frame,text='run SAM',command=self.sam2d_callback,state='disabled')
         self.run2dSAM.grid(row=1,column=3,sticky='w')
         # button to run 3d SAM on current BLAST ROI (bbox)
-        self.run3dSAM = ttk.Button(self.normal_frame,text='run 3d SAM',command=self.sam3d_callback,state='disabled')
+        self.run3dSAM = ttk.Button(self.normal_frame,text='run 3d SAM',command=Command(self.sam3d_callback,remote=self.ui.config.AWS,do_ortho=None),state='disabled')
         self.run3dSAM.grid(row=1,column=4,sticky='w')
         # button to select prompt type
         prompt_point_button = ttk.Radiobutton(self.normal_frame,text='point',variable=self.prompt_type,value='point')
@@ -564,7 +564,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
     # run 3d SAM on all bbox's as available from a BLAST ROI. 
     # this method should probably be in ROIFrame
-    def sam3d_callback(self,do_ortho=None,remote=True):
+    def sam3d_callback(self,do_ortho=None,remote=False):
         # check for an available blast segmentation
         if not self.ui.rois['blast'][self.ui.s][self.ui.currentroi].status:
             return
@@ -605,12 +605,16 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             st1 = time.time()
             self.ui.roiframe.put_prompts_remote(session=s1,do2d=False)
             upload_time = time.time() - st1
+        else:
+            upload_time = 0
 
         st2 = time.time()
         self.ui.roiframe.segment_sam(orient=None,tag='blast_3d',session=s1)
         
         if remote:
             download_time = self.ui.roiframe.get_predictions_remote(tag = 'blast_3d',session=s1)
+        else:
+            download_time = 0
         elapsed_time = time.time() - st2
         self.ui.set_message(msg='SAM 3d up = {:.1f}, elapse = {:.1f}, down = {:.1f}'.format(upload_time,elapsed_time,download_time))
         self.ui.root.update_idletasks()

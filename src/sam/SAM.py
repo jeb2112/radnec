@@ -30,8 +30,9 @@ from src.sam.SAMMisc import *
 
 
 class SAM():
-    def __init__(self):
+    def __init__(self,remote=False):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.remote = remote
 
     ######################
     # prediction functions
