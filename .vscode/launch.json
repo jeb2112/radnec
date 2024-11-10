@@ -75,7 +75,7 @@
             "name": "sam_hf",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/scripts/sam_hf.py",
+            "program": "${workspaceFolder}/scripts/main_sam_hf.py",
             "args": [
                 // "--input","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti/M0001",
                 // "--input","/media/jbishop/WD4/brainmets/sunnybrook/metastases/SAM_BraTS_2024/brats2nifti/M00012",

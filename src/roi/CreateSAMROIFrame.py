@@ -1250,19 +1250,15 @@ class CreateSAMROIFrame(CreateFrame):
             orient = ['ax','sag','cor']
 
         if os.name == 'posix':
-            if session is not None:
+            if session is not None: # aws cloud
 
-                # user = 'ec2-user'
-                # host = 'ec2-35-182-58-71.ca-central-1.compute.amazonaws.com'
-                # session = SSHSession(user,host)
                 casedir = self.ui.caseframe.casedir.replace(self.config.UIlocaldir,self.config.UIawsdir)
                 studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
                 dpath_remote = os.path.join(studydir,'sam')
 
                 # run SAM
                 for p in orient:
-                # command = 'conda run -n pytorch python /home/ec2-user/scripts/sam_hf.py  '
-                    command = 'python /home/ec2-user/scripts/sam_hf.py  '
+                    command = 'python /home/ec2-user/scripts/main_sam_hf.py  '
                     command += ' --checkpoint /home/ec2-user/sam_models/' + self.ui.config.SAMModelAWS
                     command += ' --input ' + casedir
                     command += ' --prompt ' + prompt
@@ -1271,28 +1267,34 @@ class CreateSAMROIFrame(CreateFrame):
                     command += ' --orient ' + p
                     res = session.run_command2(command,block=False)
 
-            else: 
+            else: # local
                 for p in orient:
-                    # command = 'conda run -n ptorch python scripts/main_sam_hf.py  '
-                    command = 'python scripts/main_sam_hf.py  '
-                    command += ' --checkpoint /media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
-                    command += ' --input ' + self.ui.caseframe.casedir
-                    command += ' --prompt ' + prompt
-                    command += ' --layer ' + layer
-                    command += ' --tag ' + tag
-                    command += ' --orient ' + p
-
-                    with Profile() as profile:
+                    if False: # standalone script
+                        command = 'python scripts/main_sam_hf.py  '
+                        command += ' --checkpoint /media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
+                        command += ' --input ' + self.ui.caseframe.casedir
+                        command += ' --prompt ' + prompt
+                        command += ' --layer ' + layer
+                        command += ' --tag ' + tag
+                        command += ' --orient ' + p
                         res = os.system(command)
-                        print('Profile: segment_sam, local')
-                        (
-                            Stats(profile)
-                            .strip_dirs()
-                            .sort_stats(SortKey.TIME)
-                            .print_stats(25)
-                        )
+                    else: # run in viewer 
+                        with Profile() as profile:
+                            self.ui.sam.main(checkpoint='/media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel,
+                                            input = self.ui.caseframe.casedir,
+                                            prompt = prompt,
+                                            layer = layer,
+                                            tag = tag,
+                                            orient = p)
+                            print('Profile: segment_sam, local')
+                            (
+                                Stats(profile)
+                                .strip_dirs()
+                                .sort_stats(SortKey.TIME)
+                                .print_stats(25)
+                            )
 
-        elif os.name == 'nt':
+        elif os.name == 'nt': # not implemented yet
             # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
             # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
             # it is currently hard-coded to anaconda3/envs location rather than .conda/envs, but anaconda3 could be installed

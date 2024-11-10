@@ -31,7 +31,8 @@ import torch.nn.functional as F
 from src.SAMProcessing import SAMProcessing
 from src.SAMMisc import *
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if False:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ######################
 # prediction functions
@@ -71,7 +72,7 @@ def calc_datapoint_metrics(y_true_mask, y_pred_mask):
 
     }
 
-def predict_model(model: SamModel, batch, prompt_args, confidence_threshold=0.5):
+def predict_model(model: SamModel, batch, prompt_args, confidence_threshold=0.5, device="cuda"):
 
     batch = {k: v.to(device) for k, v in batch.items()}
     with torch.no_grad():
@@ -97,7 +98,7 @@ def predict_model(model: SamModel, batch, prompt_args, confidence_threshold=0.5)
     return raw_mask, mask, metrics, mask_comb
 
 
-def predict_metrics(model: SamModel, dataloader: DataLoader, prompt_args, datadir=None):
+def predict_metrics(model: SamModel, dataloader: DataLoader, prompt_args, datadir=None, device="cuda"):
     model.to(device)
     model.eval()
 
@@ -202,7 +203,7 @@ def main(args):
     if args.checkpoint is not None:
         checkpoint = torch.load(args.checkpoint)
         model.load_state_dict(checkpoint["model_state_dict"])
-    model.to(device)
+    model.to(args.device)
 
 
     sfiles = os.listdir(args.input)

@@ -21,6 +21,7 @@ from src.CreateOverlayFrame import CreateOverlayFrame
 from src.roi.Create4PanelROIFrame import Create4PanelROIFrame
 from src.CreateFrame import Command
 from src.OverlayPlots import *
+from src.sam.SAM import SAM
 
 # main gui class
 class BlastGui(object):
@@ -101,6 +102,9 @@ class BlastGui(object):
         self.createGeneralLayout()
         self.caseframe.datadir.set(os.path.join(self.config.UIlocaldir))
         self.caseframe.datadirentry_callback()
+
+        # SAM for inferences
+        self.sam = SAM()
 
         # hard-coded entries for debugging
         if self.debug:
