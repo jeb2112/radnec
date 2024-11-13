@@ -26,7 +26,11 @@ dependencies = [
             "tkinter-async-execute",
             "sounddevice",
             "amazon-transcribe",
-            "boto3"      ]
+            "boto3",
+            "transformers",
+            "monai",
+            "paramiko",
+            "parallel-ssh" ]
 [project.urls]
 "Source" = "https://github.com/jeb2112/radnec"
 

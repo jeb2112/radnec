@@ -241,7 +241,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             plt.xlabel('flair')
             plt.ylabel('t2')
         filename = 'scatterplot' + str(len(layer_paths)) + '.png'
-        plt.savefig(os.path.join('/home/jbishop/Pictures',filename),dpi=100)
+        plt.savefig(os.path.join(os.path.expanduser('~'),'Pictures',filename),dpi=100)
         # plt.clf()
         # plt.show(block=False)
 

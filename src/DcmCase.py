@@ -131,7 +131,8 @@ class Case():
         # TODO. there is a possible flip in axis=1 that comes down from 
         # something that is missed/undone in the prior dicom processing.
         # ant register can't handle an exact flip in this dimension.
-        # until it is figured out properly, just flip the data here to facilitate ants
+        # until it is figured out properly, optionally flip the data here 
+        # if needed to facilitate ants
         if flip:
             for dc in ['raw','z','cbv','adc']:
                 for dt in list(s.channels.values()):
@@ -158,7 +159,7 @@ class Case():
 
         # repeat process for remainder of studies
         for s in self.studies[1:]:
-            if True:
+            if flip:
                 for dc in ['raw','z','cbv','adc']:
                     for dt in list(s.channels.values()):
                         if s.dset[dc][dt]['ex']:

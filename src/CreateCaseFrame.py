@@ -227,6 +227,9 @@ class CreateCaseFrame(CreateFrame):
                     self.ui.roiframe.overlay_type_button[dt]['state'] = 'disabled'
                 else:
                     self.ui.roiframe.overlay_type_button[dt]['state'] = 'normal'
+
+        # run normal stats
+        self.ui.sliceviewerframe.normalslice_callback()
     
 
     # probably don't need this anymore

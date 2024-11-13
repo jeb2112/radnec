@@ -1296,41 +1296,40 @@ class CreateSAMROIFrame(CreateFrame):
                             )
 
         elif os.name == 'nt': # not implemented yet
-            # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
-            # some problem with windows, the scrip doesn't get on PATH after env activation, so still have to specify the fullpath here
-            # it is currently hard-coded to anaconda3/envs location rather than .conda/envs, but anaconda3 could be installed
-            # under either ProgramFiles or Users so check both
-            if os.path.isfile(os.path.expanduser('~')+'\\anaconda3\Scripts\\activate.bat'):
-                activatebatch = os.path.expanduser('~')+"\\anaconda3\Scripts\\activate.bat"
-            elif os.path.isfile("C:\Program Files\\anaconda3\Scripts\\activate.bat"):
-                activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
-            else:
-                raise FileNotFoundError('anaconda3/Scripts/activate.bat')
-            if os.path.isdir(os.path.expanduser('~')+'\\anaconda3\envs\\' + self.ui.config.UIpytorch):
-                envpath = os.path.expanduser('~')+'\\anaconda3\envs\\' + self.ui.config.UIpytorch
-            elif os.path.isdir(os.path.expanduser('~')+'\\.conda\envs\\' + self.ui.config.UIpytorch):
-                envpath = os.path.expanduser('~')+'\\.conda\envs\\' + self.ui.config.UIpytorch
-            else:
-                raise FileNotFoundError(self.ui.config.UIpytorch)
 
-            username = getpass.getuser()
-            command1 = '\"'+activatebatch+'\" \"' + envpath + '\"'
-            # command2 = 'conda run -n ' + self.ui.config.UIpytorch + ' python scripts/sam.py  --checkpoint "C:\\Users\\' + username + '\\data\\sam_models\\sam_vit_b_01ec64.pth" '
-            command2 = 'conda run python scripts/sam.py  --checkpoint "C:\\Users\\' + username + '\\data\\sam_models\\' + self.ui.Config.SAMModel +'" '
-            command2 += ' --input "' + self.ui.caseframe.casedir
-            command2 += '" --output "' + self.ui.caseframe.casedir
-            command2 += '" --tag ' + tag
-            command2 += ' --model-type vit_b'
-            cstr = 'cmd /c \" ' + command1 + "&" + command2 + '\"'
-            popen = subprocess.Popen(cstr,shell=True,stdout=subprocess.PIPE,universal_newlines=True)
-            for stdout_line in iter(popen.stdout.readline,""):
-                if stdout_line != '\n':
-                    print(stdout_line)
-            popen.stdout.close()
-            res = popen.wait()
-            if res:
-                raise subprocess.CalledProcessError(res,cstr)
-                print(res)
+            if session is not None: # aws cloud
+
+                casedir = self.ui.caseframe.casedir.replace(self.config.UIlocaldir,self.config.UIawsdir)
+                studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
+                dpath_remote = os.path.join(studydir,'sam')
+
+                # run SAM
+                for p in orient:
+                    command = 'python /home/ec2-user/scripts/main_sam_hf.py  '
+                    command += ' --checkpoint /home/ec2-user/sam_models/' + self.ui.config.SAMModelAWS
+                    command += ' --input ' + casedir
+                    command += ' --prompt ' + prompt
+                    command += ' --layer ' + layer
+                    command += ' --tag ' + tag
+                    command += ' --orient ' + p
+                    res = session.run_command2(command,block=False)
+
+            else: # local
+                for p in orient:
+                    with Profile() as profile:
+                        self.ui.sam.main(checkpoint=os.path.join(os.path.expanduser('~'),'data','sam_models',self.ui.config.SAMModel),
+                                        input = self.ui.caseframe.casedir,
+                                        prompt = prompt,
+                                        layer = layer,
+                                        tag = tag,
+                                        orient = p)
+                        print('Profile: segment_sam, local')
+                        (
+                            Stats(profile)
+                            .strip_dirs()
+                            .sort_stats(SortKey.TIME)
+                            .print_stats(25)
+                        )
 
         return
     
@@ -1507,9 +1506,9 @@ class CreateSAMROIFrame(CreateFrame):
             # need check for inbounds
             # convert coords from dummy label axis
             s = event.inaxes.format_coord(event.xdata,event.ydata)
-            event.xdata,event.ydata = map(float,re.findall(r"(?:\d*\.\d+)",s))
-            xdata = int(np.round(event.xdata))
-            ydata = int(np.round(event.ydata))
+            xdata,ydata = map(float,re.findall(r"(?:\d*\.\d+)",s))
+            xdata = int(np.round(xdata))
+            ydata = int(np.round(ydata))
             if xdata < 0 or ydata < 0:
                 return None
             # elif self.ui.data['raw'][0,self.ui.get_currentslice(),int(event.x),int(event.y)] == 0:

@@ -258,6 +258,7 @@ class SAM():
                 sam_predict = np.zeros(image_pil.size[-1::-1]+(slicedim,),dtype='uint8')
             elif orient == 'cor': 
                 sam_predict = np.zeros((image_pil.size[-1],slicedim,image_pil.size[0]),dtype='uint8')
+            image_pil.close()
 
             pred_files = os.listdir(os.path.join(spath,'predictions'))
             pred_masks = sorted([ f for f in pred_files if re.match('pred_mask',f) ])
@@ -266,6 +267,7 @@ class SAM():
                 mask_pil = PIL.Image.open(os.path.join(spath,'predictions',m))
                 mask = skimage.transform.resize(np.array(mask_pil),image_pil.size[-1::-1],order=0)
                 self.set_slice(slice,sam_predict,mask,orient)
+                mask_pil.close()
                 # sam_predict[slice] = mask
 
             if np.max(sam_predict) > 1:

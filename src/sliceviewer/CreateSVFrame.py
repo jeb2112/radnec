@@ -506,7 +506,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
     # an override method to get cursor coords from the bottom (image) axes.
     def make_coord_format(self,labelax, imageax):
-        def format_coord(x, y):
+        def lbl2img_coord(x, y):
             # x, y are data coordinates
             # convert to display coords
             display_coord = labelax.transData.transform((x,y))
@@ -514,5 +514,5 @@ class CreateSliceViewerFrame(CreateFrame):
             # convert back to data coords with respect to ax
             img_coord = inv.transform(display_coord)
             return ('x={:5.1f}, y={:5.1f}'.format(img_coord[0],img_coord[1]))
-        return format_coord
+        return lbl2img_coord
 
