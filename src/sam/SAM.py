@@ -30,9 +30,10 @@ from src.sam.SAMMisc import *
 
 
 class SAM():
-    def __init__(self,remote=False):
+    def __init__(self,ui=None,remote=False):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.remote = remote
+        self.ui = ui
 
     ######################
     # prediction functions
@@ -208,11 +209,15 @@ class SAM():
 
 
         sfiles = os.listdir(input)
-        studydirs = [s for s in sfiles if os.path.isdir(os.path.join(input,s,'sam',orient,'images'))]
-        if len(studydirs) == 0:
-            raise FileNotFoundError('No images sub-directory found')
-        for s in studydirs: # only coded for 1 actual dir right now
-
+        if False:
+            studydirs = [s for s in sfiles if os.path.isdir(os.path.join(input,s,'sam',orient,'images'))]
+            if len(studydirs) == 0:
+                raise FileNotFoundError('No images sub-directory found')
+        else: # only coded for 1 actual dir right now
+            if not os.path.isdir(os.path.join(self.ui.data[self.ui.s].studydir,'sam',orient,'images')):
+                raise FileNotFoundError('No images sub-directory found')
+            studydirs = [self.ui.data[self.ui.s].studydir]
+        for s in studydirs: 
             # prepare output dir. When orthogonal planes are being predicted, 'ax' will be first.
             if output is None:
                 outputdir = os.path.join(input,s,'sam','predictions_nifti')

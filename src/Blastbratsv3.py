@@ -201,8 +201,9 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             brain_gate[region_of_support] = brain_path.contains_points(t1t2verts).flatten()
 
     if True:
-        plt.figure(7,figsize=(6,6))
-        if layer == 'ET':
+        plt.figure(8,figsize=(6,6))
+        plt.clf()
+        if layer in ['ET','T2 hyper']:
             ax = plt.subplot(1,1,1)
             ax.cla()
             plt.scatter(t1t2verts[:,0],t1t2verts[:,1],c='b',s=1)
@@ -210,8 +211,8 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             braingate = np.where(brain_gate>0)
             if len(layer_paths):
                 for i,p in enumerate(layer_paths):
-                    if len(blastdata['blastpoint']['params']['ET']['pt']):
-                        plt.plot(blastdata['blastpoint']['params']['ET']['pt'][i][0],blastdata['blastpoint']['params']['ET']['pt'][i][1],'c+')
+                    if len(blastdata['blastpoint']['params'][layer]['pt']):
+                        plt.plot(blastdata['blastpoint']['params'][layer]['pt'][i][0],blastdata['blastpoint']['params'][layer]['pt'][i][1],'c+')
                     plt.plot(p.vertices[:,0],p.vertices[:,1],'r-',linewidth=0.5)
             else:
                 plt.scatter(xy_layerverts[:,0],xy_layerverts[:,1],c='r',s=10)
@@ -224,26 +225,12 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             # plt.text(0,1.1,'t1 {:.3f},{:.3f}'.format(np.mean(t1channel),np.std(t1channel)))
             plt.xlabel('flair')
             plt.ylabel('t1')
-        elif layer == 'T2 hyper':
-            ax2 = plt.subplot(1,2,2)
-            ax2.cla()
-            plt.scatter(t1t2verts[:,0],t1t2verts[:,1],c='b',s=1)
-            layergate = np.where(layer_gate>0)
-            braingate = np.where(brain_gate>0)
-            plt.scatter(flairstack[layergate],t2stack[layergate],c='g',s=2)
-            plt.scatter(flairstack[braingate],t2stack[braingate],c='w',s=2)
-            plt.scatter(xy_layerverts[:,0],xy_layerverts[:,1],c='r',s=20)
-            ax2.set_aspect('equal')
-            ax2.set_xlim(left=0,right=1.0)
-            ax2.set_ylim(bottom=0,top=1.0)
-            plt.text(0,1.1,'t2 {:.3f},{:.3f}'.format(np.mean(t2channel),np.std(t2channel)))
-            plt.text(0,1.02,'flair {:.3f},{:.3f}'.format(np.mean(flairchannel),np.std(flairchannel)))
-            plt.xlabel('flair')
-            plt.ylabel('t2')
-        filename = 'scatterplot' + str(len(layer_paths)) + '.png'
-        plt.savefig(os.path.join(os.path.expanduser('~'),'Pictures',filename),dpi=100)
-        # plt.clf()
-        # plt.show(block=False)
+
+        # filename = 'scatterplot' + str(len(layer_paths)) + '_' + layer + '.png'
+        filename = 'scatterplot' + '_' + layer + '.png'
+        if layer == 'T2 hyper':
+            # plt.show(block=False)
+            plt.savefig(os.path.join(os.path.expanduser('~'),'Pictures',filename),dpi=100)
 
     dtime = time.time()-start
     print('polygon contains points time = {:.2f} sec'.format(dtime))

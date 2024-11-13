@@ -578,7 +578,8 @@ class CreateSAMROIFrame(CreateFrame):
     # do3d is a dummy arg that is only passed on to closeROI()
     # do2d is a flag indicating the method is called during points clicked
     # for assembly of the BLAST ROI. 
-    def ROIclick(self,event=None,do2d=False,do3d=True):
+    # can be called a mouse event or a pair of coords supplied separately from mouse
+    def ROIclick(self,event=None,coords=None,do2d=False,do3d=True):
         if event:
             if event.button > 1: # ROI selection on left mouse only
                 return
@@ -597,32 +598,34 @@ class CreateSAMROIFrame(CreateFrame):
             event.xdata,event.ydata = map(float,re.findall(r"(?:\d*\.\d+)",s))
             xdata = int(np.round(event.xdata))
             ydata = int(np.round(event.ydata))
-            if xdata < 0 or ydata < 0:
-                return None
-            # elif self.ui.data['raw'][0,self.ui.get_currentslice(),int(event.x),int(event.y)] == 0:
-            #     print('Clicked in background')
-            #     return
-            else:
-                # roi context
-                self.ui.roi = self.ui.rois['blast']
-                self.update_roinumber_options()
-                roi = self.ui.get_currentroi()
-                # in this branch for SAM analysis there are two workflows, both make use
-                # of this method. do2d selects the workflow. note this is separate from
-                # do3d, which is only a pass-through arg to closeROI.
-                # do2d True. a intermediate SAM evaluation on the current point clicked 
-                # during the assembly of the BLAST ROI, and just on the current slice
-                # do2d False. a full multi-slice SAM after a BLAST ROI has been completed
-                if do2d and self.ui.config.SAM2dauto:
-                    if roi == 0:
-                        self.createROI(coords = (xdata,ydata,self.ui.get_currentslice()) )
-                    else: # for 2d this is only a dummy ROI so re-use it.
-                        self.updateROI(coords = (xdata,ydata,self.ui.get_currentslice()))
-                else:
-                    # the current ROI is a dummy, clear it before creating the actual BLAST ROI
-                    if self.ui.config.SAM2dauto:
-                        self.clearROI()
+        elif coords:
+            xdata,ydata = coords
+        if xdata < 0 or ydata < 0:
+            return None
+        # elif self.ui.data['raw'][0,self.ui.get_currentslice(),int(event.x),int(event.y)] == 0:
+        #     print('Clicked in background')
+        #     return
+        else:
+            # roi context
+            self.ui.roi = self.ui.rois['blast']
+            self.update_roinumber_options()
+            roi = self.ui.get_currentroi()
+            # in this branch for SAM analysis there are two workflows, both make use
+            # of this method. do2d selects the workflow. note this is separate from
+            # do3d, which is only a pass-through arg to closeROI.
+            # do2d True. a intermediate SAM evaluation on the current point clicked 
+            # during the assembly of the BLAST ROI, and just on the current slice
+            # do2d False. a full multi-slice SAM after a BLAST ROI has been completed
+            if do2d and self.ui.config.SAM2dauto:
+                if roi == 0:
                     self.createROI(coords = (xdata,ydata,self.ui.get_currentslice()) )
+                else: # for 2d this is only a dummy ROI so re-use it.
+                    self.updateROI(coords = (xdata,ydata,self.ui.get_currentslice()))
+            else:
+                # the current ROI is a dummy, clear it before creating the actual BLAST ROI
+                if self.ui.config.SAM2dauto:
+                    self.clearROI()
+                self.createROI(coords = (xdata,ydata,self.ui.get_currentslice()) )
             
         roi = self.ui.get_currentroi()
 
@@ -1179,7 +1182,7 @@ class CreateSAMROIFrame(CreateFrame):
                 r.stats['hd'][dt] = max(directed_hausdorff(np.array(np.where(gt_lesion)).T,np.array(np.where(dset)).T)[0],
                                                         directed_hausdorff(np.array(np.where(dset)).T,np.array(np.where(gt_lesion)).T)[0])
             else:
-                raise ValueError('No ground truth mask available')
+                print('No ground truth comparison available')
             
         # optional save dict to json
         if save:
@@ -1554,6 +1557,10 @@ class CreateSAMROIFrame(CreateFrame):
             return
         self.ui.pt[self.ui.s].pop()
         self.set_currentpt(-1)
+        # awkward. reset current slices
+        self.ui.sliceviewerframe.currentslice.set(self.ui.pt[self.ui.s][-1].coords['slice'])
+        self.ui.sliceviewerframe.currentsagslice.set(self.ui.pt[self.ui.s][-1].coords['x'])
+        self.ui.sliceviewerframe.currentcorslice.set(self.ui.pt[self.ui.s][-1].coords['y'])
 
         if len(self.ui.pt[self.ui.s]) == 0:
             self.set_overlay() # deactivate any overlay
@@ -1562,6 +1569,28 @@ class CreateSAMROIFrame(CreateFrame):
             self.ui.blastdata[self.ui.s] = copy.deepcopy(self.ui.blastdatadict)
         else:
             self.updateBLASTMask()
+
+            # duplicates selectPointClick above, make separate function for this 
+            # or SAM mask could be saved with each point and not re-calculated when
+            # a point is removed.
+            if self.ui.config.SAM2dauto:
+                dref = self.ui.data[self.ui.s].dset['seg_fusion'][self.ui.chselection]
+                # need to update this based on current point
+                # self.ui.sliceviewerframe.set_ortho_slice(event)
+                self.ROIclick(coords=(self.ui.pt[self.ui.s][-1].coords['x'],
+                                      self.ui.pt[self.ui.s][-1].coords['y']),do2d=True)
+
+                self.create_comp_mask()
+                for ch in [self.ui.chselection]:
+                    fusion = generate_comp_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
+                                                    self.ui.rois['sam'][self.ui.s][self.ui.currentroi].mask,self.ui.currentslice,
+                                                    layer=self.ui.roiframe.layer.get(),
+                                                    overlay_intensity=self.config.OverlayIntensity)
+                    # setting data directly instead of via roi.data and updateData()
+                    dref['d'] = np.copy(fusion)
+                self.ui.updateslice()
+
+
         if 'pressed' in self.selectPointbutton.state():
             self.setCursor('crosshair')
         return

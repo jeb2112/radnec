@@ -145,6 +145,7 @@ class CreateCaseFrame(CreateFrame):
             self.ui.roiframe.overlay_value['BLAST'].set(False)
             self.ui.roiframe.overlay_value['finalROI'].set(False)
         self.ui.updateslice()
+        self.ui.sliceviewerframe.normalslice_callback()
 
         return
 

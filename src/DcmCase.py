@@ -420,7 +420,7 @@ class Study():
 
         
         # storage for masks derived from blast segmentation or nnUNet
-        mask_layer = {'ET':{'d':None,'ex':None},'TC':{'d':None,'ex':None},'WT':{'d':None,'ex':None}}
+        mask_layer = {'ET':{'d':None,'ex':False},'TC':{'d':None,'ex':False},'WT':{'d':None,'ex':False}}
         self.mask =  copy.deepcopy(mask_layer)
         for m in ['blast','sam','unet','gt']:
             self.mask[m] = copy.deepcopy(mask_layer)
