@@ -762,8 +762,15 @@ class CreateSAMROIFrame(CreateFrame):
         CC_labeled = cc3d.connected_components(CC_labeled,connectivity=6)
         stats = cc3d.statistics(CC_labeled)
 
-        objectnumber = CC_labeled[roislice,ypos,xpos]
-        objectmask = (CC_labeled == objectnumber).astype('double')
+        # assemble the composite mask from the sequence of clicked points
+        # this is redundant where the projections in image space overlap,
+        # but picks up any situation when they don't.
+        objectmask = np.zeros_like(metmaskstack)
+        for p in self.ui.pt[self.ui.s]:
+            # objectnumber = CC_labeled[roislice,ypos,xpos]
+            objectnumber = CC_labeled[p.coords['slice'],p.coords['y'],p.coords['x']]
+            pmask = (CC_labeled == objectnumber).astype('double')
+            objectmask = np.logical_or(pmask,objectmask)
         # other than cc3d, currently there is no additional processing on ET or WT
         self.ui.roi[s][roi].data[m] = objectmask.astype('uint8')
 

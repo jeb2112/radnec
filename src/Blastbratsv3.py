@@ -129,6 +129,7 @@ def run_blast(data,blastdata,t12thresh,flairthresh,clustersize,layer,
             xy_layerverts = np.vstack((xv_gate,yv_gate)).T
             xy_layerverts = np.concatenate((xy_layerverts,np.atleast_2d(xy_layerverts[0,:])),axis=0) # close path
             layer_paths.append(Path(xy_layerverts,closed=True))
+    # no longer being used can remove
     elif layer == 'T2 hyper':
         if False: # ie plain T2 not available
             # define NET threshold gate, >= ,flairgate,>= t2gate. upper right quadrant
