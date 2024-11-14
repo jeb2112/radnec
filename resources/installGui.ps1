@@ -58,18 +58,20 @@ try {Invoke-Command -ScriptBlock {conda activate radnec_sam} -ErrorAction Stop}
 # failed activate throws a catchable error in the shell without -ErrorAction, but not in the script even with -ErrorAction
 catch {
     Write-Host
-    Write-Host Installing RadNec/SAM viewer...
+    Write-Host Installing SAM viewer...
     Start-Sleep 2
-    conda create --solver=libmamba -n radnec_sam -c conda-forge cupy python=3.9 cuda-version=11.8 -y
-    conda activate radnec_sam
+    conda create --solver=libmamba -n blast_pytorch -c conda-forge cupy python=3.9 cuda-version=11.8 -y
+    pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118
+    conda activate blast_pytorch
 }
 # using lastexitcode as a workaround
 if ($lastexitcode -gt 0) {
     Write-Host
-    Write-Host Installing RadNec/SAM viewer...
+    Write-Host Installing SAM viewer...
     Start-Sleep 2
-    conda create --solver=libmamba -n radnec_sam -c conda-forge cupy python=3.9 cuda-version=11.8 -y
-    conda activate radnec_sam
+    conda create --solver=libmamba -n blast_pytorch -c conda-forge cupy python=3.9 cuda-version=11.8 -y
+    pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118
+    conda activate blast_pytorch
 }
 $scriptpath = Split-Path $MyInvocation.MyCommand.Path
 Set-Location  $scriptpath
