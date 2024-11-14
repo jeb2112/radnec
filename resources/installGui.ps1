@@ -5,6 +5,7 @@
 
 
 $user=$Env:USERPROFILE
+$conda_env = 'blast_pytorch'
 
 # Check disk-free space on C:
 Get-WMIObject -Query "SELECT * FROM Win32_LogicalDisk WHERE Caption='C:'" | % {  $df = [System.Math]::Round($_.FreeSpace/1024/1024/1024,1) }
@@ -24,12 +25,12 @@ if (-not (Test-Path $user\data)) {
 }
 
 # Set environment variables for nnUNet
-
-[Environment]::SetEnvironmentVariable("nnUNet_results", "$user\data\nnunet_results", [System.EnvironmentVariableTarget]::User)
-if (-not (Test-Path $user\data\nnunet_results)) {
-    New-Item $user\data\nnunet_results -ItemType Directory
+if (0) {
+    [Environment]::SetEnvironmentVariable("nnUNet_results", "$user\data\nnunet_results", [System.EnvironmentVariableTarget]::User)
+    if (-not (Test-Path $user\data\nnunet_results)) {
+        New-Item $user\data\nnunet_results -ItemType Directory
+    }
 }
-
 
 # Install gzip
 
@@ -51,27 +52,26 @@ catch [System.Management.Automation.CommandNotFoundException] {
 }
 Start-Sleep 2
 
-# Install RADNEC viewer code
+# Install SAM viewer code
 
-# try {conda activate radnec_sam}
-try {Invoke-Command -ScriptBlock {conda activate radnec_sam} -ErrorAction Stop}
+try {Invoke-Command -ScriptBlock {conda activate $conda_env} -ErrorAction Stop}
 # failed activate throws a catchable error in the shell without -ErrorAction, but not in the script even with -ErrorAction
 catch {
     Write-Host
     Write-Host Installing SAM viewer...
     Start-Sleep 2
-    conda create --solver=libmamba -n blast_pytorch -c conda-forge cupy python=3.9 cuda-version=11.8 -y
+    conda create --solver=libmamba -n $conda_env -c conda-forge cupy python=3.9 cuda-version=11.8 -y
     pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118
-    conda activate blast_pytorch
+    conda activate $conda_env
 }
 # using lastexitcode as a workaround
 if ($lastexitcode -gt 0) {
     Write-Host
     Write-Host Installing SAM viewer...
     Start-Sleep 2
-    conda create --solver=libmamba -n blast_pytorch -c conda-forge cupy python=3.9 cuda-version=11.8 -y
+    conda create --solver=libmamba -n $conda_env -c conda-forge cupy python=3.9 cuda-version=11.8 -y
     pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118
-    conda activate blast_pytorch
+    conda activate $conda_env
 }
 $scriptpath = Split-Path $MyInvocation.MyCommand.Path
 Set-Location  $scriptpath
@@ -81,46 +81,49 @@ pip install $whl
 conda deactivate
 
 $s=(New-Object -COM WScript.Shell).CreateShortcut("$user\Desktop\RadNecSAM.lnk")
-$s.IconLocation="$user\anaconda3\envs\radnec_sam\Lib\site-packages\resources\sunnybrook.ico"
-$s.WorkingDirectory="$user\anaconda3\envs\radnec_sam\Lib\site-packages\resources"
-$s.TargetPath="$user\anaconda3\envs\radnec_sam\Lib\site-packages\resources\startGui.bat"
+$s.IconLocation="$user\anaconda3\envs\$conda_env\Lib\site-packages\resources\sunnybrook.ico"
+$s.WorkingDirectory="$user\anaconda3\envs\$conda_env\Lib\site-packages\resources"
+$s.TargetPath="$user\anaconda3\envs\$conda_env\Lib\site-packages\resources\startGui.bat"
 $s.Save()
 Start-Sleep 2
 
 # Install SAM and nnUNet code
 
-Invoke-Command -ScriptBlock {conda activate pytorch_sam} -ErrorAction Stop
-if ($lastexitcode -gt 0) {
-    Write-Host
-    Write-Host Installing the SAM, nnUNet code...
+if (0) {
+    Invoke-Command -ScriptBlock {conda activate pytorch_sam} -ErrorAction Stop
+    if ($lastexitcode -gt 0) {
+        Write-Host
+        Write-Host Installing the SAM, nnUNet code...
+        Start-Sleep 2
+        conda create -n pytorch_sam python=3.10 -y
+        conda activate pytorch_sam
+        conda install numpy -y
+        # pre-install matplotlib from conda which just happens to be 3.8, which installs
+        # without needing Clang Meson build env. If leave it for nnunet requirement below, 
+        # that is 3.9.1 which won't build without installing the Visual C build env
+        conda install matplotlib -y
+        conda install --solver=libmamba pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
+        pip install git+https://github.com/facebookresearch/segment-anything.git
+        # pip install nnunetv2
+        pip install git+https://github.com/MIC-DKFZ/nnUNet.git
+    }
+    conda deactivate
     Start-Sleep 2
-    conda create -n pytorch_sam python=3.10 -y
-    conda activate pytorch_sam
-    conda install numpy -y
-    # pre-install matplotlib from conda which just happens to be 3.8, which installs
-    # without needing Clang Meson build env. If leave it for nnunet requirement below, 
-    # that is 3.9.1 which won't build without installing the Visual C build env
-    conda install matplotlib -y
-    conda install --solver=libmamba pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
-    pip install git+https://github.com/facebookresearch/segment-anything.git
-    # pip install nnunetv2
-    pip install git+https://github.com/MIC-DKFZ/nnUNet.git
 }
-conda deactivate
-Start-Sleep 2
 
 
 # Install nnUNet model files from dropbox
-
-if (-not (Test-Path "$Env:nnUNet_results/Dataset138_BraTS2024_T1post-FLAIR")) {
-    Write-Host
-    Write-Host 'Installing nnUNet model files...'
+if (0) {
+    if (-not (Test-Path "$Env:nnUNet_results/Dataset138_BraTS2024_T1post-FLAIR")) {
+        Write-Host
+        Write-Host 'Installing nnUNet model files...'
+        Start-Sleep 2
+        Invoke-WebRequest https://www.dropbox.com/scl/fo/svwjopvl7rssqifb2wexq/AGrxEr08riq6TBa1AhgSHKQ?rlkey=hiaxu0eo0f9yzr520h92jtofx"&"st=6fdqwt0k"&"dl=1 -OutFile $Env:nnUNet_results/Dataset138_BraTS2024.zip
+        Expand-Archive $Env:nnUNet_results/Dataset138_BraTS2024.zip -DestinationPath $Env:nnUNet_results/Dataset138_BraTS2024_T1post-FLAIR
+        Remove-Item $Env:nnUNet_results/Dataset138_BraTS2024.zip
+    }
     Start-Sleep 2
-    Invoke-WebRequest https://www.dropbox.com/scl/fo/svwjopvl7rssqifb2wexq/AGrxEr08riq6TBa1AhgSHKQ?rlkey=hiaxu0eo0f9yzr520h92jtofx"&"st=6fdqwt0k"&"dl=1 -OutFile $Env:nnUNet_results/Dataset138_BraTS2024.zip
-    Expand-Archive $Env:nnUNet_results/Dataset138_BraTS2024.zip -DestinationPath $Env:nnUNet_results/Dataset138_BraTS2024_T1post-FLAIR
-    Remove-Item $Env:nnUNet_results/Dataset138_BraTS2024.zip
 }
-Start-Sleep 2
 
 
 # Install SAM model file from dropbox
@@ -135,7 +138,13 @@ if (-not (Test-Path $user/data/sam_models)) {
     # powershell.exe -c "Invoke-WebRequest 'https://www.dropbox.com/scl/fi/lztcjs794nonzg793rkdg/sam_vit_b_01ec64.pth?rlkey=zz4h1ab03n87dq3th2ia3ze59&st=djma28lv&dl=1' -OutFile $dpath/sam_model.zip"
     # had to remove all other .pth model files from the dropbox dir, and make a link from the dropbox dir
     # in order to get this to work
-    Invoke-WebRequest https://www.dropbox.com/scl/fo/dcpl5l0ydnm8df4k4qj6c/AHBh1jIup365RRFAW7az7qY?rlkey=uauzaswgdkyp559hv7e422yb9"&"st=owdldfgc"&"dl=1 -OutFile $dpath/sam_model.zip
+    # note: have to "" the & symbol, and edit dl=0 to dl=1 from the provided link
+    # link to BraTS 2024 fine-tuned model
+    Invoke-WebRequest https://www.dropbox.com/scl/fo/3nyk4ogzjhwywitm5xkm5/AE_c1W4_FGd7y0eDLEE8VvA?rlkey=msbsbs4pg0ybcedfv6y1alo69"&"st=kmzktpgy"&"dl=1 -OutFile $dpath/sam_model.zip
+    # link to SAM base model
+    if (0) {
+        Invoke-WebRequest https://www.dropbox.com/scl/fo/dcpl5l0ydnm8df4k4qj6c/AHBh1jIup365RRFAW7az7qY?rlkey=uauzaswgdkyp559hv7e422yb9"&"st=owdldfgc"&"dl=1 -OutFile $dpath/sam_model.zip
+    }
     Expand-Archive $dpath/sam_model.zip -DestinationPath $dpath/sam_models
     Remove-Item $dpath/sam_model.zip
 }
@@ -143,14 +152,16 @@ Start-Sleep 2
 
 
 # Install processed test cases from dropbox
-$dpath="$user\data"
-if (-not (Test-Path $user/data/radnec_sam)) {
-    Write-Host
-    Write-Host Installing processed test cases ...
-    Start-Sleep 2
-    Invoke-WebRequest https://www.dropbox.com/scl/fo/b8dkrlvqkb3y098ix4mrp/ALGgQJ8qi1PD2L0yJtB-uB4?rlkey=ft5bkbvimiinqdpyfikjzkiv9"&"st=mqjcr94z"&"dl=1 -OutFile $dpath/BraTS2024_testcases.zip
-    Expand-Archive $dpath/BraTS2024_testcases.zip -DestinationPath $dpath/radnec_sam
-    Remove-Item $dpath/BraTS2024_testcases.zip
+if (0) {
+    $dpath="$user\data"
+    if (-not (Test-Path $user/data/radnec_sam)) {
+        Write-Host
+        Write-Host Installing processed test cases ...
+        Start-Sleep 2
+        Invoke-WebRequest https://www.dropbox.com/scl/fo/b8dkrlvqkb3y098ix4mrp/ALGgQJ8qi1PD2L0yJtB-uB4?rlkey=ft5bkbvimiinqdpyfikjzkiv9"&"st=mqjcr94z"&"dl=1 -OutFile $dpath/BraTS2024_testcases.zip
+        Expand-Archive $dpath/BraTS2024_testcases.zip -DestinationPath $dpath/radnec_sam
+        Remove-Item $dpath/BraTS2024_testcases.zip
+    }
 }
 
 Write-Host 'Installation complete, exiting...'
