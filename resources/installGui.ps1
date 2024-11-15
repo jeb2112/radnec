@@ -5,7 +5,7 @@
 
 
 $user=$Env:USERPROFILE
-$conda_env = 'blast_pytorch'
+$conda_env = "blast_pytorch"
 
 # Check disk-free space on C:
 Get-WMIObject -Query "SELECT * FROM Win32_LogicalDisk WHERE Caption='C:'" | % {  $df = [System.Math]::Round($_.FreeSpace/1024/1024/1024,1) }
@@ -53,7 +53,7 @@ catch [System.Management.Automation.CommandNotFoundException] {
 Start-Sleep 2
 
 # Install SAM viewer code
-
+# $env:PIP_EXTRA_INDEX_URL = "https://download.pytorch.org/whl/cu118"
 try {Invoke-Command -ScriptBlock {conda activate $conda_env} -ErrorAction Stop}
 # failed activate throws a catchable error in the shell without -ErrorAction, but not in the script even with -ErrorAction
 catch {
@@ -61,8 +61,9 @@ catch {
     Write-Host Installing SAM viewer...
     Start-Sleep 2
     conda create --solver=libmamba -n $conda_env -c conda-forge cupy python=3.9 cuda-version=11.8 -y
-    pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118
     conda activate $conda_env
+    pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118 monai
+    # pip install torch==2.5.1+cu118 torchvision==0.20.1+cu118 torchaudio==2.5.1+cu118
 }
 # using lastexitcode as a workaround
 if ($lastexitcode -gt 0) {
@@ -70,8 +71,8 @@ if ($lastexitcode -gt 0) {
     Write-Host Installing SAM viewer...
     Start-Sleep 2
     conda create --solver=libmamba -n $conda_env -c conda-forge cupy python=3.9 cuda-version=11.8 -y
-    pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118
     conda activate $conda_env
+    pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118
 }
 $scriptpath = Split-Path $MyInvocation.MyCommand.Path
 Set-Location  $scriptpath
@@ -128,8 +129,11 @@ if (0) {
 
 # Install SAM model file from dropbox
 # somehow %user% is out of scope inside the if block? had to move setdpath here.
-$dpath="$user\data"
-if (-not (Test-Path $user/data/sam_models)) {
+$dpath="$user\data\sam_models"
+# current sam model is hard-coded here
+$sam_model = "sam_brats2024_10sep24_9000_50epoch.pth"
+
+if (-not (Test-Path $dpath/$sam_model)) {
     Write-Host
     Write-Host 'Installing SAM model file ...'
     Start-Sleep 2
@@ -139,13 +143,13 @@ if (-not (Test-Path $user/data/sam_models)) {
     # had to remove all other .pth model files from the dropbox dir, and make a link from the dropbox dir
     # in order to get this to work
     # note: have to "" the & symbol, and edit dl=0 to dl=1 from the provided link
-    # link to BraTS 2024 fine-tuned model
+    # link to BraTS 2024 fine-tuned model listed above
     Invoke-WebRequest https://www.dropbox.com/scl/fo/3nyk4ogzjhwywitm5xkm5/AE_c1W4_FGd7y0eDLEE8VvA?rlkey=msbsbs4pg0ybcedfv6y1alo69"&"st=kmzktpgy"&"dl=1 -OutFile $dpath/sam_model.zip
     # link to SAM base model
     if (0) {
         Invoke-WebRequest https://www.dropbox.com/scl/fo/dcpl5l0ydnm8df4k4qj6c/AHBh1jIup365RRFAW7az7qY?rlkey=uauzaswgdkyp559hv7e422yb9"&"st=owdldfgc"&"dl=1 -OutFile $dpath/sam_model.zip
     }
-    Expand-Archive $dpath/sam_model.zip -DestinationPath $dpath/sam_models
+    Expand-Archive $dpath/sam_model.zip -DestinationPath $dpath
     Remove-Item $dpath/sam_model.zip
 }
 Start-Sleep 2
