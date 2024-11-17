@@ -154,6 +154,18 @@ if (-not (Test-Path $dpath/$sam_model)) {
 }
 Start-Sleep 2
 
+# Install MNI templates from dropbox
+$dpath="$user\data\mni152"
+
+if (-not (Test-Path $dpath/"mni152")) {
+    Write-Host
+    Write-Host 'Installing MNI template files ...'
+    Start-Sleep 2
+    Invoke-WebRequest https://www.dropbox.com/scl/fo/wtxqyp8jp9kj52d6phb38/AKgZ4ZlWYZQMi3NZbWfEToI?rlkey=vcjesad0m8cdey9wvmdcapjye"&"st=3vtqxew6"&"dl=1 -OutFile $dpath/mni152.zip
+    Expand-Archive $dpath/mni152.zip -DestinationPath $dpath
+    Remove-Item $dpath/mni152.zip
+}
+Start-Sleep 2
 
 # Install processed test cases from dropbox
 if (0) {
