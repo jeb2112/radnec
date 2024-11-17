@@ -12,11 +12,12 @@ from torch.utils.data import DataLoader
 from src.sam.SAMDataset import SAMDataset,PromptType
 
 class SAMProcessing():
-    def __init__(self,datadirs,model_size='base',batch_size=1,**kwargs):
+    def __init__(self,datadirs,model_dict=None,model_size='base',batch_size=1,**kwargs):
         self.datadirs = datadirs
         self.dkeys = self.datadirs.keys()
         self.model_size = model_size
         self.batch_size = batch_size
+        self.model_dict = model_dict # full path to local model
 
         self.datasets = {}
         self.dataloaders = {}
@@ -33,17 +34,14 @@ class SAMProcessing():
         if not (model_size == "base" or model_size == "huge"):
             raise ValueError(f'Unknown model size "{model_size}".')
 
-        if True:
-            return f"facebook/sam-vit-{model_size}"
-        else:
-            return "C:\\Users\\Chris Heyn Lab\\data\\sam_models\\sam_vit_b_01ec64.pth"
+        return f"facebook/sam-vit-{model_size}"
 
     def get_datasets(self,
         dkey,
         **kwargs,
     ):
         model_name = self.get_model_name(self.model_size)
-        processor = SamProcessor.from_pretrained(model_name,do_rescale=False)
+        processor = SamProcessor.from_pretrained(model_name,state_dict=self.model_dict,do_rescale=False)
 
         self.datasets[dkey] = SAMDataset(
             datadir=self.datadirs[dkey], 

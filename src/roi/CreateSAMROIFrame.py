@@ -1291,7 +1291,8 @@ class CreateSAMROIFrame(CreateFrame):
                         res = os.system(command)
                     else: # run in viewer 
                         with Profile() as profile:
-                            self.ui.sam.main(checkpoint='/media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel,
+                            mfile = '/media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
+                            self.ui.sam.main(checkpoint=mfile,
                                             input = self.ui.caseframe.casedir,
                                             prompt = prompt,
                                             layer = layer,

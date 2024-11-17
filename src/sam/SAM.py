@@ -201,11 +201,16 @@ class SAM():
             model = SamModel.from_pretrained(pretrained)
         else:
             # this loads from cache after 1st download
-            model = SamModel.from_pretrained(f"facebook/sam-vit-base")
+            # this also gets loaded in huggingface, need to 
+            # prevent this duplication
+            if True:
+                model = SamModel.from_pretrained(f"facebook/sam-vit-base")
         if checkpoint is not None:
             checkpoint_data = torch.load(checkpoint)
-            model.load_state_dict(checkpoint_data["model_state_dict"])
-        model.to(self.device)
+            if True: # also done in huggingface but again duplication
+                model.load_state_dict(checkpoint_data["model_state_dict"])
+        if True:
+            model.to(self.device) # this is performed in huggingface again duplication
 
 
         sfiles = os.listdir(input)
@@ -238,7 +243,7 @@ class SAM():
                 raise FileNotFoundError
             
             eval_datadir = {'test':spath}
-            samp = SAMProcessing(eval_datadir,model_size='base',prompt_type=prompt_args[prompt]['prompt_type'])
+            samp = SAMProcessing(eval_datadir,model_dict=checkpoint_data['model_state_dict'],model_size='base',prompt_type=prompt_args[prompt]['prompt_type'])
 
             if debug == False:
                 res = self.predict_metrics(model,samp.dataloaders['test'],prompt_args[prompt],datadir=spath)

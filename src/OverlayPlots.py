@@ -245,8 +245,9 @@ def generate_comp_overlay(input_image: np.ndarray, overlay: np.ndarray = None, s
 
     output_image = np.copy(image)
     output_image[overlay_ros] = alpha[overlay_ros]
-    plt.clf()
-    plt.imshow(output_image[slice])
+    if False:
+        plt.clf()
+        plt.imshow(output_image[slice])
 
     # rescale result to [0,1]
     output_image = output_image / output_image.max() * 1

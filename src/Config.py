@@ -49,7 +49,7 @@ class Config(object):
             self.UIlocaldir = os.path.join(os.path.expanduser('~'),'data','radnec_sam')
         elif os.name == 'posix':
             # brats dataset
-            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
+            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/'
             self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/indigo'
             self.UIawsdir = '/home/ec2-user'
             # dicoms
