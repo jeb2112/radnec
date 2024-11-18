@@ -8,7 +8,7 @@ if  exist "%USERPROFILE%\anaconda3\Scripts\activate.bat" (
     pause
     exit
 )
-cd "%USERPROFILE%\anaconda3\envs\radnec_sam\Lib\site-packages"
+cd "%USERPROFILE%\anaconda3\envs\blast_pytorch\Lib\site-packages"
 @echo on
 python src\startGui.py
 @echo off

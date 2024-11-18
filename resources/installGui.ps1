@@ -5,6 +5,7 @@
 
 
 $user=$Env:USERPROFILE
+$onedrive = $Env:OneDrive
 $conda_env = "blast_pytorch"
 
 # Check disk-free space on C:
@@ -19,9 +20,11 @@ if ($df -lt 20) {
 }
 
 # Create main data dir under USER
-
 if (-not (Test-Path $user\data)) {
     New-Item $user\data -ItemType Directory
+}
+if (-not (Test-Path $user\"data\sam_models")) {
+    New-Item $user"\data\sam_models" -ItemType Directory
 }
 
 # Set environment variables for nnUNet
@@ -81,11 +84,23 @@ Write-Host Installing $whl ...
 pip install $whl
 conda deactivate
 
-$s=(New-Object -COM WScript.Shell).CreateShortcut("$user\Desktop\RadNecSAM.lnk")
-$s.IconLocation="$user\anaconda3\envs\$conda_env\Lib\site-packages\resources\sunnybrook.ico"
-$s.WorkingDirectory="$user\anaconda3\envs\$conda_env\Lib\site-packages\resources"
-$s.TargetPath="$user\anaconda3\envs\$conda_env\Lib\site-packages\resources\startGui.bat"
-$s.Save()
+$localpath = Join-Path $user -ChildPath "Desktop"
+$onedrivepath = Join-Path $user -ChildPath "OneDrive" | Join-Path -ChildPath "Desktop"
+$fpath = ""
+if (Test-Path $localpath) {
+    $fpath = Join-Path $localpath -ChildPath "RadNecSAM.lnk"
+} elseif (Test-Path $onedrivepath) {
+    $fpath = Join-Path $onedrivepath -ChildPath "RadNecSAM.lnk"
+}
+if ($fpath) {
+    $s=(New-Object -COM WScript.Shell).CreateShortcut($fpath)
+    $s.IconLocation="$user\anaconda3\envs\$conda_env\Lib\site-packages\resources\sunnybrook.ico"
+    $s.WorkingDirectory="$user\anaconda3\envs\$conda_env\Lib\site-packages\resources"
+    $s.TargetPath="$user\anaconda3\envs\$conda_env\Lib\site-packages\resources\startGui.bat"
+    $s.Save()
+} else {
+    Write-Host "Failed to create desktop shortcut"
+}
 Start-Sleep 2
 
 # Install SAM and nnUNet code
@@ -131,9 +146,9 @@ if (0) {
 # somehow %user% is out of scope inside the if block? had to move setdpath here.
 $dpath="$user\data\sam_models"
 # current sam model is hard-coded here
-$sam_model = "sam_brats2024_10sep24_9000_50epoch.pth"
+$sam_model = Join-Path $dpath -ChildPath "sam_brats2024_10sep24_9000_50epoch.pth"
 
-if (-not (Test-Path $dpath/$sam_model)) {
+if (-not (Test-Path $sam_model)) {
     Write-Host
     Write-Host 'Installing SAM model file ...'
     Start-Sleep 2
@@ -156,8 +171,8 @@ Start-Sleep 2
 
 # Install MNI templates from dropbox
 $dpath="$user\data\mni152"
-
-if (-not (Test-Path $dpath/"mni152")) {
+if (-not (Test-Path $dpath)) {
+    New-Item $user"\data\mni152" -ItemType Directory  
     Write-Host
     Write-Host 'Installing MNI template files ...'
     Start-Sleep 2
