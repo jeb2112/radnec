@@ -84,6 +84,7 @@ Write-Host Installing $whl ...
 pip install $whl
 conda deactivate
 
+# create desktop shortcut
 $localpath = Join-Path $user -ChildPath "Desktop"
 $onedrivepath = Join-Path $user -ChildPath "OneDrive" | Join-Path -ChildPath "Desktop"
 $fpath = ""
@@ -104,7 +105,10 @@ if ($fpath) {
 Start-Sleep 2
 
 # Install SAM and nnUNet code
-
+# this created a separate pytorch env for the external SAM script.
+# using huggingface now instead of facebook SAM, and the inference
+# no longer uses an external script to the pytorch is in the main
+# blast env ie above.
 if (0) {
     Invoke-Command -ScriptBlock {conda activate pytorch_sam} -ErrorAction Stop
     if ($lastexitcode -gt 0) {
@@ -127,8 +131,18 @@ if (0) {
     Start-Sleep 2
 }
 
+# download hugginface base SAM to local cache
+if (-not (Test-Path "$user/cache/huggingface/models--facebook--sam-vit-base")) {
+    Write-Host
+    Write-Host 'Installing SAM base model files...'
+    conda activate $conda_env
+    python hf_download.py
+    conda deactivate
+    Start-Sleep 2
+}
 
 # Install nnUNet model files from dropbox
+# not doing any nnUNet comparisons for now
 if (0) {
     if (-not (Test-Path "$Env:nnUNet_results/Dataset138_BraTS2024_T1post-FLAIR")) {
         Write-Host
