@@ -136,7 +136,16 @@ if (-not (Test-Path "$user/cache/huggingface/models--facebook--sam-vit-base")) {
     Write-Host
     Write-Host 'Installing SAM base model files...'
     conda activate $conda_env
+    # this creates a physical download to local cache
     python -c "from transformers import SamModel; m=SamModel.from_pretrained('facebook/sam-vit-base')"
+    # in the viewer using huggingface classes for inference, the model is loaded by SamProcessor, not SamModel.
+    # something about the SamModel/SamProcessor/huggingface cache design is slightly broken, may involve something
+    # about symlinks, which are not permitted under regular windows11 unless in some kind of Dev mode or run python
+    # as administrator, neither of which will be convenient for distributing this software, and therefore seem to need this 
+    # explicit duplicate line here in the install script, separately from
+    # the viewer, before the identical line in the viewer can run wtihout getting a stale handle error in regular
+    # windows 11 user mode non-administrator.
+    python -c "from transformers import SamProcessor; m=SamProcessor.from_pretrained('facebook/sam-vit-base')"
     conda deactivate
     Start-Sleep 2
 }
