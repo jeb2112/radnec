@@ -114,10 +114,10 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         normalSlice = ttk.Button(self.normal_frame,text='normal stats',command=self.normalslice_callback)
         normalSlice.grid(row=1,column=2,sticky='w')
         # button to run 2d SAM on current prompt (point or bbox)
-        self.run2dSAM = ttk.Button(self.normal_frame,text='run SAM',command=self.sam2d_callback,state='disabled')
+        self.run2dSAM = ttk.Button(self.normal_frame,text='2D',command=self.sam2d_callback,state='disabled')
         self.run2dSAM.grid(row=1,column=3,sticky='w')
         # button to run 3d SAM on current BLAST ROI (bbox)
-        self.run3dSAM = ttk.Button(self.normal_frame,text='run 3d SAM',command=Command(self.sam3d_callback,remote=self.ui.config.AWS,do_ortho=None),state='disabled')
+        self.run3dSAM = ttk.Button(self.normal_frame,text='3D',command=Command(self.sam3d_callback,remote=self.ui.config.AWS,do_ortho=None),state='disabled')
         self.run3dSAM.grid(row=1,column=4,sticky='w')
         # button to select prompt type
         prompt_point_button = ttk.Radiobutton(self.normal_frame,text='point',variable=self.prompt_type,value='point')

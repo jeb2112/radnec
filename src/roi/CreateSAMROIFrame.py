@@ -89,7 +89,7 @@ class CreateSAMROIFrame(CreateFrame):
                                                command=self.enhancingROI_overlay_callback)
         enhancingROI_overlay.grid(row=1,column=1,sticky='w')
 
-        layerlabel = ttk.Label(self.frame,text='BLAST layer:')
+        layerlabel = ttk.Label(self.frame,text='prompt:')
         layerlabel.grid(row=0,column=0,sticky='w')
         self.layer.trace_add('write',lambda *args: self.layer.get())
         self.layermenu = ttk.OptionMenu(self.frame,self.layer,self.layerlist['blast'][0],
@@ -119,7 +119,7 @@ class CreateSAMROIFrame(CreateFrame):
                                            variable=self.overlay_value['SAM'],
                                            command=self.SAM_overlay_callback)
         SAM_overlay.grid(row=1,column=3,sticky='w')
-        layerlabel = ttk.Label(self.frame,text='SAM layer:')
+        layerlabel = ttk.Label(self.frame,text='overlay:')
         layerlabel.grid(row=0,column=2,sticky='w')
         self.layerSAM.trace_add('write',lambda *args: self.layerSAM.get())
         self.layerSAMmenu = ttk.OptionMenu(self.frame,self.layerSAM,self.layerlist['sam'][0],
