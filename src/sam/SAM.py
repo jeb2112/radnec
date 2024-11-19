@@ -73,9 +73,9 @@ class SAM():
 
         }
 
-    def predict_model(self,model: SamModel, batch, prompt_args, confidence_threshold=0.5, device="cuda"):
+    def predict_model(self,model: SamModel, batch, prompt_args, confidence_threshold=0.5):
 
-        batch = {k: v.to(device) for k, v in batch.items()}
+        batch = {k: v.to(self.device) for k, v in batch.items()}
         with torch.no_grad():
             outputs = self.forward_pass(model, batch, prompt_args["prompt_type"])
 
@@ -99,8 +99,8 @@ class SAM():
         return raw_mask, mask, metrics, mask_comb
 
 
-    def predict_metrics(self,model: SamModel, dataloader: DataLoader, prompt_args, datadir=None, device="cuda"):
-        model.to(device)
+    def predict_metrics(self,model: SamModel, dataloader: DataLoader, prompt_args, datadir=None):
+        model.to(self.device)
         model.eval()
 
         metrics = []    

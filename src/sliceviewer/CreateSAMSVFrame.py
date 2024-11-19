@@ -20,6 +20,11 @@ from cProfile import Profile
 from pstats import SortKey,Stats
 from enum import Enum
 
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
 matplotlib.use('TkAgg')
 import SimpleITK as sitk
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
@@ -340,11 +345,13 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
                 self.clipwl_raw()
 
         # if not an event, show an existing bbox, or remove it
-        if self.ui.currentroi > 0 and event is None:
-            if self.ui.roiframe.overlay_value['SAM'].get() == True or str(self.run2dSAM['state']) == 'active':
-                self.update_bboxs()
-            else:
-                self.clear_bbox()
+        # not using this in the latest SAM viewer
+        if False:
+            if self.ui.currentroi > 0 and event is None:
+                if self.ui.roiframe.overlay_value['SAM'].get() == True or str(self.run2dSAM['state']) == 'active':
+                    self.update_bboxs()
+                else:
+                    self.clear_bbox()
 
         self.canvas.draw()
     

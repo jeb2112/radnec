@@ -22,6 +22,10 @@ from pstats import SortKey,Stats
 from enum import Enum
 import ants
 
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
 import scipy
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice

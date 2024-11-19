@@ -41,7 +41,10 @@ class SAMProcessing():
         **kwargs,
     ):
         model_name = self.get_model_name(self.model_size)
-        processor = SamProcessor.from_pretrained(model_name,state_dict=self.model_dict,do_rescale=False)
+        try:
+            processor = SamProcessor.from_pretrained(model_name,state_dict=self.model_dict,do_rescale=False)
+        except OSError as e:
+            processor = SamProcessor.from_pretrained(model_name,state_dict=self.model_dict,do_rescale=False)
 
         self.datasets[dkey] = SAMDataset(
             datadir=self.datadirs[dkey], 
