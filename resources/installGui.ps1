@@ -136,7 +136,7 @@ if (-not (Test-Path "$user/cache/huggingface/models--facebook--sam-vit-base")) {
     Write-Host
     Write-Host 'Installing SAM base model files...'
     conda activate $conda_env
-    python hf_download.py
+    python -c "from transformers import SamModel; m=SamModel.from_pretrained('facebook/sam-vit-base')"
     conda deactivate
     Start-Sleep 2
 }

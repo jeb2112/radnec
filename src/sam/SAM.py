@@ -25,6 +25,8 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
+# to suppress symlink warnings in windows 11
+os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
 from src.sam.SAMProcessing import SAMProcessing
 from src.sam.SAMMisc import *
 
