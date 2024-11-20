@@ -188,6 +188,9 @@ class Case():
     def write_all(self):
         for s in self.studies:
             localstudydir = os.path.join(self.datadir,self.case,s.studytimeattrs['StudyDate'])
+            localniftidir = os.path.join(self.datadir,'dicom2nifti',self.case,s.studytimeattrs['StudyDate'])
+            if not os.path.exists(localniftidir):
+                os.makedirs(localniftidir,exist_ok=True)
             for dc in ['raw','z','cbv','adc']:
                 for dt in list(s.channels.values()):
                     if s.dset[dc][dt]['ex']:
@@ -197,7 +200,7 @@ class Case():
                             dstr = 'z' + dt + '_processed.nii'
                         else:
                             dstr = dt+'_processed.nii'
-                        s.writenifti(s.dset[dc][dt]['d'],os.path.join(localstudydir,dstr),
+                        s.writenifti(s.dset[dc][dt]['d'],os.path.join(localniftidir,dstr),
                                                     type='float',affine=s.dset['ref']['affine'])
 
     # run nnunet segmentation                
