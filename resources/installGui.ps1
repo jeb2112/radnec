@@ -132,7 +132,7 @@ if (0) {
 }
 
 # download hugginface base SAM to local cache
-if (-not (Test-Path "$user/cache/huggingface/models--facebook--sam-vit-base")) {
+if (-not (Test-Path "$user/.cache/huggingface/hub/models--facebook--sam-vit-base")) {
     Write-Host
     Write-Host 'Installing SAM base model files...'
     conda activate $conda_env
