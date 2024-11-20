@@ -89,9 +89,9 @@ $localpath = Join-Path $user -ChildPath "Desktop"
 $onedrivepath = Join-Path $user -ChildPath "OneDrive" | Join-Path -ChildPath "Desktop"
 $fpath = ""
 if (Test-Path $localpath) {
-    $fpath = Join-Path $localpath -ChildPath "RadNecSAM.lnk"
+    $fpath = Join-Path $localpath -ChildPath "Viewer.lnk"
 } elseif (Test-Path $onedrivepath) {
-    $fpath = Join-Path $onedrivepath -ChildPath "RadNecSAM.lnk"
+    $fpath = Join-Path $onedrivepath -ChildPath "Viewer.lnk"
 }
 if ($fpath) {
     $s=(New-Object -COM WScript.Shell).CreateShortcut($fpath)

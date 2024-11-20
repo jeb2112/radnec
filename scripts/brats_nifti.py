@@ -13,12 +13,17 @@ import re
 import os
 import ants
 import copy
-from sklearn.cluster import KMeans
 import subprocess
 from scipy.spatial.distance import dice,directed_hausdorff
 import cc3d
 import json
 import time
+
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+from sklearn.cluster import KMeans
 
 # various output stats, add more as required
 # data,groundtruth dict 'ET','TC','WT'
@@ -298,18 +303,11 @@ if __name__ == '__main__':
         blast_data_dir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/SAM_BraTS_2024/brats2nifti'
     elif os.name == 'nt':
         # brats source dir
-        if True: # default True
-            brats_data_dir = "C:\\Users\\chint\\data\\BraTS2024_Training_Data"
-            # nifti destination dir for BLAST
-            blast_data_dir = "C:\\Users\\chint\\data\\radnec_sam"
-            # reference for talairach coords
-            mni_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\mni152"
-        else: # True for local debugging
-            brats_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\brats2024\\raw\\training"
-            # nifti destination dir for BLAST
-            blast_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\dicom2nifti_sam"
-            # reference for talairach coords
-            mni_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\mni152"
+        brats_data_dir = os.path.join("C:","Users",os.path.expanduser('~'),"data","BraTS2024","training")
+        # nifti destination dir for BLAST
+        blast_data_dir = os.path.join("C:","Users",os.path.expanduser('~'),"data","brats2024_nifti")
+        # reference for talairach coords
+        mni_data_dir = "C:\\Users\\Chris Heyn Lab\\data\\mni152"
 
     # not using MNI reference for the time being
     if False:
@@ -325,7 +323,7 @@ if __name__ == '__main__':
         cases = sorted(os.listdir(brats_data_dir))
 
     # edit range of cases to process here
-    for C in cases[13:]:
+    for C in cases[:5]:
         print('case {}'.format(C))
         dir = os.path.join(brats_data_dir,C)
         files = os.listdir(dir)
@@ -372,28 +370,29 @@ if __name__ == '__main__':
         writenifti(zimg_flair,os.path.join(ddir,'zflair_processed.nii'),affine=affine_flair)
 
         # home-trained nnunet segmentation
-        for dt,suffix in zip(['t1+','flair'],['0001','0003']):
-            if os.name == 'posix':
-                l1str = 'ln -s ' + os.path.join(ddir,dt+'_processed.nii.gz') + ' '
-                l1str += os.path.join(ndir,C+'_'+suffix+'.nii.gz')
-            elif os.name == 'nt':
-                l1str = 'copy  \"' + os.path.join(ddir,dt+'_processed.nii.gz') + '\" \"'
-                l1str += os.path.join(ndir,C+'_'+suffix+'.nii.gz') + '\"'
-            os.system(l1str)
-        if True:
-            nnunet_seg,elapsed_time = segment(C,ddir,pyenv='ptorch_sam')
-        else: # for debugging
-            nnunet_seg = {}
-            for dt in ['ET','TC','WT']:
-                nnunet_seg[dt],_ = loadnifti(dt+'_unet.nii.gz',ddir,type='uint8')
-        gt_seg,_ = loadnifti(seg_fname,ddir,type='uint8')
-        gt = {}
-        gt['ET'] = np.zeros_like(gt_seg)
-        gt['ET'][gt_seg == 3] = 1
-        gt['WT'] = np.zeros_like(gt_seg)
-        gt['WT'][gt_seg > 0] = 1
-        gt['TC'] = np.zeros_like(gt_seg)
-        # convert brats definition of TC to BLAST definition
-        gt['TC'][(gt_seg == 1) | (gt_seg == 3) ] = 1
-        ROIstats(nnunet_seg,gt,time=elapsed_time)
+        if False:
+            for dt,suffix in zip(['t1+','flair'],['0001','0003']):
+                if os.name == 'posix':
+                    l1str = 'ln -s ' + os.path.join(ddir,dt+'_processed.nii.gz') + ' '
+                    l1str += os.path.join(ndir,C+'_'+suffix+'.nii.gz')
+                elif os.name == 'nt':
+                    l1str = 'copy  \"' + os.path.join(ddir,dt+'_processed.nii.gz') + '\" \"'
+                    l1str += os.path.join(ndir,C+'_'+suffix+'.nii.gz') + '\"'
+                os.system(l1str)
+            if True:
+                nnunet_seg,elapsed_time = segment(C,ddir,pyenv='ptorch_sam')
+            else: # for debugging
+                nnunet_seg = {}
+                for dt in ['ET','TC','WT']:
+                    nnunet_seg[dt],_ = loadnifti(dt+'_unet.nii.gz',ddir,type='uint8')
+            gt_seg,_ = loadnifti(seg_fname,ddir,type='uint8')
+            gt = {}
+            gt['ET'] = np.zeros_like(gt_seg)
+            gt['ET'][gt_seg == 3] = 1
+            gt['WT'] = np.zeros_like(gt_seg)
+            gt['WT'][gt_seg > 0] = 1
+            gt['TC'] = np.zeros_like(gt_seg)
+            # convert brats definition of TC to BLAST definition
+            gt['TC'][(gt_seg == 1) | (gt_seg == 3) ] = 1
+            ROIstats(nnunet_seg,gt,time=elapsed_time)
 
