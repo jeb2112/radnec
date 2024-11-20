@@ -1013,6 +1013,8 @@ class CreateSAMROIFrame(CreateFrame):
                 else:
                     rtag = tag
                 self.ROIstats(save=True,roi=roinumber,roitype=r,tag=rtag)
+                
+        self.ui.set_message('ROI saved')
 
 
     # back-copy an existing ROI and overlay from current dataset back into the current roi. 

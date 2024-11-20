@@ -147,6 +147,9 @@ class BlastGui(object):
 
             # load a nifti case for BLAST 
             if True:
+                debugdir = os.path.join(os.path.expanduser('~'),'data','brats2024_nifti')
+                self.caseframe.datadir.set(debugdir)
+                self.caseframe.datadirentry_callback()
                 caseselect = 'M00002'
                 # caseslice = 75
                 self.caseframe.casename.set(caseselect)

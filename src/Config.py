@@ -46,7 +46,7 @@ class Config(object):
         # this hard-coded value is no longer used. 
         if os.name == 'nt':
             self.UIdatadir = os.path.join(os.path.expanduser('~'),'data')
-            self.UIlocaldir = os.path.join(os.path.expanduser('~'),'data','brats2024_nifti')
+            self.UIlocaldir = os.path.join(os.path.expanduser('~'),'data','radnec_sam')
         elif os.name == 'posix':
             # brats dataset
             self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/'
