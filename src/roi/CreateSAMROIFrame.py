@@ -1161,7 +1161,9 @@ class CreateSAMROIFrame(CreateFrame):
             # check for a complete segmentation
             if dt not in data.keys():
                 continue
-            elif data[dt] is None:
+            # checking for == 0 here but this is a bug, the dataset should 
+            # either be non-zero or None
+            elif data[dt] is None or np.max(data[dt]) == 0:
                 continue
             if np.max(data[dt]) > 1:
                 data[dt] = data[dt] == np.max(data[dt])
@@ -1177,7 +1179,7 @@ class CreateSAMROIFrame(CreateFrame):
                 # pull out the matching lesion using cc3d
                 gt_mask = np.copy(self.ui.data[self.ui.s].mask['gt'][dt]['d'])
                 CC_labeled = cc3d.connected_components(gt_mask,connectivity=6)
-                centroid_point = np.array(list(map(int,np.mean(np.where(data[dt]),axis=1)))) 
+                centroid_point = np.array(list(map(int,np.nanmean(np.where(data[dt]),axis=1)))) 
                 objectnumber = CC_labeled[centroid_point[0],centroid_point[1],centroid_point[2]]
                 gt_lesion = (CC_labeled == objectnumber).astype('uint8')
                 if slice is not None:

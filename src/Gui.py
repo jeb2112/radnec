@@ -46,6 +46,11 @@ class Gui():
         except Exception as e:
             self.config.logger.error("{}: {}".format(e.args[0], sys.exc_info()[0]))
             print("{}: {}".format(e.args[0], sys.exc_info()[0]))
+            # on windows 11, all errors get handled by this top-level try/except, so need to print
+            # stacktrace explicitly. formerly on windows10 and linux, most errors were not
+            # being handled by this try/except, so the stack trace was printing directly
+            # and this handler was rarely used
+            print(e.characters_written)
         else:
             print("Exit")
 
