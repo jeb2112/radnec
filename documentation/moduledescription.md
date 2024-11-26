@@ -11,15 +11,15 @@ top level tkinter event loop
 
         creates the main GUI structure. There are four main data structures in the ```__init__()```:
 
-        * ```self.data``` are 3d image volumes and overlay volumes, and are defined in ```DcmCase.py```.  
-        * ```self.blastdatadict``` are the various parameters and values associated with BLAST processing, defined here.
+        * ```self.data``` a dict of studies for the currently loaded case. Studies have a number of 3d image volumes and overlay volumes as defined in ```DcmCase.py```.  
+        * ```self.blastdata``` a dict of studies, containing the various parameters and values associated with BLAST processing.
         * ```self.rois``` are BLAST and SAM segmentation masks and are defined in ```ROI.py```
         * ```self.pt``` is a list of points clicked during BLAST point selection workflow, defined in ```ROI.py```  
 
         main methods:
 
         * ```runblast()``` - the main method for all BLAST workflows
-        * a list of utility methods as shortcuts for referencing various updates in between modules  
+        * a number of utility methods that are shortcuts for referencing various methods in between various modules  
         &nbsp;
 
 		3. ```CreateFrame.py``` - a base class for different parts of UI
