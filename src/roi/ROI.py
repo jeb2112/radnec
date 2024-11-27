@@ -43,12 +43,18 @@ class ROIBLAST(ROI):
         self.gate = {'brain':None,'ET':None,'T2 hyper':None}
 
 class ROISAM(ROI):
-    def __init__(self,dim,bbox={},layer='TC'):
+    def __init__(self,dim,bbox={},pt={},layer='TC'):
         super().__init__(dim)
         # a SAM drawn bbox coordinates and values, or bbox from BLAST mask
         self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None,'slice':None} 
         # dict of multiple bbox's, with key = slice. 
         self.bboxs = {}
+
+        # a selected SAM control point
+        self.pt = {'ax':None,'p0':None,'plot':None,'ch':None,'slice':None, 'fg':True} 
+        # list of multiple control points
+        self.pts = []
+
         self.mask = None
 
         # segmentation masks
@@ -56,16 +62,18 @@ class ROISAM(ROI):
         # seg_fusion - an overlay image of 'TC' over t1+ or flair
         # seg_fusion_d - a copy of overaly image for display purposes
         # seg - a composite mask of a multi-compartment segmentation combining ET,TC,WT. not currently used in SAM viewer
-        # bbox - 3d volume of 2d bbox prompts of each in-plane slice, to be exported as .png files for use with SAM
+        # pvol - 3d volume of 2d bbox/points prompts of each in-plane slice, to be exported as .png files for use with SAM
         self.data = {'TC':np.zeros(self.dim,dtype='uint8'),'ET':np.zeros(self.dim,dtype='uint8'),'WT':np.zeros(self.dim,'uint8'),
                      'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg':None,
-                     'bbox':{'ax':np.zeros(dim,dtype='uint8'),'sag':np.zeros(dim,dtype='uint8'),'cor':np.zeros(dim,dtype='uint8')}
+                     'pvol':{'ax':np.zeros(dim,dtype='uint8'),'sag':np.zeros(dim,dtype='uint8'),'cor':np.zeros(dim,dtype='uint8')}
                      }
         # initializing with a one-slice bbox might no longer be needed, use set_bbox instead. 
         if bool(bbox):
             self.set_bbox(bbox)
+        if bool(pt):
+            self.set_pt(pt)
 
     # create a multi-slice set of point|bbox prompts from a 3d mask such as BLAST ROI
     # these prompts are stored both as a mask and as coordinates in a dict
@@ -139,6 +147,16 @@ class ROISAM(ROI):
                 raise KeyError
         self.create_prompt_from_bbox()
 
+    # set a control point for a given slice
+    def set_pt(self,pt):
+        for k in pt.keys():
+            if k in list(self.pt.keys()):
+                self.pt[k] = pt[k]
+            else:
+                raise KeyError
+        self.create_prompt_from_pts()
+
+
     # compute one-slice prompt from bounding box in a given slice. 
     def create_prompt_from_bbox(self, bbox=None, box_extension=0, orient='ax'):
         mask = np.zeros((self.dim[1],self.dim[2]),dtype='uint8')
@@ -156,8 +174,15 @@ class ROISAM(ROI):
             bbox_path = Path(vyx,closed=False)
             mask = bbox_path.contains_points(np.array(np.where(mask==0)).T)
             mask = np.reshape(mask,(self.dim[1],self.dim[2]))     
-        self.data['bbox'][orient][bbox['slice']] = mask
+        self.data['pvol'][orient][bbox['slice']] = mask
 
+    # compute one-slice prompt from control point(s) in a given slice. 
+    def create_prompt_from_pts(self, pts=None, orient='ax'):
+        if pts is None:
+            pts = self.pts
+        for p in pts:
+            pcoords = np.round(np.array(p['p0'])).astype('int')
+            self.data['pvol'][orient][p['slice'],pcoords[1],pcoords[0]] = 1
 
 
 # for linear measurements in 4panel viewer
@@ -176,13 +201,25 @@ class ROILinear():
         self.coords['plot'] = None
 
 
-# for creating raw BLAST seg by point selection
-class ROIPoint():
+# for generic point data
+class Point():
     def __init__(self,xpos,ypos,slice):
-        # BLAST ROI selection coordinates from mouse click
         self.coords = {}
         self.coords['x'] = xpos
         self.coords['y'] = ypos
         self.coords['slice'] = slice
+
+# for creating raw BLAST seg by point selection
+class ROIPoint(Point):
+    def __init__(self,xpos,ypos,slice):
+        super().__init__(xpos,ypos,slice)
+        # stats to form ellipse in parameter space
         self.data = {'flair':{'mu':0,'std':0},'t12':{'mu':0,'std':0}}
-        self.radius = 5 # pixel radius to include
+        self.radius = 5 # pixel radius to calculate stats on 
+
+
+# for SAM prompts by control point
+class SAMPoint(Point):
+    def __init__(self,xpos,ypos,slice,foreground=True):
+        super().__init__(xpos,ypos,slice)
+        self.foreground = foreground

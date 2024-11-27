@@ -708,7 +708,7 @@ class CreateSAMROIFrame(CreateFrame):
     
     # records button press coords in a new ROI object
     # create a parallel list of SAM and BLAST roi's. 
-    def createROI(self,coords=(0,0,0),bbox={}):
+    def createROI(self,coords=(0,0,0),bbox={},pt={}):
         blast_layer = self.layer.get()
         roi = ROIBLAST(coords,dim=self.ui.sliceviewerframe.dim,layer=blast_layer)
         self.ui.rois['blast'][self.ui.s].append(roi)
@@ -716,7 +716,11 @@ class CreateSAMROIFrame(CreateFrame):
             sam_layer = 'TC'
         else:
             sam_layer = blast_layer
-        roi2 = ROISAM(dim=self.ui.sliceviewerframe.dim,bbox=bbox,layer=sam_layer)
+        if bbox:
+            roi2 = ROISAM(dim=self.ui.sliceviewerframe.dim,bbox=bbox,layer=sam_layer)
+        elif pt:
+            roi2 = ROISAM(dim=self.ui.sliceviewerframe.dim,pt=pt,layer=sam_layer)
+
         self.ui.rois['sam'][self.ui.s].append(roi2)
  
         self.currentroi.set(self.currentroi.get() + 1)
@@ -724,12 +728,16 @@ class CreateSAMROIFrame(CreateFrame):
         self.update_roinumber_options()
 
     # updates button press coords for current ROI
-    def updateROI(self,coords=(0,0,0)):
-        blast_layer = self.layer.get()
-        roi = self.ui.rois['blast'][self.ui.s][self.ui.get_currentroi()]
-        roi.coords[blast_layer]['x'] = coords[0]
-        roi.coords[blast_layer]['y'] = coords[1]
-        roi.coords[blast_layer]['slice'] = coords[2]
+    def updateROI(self,coords=(0,0,0),pt={},bbox={}):
+        if coords:
+            blast_layer = self.layer.get()
+            roi = self.ui.rois['blast'][self.ui.s][self.ui.get_currentroi()]
+            roi.coords[blast_layer]['x'] = coords[0]
+            roi.coords[blast_layer]['y'] = coords[1]
+            roi.coords[blast_layer]['slice'] = coords[2]
+        elif pt:
+            roi = self.ui.rois['sam'][self.ui.s][self.ui.get_currentroi()]
+            roi.pts.append(pt)
 
         # self.updateROIData()
 
@@ -1511,7 +1519,7 @@ class CreateSAMROIFrame(CreateFrame):
     # processes a cursor selection button press event for generating/updating raw BLAST seg
     def selectPointClick(self,event=None):
         if event:
-            if event.button > 1: # ROI selection on left mouse only
+            if event.button not in [1]: # ROI selection on left mouse only
                 return
             
         if False: # not using this anymore
@@ -1526,22 +1534,13 @@ class CreateSAMROIFrame(CreateFrame):
             ydata = int(np.round(ydata))
             if xdata < 0 or ydata < 0:
                 return None
-            # elif self.ui.data['raw'][0,self.ui.get_currentslice(),int(event.x),int(event.y)] == 0:
-            #     print('Clicked in background')
-            #     return
-
-            elif self.ui.blastdata[self.ui.s]['blast']['ET'] is not None:
-                if self.ui.blastdata[self.ui.s]['blast']['ET'][self.ui.currentslice][ydata,xdata]:
-                # if point is in the existing mask then skip.
-                # don't have any good logic to snap to a nearby unmasked 
-                # point becuase the intended segmentation can never be inferred by any simple computer logic.
-                    return None
-
+            # check for a click in zero air background
+            elif self.ui.data[self.ui.s].dset['raw'][self.ui.chselection]['d'][self.ui.get_currentslice(),xdata,ydata] == 0:
+                print('Clicked in background')
+                return
+ 
             self.createPoint(xdata,ydata,self.ui.get_currentslice())
             
-        self.updateBLASTMask()
-
-        # optionally run SAM 2d directly on the partial BLAST ROI, in the current slice only
         # this requires to form a temporary BLAST ROI from the current raw mask, by interpreting the current click event
         # as the ROI selection click, and then delete that ROI immediately afterwards. 
         if self.ui.config.SAM2dauto:

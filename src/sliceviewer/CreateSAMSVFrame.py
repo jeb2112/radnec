@@ -58,7 +58,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.sagcordisplay = tk.IntVar(value=0)
         self.overlay_type = tk.IntVar(value=self.config.BlastOverlayType)
         # self.slicevolume_norm = tk.IntVar(value=1)
-        self.prompt_type = tk.StringVar(value='bbox')
+        self.prompt_type = tk.StringVar(value='point')
         # window/level stuff will need further tidying up
         # window/level values for T1,T2
         self.window = np.array([1.,1.],dtype='float')
@@ -84,8 +84,9 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.timingtext = tk.StringVar(value='off')
         self.timing = tk.IntVar(value=0)
         self.elapsedtime = 0
-        # bbox tool
+        # for use with bbox/point tool
         self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None}        
+        self.pt = {'ax':None,'p0':None,'plot':None,'ch':None,'fg':True}        
 
         self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
         self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
@@ -124,7 +125,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         prompt_point_button.grid(row=2,column=3,sticky='w')
         prompt_bbox_button = ttk.Radiobutton(self.normal_frame,text='bbox',variable=self.prompt_type,value='bbox')
         prompt_bbox_button.grid(row=2,column=4,sticky='w')
-
 
         # messages text frame
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
@@ -630,6 +630,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
         self.ui.roiframe.layerSAM_callback()
+        self.ui.rois['sam'][self.ui.s][self.ui.currentroi].status = True
 
         # experimental option. if timer running, stop it.
         if self.timing.get() == True:
@@ -751,7 +752,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # can reset it during a sequence of multiple drags
         self.canvas.get_tk_widget().config(cursor='sizing')
 
-    # record coordinates of button click
+    # record coordinates of left button click
     def b1click(self,event):
         ex,ey = np.copy(event.x),np.copy(event.y)
         self.canvas.get_tk_widget().config(cursor='sizing')
@@ -780,13 +781,54 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.axs[aax].plot(x,y,'+')
         self.canvas.get_tk_widget().config(cursor='sizing')
         # bind the release event
-        self.ui.root.bind('<ButtonRelease-1>',self.b1record)
+        self.ui.root.bind('<ButtonRelease-1>',Command(self.b1record,runsam=False,foreground=True))
 
-    # record bbox after left-button release
-    # runsam option is hard-coded here
-    def b1record(self,event=None,runsam=True):
-        self.record_bbox()
+    # record coordinates of right button click
+    # should be combined with b1click
+    def b3click(self,event):
+        ex,ey = np.copy(event.x),np.copy(event.y)
+        self.canvas.get_tk_widget().config(cursor='sizing')
+        if self.bbox['plot']:
+            self.clear_bbox()
+        # no action if outside the pane
+        if event.widget.widgetName != 'canvas':
+            return
+        # which artist axes was clicked
+        a = self.tbar.select_artist(event)
+        if a is None:
+            return
+        aax = a.axes._label
+        # data coordinates of the screen click event
+        x,y = self.calc_panel_xy(ex,ey,aax)
+        if False:
+            pdim = int(self.ui.current_panelsize*self.ui.config.dpi/2)
+            if ey > pdim:
+                ey -= pdim 
+            x,y = self.axs[aax].transData.inverted().transform((ex,ey))
+            y = -y + self.dim[1]
+        self.bbox['ax'] = aax
+        self.bbox['p0'] = (x,y)
+        self.bbox['slice'] = self.ui.currentslice
+        if False:
+            self.axs[aax].plot(x,y,'+')
+        self.canvas.get_tk_widget().config(cursor='sizing')
+        # bind the release event
+        self.ui.root.bind('<ButtonRelease-3>',Command(self.b3record,runsam=False,foreground=False))
+
+    # record bbox/point after left-button release
+    def b1record(self,event=None,runsam=True,foreground=True):
+        if self.bbox['p1'] is None: # ie there has been no drag during the b1 click event
+            self.record_pt(foreground=True)
+        else:
+            self.record_bbox() # there has been a mouse drag
         self.ui.root.unbind('<ButtonRelease-1>')
+        if runsam:
+            self.sam2d_callback()
+
+    # record control point after right-button release
+    def b3record(self,event=None,runsam=False,foreground=True):
+        self.record_pt(foreground=False)
+        self.ui.root.unbind('<ButtonRelease-3>')
         if runsam:
             self.sam2d_callback()
 
@@ -808,20 +850,20 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.ui.set_message(msg='diameter = {:.1f}'.format(self.bbox['l']))
         return
     
-    # draw a point prompt
+    # draw a point prompt. with multiple points, this might need to be in ROI.py
     def draw_point(self):
-        if self.bbox['p0'] is None:
-            return
-        if self.bbox['p1'] is not None:
-            return
-        if self.bbox['plot'] is not None:
+        if self.pt['plot'] is not None:
             try:
-                self.axs[self.bbox['ax']].lines[0].remove() # coded for only 1 line
-                self.bbox['plot'] = None
+                self.axs[self.pt['ax']].lines[0].remove() # coded for only 1 line
+                self.pt['plot'] = None
             except ValueError as e:
                 print(e)
-        self.bbox['plot'] = self.axs[self.bbox['ax']].plot(self.bbox['p0'][0],self.bbox['p0'][1],'b+',clip_on=True)[0]
-        self.ui.set_message(msg='point = {:.1f},{:.1f}'.format(self.bbox['p0'][0],self.bbox['p0'][1]))
+        if self.pt['fg']:
+            self.pt['plot'] = self.axs[self.pt['ax']].plot(self.pt['p0'][0],self.pt['p0'][1],'b+',clip_on=True)[0]
+        else:
+            self.pt['plot'] = self.axs[self.pt['ax']].plot(self.pt['p0'][0],self.pt['p0'][1],'r+',clip_on=True)[0]
+
+        self.ui.set_message(msg='point = {:.1f},{:.1f}'.format(self.pt['p0'][0],self.pt['p0'][1]))
 
 
     # remove existing bbox, for using during interactive draw only
@@ -855,12 +897,10 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         return mask
 
     # copy existing bbox in current slice to 'bbox' field of the roi. 
-    def record_bbox(self):
-
-        # switch roi context
-        self.ui.roi = self.ui.rois['sam']
+    def record_bbox(self,foreground=False):
 
         assert 'p1' in self.bbox.keys()
+        self.bbox.fg = foreground
         self.ui.roiframe.createROI(bbox = self.bbox)
 
         # also need to plot here since there was no show_bbox from a drag event
@@ -868,11 +908,37 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.draw_point()
         
         # here slice is the key for a group of multiple bboxs.
-        self.ui.roi[self.ui.s][self.ui.currentroi].bboxs[self.ui.currentslice] = copy.deepcopy(self.bbox)
+        self.ui.rois['sam'][self.ui.s][self.ui.currentroi].bboxs[self.ui.currentslice] = copy.deepcopy(self.bbox)
         if False:
-            self.bbox = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None}
+            self.bbox = {'ax':None,'p0':None,'p0':None,'plot':None,'l':None,'slice':None, 'fg':False}
 
         return
+
+
+    # copy existing point in current slice to 'pt' field of the roi. 
+    # currently using bbox from b1,b3click to be tidied up
+    def record_pt(self,foreground=False):
+
+        self.pt = {'ax':None,'p0':None,'plot':None,'ch':None,'slice':None, 'fg':True}
+        for k in ['ax','p0','slice']:
+            self.pt[k] = self.bbox[k]
+        self.pt['fg'] = foreground
+        # initial point creates a new ROI, subsequent points add to it
+        if self.ui.currentroi == 0: # if no roi's exist, this point creates one
+            self.ui.roiframe.createROI(pt = self.pt)
+        elif self.ui.rois['sam'][self.ui.s][self.ui.currentroi].status == True: # if a competed 3d SAM roi exists, this point creates a new one
+            self.ui.roiframe.createROI(pt = self.pt)
+        else: # this point adds to and updates the current roi
+            self.ui.roiframe.updateROI(pt = self.pt)
+
+        # also need to plot here
+        self.draw_point()
+        
+        # copy sliceviewer point to roi.
+        self.ui.rois['sam'][self.ui.s][self.ui.currentroi].pts.append(copy.deepcopy(self.pt))
+
+        return
+
 
     # re-display an existing bbox
     def show_bbox(self,roi=None):
