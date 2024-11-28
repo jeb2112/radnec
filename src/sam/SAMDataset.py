@@ -5,6 +5,7 @@ from skimage.transform import resize
 import monai
 import glob
 import os
+import json
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from datetime import datetime, timezone, timedelta
@@ -74,19 +75,25 @@ class SAMDataset(Dataset):
         elif len(np.shape(input_image1)) == 2:
             input_image1 = np.tile(input_image1,(3,1,1))
         # subdir 'prompts' is hard-coded here
-        ifile = glob.glob(os.path.join(self.datadir,'prompts','img_' + str(idx).zfill(5) + '_case_*_slice_???.png'))[0]
-        # again, masks prepared by viewer code are currently rgba, float. 
-        ground_truth_mask = imread(ifile,as_gray=True).astype('uint8') * 255
-        # note. skimage resize is one of the many resize algorithms that has an easy option for
-        # nearest neighbour. so many others do not.
-        ground_truth_mask = skimage.transform.resize(ground_truth_mask,self.mask_size,order=0)
-
-        if self.prompt_type == PromptType.CONTROL_POINTS:  
-            inputs = self._getitem_ctrlpts(input_image1, ground_truth_mask)  
-        elif self.prompt_type == PromptType.BOUNDING_BOX:  
+        # currently bounding box prompts are being stored as mask images, but this should be changed to be json or other text.
+        if self.prompt_type == PromptType.BOUNDING_BOX:
+            ifile = glob.glob(os.path.join(self.datadir,'prompts','img_' + str(idx).zfill(5) + '_case_*_slice_???.png'))[0]
+            # again, masks prepared by viewer code are currently rgba, float. 
+            ground_truth_mask = imread(ifile,as_gray=True).astype('uint8') * 255
+            # note. skimage resize is one of the many resize algorithms that has an easy option for
+            # nearest neighbour. so many others do not.
+            ground_truth_mask = skimage.transform.resize(ground_truth_mask,self.mask_size,order=0)
             inputs = self._getitem_bbox(input_image1, ground_truth_mask)
-
-        inputs["ground_truth_mask"] = ground_truth_mask  
+            # this is a dummy mask which is just an image of the bbox
+            inputs["ground_truth_mask"] = ground_truth_mask  
+        # control point prompts are stored as json dict
+        elif self.prompt_type == PromptType.CONTROL_POINTS:
+            ifile = glob.glob(os.path.join(self.datadir,'prompts','pts_' + str(idx).zfill(5) + '_case_*_slice_???.json'))[0]
+            with open(ifile,'r') as fp:
+                ground_truth_pts = json.load(fp)
+            inputs = self._getitem_ctrlpts(input_image1, ground_truth_pts=ground_truth_pts)  
+            # dummy mask
+            inputs['ground_truth_mask'] = np.ones(self.mask_size,dtype=np.uint8)
 
         # debug plotting
         if False:
@@ -119,23 +126,31 @@ class SAMDataset(Dataset):
 
         return inputs
     
-    # control points option. single point only for now.
-    def generate_input_points(self,num_positive=1,num_negative=0,mask=None,dynamic_distance=True,erode=True):
+    # control points option. single point positive point, centroid of a mask, or multiple labelled points 
+    def generate_input_points(self,mask=None,pts=None,dynamic_distance=True,erode=True):
         input_points = []
-        row,col = map(int,np.mean(np.where(mask==255),axis=1))
-        # need [col,row]
-        input_points.append([col,row]) 
-        input_points = np.array(input_points)
-        input_labels = np.array([1])
+        if mask is not None:
+            row,col = map(int,np.mean(np.where(mask==255),axis=1))
+            # need [col,row]
+            input_points.append([col,row]) 
+            input_points = np.array(input_points)
+            input_labels = np.array([1])
+        elif pts is not None:
+            # add dummy dimension for batch
+            input_points = np.array([(x,y) for x,y in zip(pts['x'],pts['y'])])
+            # dummy batch dimension? or samprocessor adds automatically
+            # input_labels = np.expand_dims(np.array(pts['fg']),0)
+            input_labels = np.array(pts['fg'])
 
-        return  input_points,input_labels         
+        return  input_points,input_labels  
 
-    def _getitem_ctrlpts(self, input_image, ground_truth_mask):  
+    def _getitem_ctrlpts(self, input_image, ground_truth_mask=None, ground_truth_pts=None):  
         # Get control points prompt. See the GitHub for the source  
         # of this function, or replace with your own point selection algorithm.  
         input_points, input_labels = self.generate_input_points(  
-            mask=ground_truth_mask  
+            mask=ground_truth_mask,pts=ground_truth_pts
         )  
+        # Samprocessor requires lists not np arrays
         input_points = input_points.astype(float).tolist()  
         input_labels = input_labels.tolist()  
         input_labels = [[x] for x in input_labels]
@@ -150,12 +165,14 @@ class SAMDataset(Dataset):
 
         # Remove batch dimension which the processor adds by default.  
         inputs = {k: v for k, v in inputs.items()}
-        # modified the original code, no longer squeezing input_points because that throws a tensor error
+        # in 1st attempt with huggingface, had to leave the input_points out of this squeeze because of a tensor error
+        # now the opposite it true, need to squeeze the batch dimension to avoid tensor error
         for k in inputs.keys():  
-            if k != 'input_points':
-                inputs[k] = inputs[k].squeeze(0)
-        # modified the original code, squeezing labels throws a tensor error
-        if False:
+            inputs[k] = inputs[k].squeeze(0)
+
+        # in the 1st attempt with huggingface, didn't use this additional squeeze because of a tensor error
+        # now the opposite is true, need to squeeze dim(1) to avoid tensor error
+        if True:
             inputs["input_labels"] = inputs["input_labels"].squeeze(1)
 
         return inputs

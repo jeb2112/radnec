@@ -54,20 +54,23 @@ class ROISAM(ROI):
         self.pt = {'ax':None,'p0':None,'plot':None,'ch':None,'slice':None, 'fg':True} 
         # list of multiple control points
         self.pts = []
-
         self.mask = None
 
+        # another dict for creating the saved json files which are read by the SAM huggingface code
+        self.pjsondict = {'x':[],'y':[],'fg':[]}
         # segmentation masks
-        # 'TC' - the SAM segmentation, interpreted as tumour core for now. 'ET','WT' are not used
+        # 'TC','WT -  SAM segmentation. segmentation of enhancing tumor is interpreted as tumour core for now 'ET' not used
         # seg_fusion - an overlay image of 'TC' over t1+ or flair
         # seg_fusion_d - a copy of overaly image for display purposes
         # seg - a composite mask of a multi-compartment segmentation combining ET,TC,WT. not currently used in SAM viewer
-        # pvol - 3d volume of 2d bbox/points prompts of each in-plane slice, to be exported as .png files for use with SAM
+        # bbox - 3d volume of 2d bbox prompts of each in-plane slice, to be exported as .png files for use with SAM
+        # point - a json dict containing lists of point prompts, for use with SAM
         self.data = {'TC':np.zeros(self.dim,dtype='uint8'),'ET':np.zeros(self.dim,dtype='uint8'),'WT':np.zeros(self.dim,'uint8'),
                      'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg':None,
-                     'pvol':{'ax':np.zeros(dim,dtype='uint8'),'sag':np.zeros(dim,dtype='uint8'),'cor':np.zeros(dim,dtype='uint8')}
+                     'bbox':{'ax':np.zeros(dim,dtype='uint8'),'sag':np.zeros(dim,dtype='uint8'),'cor':np.zeros(dim,dtype='uint8')},
+                     'point':{'ax':copy.deepcopy(self.pjsondict),'sag':copy.deepcopy(self.pjsondict),'cor':copy.deepcopy(self.pjsondict)}
                      }
         # initializing with a one-slice bbox might no longer be needed, use set_bbox instead. 
         if bool(bbox):
@@ -111,10 +114,7 @@ class ROISAM(ROI):
                         self.data['bbox'][orient][:,r,:],_ = self.get_bbox_mask(mask[:,r,:])
                     elif prompt == 'point':
                         self.data['bbox'][orient][:,r,:],_ = self.get_point_mask(mask[:,r,:])  
-
-
-
-        
+         
     def get_point_mask(self,mask):
         cy,cx = map(int,np.round(np.mean(np.where(mask),axis=1)))
         mask = np.zeros_like(mask)
@@ -137,6 +137,14 @@ class ROISAM(ROI):
         bbox['p1'] = [int(x_max), int(y_max)]
 
         return mask,bbox
+
+    # create a set of point prompts directly from a list of control points
+    def create_prompts_from_points(self,pts,prompt='point',slice=None,orient='ax'):
+        self.data['point'][orient]['x'] = [int(np.round(p['p0'][0])) for p in pts]
+        self.data['point'][orient]['y'] = [int(np.round(p['p0'][1])) for p in pts]
+        self.data['point'][orient]['fg'] = [int(p['fg']) for p in pts]
+
+
 
     # set a bbox for a given slice    
     def set_bbox(self,bbox):
@@ -174,7 +182,7 @@ class ROISAM(ROI):
             bbox_path = Path(vyx,closed=False)
             mask = bbox_path.contains_points(np.array(np.where(mask==0)).T)
             mask = np.reshape(mask,(self.dim[1],self.dim[2]))     
-        self.data['pvol'][orient][bbox['slice']] = mask
+        self.data['bbox'][orient][bbox['slice']] = mask
 
     # compute one-slice prompt from control point(s) in a given slice. 
     def create_prompt_from_pts(self, pts=None, orient='ax'):
@@ -182,7 +190,7 @@ class ROISAM(ROI):
             pts = self.pts
         for p in pts:
             pcoords = np.round(np.array(p['p0'])).astype('int')
-            self.data['pvol'][orient][p['slice'],pcoords[1],pcoords[0]] = 1
+            self.data['bbox'][orient][p['slice'],pcoords[1],pcoords[0]] = 1
 
 
 # for linear measurements in 4panel viewer

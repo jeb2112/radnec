@@ -899,7 +899,7 @@ class CreateSAMROIFrame(CreateFrame):
 
     # output images and prompts for sam segmentation
     # using tmpfiles and standalone script for separate ptorch env. ultimately should add ptorch to the blast env
-    def save_prompts(self,slice=None,orient='ax'):
+    def save_prompts(self,slice=None,orient='ax',prompt='bbox'):
 
         if orient == 'ax':
             slicedim = self.ui.sliceviewerframe.dim[0]
@@ -926,15 +926,17 @@ class CreateSAMROIFrame(CreateFrame):
         if not os.path.exists(filedir):
             os.makedirs(filedir)
 
-        # these image channel and prompt keys could later be generalized as args
-        for ch,prompt in zip([self.ui.chselection],['bbox']):
-            # roi.data['bbox'] is the multi-slice mask for prompting SAM
+        ch = self.ui.chselection
+        dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']
+        if dref is None:
+            raise ValueError
+        affine_bytes = self.ui.data[self.ui.s].dset['raw'][ch]['affine'].tobytes()
+        affine_bytes_str = str(affine_bytes)
+
+        # currently bbox prompt is derived from blast mask
+        if prompt == 'bbox':
+            # roi.data['bbox'] is the multi-slice mask for 'bbox' prompts
             rref = self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data[prompt][orient]
-            dref = self.ui.data[self.ui.s].dset['raw'][ch]['d']
-            if dref is None:
-                raise ValueError
-            affine_bytes = self.ui.data[self.ui.s].dset['raw'][ch]['affine'].tobytes()
-            affine_bytes_str = str(affine_bytes)
             idx = 0
             for slice in rslice:
                 if len(np.where(self.get_prompt_slice(slice,rref,orient))[0]):
@@ -950,15 +952,35 @@ class CreateSAMROIFrame(CreateFrame):
 
                     idx += 1
 
-        # create tar file for multi-slice if remote processing
-        if self.ui.sam.remote:
-            if len(rslice) > 1:
-                for d in ['prompts','images']:
-                    command = 'tar -cvf '
-                    command += os.path.join(fileroot,orient,d,'png.tar')
-                    command += ' -C ' + os.path.join(fileroot,orient,d)
-                    command += ' .'
-                    os.system(command)
+            # create tar file for multi-slice if remote processing
+            if self.ui.sam.remote:
+                if len(rslice) > 1:
+                    for d in ['prompts','images']:
+                        command = 'tar -cvf '
+                        command += os.path.join(fileroot,orient,d,'png.tar')
+                        command += ' -C ' + os.path.join(fileroot,orient,d)
+                        command += ' .'
+                        os.system(command)
+
+
+        elif prompt == 'point':
+            rref = self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data[prompt][orient]
+            idx = 0
+            for slice in rslice: # currently only coded for 2d
+                outputfilename = os.path.join(fileroot,orient,'prompts',
+                        'pts_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.json')
+                with open(outputfilename,'w') as fp:
+                    json.dump(rref,fp)
+                outputfilename = os.path.join(fileroot,orient,'images',
+                        'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
+                meta = PIL.PngImagePlugin.PngInfo()
+                meta.add_text('slicedim',str(slicedim))
+                meta.add_text('affine',affine_bytes_str)
+                plt.imsave(outputfilename,self.get_prompt_slice(slice,dref,orient),cmap='gray',pil_kwargs={'pnginfo':meta})
+
+                idx += 1
+
+
         return
 
     # convenience method, could use rotations instead

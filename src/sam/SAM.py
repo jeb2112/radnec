@@ -83,8 +83,14 @@ class SAM():
 
         # Squeeze the 0th dim since validation dataloader always has batch size 1, and
         # attempt to squeeze the 1st dim since bbox predictions only have 1 output mask.
-        raw_predicted_masks = outputs.pred_masks.squeeze((0, 1)).cpu()
-        ground_truth_mask = batch["ground_truth_mask"].squeeze(0).float().cpu()
+        if prompt_args['prompt_type'] == 'bbox':
+            raw_predicted_masks = outputs.pred_masks.squeeze((0, 1)).cpu()
+            ground_truth_mask = batch["ground_truth_mask"].squeeze(0).float().cpu()
+        elif prompt_args['prompt_type'] == 'pts':
+            # point predicts have several output masks so only squeeze 0 dim
+            raw_predicted_masks = outputs.pred_masks.squeeze((0)).cpu()
+            # don't squeeze ground truth mask to match extra dim in raw_predicted_masks
+            ground_truth_mask = batch['ground_truth_mask'].float().cpu()
 
         predicted_mask = torch.sigmoid(self.upsample_mask(raw_predicted_masks, ground_truth_mask.shape)).squeeze()
         raw_mask = predicted_mask.cpu().numpy()

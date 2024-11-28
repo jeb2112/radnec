@@ -115,7 +115,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         normalSlice = ttk.Button(self.normal_frame,text='normal stats',command=self.normalslice_callback)
         normalSlice.grid(row=1,column=2,sticky='w')
         # button to run 2d SAM on current prompt (point or bbox)
-        self.run2dSAM = ttk.Button(self.normal_frame,text='2D',command=self.sam2d_callback,state='disabled')
+        self.run2dSAM = ttk.Button(self.normal_frame,text='2D',command=Command(self.sam2d_callback,prompt=self.prompt_type.get(),do_ortho=False),state='disabled')
         self.run2dSAM.grid(row=1,column=3,sticky='w')
         # button to run 3d SAM on current BLAST ROI (bbox)
         self.run3dSAM = ttk.Button(self.normal_frame,text='3D',command=Command(self.sam3d_callback,remote=self.ui.config.AWS,do_ortho=None),state='disabled')
@@ -509,9 +509,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
     # run 2d SAM on available prompt. currently this is either a bbox or a single point
     # this method should probably be in ROIFrame
     def sam2d_callback(self,prompt='bbox',do_ortho=None,remote=False):
-
-        # switch roi context
-        self.ui.roi = self.ui.rois['sam']
     
         print('run sam 2D')
 
@@ -534,14 +531,14 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         for p in planes:
              
             currentslice = self.ui.get_currentslice(ax=p)
-            # if False:
-            #     self.ui.root.after(1000,Command(self.ui.set_message,msg='SAM 2d '+p))
-            #     self.ui.root.after(1000,self.ui.root.update_idletasks)
-            # else:
-            #     self.ui.set_message(msg='SAM 2d '+p)
-            self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
-                np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerROI.get()]),prompt=prompt,slice=currentslice,orient=p)
-            self.ui.roiframe.save_prompts(slice=currentslice,orient=p)
+             
+            if prompt in ['bbox','maskpoint']: # old workflow, derive prompt from existing BLAST segmentation
+                self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
+                    np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerROI.get()]),prompt=prompt,slice=currentslice,orient=p)
+            elif prompt == 'point': # for the new workflow, the 2d point prompt is not derived from a BLAST mask but directly from a list of points
+                self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_points( \
+                    np.copy(self.ui.rois['sam'][self.ui.s][self.ui.currentroi].pts),prompt=prompt,slice=currentslice,orient=p)
+            self.ui.roiframe.save_prompts(slice=currentslice,orient=p,prompt=prompt)
 
         # upload prompts to remote
         if remote:
@@ -552,7 +549,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             upload_time = 0
 
         st2 = time.time()
-        self.ui.roiframe.segment_sam(orient=None,tag='2d',prompt=prompt,session=s1)
+        # in the initial version of this workflow, only 'ax' is used.
+        self.ui.roiframe.segment_sam(orient=['ax'],tag='2d',prompt=prompt,session=s1)
         # download results if remote
         if remote:
             download_time = self.ui.roiframe.get_predictions_remote(session=s1)
