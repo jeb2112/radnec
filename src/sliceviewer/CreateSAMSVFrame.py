@@ -818,7 +818,11 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         if self.bbox['p1'] is None: # ie there has been no drag during the b1 click event
             self.record_pt(foreground=True)
         else:
-            self.record_bbox() # there has been a mouse drag
+            if np.sum(np.abs(self.bbox['p1']-self.bbox['p0'])) < 5: # catch an arbitrarily small bbox
+                self.bbox['p1'] = None
+                self.record_pt(foreground=True)
+            else:
+                self.record_bbox() # there has been a mouse drag
         self.ui.root.unbind('<ButtonRelease-1>')
         if runsam:
             self.sam2d_callback()

@@ -61,14 +61,16 @@ class CreateSAMROIFrame(CreateFrame):
         self.thresholds['T2 hyper']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[1])
         self.overlay_type = tk.IntVar(value=0)
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all'],'sam':['TC','WT']}
-        self.layer = tk.StringVar(value='ET')
-        self.layerROI = tk.StringVar(value='ET')
-        self.layerSAM = tk.StringVar(value='ET')
+        self.layer = tk.StringVar(value='WT') # WT default, not ET
+        self.layerROI = tk.StringVar(value='WT')
+        self.layerSAM = tk.StringVar(value='WT')
         self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=0)
         self.currentpt = tk.IntVar(value=0)
         self.pointradius = tk.IntVar(value=5)
         self.roilist = []
+
+        self.padding = (0,0),(0,0) # convenience variable for padding rect fov for huggingface. need a better place for this
 
         ########################
         # layout for the buttons
@@ -108,7 +110,8 @@ class CreateSAMROIFrame(CreateFrame):
         if False:
             layerlabel.grid(row=0,column=2,sticky='w')
         self.layerROI.trace_add('write',lambda *args: self.layerROI.get())
-        self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['seg'][0],
+        # hard-coded WT initialization
+        self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['seg'][2],
                                            *self.layerlist['seg'],command=self.layerROI_callback)
         self.layerROImenu.config(width=4)
         if False:
@@ -1000,9 +1003,11 @@ class CreateSAMROIFrame(CreateFrame):
             pad_amount = np.abs(np.diff(dims))[0]
             longdim = np.argmax(dims)
             if longdim == 0:
-                img = np.pad(img,((0,0),(0,pad_amount)))
+                self.padding = (0,0),(0,pad_amount)
+                img = np.pad(img,(self.padding))
             else:
-                img = np.pad(img,((0,pad_amount),(0,0)))
+                self.padding = (0,pad_amount),(0,0)
+                img = np.pad(img,self.padding)
 
         return img
 
@@ -1477,6 +1482,10 @@ class CreateSAMROIFrame(CreateFrame):
                 img_ortho[p],_ = self.ui.data[self.ui.s].loadnifti(fname,
                                                             os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
                                                             type='uint8')
+                
+            # if padded for hugging face, re-crop here
+            img_ortho[p] = img_ortho[p][:,0:self.ui.sliceviewerframe.dim[1],0:self.ui.sliceviewerframe.dim[2]]
+
             # in 3d take the AND composite segmentation
             if do3d:
                 img_comp = img_ortho['ax']
@@ -1496,6 +1505,10 @@ class CreateSAMROIFrame(CreateFrame):
             rref.data[layer],_ = self.ui.data[self.ui.s].loadnifti(fname,
                                                             os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
                                                             type='uint8')
+            
+            # if padded for hugging face, re-crop here
+            rref.data[layer] = rref.data[layer][:,0:self.ui.sliceviewerframe.dim[1],0:self.ui.sliceviewerframe.dim[2]]
+
         # create a combined seg mask from the three layers
         # using nnunet convention for labels
         rref.data['seg'] = 2*rref.data['TC'] + 1*rref.data['WT']

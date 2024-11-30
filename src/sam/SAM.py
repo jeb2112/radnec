@@ -261,14 +261,12 @@ class SAM():
             images = sorted([ f for f in img_files if re.match('img.*slice_[0-9]{3}',f) ])
             image_pil = PIL.Image.open(os.path.join(spath,'images',images[0]))
             # previously, the affines were encoded in the .png header when using the standalone
-            # sam_hf.py script. now that SAM inference is implemented in the viewer in  SAM.py.main(), don't need this
-            # arrangment anymore. 
+            # sam_hf.py script. now that SAM inference is implemented in the viewer, probably don't need this
+            # arrangement anymore. 
             slicedim = int(image_pil.info['slicedim'])
             affine_enc = image_pil.info['affine'].encode()
             affine_dec = affine_enc.decode('unicode-escape').encode('ISO-8859-1')[2:-1]
             affine = np.reshape(np.frombuffer(affine_dec, dtype=np.float64),(4,4))
-            # but do need the image dimension. or could pass it directly.
-            img_size = image_pil.size
 
             eval_datadir = {'test':spath}
             samp = SAMProcessing(eval_datadir,model_dict=model_state_dict,
