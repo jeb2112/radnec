@@ -22,29 +22,18 @@ class SAMDataset(Dataset):
         datadir,   
         processor,   
         prompt_type = PromptType.BOUNDING_BOX,  
-        num_positive = 3,  
-        num_negative = 0,  
-        erode = True,  
-        multi_mask = "mean",  
         perturbation = 0,
         padding = 3,  
         image_size = (1024, 1024),  
         mask_size = (256, 256),  
     ):  
         # Asign all values to self  
-        # self.dataset = dataset
         self.datadir = datadir
         self.dataset = os.listdir(os.path.join(self.datadir,'images'))
         self.processor = processor
         self.prompt_type = prompt_type
         self.image_size = image_size
         self.mask_size = mask_size
-
-        # These should only be used for CONTROL_POINTS prompts.
-        self.num_positive = num_positive
-        self.num_negative = num_negative
-        self.erode = erode
-        self.multi_mask = multi_mask
 
         # This is only to be used for BOUNDING_BOX prompts.
         self.perturbation = perturbation
@@ -55,16 +44,21 @@ class SAMDataset(Dataset):
 
     def __getitem__(self, idx):  
 
-        if False: # former syntax
-            ifile = glob.glob(os.path.join(self.datadir,'images','img_' + str(idx).zfill(5) + '_case_???_slice_???.png'))[0]
-        else: # new syntax
-            try:
-                ifile = glob.glob(os.path.join(self.datadir,'images','img_' + str(idx).zfill(5) + '_case_*_slice_???.png'))[0]
-            except IndexError as e:
-                print(e,idx)
-                raise IndexError
+ 
+        # hard-coded file syntax
+        try:
+            ifile = glob.glob(os.path.join(self.datadir,'images','img_' + str(idx).zfill(5) + '_case_*_slice_???.png'))[0]
+        except IndexError as e:
+            print(e,idx)
+            raise IndexError
         input_image = imread(ifile)
-        input_image1 = skimage.transform.resize(input_image,self.image_size)
+
+        # should be done by huggingface processor
+        if False:
+            input_image1 = skimage.transform.resize(input_image,self.image_size)
+        else:
+            input_image1 = input_image
+
         # huggingface transformers SamImageProcessor claims to support channel dim
         # first or last and infer from shape of data, but last didn't work and 
         # first did. 
@@ -74,6 +68,7 @@ class SAMDataset(Dataset):
             input_image1 = np.tile(input_image1[:,:,0],(3,1,1))
         elif len(np.shape(input_image1)) == 2:
             input_image1 = np.tile(input_image1,(3,1,1))
+            
         # subdir 'prompts' is hard-coded here
         # currently bounding box prompts are being stored as mask images, but this should be changed to be json or other text.
         if self.prompt_type == PromptType.BOUNDING_BOX:
@@ -92,37 +87,51 @@ class SAMDataset(Dataset):
             with open(ifile,'r') as fp:
                 ground_truth_pts = json.load(fp)
             inputs = self._getitem_ctrlpts(input_image1, ground_truth_pts=ground_truth_pts)  
-            # dummy mask
-            inputs['ground_truth_mask'] = np.ones(self.mask_size,dtype=np.uint8)
 
         # debug plotting
         if False:
+
             # note matplotlib 3.9.0 vs code 1.92.2 plts stopped showing in debug console,
             # until using plt.show(block=True), which is the default corresponding to
             # plt.show(), but neither plt.show() nor plt.show(block=False work
-            check_image = np.copy(inputs['pixel_values'])[0]
-            bbox = np.array(inputs['input_boxes'][0]).astype('int')
-            check_mask = np.copy(ground_truth_mask).astype('uint8')
+            if self.prompt_type == PromptType.BOUNDING_BOX:
+                check_image = np.copy(inputs['pixel_values'])[0]
+                bbox = np.array(inputs['input_boxes'][0]).astype('int')
+                check_mask = np.copy(ground_truth_mask).astype('uint8')
 
-            if False: # additionally save to file. 
-                # 32 bit tiffs
-                if False:
-                    vmax = np.max(check_image)
-                    rr,cc = skimage.draw.rectangle_perimeter(bbox[1::-1],end=bbox[:1:-1],shape=check_image.shape)
-                    check_image[rr,cc] = vmax
-                    check_mask = resize(check_mask,np.shape(check_image),order=0).astype('float32') * vmax
-                    check_comb = np.concatenate((check_image,check_mask),axis=1)
-                    ofile = os.path.join(self.datadir,'datacheck','comb_' + str(idx).zfill(4) + '.tiff')
-                    cv2.imwrite(ofile,check_comb)
-                else:
+                if True: # additionally save to file. 
+                    # 32 bit tiffs
+                    if False:
+                        vmax = np.max(check_image)
+                        rr,cc = skimage.draw.rectangle_perimeter(bbox[1::-1],end=bbox[:1:-1],shape=check_image.shape)
+                        check_image[rr,cc] = vmax
+                        check_mask = resize(check_mask,np.shape(check_image),order=0).astype('float32') * vmax
+                        check_comb = np.concatenate((check_image,check_mask),axis=1)
+                        ofile = os.path.join(self.datadir,'datacheck','comb_' + str(idx).zfill(4) + '.tiff')
+                        cv2.imwrite(ofile,check_comb)
+                    else:
+                    # 8 bit pngs
+                        check_image2 = (skimage.transform.resize(input_image,np.shape(check_image))*255).astype('uint8')
+                        check_mask = resize(check_mask,np.shape(check_image2),order=0).astype('uint8') * 255
+                        rr,cc = skimage.draw.rectangle_perimeter(bbox[1::-1],end=bbox[:1:-1],shape=check_mask.shape)
+                        check_image2[rr,cc] = 255
+                        check_comb = np.concatenate((check_image2,check_mask),axis=1).astype('uint8')
+                        ofile = os.path.join(self.datadir,'datacheck','comb_' + str(idx).zfill(4) + '.png')
+                        imsave(ofile,check_comb)
+
+            elif self.prompt_type == PromptType.CONTROL_POINTS:
+                check_image = np.copy(inputs['pixel_values'])[0]
+                pts = np.array(inputs['input_points'][0]).astype('int')
+
                 # 8 bit pngs
-                    check_image2 = (skimage.transform.resize(input_image,np.shape(check_image))*255).astype('uint8')
-                    check_mask = resize(check_mask,np.shape(check_image2),order=0).astype('uint8') * 255
-                    rr,cc = skimage.draw.rectangle_perimeter(bbox[1::-1],end=bbox[:1:-1],shape=check_mask.shape)
-                    check_image2[rr,cc] = 255
-                    check_comb = np.concatenate((check_image2,check_mask),axis=1).astype('uint8')
-                    ofile = os.path.join(self.datadir,'datacheck','comb_' + str(idx).zfill(4) + '.png')
-                    imsave(ofile,check_comb)
+                check_image2 = (skimage.transform.resize(input_image,np.shape(check_image))*255).astype('uint8')
+                for p in pts:
+                    check_image2[p[1]-4:p[1]+4,p[0]-4:p[0]+4] = np.array([255,0,0,255],dtype='uint8')
+                ofile = os.path.join(self.datadir,'datacheck','comb_' + str(idx).zfill(4) + '.png')
+                plt.figure(8)
+                plt.imshow(check_image2)
+                plt.show(block=False)
+                # imsave(ofile,check_image2)
 
         return inputs
     
@@ -144,16 +153,19 @@ class SAMDataset(Dataset):
 
         return  input_points,input_labels  
 
-    def _getitem_ctrlpts(self, input_image, ground_truth_mask=None, ground_truth_pts=None):  
+    def _getitem_ctrlpts(self, input_image, ground_truth_pts=None):  
         # Get control points prompt. See the GitHub for the source  
         # of this function, or replace with your own point selection algorithm.  
         input_points, input_labels = self.generate_input_points(  
-            mask=ground_truth_mask,pts=ground_truth_pts
+            pts=ground_truth_pts
         )  
         # Samprocessor requires lists not np arrays
-        input_points = input_points.astype(float).tolist()  
+        input_points = [input_points.astype(float).tolist()]  
         input_labels = input_labels.tolist()  
-        input_labels = [[x] for x in input_labels]
+        if False:
+            input_labels = [[x] for x in input_labels] # teodoran code
+        else:
+            input_labels = [input_labels] # chatgpt code
 
         # Prepare the image and prompt for the model.  
         inputs = self.processor(  
@@ -163,17 +175,10 @@ class SAMDataset(Dataset):
             return_tensors="pt"  
         )
 
-        # Remove batch dimension which the processor adds by default.  
-        inputs = {k: v for k, v in inputs.items()}
-        # in 1st attempt with huggingface, had to leave the input_points out of this squeeze because of a tensor error
-        # now the opposite it true, need to squeeze the batch dimension to avoid tensor error
-        for k in inputs.keys():  
+        # pre-Remove batch dimension because it gets added back later.  
+        # inputs = {k: v for k, v in inputs.items()}
+        for k in inputs.keys(): 
             inputs[k] = inputs[k].squeeze(0)
-
-        # in the 1st attempt with huggingface, didn't use this additional squeeze because of a tensor error
-        # now the opposite is true, need to squeeze dim(1) to avoid tensor error
-        if True:
-            inputs["input_labels"] = inputs["input_labels"].squeeze(1)
 
         return inputs
 

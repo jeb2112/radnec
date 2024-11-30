@@ -152,10 +152,10 @@ class BlastGui(object):
                 self.caseframe.datadir.set(debugdir)
                 self.caseframe.datadirentry_callback()
                 caseselect = 'M00002'
-                # caseslice = 75
+                caseslice = 117
                 self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
-                # self.sliceviewerframe.currentslice.set(caseslice)
+                self.sliceviewerframe.currentslice.set(caseslice)
                 self.caseframe.s.current(0)
                 self.caseframe.study_callback()
                 self.set_studynumber()

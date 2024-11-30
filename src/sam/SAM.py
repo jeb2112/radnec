@@ -79,7 +79,10 @@ class SAM():
 
         batch = {k: v.to(self.device) for k, v in batch.items()}
         with torch.no_grad():
-            outputs = self.forward_pass(model, batch, prompt_args["prompt_type"])
+            if True:
+                outputs = self.forward_pass(model, batch, prompt_args['prompt_type'])
+            else:
+                outputs = model(**batch, multimask_output=False)
 
         # Squeeze the 0th dim since validation dataloader always has batch size 1, and
         # attempt to squeeze the 1st dim since bbox predictions only have 1 output mask.
@@ -89,15 +92,21 @@ class SAM():
         elif prompt_args['prompt_type'] == 'pts':
             # point predicts have several output masks so only squeeze 0 dim
             raw_predicted_masks = outputs.pred_masks.squeeze((0)).cpu()
-            # don't squeeze ground truth mask to match extra dim in raw_predicted_masks
-            ground_truth_mask = batch['ground_truth_mask'].float().cpu()
 
-        predicted_mask = torch.sigmoid(self.upsample_mask(raw_predicted_masks, ground_truth_mask.shape)).squeeze()
+        if True:
+            predicted_mask = torch.sigmoid(self.upsample_mask(raw_predicted_masks, (1,)+self.ui.sliceviewerframe.dim[1:])).squeeze()
+        else:
+            predicted_mask = torch.sigmoid(raw_predicted_masks).squeeze()
         raw_mask = predicted_mask.cpu().numpy()
         mask = (raw_mask > confidence_threshold).astype(np.uint8) * 255
         # metrics = calc_datapoint_metrics(ground_truth_mask.numpy().astype(np.uint8), mask)
         metrics = None
-        
+
+        # pick best mask if multiple
+        if len(np.shape(mask)) > 2:
+            confidence_idx = torch.argmax(outputs['iou_scores']).cpu()  # Index of the most confident mask
+            mask = mask[confidence_idx]
+
         mask_comb = None
         if False:
             bbox = batch['input_boxes'][0][0].cpu().numpy().astype('int')
@@ -187,14 +196,11 @@ class SAM():
     #############
 
     def main(self,checkpoint=None,input=None,tag=None,layer=None,orient=None,prompt='bbox',
-             pretrained=None,output=None,debug=False):
+             pretrained=None,output=None,debug=False,roi=None):
 
         prompt_args = {'point':{    # Control points version:
             "prompt_type": PromptType.CONTROL_POINTS,
-            "num_positive": 1, # hard-coded for single point now
-            "num_negative": 0, # no background points
-            "erode": True,
-            "multi_mask": "mean",
+            "multi_mask": None,
             },
             'bbox':{ # Bounding boxes version:
             "prompt_type": PromptType.BOUNDING_BOX,
@@ -215,8 +221,11 @@ class SAM():
                 model = SamModel.from_pretrained(f"facebook/sam-vit-base")
         if checkpoint is not None:
             checkpoint_data = torch.load(checkpoint)
+            model_state_dict = checkpoint_data["model_state_dict"]
             if True: # also done in huggingface but again duplication
-                model.load_state_dict(checkpoint_data["model_state_dict"])
+                model.load_state_dict(model_state_dict)
+        else:
+            model_state_dict = None
         if True:
             model.to(self.device) # this is performed in huggingface again duplication
 
@@ -236,10 +245,7 @@ class SAM():
                 outputdir = os.path.join(input,s,'sam','predictions_nifti')
             else:
                 outputdir = output
-            # if args.orient == 'ax':
-            #     if os.path.exists(outputdir):
-            #         shutil.rmtree(outputdir)
-            #     os.mkdir(outputdir)
+
             if not os.path.exists(outputdir):
                 os.mkdir(outputdir)
 
@@ -250,8 +256,25 @@ class SAM():
             if len(files) == 0:
                 raise FileNotFoundError
             
+            # load 1st image to get some of the image params
+            img_files = os.listdir(os.path.join(spath,'images'))
+            images = sorted([ f for f in img_files if re.match('img.*slice_[0-9]{3}',f) ])
+            image_pil = PIL.Image.open(os.path.join(spath,'images',images[0]))
+            # previously, the affines were encoded in the .png header when using the standalone
+            # sam_hf.py script. now that SAM inference is implemented in the viewer in  SAM.py.main(), don't need this
+            # arrangment anymore. 
+            slicedim = int(image_pil.info['slicedim'])
+            affine_enc = image_pil.info['affine'].encode()
+            affine_dec = affine_enc.decode('unicode-escape').encode('ISO-8859-1')[2:-1]
+            affine = np.reshape(np.frombuffer(affine_dec, dtype=np.float64),(4,4))
+            # but do need the image dimension. or could pass it directly.
+            img_size = image_pil.size
+
             eval_datadir = {'test':spath}
-            samp = SAMProcessing(eval_datadir,model_dict=checkpoint_data['model_state_dict'],model_size='base',prompt_type=prompt_args[prompt]['prompt_type'])
+            samp = SAMProcessing(eval_datadir,model_dict=model_state_dict,
+                                 model_size='base',
+                                 prompt_type=prompt_args[prompt]['prompt_type'])
+                                #  image_size=img_size)
 
             if debug == False:
                 res = self.predict_metrics(model,samp.dataloaders['test'],prompt_args[prompt],datadir=spath)
@@ -261,15 +284,7 @@ class SAM():
             # plain index order. map these back to the slice positions according to the filenames
             # of the input image files. it is thus assumed that the DataLoader is processing the image
             # files in a sorted order since it is batchsize=1 and no shuffling (to be verified)
-            img_files = os.listdir(os.path.join(spath,'images'))
-            images = sorted([ f for f in img_files if re.match('img.*slice_[0-9]{3}',f) ])
-            image_pil = PIL.Image.open(os.path.join(spath,'images',images[0]))
-            # for lack of any better way to pass to this standalone script, these values are encoded in the .png header
-            # when exported form the viewer. this script should be a method in the CreateSAMROIFrame.class
-            slicedim = int(image_pil.info['slicedim'])
-            affine_enc = image_pil.info['affine'].encode()
-            affine_dec = affine_enc.decode('unicode-escape').encode('ISO-8859-1')[2:-1]
-            affine = np.reshape(np.frombuffer(affine_dec, dtype=np.float64),(4,4))
+
             if orient == 'ax':
                 sam_predict = np.zeros((slicedim,)+image_pil.size[-1::-1],dtype='uint8')
             elif orient == 'sag':

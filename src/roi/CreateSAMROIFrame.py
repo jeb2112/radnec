@@ -964,19 +964,20 @@ class CreateSAMROIFrame(CreateFrame):
 
 
         elif prompt == 'point':
-            rref = self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data[prompt][orient]
+            ctrl_pts = copy.deepcopy(self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data[prompt][orient])
             idx = 0
-            for slice in rslice: # currently only coded for 2d
-                outputfilename = os.path.join(fileroot,orient,'prompts',
+            for slice in rslice: # dummy loop, this workflow is currently only coded for 1 slice in 2d
+                prompt_filename = os.path.join(fileroot,orient,'prompts',
                         'pts_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.json')
-                with open(outputfilename,'w') as fp:
-                    json.dump(rref,fp)
-                outputfilename = os.path.join(fileroot,orient,'images',
+                img_filename = os.path.join(fileroot,orient,'images',
                         'img_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.png')
+                with open(prompt_filename,'w') as fp:
+                    json.dump(ctrl_pts,fp)
                 meta = PIL.PngImagePlugin.PngInfo()
                 meta.add_text('slicedim',str(slicedim))
                 meta.add_text('affine',affine_bytes_str)
-                plt.imsave(outputfilename,self.get_prompt_slice(slice,dref,orient),cmap='gray',pil_kwargs={'pnginfo':meta})
+                img_slice = self.get_prompt_slice(slice,dref,orient,pad=True)
+                plt.imsave(img_filename,img_slice,cmap='gray',pil_kwargs={'pnginfo':meta})
 
                 idx += 1
 
@@ -984,13 +985,26 @@ class CreateSAMROIFrame(CreateFrame):
         return
 
     # convenience method, could use rotations instead
-    def get_prompt_slice(self,idx,img_arr,orient):
+    def get_prompt_slice(self,idx,img_arr,orient,pad=False):
         if orient == 'ax':
-            return img_arr[idx]
+            img = img_arr[idx]
         elif orient == 'sag':
-            return img_arr[:,:,idx]
+            img = img_arr[:,:,idx]
         elif orient == 'cor':
-            return img_arr[:,idx,:]
+            img = img_arr[:,idx,:]
+
+        # huggingface processor for rect fov preserves the aspect but padding is asymmetric. in order to get the prediction mask
+        # back into the original rect matrix, the padding has to be accounted for. will try to do it here rather than in huggingface.
+        if pad:
+            dims = np.shape(img)
+            pad_amount = np.abs(np.diff(dims))[0]
+            longdim = np.argmax(dims)
+            if longdim == 0:
+                img = np.pad(img,((0,0),(0,pad_amount)))
+            else:
+                img = np.pad(img,((0,pad_amount),(0,0)))
+
+        return img
 
     # for exporting BLAST/SAM segmentations.
     # tag - unique string for output filenames
@@ -1314,31 +1328,23 @@ class CreateSAMROIFrame(CreateFrame):
 
             else: # local
                 for p in orient:
-                    if False: # standalone script
-                        command = 'python scripts/main_sam_hf.py  '
-                        command += ' --checkpoint /media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
-                        command += ' --input ' + self.ui.caseframe.casedir
-                        command += ' --prompt ' + prompt
-                        command += ' --layer ' + layer
-                        command += ' --tag ' + tag
-                        command += ' --orient ' + p
-                        res = os.system(command)
-                    else: # run in viewer 
-                        with Profile() as profile:
-                            mfile = '/media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
-                            self.ui.sam.main(checkpoint=mfile,
-                                            input = self.ui.caseframe.casedir,
-                                            prompt = prompt,
-                                            layer = layer,
-                                            tag = tag,
-                                            orient = p)
-                            print('Profile: segment_sam, local')
-                            (
-                                Stats(profile)
-                                .strip_dirs()
-                                .sort_stats(SortKey.TIME)
-                                .print_stats(25)
-                            )
+                    with Profile() as profile:
+                        # mfile = '/media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
+                        mfile = None
+                        self.ui.sam.main(checkpoint=mfile,
+                                        input = self.ui.caseframe.casedir,
+                                        prompt = prompt,
+                                        layer = layer,
+                                        tag = tag,
+                                        orient = p,
+                                        roi = self.ui.rois['sam'][self.ui.s][self.ui.currentroi])
+                        print('Profile: segment_sam, local')
+                        (
+                            Stats(profile)
+                            .strip_dirs()
+                            .sort_stats(SortKey.TIME)
+                            .print_stats(25)
+                        )
 
         elif os.name == 'nt': # not implemented yet
 

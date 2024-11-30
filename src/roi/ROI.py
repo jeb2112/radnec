@@ -141,10 +141,13 @@ class ROISAM(ROI):
     # create a set of point prompts directly from a list of control points
     def create_prompts_from_points(self,pts,prompt='point',slice=None,orient='ax'):
         self.data['point'][orient]['x'] = [int(np.round(p['p0'][0])) for p in pts]
-        self.data['point'][orient]['y'] = [int(np.round(p['p0'][1])) for p in pts]
+        # huggingface convention y increases from top to bottom, same as plotted in FigureCanvasTkAgg 
+        if False:
+            self.data['point'][orient]['y'] = [self.dim[1] - int(np.round(p['p0'][1])) for p in pts]
+        else:
+            self.data['point'][orient]['y'] = [int(np.round(p['p0'][1])) for p in pts]
         self.data['point'][orient]['fg'] = [int(p['fg']) for p in pts]
-
-
+        return
 
     # set a bbox for a given slice    
     def set_bbox(self,bbox):
@@ -185,6 +188,8 @@ class ROISAM(ROI):
         self.data['bbox'][orient][bbox['slice']] = mask
 
     # compute one-slice prompt from control point(s) in a given slice. 
+    # this was for the original arrangement of storing control points in a png.
+    # has been replaced by create_prompts_from_points to store in json
     def create_prompt_from_pts(self, pts=None, orient='ax'):
         if pts is None:
             pts = self.pts

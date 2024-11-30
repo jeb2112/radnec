@@ -42,9 +42,9 @@ class SAMProcessing():
     ):
         model_name = self.get_model_name(self.model_size)
         try:
-            processor = SamProcessor.from_pretrained(model_name,state_dict=self.model_dict,do_rescale=False)
+            processor = SamProcessor.from_pretrained(model_name,state_dict=self.model_dict)
         except OSError as e:
-            processor = SamProcessor.from_pretrained(model_name,state_dict=self.model_dict,do_rescale=False)
+            raise OSError
 
         self.datasets[dkey] = SAMDataset(
             datadir=self.datadirs[dkey], 
@@ -55,10 +55,6 @@ class SAMProcessing():
     def get_dataloader(self,
         dkey,
         prompt_type = PromptType.BOUNDING_BOX,
-        num_positive = 3,
-        num_negative = 0,
-        erode = True,
-        multi_mask = None,
         perturbation = 0,
         padding = 3,
         image_size = (256, 256),
@@ -70,9 +66,6 @@ class SAMProcessing():
         self.get_datasets(
             dkey,
             prompt_type=prompt_type,
-            num_positive=num_positive,
-            num_negative=num_negative,
-            erode=erode,
             perturbation=perturbation,
             padding=padding,
             image_size=image_size,
