@@ -61,9 +61,9 @@ class CreateSAMROIFrame(CreateFrame):
         self.thresholds['T2 hyper']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[1])
         self.overlay_type = tk.IntVar(value=0)
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all'],'sam':['TC','WT']}
-        self.layer = tk.StringVar(value='WT') # WT default, not ET
-        self.layerROI = tk.StringVar(value='WT')
-        self.layerSAM = tk.StringVar(value='WT')
+        self.layer = tk.StringVar(value=self.ui.config.DefaultBlastLayer)
+        self.layerROI = tk.StringVar(value=self.ui.config.DefaultLayer)
+        self.layerSAM = tk.StringVar(value=self.ui.config.DefaultLayer)
         self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=0)
         self.currentpt = tk.IntVar(value=0)
@@ -94,7 +94,7 @@ class CreateSAMROIFrame(CreateFrame):
         layerlabel = ttk.Label(self.frame,text='prompt:')
         layerlabel.grid(row=0,column=0,sticky='w')
         self.layer.trace_add('write',lambda *args: self.layer.get())
-        self.layermenu = ttk.OptionMenu(self.frame,self.layer,self.layerlist['blast'][0],
+        self.layermenu = ttk.OptionMenu(self.frame,self.layer,self.layerlist['blast'][1],
                                         *self.layerlist['blast'],command=self.layer_callback)
         self.layermenu.config(width=7)
         self.layermenu.grid(row=0,column=1,sticky='w')
@@ -1150,6 +1150,8 @@ class CreateSAMROIFrame(CreateFrame):
                 self.resetROI()
                 self.ui.updateslice()
 
+        self.ui.sliceviewerframe.clear_points()
+
     # eliminate all ROIs at once. 
     # note that this does not presently clear threshold settings saved in 
     # blastdata even though it resets the values shown in the slider bars. 
@@ -1162,7 +1164,7 @@ class CreateSAMROIFrame(CreateFrame):
         self.ui.reset_roi()
         self.update_roinumber_options(n=1)
         self.ui.roiframe.layertype.set('blast')
-        self.ui.roiframe.layer.set('ET')
+        self.ui.roiframe.layer.set(self.ui.config.DefaultBlastLayer)
         self.ui.chselection = self.config.DefaultChannel
         # awkward check here due to using resetROI for clearROI
         if self.ui.sliceviewerframe.canvas is not None and data:
@@ -1173,6 +1175,7 @@ class CreateSAMROIFrame(CreateFrame):
                     self.thresholds[l][sl].set(self.ui.config.thresholddefaults[sl])
                     self.updatesliderlabel(l,sl)
         # additionally clear any point selections
+        self.ui.sliceviewerframe.clear_points()
         self.ui.reset_pt()
         # deactivate 3d SAM
         self.ui.sliceviewerframe.run3dSAM.configure(state='disabled')

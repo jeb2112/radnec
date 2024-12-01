@@ -155,6 +155,7 @@ class NavigationBar(NavigationToolbar2Tk):
             self.ui.root.unbind('<Button-1>')
             self.ui.root.unbind('<Button-3>')
             self.ui.sliceviewerframe.clear_bbox()
+            self.ui.sliceviewerframe.clear_points()
             # additionally deactivate SAM button
             self.ui.sliceviewerframe.run2dSAM.configure(state='disabled')
         self._update_buttons_checked()

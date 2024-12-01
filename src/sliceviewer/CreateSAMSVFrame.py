@@ -864,7 +864,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.pt['plot'] = self.axs[self.pt['ax']].plot(self.pt['p0'][0],self.pt['p0'][1],'b+',clip_on=True)[0]
         else:
             self.pt['plot'] = self.axs[self.pt['ax']].plot(self.pt['p0'][0],self.pt['p0'][1],'r+',clip_on=True)[0]
-
+        self.canvas.draw()
         self.ui.set_message(msg='point = {:.1f},{:.1f}'.format(self.pt['p0'][0],self.pt['p0'][1]))
 
 
@@ -875,6 +875,16 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
         self.ui.clear_message()
         self.canvas.draw()
+
+    # remove all existing points
+    def clear_points(self):
+        if self.pt['plot'] is not None:
+            for l in self.axs[self.pt['ax']].lines:
+                l.remove()
+        self.pt = {'ax':None,'p0':None,'plot':None,'ch':None,'slice':None, 'fg':True}
+        self.ui.clear_message()
+        if self.canvas is not None:
+            self.canvas.draw()
 
     # compute mask array from bounding box. 
     # this is a round-about arrangement, since sam.py script

@@ -126,6 +126,8 @@ class Config(object):
 
         # default channel. 
         self.DefaultChannel = 'flair'
+        self.DefaultLayer = 'WT'
+        self.DefaultBlastLayer = 'T2 hyper'
 
         # use aws cloud
         self.AWS = False
