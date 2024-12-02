@@ -110,6 +110,18 @@
             "console": "integratedTerminal",
             "justMyCode": false
         },
+        {
+            "name": "testvtk",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/testvtk.py",
+            "args": [
+                "--folder","/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom/M0001/download20230806120502/M0001/22484870/02384241" 
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
 
 
         
