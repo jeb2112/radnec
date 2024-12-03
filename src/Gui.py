@@ -1,5 +1,5 @@
 import os
-from tkinter import *
+import tkinter as tk
 import tk_async_execute as tae
 import sys
 import logging
@@ -18,7 +18,7 @@ class Gui():
             # said to help reduce ibus-daemon burning cpu and scrambling keyboard in put in conjunction wtih tkinter
             os.environ['XMODIFIERS'] = "@im=none"
 
-            self.root = Tk()
+            self.root = tk.Tk()
             # self.root.rowconfigure(0,minsize=100,weight=1)
             # self.root.columnconfigure(0,minsize=550,weight=1)
             self.root.rowconfigure(0,weight=1)
@@ -29,7 +29,10 @@ class Gui():
                 self.root.iconbitmap(default=iconfile)
             else:
                 iconfile = os.path.join(self.config.UIResourcesPath,'sunnybrook.png')
-                self.root.call('wm','iconphoto',self.root._w,PhotoImage(file=iconfile))
+                if False:
+                    self.root.call('wm','iconphoto',self.root._w,tk.PhotoImage(file=iconfile))
+                else:
+                    self.root.iconphoto(False,tk.PhotoImage(file=iconfile))
             self.UI = BlastGui.BlastGui(self.root, optionsFlag, self.config, debug=debug)
 
             # start a loop for asyncio. might not need this here though.
@@ -50,7 +53,8 @@ class Gui():
             # stacktrace explicitly. formerly on windows10 and linux, most errors were not
             # being handled by this try/except, so the stack trace was printing directly
             # and this handler was rarely used
-            print(e.characters_written)
+            if hasattr(e,'characters_written'):
+                print(e.characters_written)
         else:
             print("Exit")
 

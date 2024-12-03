@@ -35,6 +35,7 @@ from src.NavigationBar import NavigationBar
 
 from src.sliceviewer.CreateSVFrame import *
 from src.SSHSession import SSHSession
+from src.SegmentSam import segment_sam,load_sam
 
 #####################################
 # Slice Viewer for SAM segmentation
@@ -552,7 +553,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             upload_time = 0
 
         st2 = time.time()
-        self.ui.roiframe.segment_sam(orient=None,tag='2d',prompt=prompt,session=s1)
+        segment_sam(orient=None,tag='2d',prompt=prompt,session=s1)
         # download results if remote
         if remote:
             download_time = self.ui.roiframe.get_predictions_remote(session=s1)
@@ -562,7 +563,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.ui.set_message(msg='SAM 2d up = {:.1f}, elapse = {:.1f}, down = {:.1f}'.format(upload_time,elapsed_time,download_time))
         self.ui.root.update_idletasks()
 
-        self.ui.roiframe.load_sam(tag='2d',prompt=prompt,do_ortho=do_ortho,do3d=False)
+        load_sam(tag='2d',prompt=prompt,do_ortho=do_ortho,do3d=False)
         # self.ui.roiframe.ROIstats(save=True,tag='2d_'+prompt,roitype='sam',slice=self.ui.currentslice)
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
@@ -616,7 +617,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             upload_time = 0
 
         st2 = time.time()
-        self.ui.roiframe.segment_sam(orient=None,tag='blast_3d',session=s1)
+        segment_sam(orient=None,tag='blast_3d',session=s1)
         
         if remote:
             download_time = self.ui.roiframe.get_predictions_remote(tag = 'blast_3d',session=s1)
@@ -626,7 +627,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.ui.set_message(msg='SAM 3d up = {:.1f}, elapse = {:.1f}, down = {:.1f}'.format(upload_time,elapsed_time,download_time))
         self.ui.root.update_idletasks()
 
-        self.ui.roiframe.load_sam(tag = 'blast_3d',prompt=prompt,do_ortho=do_ortho)
+        load_sam(tag = 'blast_3d',prompt=prompt,do_ortho=do_ortho)
         # switch to SAM display
         self.ui.roiframe.set_overlay('SAM')
         self.ui.roiframe.layerSAM_callback()
