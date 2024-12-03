@@ -26,7 +26,8 @@ import nibabel as nb
 import PIL
 from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube,reconstruction
 from skimage.measure import find_contours
-from scipy.spatial.distance import dice,directed_hausdorff
+import cc3d
+
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
 if os.name == 'posix':
@@ -35,11 +36,9 @@ if os.name == 'posix':
 elif os.name == 'nt':
     from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
 import cupy as cp
-import cc3d
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
-from src.SegmentSam import segment_sam
 from src.roi.ROI import ROIBLAST,ROISAM,ROIPoint
 from src.roi.CreateROISliderFrame import CreateROISliderFrame
 from src.roi.CreateROIPointFrame import CreateROIPointFrame
@@ -360,17 +359,17 @@ class CreateSAMROIFrame(CreateFrame):
     # records button press coords in a new ROI object
     # create a parallel list of SAM and BLAST roi's. 
     def createROI(self,coords=(0,0,0),bbox={}):
+        self.currentroi.set(self.currentroi.get() + 1)
         blast_layer = self.layer.get()
-        roi = ROIBLAST(coords,dim=self.ui.sliceviewerframe.dim,layer=blast_layer)
+        roi = ROIBLAST(coords,dim=self.ui.sliceviewerframe.dim,layer=blast_layer,number=self.currentroi.get())
         self.ui.rois['blast'][self.ui.s].append(roi)
         if blast_layer in ['ET','TC']:
             sam_layer = 'TC'
         else:
             sam_layer = blast_layer
-        roi2 = ROISAM(dim=self.ui.sliceviewerframe.dim,bbox=bbox,layer=sam_layer)
+        roi2 = ROISAM(dim=self.ui.sliceviewerframe.dim,bbox=bbox,layer=sam_layer,number=self.currentroi.get())
         self.ui.rois['sam'][self.ui.s].append(roi2)
  
-        self.currentroi.set(self.currentroi.get() + 1)
         self.updateROIData()
         self.update_roinumber_options()
 
@@ -657,15 +656,21 @@ class CreateSAMROIFrame(CreateFrame):
                     
             # output stats
             # tag is for a unique key in stats.sjon
+            statsfile = os.path.join(self.ui.data[self.ui.s].studydir,'stats.json')                
             for roinumber in roilist:
+                rref = self.ui.rois[r][self.ui.s][roinumber]
                 # temporary arrangement for experiment.
                 if 'slice' in tag:
                     rtag = '_'.join(tag.split('_')[:2])
                 else:
                     rtag = tag
-                self.ROIstats(save=True,roi=roinumber,roitype=r,tag=rtag)
-                
-        self.ui.set_message('ROI saved')
+
+                for dt in ['ET','TC','WT']:
+                    if self.ui.data[self.ui.s].mask['gt'][dt]['ex']:
+                        mask = self.ui.data[self.ui.s].mask['gt'][dt]['d']
+                    rref.ROIstats(mask=mask,dt=dt)
+                rref.save_ROIstats(statsfile,tag=rtag)
+            self.ui.set_message('ROI saved')
 
 
     # back-copy an existing ROI and overlay from current dataset back into the current roi. 
@@ -794,96 +799,6 @@ class CreateSAMROIFrame(CreateFrame):
             else:
                 v.append(0)
 
-    # various output stats, add more as required. 
-    # an existing stats file is read in if present, and values added for the current roi,
-    # 
-    # roi - optionally provide the roi number to process. 
-    # tag - top-level section key for output .json file. 
-    # roitype - for sam versus blast. dual roi data structure continues to be awkward.
-    # slice - process given slice or whole volume if None
-    # timer - read the SVFrame timer and record
-    def ROIstats(self,roi=None,save=False,tag=None,roitype='blast',slice=None):
-        
-        if roi is None:
-            roi = self.ui.get_currentroi() # ie, there is only 1 roi in SAM viewer for now
-        s = self.ui.s
-        r = self.ui.rois[roitype][s][roi]
-        data = copy.deepcopy(r.data)
-
-        for dt in ['ET','TC','WT']:
-            # check for a complete segmentation
-            if dt not in data.keys():
-                continue
-            # checking for == 0 here but this is a bug, the dataset should 
-            # either be non-zero or None
-            elif data[dt] is None or np.max(data[dt]) == 0:
-                continue
-            if np.max(data[dt]) > 1:
-                data[dt] = data[dt] == np.max(data[dt])
-            if slice is None:
-                dset = data[dt]
-            else:
-                dset = data[dt][slice]
-            r.stats['vol'][dt] = len(np.where(dset)[0])
-
-            # ground truth comparisons
-            if self.ui.data[self.ui.s].mask['gt'][dt]['ex']:
-
-                # pull out the matching lesion using cc3d
-                gt_mask = np.copy(self.ui.data[self.ui.s].mask['gt'][dt]['d'])
-                CC_labeled = cc3d.connected_components(gt_mask,connectivity=6)
-                centroid_point = np.array(list(map(int,np.nanmean(np.where(data[dt]),axis=1)))) 
-                objectnumber = CC_labeled[centroid_point[0],centroid_point[1],centroid_point[2]]
-                gt_lesion = (CC_labeled == objectnumber).astype('uint8')
-                if slice is not None:
-                    gt_lesion = gt_lesion[slice]
-
-                # dice
-                r.stats['dsc'][dt] = 1-dice(gt_lesion.flatten(),dset.flatten()) 
-                # haunsdorff
-                r.stats['hd'][dt] = max(directed_hausdorff(np.array(np.where(gt_lesion)).T,np.array(np.where(dset)).T)[0],
-                                                        directed_hausdorff(np.array(np.where(dset)).T,np.array(np.where(gt_lesion)).T)[0])
-            else:
-                print('No ground truth comparison available')
-            
-        # optional save dict to json
-        if save:
-            studydir = self.ui.data[self.ui.s].studydir
-            statsfile = os.path.join(studydir,'stats.json')
-            if os.path.exists(statsfile):
-                fp = open(statsfile,'r+')
-                sdict = json.load(fp)
-                if tag not in sdict.keys():
-                    sdict[tag] = {}
-                fp.seek(0)
-            else:
-                fp = open(statsfile,'w')
-                sdict = {tag:{}}
-
-            r2 = self.ui.rois[roitype][self.ui.s][roi]
-            sdict[tag]['roi'+str(roi)] = {'stats':None,'bbox':None}
-            sdict[tag]['roi'+str(roi)]['stats'] = r2.stats
-            if hasattr(r2,'bboxs'):
-                bboxs = {}
-                if bool(r2.bboxs):
-                    kset = []
-                    if slice is None:
-                        kset = r2.bboxs.keys()
-                    else:
-                        if slice in r2.bboxs.keys():
-                            kset = [slice]
-                    if len(kset):
-                        for k in kset:
-                            try:
-                                bboxs[k] = {k2:r2.bboxs[k][k2] for k2 in ['p0','p1','slice']}
-                            except KeyError:
-                                pass
-                sdict[tag]['roi'+str(roi)]['bbox'] = bboxs
-
-            json.dump(sdict,fp,indent=4)
-            fp.truncate()
-            fp.close()
-
     def clear_stats(self):
         studydir = self.ui.data[self.ui.s].studydir
         statsfile = os.path.join(studydir,'stats.json')
@@ -895,5 +810,3 @@ class CreateSAMROIFrame(CreateFrame):
         if len(slicefiles):
             for f in slicefiles:
                 os.remove(f)
-
-

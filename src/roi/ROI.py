@@ -1,15 +1,20 @@
 import numpy as np
 from matplotlib.path import Path
 import copy
+import os
+import json
+from scipy.spatial.distance import dice,directed_hausdorff
+import cc3d
 
 # collecting various ROI stats and data
 # for BLAST/SAM segmentations
 class ROI():
-    def __init__(self,dim):
+    def __init__(self,dim,number=None):
 
         self.casename = None
         self.status = False
         self.dim = dim
+        self.number = number
 
         # output stats
         self.stats = {'spec':{'ET':0,'TC':0,'WT':0},
@@ -19,19 +24,103 @@ class ROI():
             'hd':{'ET':0,'TC':0,'WT':0},
             'elapsedtime':0}
         
-class ROIBLAST(ROI):
-    def __init__(self,coords,dim,layer='ET'):
-        super().__init__(dim)
-
-        # segmentation/contour masks
+        # segmentation masks
         # seg_fusion - an overlay image
         # seg_fusion_d - a copy of overaly image for display purposes
         # seg - a composite mask of the ROI segmentation combining ET,TC,WT
-        self.data = {'WT':None,'ET':None,'TC':None,'contour':{'WT':None,'ET':None},
-                     'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
-                     'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
-                     'seg':None
-                     }
+        self.data = {'WT':None,'ET':None,'TC':None,
+                'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
+                'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
+                'seg':None
+                }
+        
+    # various output stats, add more as required. 
+    # an existing stats file is read in if present, and values added for the current roi,
+    # 
+    # slice - process given slice or whole volume if None
+    # mask - optional mask for ground truth stats
+    # dt - tumor layer to process
+    def ROIstats(self,roitype='blast',slice=None,mask=None,dt='ET'):
+        
+        if roi is None:
+            roi = self.ui.get_currentroi() # ie, there is only 1 roi in SAM viewer for now
+
+        # checking for == 0 here but this is a bug, the dataset should 
+        # either be non-zero or None
+        if self.data[dt] is None or np.max(self.data[dt]) == 0:
+            return
+        
+        if np.max(self.data[dt]) > 1:
+            self.data[dt] = self.data[dt] == np.max(self.data[dt])
+        if slice is None:
+            dset = self.data[dt]
+        else:
+            dset = self.data[dt][slice]
+        self.stats['vol'][dt] = len(np.where(dset)[0])
+
+        # ground truth comparisons
+        if mask is not None:
+
+            # pull out the matching lesion using cc3d
+            CC_labeled = cc3d.connected_components(mask,connectivity=6)
+            centroid_point = np.array(list(map(int,np.nanmean(np.where(self.data[dt]),axis=1)))) 
+            objectnumber = CC_labeled[centroid_point[0],centroid_point[1],centroid_point[2]]
+            gt_lesion = (CC_labeled == objectnumber).astype('uint8')
+            if slice is not None:
+                gt_lesion = gt_lesion[slice]
+
+            # dice
+            self.stats['dsc'][dt] = 1-dice(gt_lesion.flatten(),dset.flatten()) 
+            # haunsdorff
+            self.stats['hd'][dt] = max(directed_hausdorff(np.array(np.where(gt_lesion)).T,np.array(np.where(dset)).T)[0],
+                                                    directed_hausdorff(np.array(np.where(dset)).T,np.array(np.where(gt_lesion)).T)[0])
+        else:
+            print('No ground truth comparison available')
+            
+    # tag - top-level section key for output .json file. 
+    def save_ROIstats(self,r,filename,tag=None):
+
+        if os.path.exists(filename):
+            fp = open(filename,'r+')
+            sdict = json.load(fp)
+            if tag not in sdict.keys():
+                sdict[tag] = {}
+            fp.seek(0)
+        else:
+            fp = open(filename,'w')
+            sdict = {tag:{}}
+
+        sdict[tag]['roi'+str(r.number)] = {'stats':None,'bbox':None}
+        sdict[tag]['roi'+str(r.number)]['stats'] = r.stats
+        if hasattr(r,'bboxs'):
+            bboxs = {}
+            if bool(r.bboxs):
+                kset = []
+                if slice is None:
+                    kset = r.bboxs.keys()
+                else:
+                    if slice in r.bboxs.keys():
+                        kset = [slice]
+                if len(kset):
+                    for k in kset:
+                        try:
+                            bboxs[k] = {k2:r.bboxs[k][k2] for k2 in ['p0','p1','slice']}
+                        except KeyError:
+                            pass
+            sdict[tag]['roi'+str(r.number)]['bbox'] = bboxs
+
+        json.dump(sdict,fp,indent=4)
+        fp.truncate()
+        fp.close()
+
+
+########################
+# raw BLAST segmentation
+########################
+
+class ROIBLAST(ROI):
+    def __init__(self,coords,dim,layer='ET'):
+        super().__init__(dim)
         
         # BLAST ROI selection coordinates from mouse click
         self.coords = {'ET':{},'necrosis':{},'T2 hyper':{}}
@@ -41,6 +130,11 @@ class ROIBLAST(ROI):
 
         # threshold gates saved as intermediate values
         self.gate = {'brain':None,'ET':None,'T2 hyper':None}
+
+
+##################
+# SAM segmentation
+##################
 
 class ROISAM(ROI):
     def __init__(self,dim,bbox={},layer='TC'):
@@ -104,9 +198,6 @@ class ROISAM(ROI):
                     elif prompt == 'point':
                         self.data['bbox'][orient][:,r,:],_ = self.get_point_mask(mask[:,r,:])  
 
-
-
-        
     def get_point_mask(self,mask):
         cy,cx = map(int,np.round(np.mean(np.where(mask),axis=1)))
         mask = np.zeros_like(mask)
@@ -157,7 +248,6 @@ class ROISAM(ROI):
             mask = bbox_path.contains_points(np.array(np.where(mask==0)).T)
             mask = np.reshape(mask,(self.dim[1],self.dim[2]))     
         self.data['bbox'][orient][bbox['slice']] = mask
-
 
 
 # for linear measurements in 4panel viewer
