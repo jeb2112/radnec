@@ -11,6 +11,7 @@ from matplotlib.patches import Ellipse
 
 from src.CreateFrame import CreateFrame,Command
 from src.roi.ROI import ROIBLAST,ROISAM,ROIPoint
+from src.OverlayPlots import *
 
 ##############################################################
 # frame layout for setting BLAST parameters by point selection
@@ -23,25 +24,22 @@ class CreateROIPointFrame(CreateFrame):
         self.currentpt = tk.IntVar(value=0)
         self.pointradius = tk.IntVar(value=5)
 
-        self.pointframe = ttk.Frame(self.frame,padding='0')
-        self.pointframe.grid(row=3,column=2,columnspan=2,sticky='ew')
-
         self.currentpt.trace_add('write',self.updatepointlabel)
 
         self.SUNKABLE_BUTTON = 'SunkableButton.TButton'
-        self.selectPointbutton= ttk.Button(self.pointframe,text='add Point',command=self.selectPoint,style=self.SUNKABLE_BUTTON)
+        self.selectPointbutton= ttk.Button(self.frame,text='add Point',command=self.selectPoint,style=self.SUNKABLE_BUTTON)
         self.selectPointbutton.grid(row=0,column=1,sticky='snew')
         self.selectPointstate = False
-        removePoint= ttk.Button(self.pointframe,text='remove Point',command=self.removePoint)
+        removePoint= ttk.Button(self.frame,text='remove Point',command=self.removePoint)
         removePoint.grid(row=1,column=1,sticky='ew')
-        self.pointLabel = ttk.Label(self.pointframe,text=self.currentpt.get(),padding=10)
+        self.pointLabel = ttk.Label(self.frame,text=self.currentpt.get(),padding=10)
         self.pointLabel.grid(row=1,column=0,sticky='e')
         self.pointradiuslist = [str(i) for i in range(1,6)]
-        self.pointradiusmenu = ttk.OptionMenu(self.pointframe,self.pointradius,self.pointradiuslist[-1],
+        self.pointradiusmenu = ttk.OptionMenu(self.frame,self.pointradius,self.pointradiuslist[-1],
                                         *self.pointradiuslist,command=self.pointradius_callback)
         self.pointradiusmenu.config(width=2)
         self.pointradiusmenu.grid(row=2,column=1,sticky='ne')
-        pointradius_label = ttk.Label(self.pointframe,text='radius:')
+        pointradius_label = ttk.Label(self.frame,text='radius:')
         pointradius_label.grid(row=2,column=1,sticky='nw')
 
 
@@ -53,8 +51,8 @@ class CreateROIPointFrame(CreateFrame):
     def selectPoint(self,event=None):
         if not self.selectPointstate:
             if len(self.ui.pt[self.ui.s]) == 0:
-                self.set_overlay() # deactivate any overlay
-                self.enhancingROI_overlay_callback()
+                self.ui.roiframe.roioverlayframe.set_overlay() # deactivate any overlay
+                self.ui.roiframe.roioverlayframe.enhancingROI_overlay_callback()
             self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.selectPointClick)
             self.setCursor('crosshair')
             self.selectPointstart()
@@ -68,7 +66,7 @@ class CreateROIPointFrame(CreateFrame):
 
     def selectPointstart(self):
         self.selectPointbutton.state(['pressed', '!disabled'])
-        self.s.configure(self.SUNKABLE_BUTTON, relief=tk.SUNKEN, foreground='green')
+        self.fstyle.configure(self.SUNKABLE_BUTTON, relief=tk.SUNKEN, foreground='green')
         self.selectPointstate = True
         # point and slider selection not used interchangeably.
         # but also need a better way to reset blastdata
@@ -76,7 +74,7 @@ class CreateROIPointFrame(CreateFrame):
 
     def selectPointstop(self):
         self.selectPointbutton.state(['!pressed', '!disabled'])
-        self.s.configure(self.SUNKABLE_BUTTON, relief=tk.RAISED, foreground='black')
+        self.fstyle.configure(self.SUNKABLE_BUTTON, relief=tk.RAISED, foreground='black')
         self.selectPointstate = False
 
     # processes a cursor selection button press event for generating/updating raw BLAST seg
@@ -119,12 +117,12 @@ class CreateROIPointFrame(CreateFrame):
             # rref = self.ui.roi[self.ui.s][self.ui.currentroi].data['seg_fusion'][self.ui.chselection]
             dref = self.ui.data[self.ui.s].dset['seg_fusion'][self.ui.chselection]
             self.ui.sliceviewerframe.set_ortho_slice(event)
-            self.ROIclick(event=event,do2d=True)
+            self.ui.roiframe.ROIclick(event=event,do2d=True)
             self.create_comp_mask()
             for ch in [self.ui.chselection]:
-                fusion = self.ui.roiframe.generate_comp_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
+                fusion = generate_comp_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
                                                 self.ui.rois['sam'][self.ui.s][self.ui.currentroi].mask,self.ui.currentslice,
-                                                layer=self.ui.roiframe.layer.get(),
+                                                layer=self.ui.roiframe.roioverlayframe.layer.get(),
                                                 overlay_intensity=self.config.OverlayIntensity)
                 # setting data directly instead of via roi.data and updateData()
                 dref['d'] = np.copy(fusion)
@@ -147,7 +145,7 @@ class CreateROIPointFrame(CreateFrame):
 
         if len(self.ui.pt[self.ui.s]) == 0:
             self.set_overlay() # deactivate any overlay
-            self.ui.roiframe.enhancingROI_overlay_callback()
+            self.ui.roiframe.roioverlayframe.enhancingROI_overlay_callback()
             # points and sliders are not used interchangeably.
             self.ui.blastdata[self.ui.s] = copy.deepcopy(self.ui.blastdatadict)
         else:
@@ -165,9 +163,9 @@ class CreateROIPointFrame(CreateFrame):
 
                 self.create_comp_mask()
                 for ch in [self.ui.chselection]:
-                    fusion = self.ui.roiframe.generate_comp_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
+                    fusion = generate_comp_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
                                                     self.ui.rois['sam'][self.ui.s][self.ui.currentroi].mask,self.ui.currentslice,
-                                                    layer=self.ui.roiframe.layer.get(),
+                                                    layer=self.ui.roiframe.roioverlayframe.layer.get(),
                                                     overlay_intensity=self.config.OverlayIntensity)
                     # setting data directly instead of via roi.data and updateData()
                     dref['d'] = np.copy(fusion)
@@ -249,10 +247,10 @@ class CreateROIPointFrame(CreateFrame):
         # functionality similar to updateslider() should reconcile
         # in the original workflow, the raw BLAST mask was being shown
         if False:
-            self.set_overlay('BLAST')
-            self.enhancingROI_overlay_callback()
+            self.ui.roiframe.roioverlayframe.set_overlay('BLAST')
+            self.ui.roiframe.roioverlayframe.enhancingROI_overlay_callback()
         else: # in the new workflow, only the SAM ROI mask is depicted
-            self.SAM_overlay_callback()
+            self.ui.roiframe.roioverlayframe.SAM_overlay_callback()
         self.ui.blastdata[self.ui.s]['blast']['gates']['ET'] = None
         self.ui.blastdata[self.ui.s]['blast']['gates']['T2 hyper'] = None
         self.ui.update_blast(layer='ET')
@@ -279,7 +277,7 @@ class CreateROIPointFrame(CreateFrame):
     def create_comp_mask(self):
         s = self.ui.s
         roi = self.ui.currentroi
-        layer = self.ui.roiframe.layerSAM.get()
+        layer = self.ui.roiframe.roioverlayframe.layerSAM.get()
         rref = self.ui.rois['sam'][s][roi]
         self.ui.rois['sam'][s][roi].mask = 5*self.ui.rois['blast'][s][roi].data[layer] + \
                                                      1*self.ui.rois['sam'][s][roi].data[layer]

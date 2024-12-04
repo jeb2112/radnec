@@ -51,15 +51,7 @@ class CreateSAMROIFrame(CreateFrame):
         super().__init__(frame,ui=ui,padding=padding)
 
         self.buttonpress_id = None # temp var for keeping track of button press event
-        self.overlay_value = {'BLAST':tk.BooleanVar(value=False),'finalROI':tk.BooleanVar(value=False),'SAM':tk.BooleanVar(value=False)}
         roidict = {'ET':{'t12':None,'flair':None,'bc':None},'T2 hyper':{'t12':None,'flair':None,'bc':None}}
-
-        self.overlay_type = tk.IntVar(value=0)
-        self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all'],'sam':['TC','WT']}
-        self.layer = tk.StringVar(value='ET')
-        self.layerROI = tk.StringVar(value='ET')
-        self.layerSAM = tk.StringVar(value='ET')
-        self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=0)
 
         self.roilist = []
@@ -73,9 +65,17 @@ class CreateSAMROIFrame(CreateFrame):
         self.dummy_frame.grid(row=2,column=4,sticky='news')
 
         # actual frame
-        self.frame.grid(row=2,column=4,rowspan=3,sticky='NE')
+        if False:
+            self.frame.configure(style='green.TFrame')
+        self.frame.grid(row=2,column=4,rowspan=5,sticky='NE')
 
-        self.roioverlayframe = CreateROIOverlayFrame(self.frame)
+        # layer overlays. or could be own frame and not an attribute of this class.
+        self.roioverlayframe = CreateROIOverlayFrame(self.frame,ui=self.ui)
+        self.roioverlayframe.frame.grid(row=0,column=0,rowspan=2,columnspan=4,sticky='w')
+
+        # blast point selection
+        self.blastpointframe = CreateROIPointFrame(self.frame,ui=self.ui)
+        self.blastpointframe.frame.grid(row=2,column=0,rowspan=3,columnspan=2,sticky='w')
 
         # for multiple roi's, n'th roi number choice
         roinumberlabel = ttk.Label(self.frame,text='ROI number:')
@@ -98,13 +98,12 @@ class CreateSAMROIFrame(CreateFrame):
         clearROI = ttk.Button(self.frame,text='clear ROI',command = self.clearROI)
         clearROI.grid(row=1,column=7,sticky='w')
         self.frame.update()
-
-        self.pointframe = CreateROIPointFrame(self.frame)
+        a=1
 
         # currently not using sliders in the SAM viewer, just the point selection
+        self.sliderframe = CreateROISliderFrame(self.frame,ui=self.ui)
         if False:
-            self.sliderframe = CreateROISliderFrame()
- 
+            self.sliderframe.frame.grid(row=2,column=4,sticky='e')
 
     #############
     # ROI methods
@@ -113,17 +112,17 @@ class CreateSAMROIFrame(CreateFrame):
 
     # methods for roi number choice menu
     def roinumber_callback(self,item=None):
-        if self.overlay_value['BLAST'].get() == True:
-            self.overlay_value['BLAST'].set(False)
-            self.overlay_value['finalROI'].set(True)
+        if self.roioverlayframe.overlay_value['BLAST'].get() == True:
+            self.roioverlayframe.overlay_value['BLAST'].set(False)
+            self.roioverlayframe.overlay_value['finalROI'].set(True)
             self.finalROI_overlay_callback()
 
         self.ui.set_currentroi()
         # reference or copy
-        if self.overlay_value['BLAST'].get():
-            self.layerROI_callback(updatedata=True)
-        elif self.overlay_value['SAM'].get():
-            self.layerSAM_callback(updatedata=True)
+        if self.roioverlayframe.overlay_value['BLAST'].get():
+            self.roioverlayframe.layerROI_callback(updatedata=True)
+        elif self.roioverlayframe.overlay_value['SAM'].get():
+            self.roioverlayframe.layerSAM_callback(updatedata=True)
         self.ui.updateslice()
         return
     
@@ -140,70 +139,12 @@ class CreateSAMROIFrame(CreateFrame):
             self.roinumbermenu.configure(state='active')
         else:
             self.roinumbermenu.configure(state='disabled')
-            self.overlay_value['finalROI'].set(False)
+            self.roioverlayframe.overlay_value['finalROI'].set(False)
 
     def set_currentroi(self,var,index,mode):
         if mode == 'write':
             self.ui.set_currentroi()    
 
-
-       
-    # callback for final smoothed ROI on/off selection
-    def finalROI_overlay_callback(self,event=None):
-
-        # update roi context
-        self.ui.roi = self.ui.rois['blast']
-        self.update_roinumber_options()
-
-        if self.overlay_value['finalROI'].get() == False:
-            # base display, not data selection
-            self.ui.dataselection = 'raw'
-            if False: # no longer needed?
-                self.ui.data[self.ui.dataselection][self.ui.chselection]['d'] = copy.deepcopy(self.ui.data[self.ui.chselection+'_copy']['d'])
-            self.ui.updateslice()
-        else:
-            self.overlay_value['BLAST'].set(False)
-            self.ui.dataselection = 'seg_fusion'
-            # handle the case of switching manually to ROI mode with only one of ET T2 hyper selected.
-            # eg the INDIGO case there won't be any ET. for now just a temp workaround.
-            # but this might need to become the default behaviour for all cases, and if it's automatic
-            # it won't pass through this callback but will be handled elsewhere.
-            roi = self.ui.get_currentroi()
-            if self.ui.roi[self.ui.s][roi].status is False:
-                if self.ui.roi[self.ui.s][roi].data['WT'] is not None:
-                    self.layerROI_callback(layer='WT')
-                elif self.ui.roi[self.ui.s][roi].data['ET'] is not None:
-                    self.layerROI_callback(layer='ET')
-            self.ui.updateslice(wl=True)
-
-    # callback for raw BLAST segmentation on/off selection
-    def enhancingROI_overlay_callback(self,event=None):
-        # if currently in roi mode, copy relevant data back to blast mode
-        if self.overlay_value['finalROI'].get() == True:
-            self.updateData()
-
-        if self.overlay_value['BLAST'].get() == False:
-            # base display, not data selection
-            self.ui.dataselection = 'raw'
-            if False:
-                self.ui.data['raw'][self.ui.chselection]['d'] = copy.deepcopy(self.ui.data['t1+_copy']['d'])
-            self.ui.updateslice()
-
-        else:
-            self.set_overlay('BLAST')
-            self.ui.dataselection = 'seg_raw_fusion'
-            self.ui.updateslice(wl=True)
-
-    def SAM_overlay_callback(self):
-        if self.overlay_value['SAM'].get() == False:
-            self.ui.dataselection = 'raw'
-            self.ui.updateslice()
-        else:
-            self.set_overlay('SAM')
-            # currently have only one 'seg_fusion' overlay image, so have to regenerate each time
-            # switching between SAM and finalROI
-            self.layerSAM_callback()
-        return
 
     # creates a ROI selection button press event
     def selectROI(self,event=None):
@@ -212,7 +153,7 @@ class CreateSAMROIFrame(CreateFrame):
         # furthermore, clear the points list
         self.ui.reset_pt()
 
-        if self.overlay_value['BLAST'].get(): # only activate cursor in BLAST mode
+        if self.roioverlayframe.overlay_value['BLAST'].get(): # only activate cursor in BLAST mode
             self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.ROIclick)
             self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
             # lock pan and zoom
@@ -234,12 +175,12 @@ class CreateSAMROIFrame(CreateFrame):
             if event.button > 1: # ROI selection on left mouse only
                 return
             # in the new workflow, BLAST roi is not being depicted, so this check no longer applies
-            if self.overlay_value['BLAST'].get() == False: # no selection if BLAST mode not active
+            if self.roioverlayframe.overlay_value['BLAST'].get() == False: # no selection if BLAST mode not active
                 pass
                 # return
             
         # self.ui.sliceviewerframe.canvas.widgetlock.release(self.ui.sliceviewerframe)
-        self.setCursor('watch')
+        self.blastpointframe.setCursor('watch')
         if event:
             # print(event.xdata,event.ydata)
             # need check for inbounds
@@ -287,14 +228,14 @@ class CreateSAMROIFrame(CreateFrame):
             return
 
         # update layer menu
-        self.update_layermenu_options(self.ui.roi[self.ui.s][roi])
+        self.roioverlayframe.update_layermenu_options(self.ui.roi[self.ui.s][roi])
 
         if True:
             # note some duplicate calls to generate_overlay should be removed
             for ch in [self.ui.chselection]:
                 fusionstack = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
                                                 self.ui.roi[self.ui.s][roi].data['seg'],
-                                                layer=self.ui.roiframe.layer.get(),
+                                                layer=self.ui.roiframe.roioverlayframe.layer.get(),
                                                 overlay_intensity=self.config.OverlayIntensity)
                 self.ui.roi[self.ui.s][roi].data['seg_fusion'][ch] = fusionstack
 
@@ -339,7 +280,7 @@ class CreateSAMROIFrame(CreateFrame):
                     )
 
             # automatically switch to SAM display
-            self.set_overlay('SAM')
+            self.roioverlayframe.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
             if False: # calling this from sam2d_callback now
                 self.layerSAM_callback()
@@ -348,10 +289,10 @@ class CreateSAMROIFrame(CreateFrame):
         else:
             # this workflow option shouldn't be triggered in the current implementation of 
             # SAM viewer
-            self.set_overlay('BLAST')
+            self.roioverlayframe.set_overlay('BLAST')
             self.ui.dataselection = 'seg_raw_fusion'
             self.ui.sliceviewerframe.updateslice()
-            self.layer_callback(layer='ET')
+            self.roioverlayframe.layer_callback(layer='ET')
 
 
         return None
@@ -360,7 +301,7 @@ class CreateSAMROIFrame(CreateFrame):
     # create a parallel list of SAM and BLAST roi's. 
     def createROI(self,coords=(0,0,0),bbox={}):
         self.currentroi.set(self.currentroi.get() + 1)
-        blast_layer = self.layer.get()
+        blast_layer = self.roioverlayframe.layer.get()
         roi = ROIBLAST(coords,dim=self.ui.sliceviewerframe.dim,layer=blast_layer,number=self.currentroi.get())
         self.ui.rois['blast'][self.ui.s].append(roi)
         if blast_layer in ['ET','TC']:
@@ -375,7 +316,7 @@ class CreateSAMROIFrame(CreateFrame):
 
     # updates button press coords for current ROI
     def updateROI(self,coords=(0,0,0)):
-        blast_layer = self.layer.get()
+        blast_layer = self.roioverlayframe.layer.get()
         roi = self.ui.rois['blast'][self.ui.s][self.ui.get_currentroi()]
         roi.coords[blast_layer]['x'] = coords[0]
         roi.coords[blast_layer]['y'] = coords[1]
@@ -388,7 +329,7 @@ class CreateSAMROIFrame(CreateFrame):
     def closeROI(self,metmaskstack,currentslice,do3d=True):
 
         # process matching ROI to selected BLAST layer
-        m = self.layer.get()
+        m = self.roioverlayframe.layer.get()
         s = self.ui.s
         roi = self.ui.get_currentroi()
         xpos = self.ui.roi[s][roi].coords[m]['x']
@@ -687,9 +628,9 @@ class CreateSAMROIFrame(CreateFrame):
         s = self.ui.s
         # record slider values
         if layer is None:
-            layer = self.layer.get()
+            layer = self.roioverlayframe.layer.get()
         for sl in ['t12','flair','bc']:
-            self.ui.blastdata[s]['blast']['params'][layer][sl] = self.thresholds[layer][sl].get()
+            self.ui.blastdata[s]['blast']['params'][layer][sl] = self.sliderframe.thresholds[layer][sl].get()
 
         if all(self.ui.blastdata[s]['blast'][x] is not None for x in ['ET','T2 hyper']):
             # self.ui.data['seg_raw'] = self.ui.blastdata['blast']['ET'].astype('int')*2 + (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
@@ -707,7 +648,7 @@ class CreateSAMROIFrame(CreateFrame):
     def updateData(self,updatemask=False):
         s = self.ui.s
         # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
-        layer = self.layer.get()
+        layer = self.roioverlayframe.layer.get()
         for dt in ['seg_fusion']:
             for ch in [self.ui.chselection,'flair']:
                 self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt][ch])
@@ -721,14 +662,14 @@ class CreateSAMROIFrame(CreateFrame):
                 # otherwise, it will be done in separate step from the Overlay sliceviewer. 
                 # would better need a further checkbox on the GUI for this auto option
                 self.ui.data[s].mask[dt]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
-        self.updatesliders()
+        self.sliderframe.updatesliders()
 
     # forward-copy certain results from the SAM ROI to the main dataset
     # duplicates updateData might be able to combine better.
     def updateSAMData(self,updatemask=False):
         s = self.ui.s
         # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
-        layer = self.layer.get()
+        layer = self.roioverlayframe.layer.get()
         for dt in ['seg_fusion']:
             for ch in [self.ui.chselection]:
                 self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.rois['sam'][s][self.ui.currentroi].data[dt][ch])
@@ -765,20 +706,20 @@ class CreateSAMROIFrame(CreateFrame):
     # slider bars. 
     def resetROI(self,data=True):
         self.currentroi.set(0)
-        self.set_overlay('')
+        self.roioverlayframe.set_overlay('')
         self.ui.reset_roi()
         self.update_roinumber_options(n=1)
-        self.ui.roiframe.layertype.set('blast')
-        self.ui.roiframe.layer.set('ET')
+        self.roioverlayframe.layertype.set('blast')
+        self.roioverlayframe.layer.set('ET')
         self.ui.chselection = self.config.DefaultChannel
         # awkward check here due to using resetROI for clearROI
         if self.ui.sliceviewerframe.canvas is not None and data:
-            self.enhancingROI_overlay_callback()
+            self.roioverlayframe.enhancingROI_overlay_callback()
         if self.ui.chselection in ['t1+','flair']:
             for l in ['ET','T2 hyper']:
                 for sl in ['t12','flair','bc']:
-                    self.thresholds[l][sl].set(self.ui.config.thresholddefaults[sl])
-                    self.updatesliderlabel(l,sl)
+                    self.sliderframe.thresholds[l][sl].set(self.ui.config.thresholddefaults[sl])
+                    self.sliderframe.updatesliderlabel(l,sl)
         # additionally clear any point selections
         self.ui.reset_pt()
         # deactivate 3d SAM

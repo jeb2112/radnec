@@ -35,8 +35,6 @@ class CreateROISliderFrame(CreateFrame):
         # layout for the sliders
         ########################
 
-        self.s = ttk.Style()
-        self.s.configure('debugframe.TFrame',background='green')
         # frames for sliders
         self.sliderframe = {}
         # dummy frame to hide slider bars
@@ -112,10 +110,10 @@ class CreateROISliderFrame(CreateFrame):
     ###############################################
 
     def updateslider(self,layer,slider,event=None,doblast=True):
-        self.overlay_value['BLAST'].set(True)
-        if self.overlay_value['finalROI'].get() == True:
-            self.overlay_value['finalROI'].set(False)
-            self.enhancingROI_overlay_callback()
+        self.ui.roiframe.roioverlayframe.overlay_value['BLAST'].set(True)
+        if self.ui.roiframe.roioverlayframe.overlay_value['finalROI'].get() == True:
+            self.ui.roiframe.roioverlayframe.overlay_value['finalROI'].set(False)
+            self.ui.roiframe.roioverlayframe.enhancingROI_overlay_callback()
         # layer = self.layer.get()
         self.updatesliderlabel(layer,slider)
 
@@ -138,13 +136,13 @@ class CreateROISliderFrame(CreateFrame):
 
     # switch to show sliders and values according to current layer being displayed
     def updatesliders(self):
-        if self.overlay_value['SAM'].get() == True:
+        if self.ui.roiframe.roioverlayframe.overlay_value['SAM'].get() == True:
             return
-        if self.overlay_value['BLAST'].get() == True:
-            layer = self.layer.get()
-        elif self.overlay_value['finalROI'].get() == True:
+        if self.ui.roiframe.roioverlayframe.overlay_value['BLAST'].get() == True:
+            layer = self.ui.roiframe.roioverlayframe.layer.get()
+        elif self.ui.roiframe.roioverlayframe.overlay_value['finalROI'].get() == True:
             # ie display slider values that were used for current ROI
-            layer = self.layerROI.get()
+            layer = self.ui.roiframe.roioverlayframe.layerROI.get()
             if layer == 'WT':
                 layer = 'T2 hyper'
             else:

@@ -119,8 +119,8 @@ class ROI():
 ########################
 
 class ROIBLAST(ROI):
-    def __init__(self,coords,dim,layer='ET'):
-        super().__init__(dim)
+    def __init__(self,coords,dim,layer='ET',number=None):
+        super().__init__(dim,number=number)
         
         # BLAST ROI selection coordinates from mouse click
         self.coords = {'ET':{},'necrosis':{},'T2 hyper':{}}
@@ -137,8 +137,8 @@ class ROIBLAST(ROI):
 ##################
 
 class ROISAM(ROI):
-    def __init__(self,dim,bbox={},layer='TC'):
-        super().__init__(dim)
+    def __init__(self,dim,bbox={},layer='TC',number=None):
+        super().__init__(dim,number=number)
         # a SAM drawn bbox coordinates and values, or bbox from BLAST mask
         self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None,'slice':None} 
         # dict of multiple bbox's, with key = slice. 

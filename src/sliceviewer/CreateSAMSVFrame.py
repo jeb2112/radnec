@@ -35,7 +35,7 @@ from src.NavigationBar import NavigationBar
 
 from src.sliceviewer.CreateSVFrame import *
 from src.SSHSession import SSHSession
-from src.SegmentSam import segment_sam,load_sam
+from src.sam.SAM import SAM
 
 #####################################
 # Slice Viewer for SAM segmentation
@@ -115,6 +115,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         normalSlice = ttk.Button(self.normal_frame,text='normal stats',command=self.normalslice_callback)
         normalSlice.grid(row=1,column=2,sticky='w')
         # button to run 2d SAM on current prompt (point or bbox)
+        self.sam = SAM(ui=self.ui)
         self.run2dSAM = ttk.Button(self.normal_frame,text='2D',command=self.sam2d_callback,state='disabled')
         self.run2dSAM.grid(row=1,column=3,sticky='w')
         # button to run 3d SAM on current BLAST ROI (bbox)
@@ -177,7 +178,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         min_height = max(self.ui.caseframe.frame.winfo_height(),self.ui.functionmenu.winfo_height()) + \
             max(self.normal_frame.winfo_height(),self.ui.roiframe.frame.winfo_height()) + \
-            2*int(self.ui.mainframe_padding)
+            4*int(self.ui.mainframe_padding)
         min_width = max(self.ui.roiframe.frame.winfo_width() + self.normal_frame.winfo_width(), \
                         self.ui.caseframe.frame.winfo_width()+self.ui.functionmenu.winfo_width())
         w = max(w,min_width)
@@ -313,8 +314,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # which data array to display. 'd' is general
         d = 'd'
         # special case arrangement for displaying BLAST overlays by layer type. slightly awkward.
-        if self.ui.roiframe.overlay_value['BLAST'].get():
-            d = 'd'+self.ui.roiframe.layer.get()
+        if self.ui.roiframe.roioverlayframe.overlay_value['BLAST'].get():
+            d = 'd'+self.ui.roiframe.roioverlayframe.layer.get()
         self.ax_img.set(data=self.ui.data[s].dset[self.ui.dataselection][self.ui.chselection][d][slice,:,:])
         # by convention, 2nd panel will always be flair, 1st panel could be t1,t1+ or t2
         # for sam currently there will be no flair 2nd panel
@@ -337,11 +338,9 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         if wl:   
             # possible latency problem here
             if self.ui.dataselection == 'seg_raw_fusion':
-                # self.ui.roiframe.layer_callback(updateslice=False,updatedata=False,layer=layer)
-                self.ui.roiframe.layer_callback(layer=layer)
+                self.ui.roiframe.roioverlayframe.layer_callback(layer=layer)
             elif self.ui.dataselection == 'seg_fusion':
-                # self.ui.roiframe.layerROI_callback(updateslice=False,updatedata=False,layer=layer)
-                self.ui.roiframe.layerROI_callback(layer=layer)
+                self.ui.roiframe.roioverlayframe.layerROI_callback(layer=layer)
             elif self.ui.dataselection == 'raw':
                 self.clipwl_raw()
 
@@ -349,7 +348,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # not using this in the latest SAM viewer
         if False:
             if self.ui.currentroi > 0 and event is None:
-                if self.ui.roiframe.overlay_value['SAM'].get() == True or str(self.run2dSAM['state']) == 'active':
+                if self.ui.roiframe.roioverlayframe.overlay_value['SAM'].get() == True or str(self.run2dSAM['state']) == 'active':
                     self.update_bboxs()
                 else:
                     self.clear_bbox()
@@ -496,16 +495,16 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
                 # plt.show(block=False)
 
         # automatically run BLAST
-            self.ui.roiframe.layer_callback(layer=layer,updateslice=False,overlay=False)
+            self.ui.roiframe.roioverlayframe.layer_callback(layer=layer,updateslice=False,overlay=False)
             self.ui.runblast(currentslice=None,layer=layer)
 
             # activate thresholds only after normal slice stats are available
             # removed 'bc' for SAM mode
             for sl in ['t12','flair']:
-                self.ui.roiframe.sliders[layer][sl]['state']='normal'
-                self.ui.roiframe.sliders[layer][sl].bind("<ButtonRelease-1>",Command(self.ui.roiframe.updateslider,layer,sl))
+                self.ui.roiframe.sliderframe.sliders[layer][sl]['state']='normal'
+                self.ui.roiframe.sliderframe.sliders[layer][sl].bind("<ButtonRelease-1>",Command(self.ui.roiframe.sliderframe.updateslider,layer,sl))
         # since we finish the on the T2 hyper layer, have this slider disabled to begin with
-        # self.ui.roiframe.sliders['ET']['t12']['state']='disabled'
+        # self.ui.roiframe.sliderframe.sliders['ET']['t12']['state']='disabled'
 
     # run 2d SAM on available prompt. currently this is either a bbox or a single point
     # this method should probably be in ROIFrame
@@ -541,34 +540,33 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             # else:
             #     self.ui.set_message(msg='SAM 2d '+p)
             self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
-                np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerROI.get()]),prompt=prompt,slice=currentslice,orient=p)
+                np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.roioverlayframe.layerROI.get()]),prompt=prompt,slice=currentslice,orient=p)
             self.ui.roiframe.save_prompts(slice=currentslice,orient=p)
 
         # upload prompts to remote
         if remote:
             st1 = time.time()
-            self.ui.roiframe.put_prompts_remote(session=s1)
+            self.ui.sam.put_prompts_remote(session=s1)
             upload_time = time.time() - st1
         else:
             upload_time = 0
 
         st2 = time.time()
-        segment_sam(orient=None,tag='2d',prompt=prompt,session=s1)
+        self.ui.sam.segment_sam(orient=None,tag='2d',prompt=prompt,session=s1)
         # download results if remote
         if remote:
-            download_time = self.ui.roiframe.get_predictions_remote(session=s1)
+            download_time = self.ui.sam.get_predictions_remote(session=s1)
         else:
             download_time = 0
         elapsed_time = time.time() - st2
         self.ui.set_message(msg='SAM 2d up = {:.1f}, elapse = {:.1f}, down = {:.1f}'.format(upload_time,elapsed_time,download_time))
         self.ui.root.update_idletasks()
 
-        load_sam(tag='2d',prompt=prompt,do_ortho=do_ortho,do3d=False)
-        # self.ui.roiframe.ROIstats(save=True,tag='2d_'+prompt,roitype='sam',slice=self.ui.currentslice)
+        self.ui.sam.load_sam(tag='2d',prompt=prompt,do_ortho=do_ortho,do3d=False)
         # switch to SAM display
-        self.ui.roiframe.set_overlay('SAM')
+        self.ui.roiframe.roioverlayframe.set_overlay('SAM')
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
-        self.ui.roiframe.layerSAM_callback()
+        self.ui.roiframe.roioverlayframe.layerSAM_callback()
 
     # run 3d SAM on all bbox's as available from a BLAST ROI. 
     # this method should probably be in ROIFrame
@@ -586,8 +584,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         else:
             s1 = None
 
-        self.ui.roiframe.selectPoint()
-        self.ui.roiframe.setCursor('watch')
+        self.ui.roiframe.blastpointframe.selectPoint()
+        self.ui.roiframe.blastpointframe.setCursor('watch')
         if do_ortho is None:
             do_ortho = self.ui.config.SAMortho
         if do_ortho:
@@ -605,32 +603,32 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             #     self.ui.set_message(msg='SAM 3d '+p)
             prompt = self.prompt_type.get()
             self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
-                np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerSAM.get()]),prompt=prompt,orient=p)
+                np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.roioverlayframe.layerSAM.get()]),prompt=prompt,orient=p)
             self.ui.roiframe.save_prompts(orient=p)
 
         # upload prompts to remote
         if remote:
             st1 = time.time()
-            self.ui.roiframe.put_prompts_remote(session=s1,do2d=False)
+            self.ui.sam.put_prompts_remote(session=s1,do2d=False)
             upload_time = time.time() - st1
         else:
             upload_time = 0
 
         st2 = time.time()
-        segment_sam(orient=None,tag='blast_3d',session=s1)
+        self.ui.sam.segment_sam(orient=None,tag='blast_3d',session=s1)
         
         if remote:
-            download_time = self.ui.roiframe.get_predictions_remote(tag = 'blast_3d',session=s1)
+            download_time = self.ui.sam.get_predictions_remote(tag = 'blast_3d',session=s1)
         else:
             download_time = 0
         elapsed_time = time.time() - st2
         self.ui.set_message(msg='SAM 3d up = {:.1f}, elapse = {:.1f}, down = {:.1f}'.format(upload_time,elapsed_time,download_time))
         self.ui.root.update_idletasks()
 
-        load_sam(tag = 'blast_3d',prompt=prompt,do_ortho=do_ortho)
+        self.ui.sam.load_sam(tag = 'blast_3d',prompt=prompt,do_ortho=do_ortho)
         # switch to SAM display
-        self.ui.roiframe.set_overlay('SAM')
-        self.ui.roiframe.layerSAM_callback()
+        self.ui.roiframe.roioverlayframe.set_overlay('SAM')
+        self.ui.roiframe.roioverlayframe.layerSAM_callback()
 
         # experimental option. if timer running, stop it.
         if self.timing.get() == True:
@@ -642,7 +640,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             pass
             # self.ui.set_message(msg="SAM 3d complete")
     
-        self.ui.roiframe.setCursor('arrow')
+        self.ui.roiframe.blastpointframe.setCursor('arrow')
         return
 
     #######################
