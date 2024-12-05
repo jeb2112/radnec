@@ -208,7 +208,7 @@ class SAM():
     def load_sam(self,layer=None,tag='',prompt='bbox',do_ortho=False,do3d=True):
                 
         if layer is None:
-            layer = self.ui.roiframe.roioverlayframe.layerROI.get()
+            layer = self.ui.roiframe.roioverlayframe.layerSAM.get()
 
         # shouldn't be needed?
         self.ui.roiframe.update_roinumber_options()

@@ -24,9 +24,9 @@ class CreateROIOverlayFrame(CreateFrame):
         self.overlay_value = {'BLAST':tk.BooleanVar(value=False),'finalROI':tk.BooleanVar(value=False),'SAM':tk.BooleanVar(value=False)}
         self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all'],'sam':['TC','WT']}
         self.overlay_type = tk.IntVar(value=0)
-        self.layer = tk.StringVar(value='ET')
-        self.layerROI = tk.StringVar(value='ET')
-        self.layerSAM = tk.StringVar(value='ET')
+        self.layer = tk.StringVar(value=self.ui.config.DefaultBlastLayer)
+        self.layerROI = tk.StringVar(value=self.ui.config.DefaultLayer)
+        self.layerSAM = tk.StringVar(value=self.ui.config.DefaultLayer)
         self.layertype = tk.StringVar(value='blast')
 
         # ROI buttons for raw BLAST segmentation
@@ -40,7 +40,7 @@ class CreateROIOverlayFrame(CreateFrame):
         layerlabel = ttk.Label(self.frame,text='prompt:')
         layerlabel.grid(row=0,column=0,sticky='w')
         self.layer.trace_add('write',lambda *args: self.layer.get())
-        self.layermenu = ttk.OptionMenu(self.frame,self.layer,self.layerlist['blast'][0],
+        self.layermenu = ttk.OptionMenu(self.frame,self.layer,self.ui.config.DefaultBlastLayer,
                                         *self.layerlist['blast'],command=self.layer_callback)
         self.layermenu.config(width=7)
         self.layermenu.grid(row=0,column=1,sticky='w')
@@ -56,7 +56,7 @@ class CreateROIOverlayFrame(CreateFrame):
         if False:
             layerlabelROI.grid(row=0,column=2,sticky='w')
         self.layerROI.trace_add('write',lambda *args: self.layerROI.get())
-        self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['seg'][0],
+        self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.ui.config.DefaultLayer,
                                            *self.layerlist['seg'],command=self.layerROI_callback)
         self.layerROImenu.config(width=4)
         if False:
@@ -70,7 +70,7 @@ class CreateROIOverlayFrame(CreateFrame):
         layerlabelSAM = ttk.Label(self.frame,text='overlay:')
         layerlabelSAM.grid(row=0,column=2,sticky='w')
         self.layerSAM.trace_add('write',lambda *args: self.layerSAM.get())
-        self.layerSAMmenu = ttk.OptionMenu(self.frame,self.layerSAM,self.layerlist['sam'][0],
+        self.layerSAMmenu = ttk.OptionMenu(self.frame,self.layerSAM,self.ui.config.DefaultLayer,
                                            *self.layerlist['sam'],command=self.layerSAM_callback)
         self.layerSAMmenu.config(width=4)
         self.layerSAMmenu.grid(row=0,column=3,sticky='w')
@@ -232,7 +232,7 @@ class CreateROIOverlayFrame(CreateFrame):
     def layerSAM_callback(self,layer=None,updateslice=True, updatedata=True):
 
         if layer is None:
-            layer = self.layerROI.get()
+            layer = self.layerSAM.get()
 
         # switch roi context
         self.ui.roi = self.ui.rois['sam']

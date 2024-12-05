@@ -552,7 +552,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
         st2 = time.time()
         # in the initial version of this workflow, only 'ax' is used.
-        self.ui.sam.segment_sam(orient=['ax]'],tag='2d',prompt=prompt,session=s1)
+        self.ui.sam.segment_sam(orient=['ax'],tag='2d',prompt=prompt,session=s1)
         # download results if remote
         if remote:
             download_time = self.ui.sam.get_predictions_remote(session=s1)
