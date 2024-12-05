@@ -222,6 +222,9 @@ class SAM():
                 img_ortho[p],_ = self.ui.data[self.ui.s].loadnifti(fname,
                                                             os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
                                                             type='uint8')
+                # if padded for hugging face, re-crop here
+                img_ortho[p] = img_ortho[p][:,0:self.ui.sliceviewerframe.dim[1],0:self.ui.sliceviewerframe.dim[2]]
+
             # in 3d take the AND composite segmentation
             if do3d:
                 img_comp = img_ortho['ax']
@@ -235,12 +238,14 @@ class SAM():
                     img_comp = (img_comp) | (img_ortho[p])
                 rref.data[layer] = copy.deepcopy(img_comp)
 
-
         else:
             fname = layer+'_sam_' + prompt + '_' + tag + '_ax.nii.gz'
             rref.data[layer],_ = self.ui.data[self.ui.s].loadnifti(fname,
                                                             os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
                                                             type='uint8')
+            # if padded for hugging face, re-crop here
+            rref.data[layer] = rref.data[layer][:,0:self.ui.sliceviewerframe.dim[1],0:self.ui.sliceviewerframe.dim[2]]
+
         # create a combined seg mask from the three layers
         # using nnunet convention for labels
         rref.data['seg'] = 2*rref.data['TC'] + 1*rref.data['WT']
