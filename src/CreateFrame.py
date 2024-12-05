@@ -60,7 +60,11 @@ class CreateFrame():
         self.frame = ttk.Frame(self.parentframe,padding=padding,style=style)
         self.config = self.ui.config
         self.padding = padding
-        self.fstyle = ttk.Style()
         if gridparams is not None:
             self.frame.grid(**gridparams)
+
+        self.fstyle = ttk.Style()
+        self.fstyle.configure('green.TFrame',background='green')
+        self.fstyle.configure('red.TFrame',background='red')
+
 

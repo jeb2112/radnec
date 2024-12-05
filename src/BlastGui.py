@@ -254,38 +254,25 @@ class BlastGui(object):
         s = self.caseframe.s.current()
 
         if layer is None:   
-            layer = self.roiframe.layer.get()
+            layer = self.roiframe.roioverlayframe.layer.get()
         clustersize = self.get_bcsize(layer=layer)
-        t12_threshold = self.roiframe.sliders[layer]['t12'].get()
-        flair_threshold = self.roiframe.sliders[layer]['flair'].get()
+        t12_threshold = self.roiframe.sliderframe.sliders[layer]['t12'].get()
+        flair_threshold = self.roiframe.sliderframe.sliders[layer]['flair'].get()
 
-        if False:
-            with Profile() as profile:
-                self.data['seg_raw'],self.data['seg_raw_fusion'] = self.blast.run_blast(self.data,
-                                                self.roiframe.t1slider.get(),
-                                                self.roiframe.t2slider.get(),self.roiframe.bcslider.get(),
-                                                currentslice=currentslice)
-                (
-                    Stats(profile)
-                    .strip_dirs()
-                    .sort_stats(SortKey.TIME)
-                    .print_stats(15)
-                )
-        else:
-            try:
-                retval = Blastbratsv3.run_blast(
-                                    self.data[s],
-                                    self.blastdata[s],
-                                    t12_threshold,
-                                    flair_threshold,
-                                    clustersize,layer,
-                                    currentslice=currentslice
-                                    )
-                if retval is not None:
-                    self.blastdata[s]['blast'][layer],self.blastdata[s]['blast']['gates']['brain '+layer],self.blastdata[s]['blast']['gates'][layer] = retval
-                    self.update_blast(layer=layer)
-            except ValueError as e:
-                self.set_message(e)
+        try:
+            retval = Blastbratsv3.run_blast(
+                                self.data[s],
+                                self.blastdata[s],
+                                t12_threshold,
+                                flair_threshold,
+                                clustersize,layer,
+                                currentslice=currentslice
+                                )
+            if retval is not None:
+                self.blastdata[s]['blast'][layer],self.blastdata[s]['blast']['gates']['brain '+layer],self.blastdata[s]['blast']['gates'][layer] = retval
+                self.update_blast(layer=layer)
+        except ValueError as e:
+            self.set_message(e)
 
         chlist = [self.chselection]
         if self.function.get() == 'BLAST':
@@ -293,13 +280,14 @@ class BlastGui(object):
 
         for ch in chlist:
             self.data[s].dset['seg_raw_fusion'][ch]['d'+layer] = generate_blast_overlay(self.data[s].dset['raw'][ch]['d'],
-                                                        self.data[s].dset['seg_raw'][self.chselection]['d'],layer=self.roiframe.layer.get(),
+                                                        self.data[s].dset['seg_raw'][self.chselection]['d'],
+                                                        layer=self.roiframe.roioverlayframe.layer.get(),
                                                         overlay_intensity=self.config.OverlayIntensity)
             self.data[s].dset['seg_raw_fusion'][ch]['ex'] = True            
                 
         # in the SAM viewer, may not need to see the raw BLAST overlay anymore
         if showblast:
-            if self.roiframe.overlay_value['finalROI'].get() == True:
+            if self.roiframe.roioverlayframe.overlay_value['finalROI'].get() == True:
                 self.dataselection = 'seg_fusion'
             else:
                 self.dataselection = 'seg_raw_fusion'
@@ -309,10 +297,10 @@ class BlastGui(object):
                 self.updateslice()
         else:
             # in the new workflow, once a SAM roi exists keep the SAM roi displayed at all times
-            if self.roiframe.overlay_value['SAM'].get():
+            if self.roiframe.roioverlayframe.overlay_value['SAM'].get():
                 self.updateslice()
             else:
-                self.roiframe.set_overlay()
+                self.roiframe.roioverlayframe.set_overlay()
                 self.dataselection = 'raw'
                 self.updateslice()
                 
@@ -330,17 +318,6 @@ class BlastGui(object):
     def set_frame(self,frameobj,frame='frame'):
         frameobj.dummy_frame.lift()
         getattr(frameobj,frame).lift()
-        
-    # this approach didn't work can be discarded
-    if False:
-        def set_sliceviewerframe(self,frameobj,frame='frame',above=None,below=None):
-            frameobj.frame.lift()
-            frameobj.dummy_frame.lower(belowThis=frameobj.frame)
-            self.sliceviewerframe = frameobj
-        def set_roiframe(self,frameobj,frame='frame',above=None,below=None):
-            frameobj.frame.lift()
-            frameobj.dummy_frame.lower(belowThis=frameobj.frame)
-            self.roiframe = frameobj
 
     def set_currentslice(self,val=None):
         if val is not None:
@@ -376,15 +353,15 @@ class BlastGui(object):
         return self.currentroi
     
     def set_currentpt(self,val=None):
-        self.currentpt = self.roiframe.currentpt.get()
+        self.currentpt = self.roiframe.blastpointframe.currentpt.get()
  
     def get_currentpt(self):
         return self.currentpt
 
     def get_bcsize(self,layer=None):
         if layer is None:
-            layer = self.roiframe.layer.get()
-        return self.roiframe.thresholds[layer]['bc'].get()
+            layer = self.roiframe.roioverlayframe.layer.get()
+        return self.roiframe.sliderframe.thresholds[layer]['bc'].get()
     
     def update_roidata(self):
         self.roiframe.updateROIData()
@@ -428,7 +405,7 @@ class BlastGui(object):
 
     def reset_pt(self):
         self.currentpt = 0
-        self.roiframe.currentpt.set(0)
+        self.roiframe.blastpointframe.currentpt.set(0)
         self.pt = {0:[],1:[]}
 
     def resetUI(self):

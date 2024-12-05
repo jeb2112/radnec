@@ -26,7 +26,8 @@ import nibabel as nb
 import PIL
 from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube,reconstruction
 from skimage.measure import find_contours
-from scipy.spatial.distance import dice,directed_hausdorff
+import cc3d
+
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
 if os.name == 'posix':
@@ -35,11 +36,13 @@ if os.name == 'posix':
 elif os.name == 'nt':
     from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
 import cupy as cp
-import cc3d
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
 from src.roi.ROI import ROIBLAST,ROISAM,ROIPoint
+from src.roi.CreateROISliderFrame import CreateROISliderFrame
+from src.roi.CreateROIPointFrame import CreateROIPointFrame
+from src.roi.CreateROIOverlayFrame import CreateROIOverlayFrame
 from src.SSHSession import SSHSession
 
 # contains various ROI methods and variables for 'SAM' mode
@@ -48,26 +51,9 @@ class CreateSAMROIFrame(CreateFrame):
         super().__init__(frame,ui=ui,padding=padding)
 
         self.buttonpress_id = None # temp var for keeping track of button press event
-        self.overlay_value = {'BLAST':tk.BooleanVar(value=False),'finalROI':tk.BooleanVar(value=False),'SAM':tk.BooleanVar(value=False)}
         roidict = {'ET':{'t12':None,'flair':None,'bc':None},'T2 hyper':{'t12':None,'flair':None,'bc':None}}
-        self.thresholds = copy.deepcopy(roidict)
-        self.sliders = copy.deepcopy(roidict)
-        self.sliderlabels = copy.deepcopy(roidict)
-        self.thresholds['ET']['t12'] = tk.DoubleVar(value=self.ui.config.T1default)
-        self.thresholds['T2 hyper']['t12'] = tk.DoubleVar(value=self.ui.config.T2default)
-        self.thresholds['ET']['flair'] = tk.DoubleVar(value=self.ui.config.T2default)
-        self.thresholds['T2 hyper']['flair'] = tk.DoubleVar(value=self.ui.config.T2default)
-        self.thresholds['ET']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[0])
-        self.thresholds['T2 hyper']['bc'] = tk.DoubleVar(value=self.ui.config.BCdefault[1])
-        self.overlay_type = tk.IntVar(value=0)
-        self.layerlist = {'blast':['ET','T2 hyper'],'seg':['ET','TC','WT','all'],'sam':['TC','WT']}
-        self.layer = tk.StringVar(value=self.ui.config.DefaultBlastLayer)
-        self.layerROI = tk.StringVar(value=self.ui.config.DefaultLayer)
-        self.layerSAM = tk.StringVar(value=self.ui.config.DefaultLayer)
-        self.layertype = tk.StringVar(value='blast')
         self.currentroi = tk.IntVar(value=0)
-        self.currentpt = tk.IntVar(value=0)
-        self.pointradius = tk.IntVar(value=5)
+
         self.roilist = []
 
         self.padding = (0,0),(0,0) # convenience variable for padding rect fov for huggingface. need a better place for this
@@ -81,54 +67,17 @@ class CreateSAMROIFrame(CreateFrame):
         self.dummy_frame.grid(row=2,column=4,sticky='news')
 
         # actual frame
-        self.frame.grid(row=2,column=4,rowspan=3,sticky='NE')
-
-        # ROI buttons for raw BLAST segmentation
-        enhancingROI_label = ttk.Label(self.frame,text='overlay on/off')
-        enhancingROI_label.grid(row=1,column=0,sticky='e')
-        enhancingROI_overlay = ttk.Checkbutton(self.frame,text='',
-                                               variable=self.overlay_value['BLAST'],
-                                               command=self.enhancingROI_overlay_callback)
-        enhancingROI_overlay.grid(row=1,column=1,sticky='w')
-
-        layerlabel = ttk.Label(self.frame,text='prompt:')
-        layerlabel.grid(row=0,column=0,sticky='w')
-        self.layer.trace_add('write',lambda *args: self.layer.get())
-        self.layermenu = ttk.OptionMenu(self.frame,self.layer,self.layerlist['blast'][1],
-                                        *self.layerlist['blast'],command=self.layer_callback)
-        self.layermenu.config(width=7)
-        self.layermenu.grid(row=0,column=1,sticky='w')
-
-        # ROI buttons for final smoothed segmentation
-        # this option will not be used in the SAM viewer
-        finalROI_overlay = ttk.Checkbutton(self.frame,text='',
-                                           variable=self.overlay_value['finalROI'],
-                                           command=self.finalROI_overlay_callback)
         if False:
-           finalROI_overlay.grid(row=1,column=3,sticky='w')
-        layerlabel = ttk.Label(self.frame,text='ROI layer:')
-        if False:
-            layerlabel.grid(row=0,column=2,sticky='w')
-        self.layerROI.trace_add('write',lambda *args: self.layerROI.get())
-        # hard-coded WT initialization
-        self.layerROImenu = ttk.OptionMenu(self.frame,self.layerROI,self.layerlist['seg'][2],
-                                           *self.layerlist['seg'],command=self.layerROI_callback)
-        self.layerROImenu.config(width=4)
-        if False:
-            self.layerROImenu.grid(row=0,column=3,sticky='w')
+            self.frame.configure(style='green.TFrame')
+        self.frame.grid(row=2,column=4,rowspan=5,sticky='NE')
 
-        # ROI button for SAM segmentation
-        SAM_overlay = ttk.Checkbutton(self.frame,text='',
-                                           variable=self.overlay_value['SAM'],
-                                           command=self.SAM_overlay_callback)
-        SAM_overlay.grid(row=1,column=3,sticky='w')
-        layerlabel = ttk.Label(self.frame,text='overlay:')
-        layerlabel.grid(row=0,column=2,sticky='w')
-        self.layerSAM.trace_add('write',lambda *args: self.layerSAM.get())
-        self.layerSAMmenu = ttk.OptionMenu(self.frame,self.layerSAM,self.layerlist['sam'][0],
-                                           *self.layerlist['sam'],command=self.layerSAM_callback)
-        self.layerSAMmenu.config(width=4)
-        self.layerSAMmenu.grid(row=0,column=3,sticky='w')
+        # layer overlays. or could be own frame and not an attribute of this class.
+        self.roioverlayframe = CreateROIOverlayFrame(self.frame,ui=self.ui)
+        self.roioverlayframe.frame.grid(row=0,column=0,rowspan=2,columnspan=4,sticky='w')
+
+        # blast point selection
+        self.blastpointframe = CreateROIPointFrame(self.frame,ui=self.ui)
+        self.blastpointframe.frame.grid(row=2,column=0,rowspan=3,columnspan=2,sticky='w')
 
         # for multiple roi's, n'th roi number choice
         roinumberlabel = ttk.Label(self.frame,text='ROI number:')
@@ -151,290 +100,31 @@ class CreateSAMROIFrame(CreateFrame):
         clearROI = ttk.Button(self.frame,text='clear ROI',command = self.clearROI)
         clearROI.grid(row=1,column=7,sticky='w')
         self.frame.update()
-
-        ########################
-        # layout for the sliders
-        ########################
-
-        self.s = ttk.Style()
-        self.s.configure('debugframe.TFrame',background='green')
-        # frames for sliders
-        self.sliderframe = {}
-        # dummy frame to hide slider bars
-        # slider bars might not be used in the SAM viewer anymore
-        self.sliderframe['dummy'] = ttk.Frame(self.frame,padding='0')
-        self.sliderframe['dummy'].grid(row=3,column=2,columnspan=7,sticky='nesw')
-
-        self.sliderframe['ET'] = ttk.Frame(self.frame,padding='0')
-        self.sliderframe['ET'].grid(row=3,column=2,columnspan=7,sticky='e')
-        self.sliderframe['T2 hyper'] = ttk.Frame(self.frame,padding='0')
-        self.sliderframe['T2 hyper'].grid(row=3,column=2,columnspan=7,sticky='e')
-
-        # ET sliders
-        # t1 slider
-        t1label = ttk.Label(self.sliderframe['ET'], text='T1/T2')
-        t1label.grid(column=0,row=0,sticky='w')
-
-        self.sliders['ET']['t12'] = ttk.Scale(self.sliderframe['ET'],from_=-4,to=4,variable=self.thresholds['ET']['t12'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'ET','t12'),orient='horizontal')
-        self.sliders['ET']['t12'].grid(row=0,column=1,sticky='e')
-        self.sliderlabels['ET']['t12'] = ttk.Label(self.sliderframe['ET'],text=self.thresholds['ET']['t12'].get())
-        self.sliderlabels['ET']['t12'].grid(row=0,column=2,sticky='e')
-
-        #flairt1 slider
-        flairt1label = ttk.Label(self.sliderframe['ET'], text='flair')
-        flairt1label.grid(row=1,column=0,sticky='w')
-        self.sliders['ET']['flair'] = ttk.Scale(self.sliderframe['ET'],from_=-4,to=4,variable=self.thresholds['ET']['flair'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'ET','flair'),orient='horizontal')
-        self.sliders['ET']['flair'].grid(row=1,column=1,sticky='e')
-        self.sliderlabels['ET']['flair'] = ttk.Label(self.sliderframe['ET'],text=self.thresholds['ET']['flair'].get())
-        self.sliderlabels['ET']['flair'].grid(row=1,column=2,sticky='e')
-
-        #braint1 cluster slider
-        bclabel = ttk.Label(self.sliderframe['ET'],text='b.c.')
-        bclabel.grid(row=2,column=0,sticky='w')
-        self.sliders['ET']['bc'] = ttk.Scale(self.sliderframe['ET'],from_=0,to=4,variable=self.thresholds['ET']['bc'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'ET','bc'),orient='horizontal')
-        self.sliders['ET']['bc'].grid(row=2,column=1,sticky='e')
-        self.sliderlabels['ET']['bc'] = ttk.Label(self.sliderframe['ET'],text=self.thresholds['ET']['bc'].get())
-        self.sliderlabels['ET']['bc'].grid(row=2,column=2,sticky='e')
-
-        # T2 hyper sliders
-        # t2 slider
-        t2label = ttk.Label(self.sliderframe['T2 hyper'], text='T1/T2')
-        t2label.grid(row=0,column=0,sticky='w')
-        self.sliders['T2 hyper']['t12'] = ttk.Scale(self.sliderframe['T2 hyper'],from_=-4,to=4,variable=self.thresholds['T2 hyper']['t12'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'T2 hyper','t12'),orient='horizontal')
-        self.sliders['T2 hyper']['t12'].grid(row=0,column=1,sticky='e')
-        self.sliderlabels['T2 hyper']['t12'] = ttk.Label(self.sliderframe['T2 hyper'],text=self.thresholds['T2 hyper']['t12'].get())
-        self.sliderlabels['T2 hyper']['t12'].grid(row=0,column=2,sticky='e')
-
-        #flairt2 slider
-        flairt2label = ttk.Label(self.sliderframe['T2 hyper'], text='flair')
-        flairt2label.grid(row=1,column=0,sticky='w')
-        self.sliders['T2 hyper']['flair'] = ttk.Scale(self.sliderframe['T2 hyper'],from_=-4,to=4,variable=self.thresholds['T2 hyper']['flair'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'T2 hyper','flair'),orient='horizontal')
-        self.sliders['T2 hyper']['flair'].grid(row=1,column=1,sticky='e')
-        self.sliderlabels['T2 hyper']['flair'] = ttk.Label(self.sliderframe['T2 hyper'],text=self.thresholds['T2 hyper']['flair'].get())
-        self.sliderlabels['T2 hyper']['flair'].grid(row=1,column=2,sticky='e')
-
-        #braint2 cluster slider
-        bclabel = ttk.Label(self.sliderframe['T2 hyper'],text='b.c.')
-        bclabel.grid(row=2,column=0,sticky='w')
-        self.sliders['T2 hyper']['bc'] = ttk.Scale(self.sliderframe['T2 hyper'],from_=0,to=4,variable=self.thresholds['T2 hyper']['bc'],state='disabled',
-                                  length='3i',command=Command(self.updatesliderlabel,'T2 hyper','bc'),orient='horizontal')
-        self.sliders['T2 hyper']['bc'].grid(row=2,column=1,sticky='e')
-        self.sliderlabels['T2 hyper']['bc'] = ttk.Label(self.sliderframe['T2 hyper'],text=self.thresholds['T2 hyper']['bc'].get())
-        self.sliderlabels['T2 hyper']['bc'].grid(row=2,column=2,sticky='e')
-
-        #########################################
-        # layout for the Point selection workflow
-        # #######################################
-
-        self.pointframe = ttk.Frame(self.frame,padding='0')
-        self.pointframe.grid(row=3,column=2,columnspan=2,sticky='ew')
-
-        self.currentpt.trace_add('write',self.updatepointlabel)
-
-        self.SUNKABLE_BUTTON = 'SunkableButton.TButton'
-        self.selectPointbutton= ttk.Button(self.pointframe,text='add Point',command=self.selectPoint,style=self.SUNKABLE_BUTTON)
-        self.selectPointbutton.grid(row=0,column=1,sticky='snew')
-        self.selectPointstate = False
-        removePoint= ttk.Button(self.pointframe,text='remove Point',command=self.removePoint)
-        removePoint.grid(row=1,column=1,sticky='ew')
-        self.pointLabel = ttk.Label(self.pointframe,text=self.currentpt.get(),padding=10)
-        self.pointLabel.grid(row=1,column=0,sticky='e')
-        self.pointradiuslist = [str(i) for i in range(1,6)]
-        self.pointradiusmenu = ttk.OptionMenu(self.pointframe,self.pointradius,self.pointradiuslist[-1],
-                                        *self.pointradiuslist,command=self.pointradius_callback)
-        self.pointradiusmenu.config(width=2)
-        self.pointradiusmenu.grid(row=2,column=1,sticky='ne')
-        pointradius_label = ttk.Label(self.pointframe,text='radius:')
-        pointradius_label.grid(row=2,column=1,sticky='nw')
+        a=1
 
         # currently not using sliders in the SAM viewer, just the point selection
-        self.sliderframe['dummy'].lift()
-        self.sliderframe['ET'].lower(self.sliderframe['dummy'])
-        self.sliderframe['T2 hyper'].lower(self.sliderframe['dummy'])
-        self.pointframe.lift(self.sliderframe['dummy'])
-        self.frame.update()
+        self.sliderframe = CreateROISliderFrame(self.frame,ui=self.ui)
+        if False:
+            self.sliderframe.frame.grid(row=2,column=4,sticky='e')
 
     #############
     # ROI methods
     ############# 
 
-    # main method for handling ET versus WT selection in BLAST raw segmentation
-    def layer_callback(self,layer=None,updateslice=True,updatedata=True,overlay=True):
-
-        # if in the opposite mode, then switch same as if the checkbutton was used. 
-        # but don't run the checkbutton callback because
-        # don't yet have logic to check if the existing overlay is correct or
-        # needs to be redone.
-        # also if in ROI mode, then copy the relevant data back for BLAST mode.
-        if self.overlay_value['finalROI'].get() == True:
-            self.updateData()
-        self.set_overlay('BLAST')
-        self.ui.dataselection = 'seg_raw_fusion'
-
-        self.ui.sliceviewerframe.updatewl_fusion()
-
-        if layer is None:
-            layer = self.layer.get()
-        else:
-            self.layer.set(layer)
-        roi = self.ui.get_currentroi()
-
-        # when switching layers, raise/lower the corresponding sliders
-        # slider values switch but no need to run re-blast immediately. 
-        self.updatesliders()
-        if self.ui.function.get() != 'SAM': # not using sliders for now in SAM
-            self.sliderframe[layer].lift()
-
-        # generate a new overlay
-        # in blast mode, overlays are stored in main ui data, and are not associated with a ROI yet ( ie until create or update ROI event)
-        # logic to use existing overlay or force a new one. might need fixing.
-        if overlay:
-            s = self.ui.s
-            chlist = [self.ui.chselection , 'flair']
-            for ch in chlist:
-                # note that this check does not cover both layers 'ET' and 'T2 Hyper' separately.
-                # they are assumed either both or neither to exist. probably needs to be fixed.
-                if not self.ui.data[s].dset['seg_raw_fusion'][ch]['ex'] or False:
-                    self.ui.data[s].dset['seg_raw_fusion'][ch]['d'+layer] = \
-                        generate_blast_overlay(self.ui.data[s].dset['raw'][ch]['d'],
-                                                self.ui.data[s].dset['seg_raw'][self.ui.chselection]['d'],
-                                                layer=layer,overlay_intensity=self.config.OverlayIntensity)
-                    self.ui.data[s].dset['seg_raw_fusion'][ch]['ex'] = True
-                    # self.ui.data[s].dset['seg_raw_fusion_d'][ch]['d'+layer] = copy.deepcopy(self.ui.data[s].dset['seg_raw_fusion'][self.ui.chselection]['d'+layer])
-
-        if updateslice:
-            self.ui.updateslice()
-
-    # main method for handling ET,TC,WT selection in final ROI smoothed segmentation
-    def layerROI_callback(self,layer=None,updateslice=True,updatedata=True):
-
-        # switch roi context
-        self.ui.roi = self.ui.rois['blast']
-        self.update_roinumber_options()
-
-        roi = self.ui.get_currentroi()
-        if roi == 0:
-            return
-        # if in the opposite mode, then switch
-        self.set_overlay('finalROI')
-        self.ui.dataselection = 'seg_fusion'
-
-        self.ui.sliceviewerframe.updatewl_fusion()
-
-        if layer is None:
-            layer = self.layerROI.get()
-        else:
-            self.layerROI.set(layer)
-        self.ui.currentROIlayer = self.layerROI.get()
-        
-        self.updatesliders()
-
-        # a convenience reference
-        data = self.ui.roi[self.ui.s][roi].data
-        # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
-        # then also copied back to main ui data
-        # TODO: check mouse event, versus layer_callback called by statement
-        if self.ui.sliceviewerframe.overlay_type.get() == 0: # contour not updated lately
-            data['seg_fusion'] = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][self.ui.chselection]['d'],
-                                                        data['seg'],contour=data['contour'],layer=layer,
-                                                        overlay_intensity=self.config.OverlayIntensity)
-        else:
-            for ch in [self.ui.chselection,'flair']:
-                data['seg_fusion'][ch] = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
-                                                                data['seg'],layer=layer,
-                                                            overlay_intensity=self.config.OverlayIntensity)
-        if updatedata:
-            self.updateData()
-
-        if updateslice:
-            self.ui.updateslice()
-
-        return
-    
-    # method for displaying SAM results
-    def layerSAM_callback(self,layer=None,updateslice=True, updatedata=True):
-
-        if layer is None:
-            layer = self.layerROI.get()
-
-        # switch roi context
-        self.ui.roi = self.ui.rois['sam']
-        self.update_roinumber_options()
-
-        roi = self.ui.get_currentroi()
-        if roi == 0:
-            return
-        if self.overlay_value['SAM'].get() == True:
-            self.ui.dataselection = 'seg_fusion'
-        else:
-            self.ui.dataselection = 'raw'
-        # a convenience reference
-        data = self.ui.roi[self.ui.s][roi].data
-        # in seg mode, the context is an existing ROI, so the overlays are first stored directly in the ROI dict
-        # then also copied back to main ui data
-        # TODO: check mouse event, versus layer_callback called by statement
-        for ch in [self.ui.chselection]:
-            data['seg_fusion'][ch] = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
-                                                            data['seg'],layer=layer,
-                                                        overlay_intensity=self.config.OverlayIntensity)
-
-        if updatedata:
-            self.updateSAMData()
-
-        if updateslice:
-            # ie the most recent bbox from the list of bboxs. or maybe currentslice is already correct?
-            self.ui.set_currentslice(self.ui.roi[self.ui.s][roi].bbox['slice'])
-            self.ui.updateslice()
-        
-        # restore roi context
-        self.ui.roi = self.ui.rois['blast']
-
-        # set layer if necessary
-        if layer != self.layerSAM.get():
-            self.layerSAM.set(layer)
-        
-        return
-
-    # convenience method
-    def set_overlay(self,overlay=''):
-        for k in self.overlay_value.keys():
-            self.overlay_value[k].set(False)
-        if len(overlay):
-            self.overlay_value[overlay].set(True)        
-
-    # update ROI layers that can be displayed according to availability
-    def update_layermenu_options(self,roi):
-        roi = self.ui.get_currentroi()
-        if self.ui.roi[self.ui.s][roi].data['WT'] is None:
-            layerlist = ['ET','TC']
-        elif self.ui.roi[self.ui.s][roi].data['ET'] is None:
-            layerlist = ['WT']
-        else:
-            layerlist = self.layerlist['seg']
-        menu = self.layerROImenu['menu']
-        menu.delete(0,'end')
-        for s in layerlist:
-            menu.add_command(label=s,command = tk._setit(self.layerROI,s,self.layerROI_callback))
-        self.layerROI.set(layerlist[0])
 
     # methods for roi number choice menu
     def roinumber_callback(self,item=None):
-        if self.overlay_value['BLAST'].get() == True:
-            self.overlay_value['BLAST'].set(False)
-            self.overlay_value['finalROI'].set(True)
+        if self.roioverlayframe.overlay_value['BLAST'].get() == True:
+            self.roioverlayframe.overlay_value['BLAST'].set(False)
+            self.roioverlayframe.overlay_value['finalROI'].set(True)
             self.finalROI_overlay_callback()
 
         self.ui.set_currentroi()
         # reference or copy
-        if self.overlay_value['BLAST'].get():
-            self.layerROI_callback(updatedata=True)
-        elif self.overlay_value['SAM'].get():
-            self.layerSAM_callback(updatedata=True)
+        if self.roioverlayframe.overlay_value['BLAST'].get():
+            self.roioverlayframe.layerROI_callback(updatedata=True)
+        elif self.roioverlayframe.overlay_value['SAM'].get():
+            self.roioverlayframe.layerSAM_callback(updatedata=True)
         self.ui.updateslice()
         return
     
@@ -451,112 +141,12 @@ class CreateSAMROIFrame(CreateFrame):
             self.roinumbermenu.configure(state='active')
         else:
             self.roinumbermenu.configure(state='disabled')
-            self.overlay_value['finalROI'].set(False)
+            self.roioverlayframe.overlay_value['finalROI'].set(False)
 
     def set_currentroi(self,var,index,mode):
         if mode == 'write':
             self.ui.set_currentroi()    
 
-    # callbacks for the BLAST threshold slider bars
-
-    def updateslider(self,layer,slider,event=None,doblast=True):
-        self.overlay_value['BLAST'].set(True)
-        if self.overlay_value['finalROI'].get() == True:
-            self.overlay_value['finalROI'].set(False)
-            self.enhancingROI_overlay_callback()
-        # layer = self.layer.get()
-        self.updatesliderlabel(layer,slider)
-
-        # updates to blastdata
-        if slider == 'bc':
-            self.ui.blastdata[self.ui.s]['blast']['gates']['brain '+layer] = None
-        self.ui.blastdata[self.ui.s]['blast']['gates'][layer] = None
-        self.ui.update_blast(layer=layer)
-
-        # rerun blast with new value
-        if doblast:
-            self.ui.runblast(currentslice=True)
-
-    def updatesliderlabel(self,layer,slider):
-        # if 'T2 hyper' in self.sliderlabels.keys() and 'T2 hyper' in self.sliders.keys():
-        try:
-            self.sliderlabels[layer][slider]['text'] = '{:.1f}'.format(self.sliders[layer][slider].get())
-        except KeyError as e:
-            print(e)
-
-    # switch to show sliders and values according to current layer being displayed
-    def updatesliders(self):
-        if self.overlay_value['SAM'].get() == True:
-            return
-        if self.overlay_value['BLAST'].get() == True:
-            layer = self.layer.get()
-        elif self.overlay_value['finalROI'].get() == True:
-            # ie display slider values that were used for current ROI
-            layer = self.layerROI.get()
-            if layer == 'WT':
-                layer = 'T2 hyper'
-            else:
-                layer = 'ET'
-        for sl in ['t12','flair','bc']:
-            self.thresholds[layer][sl].set(self.ui.blastdata[self.ui.s]['blast']['params'][layer][sl])
-            self.updatesliderlabel(layer,sl)
-       
-    # callback for final smoothed ROI on/off selection
-    def finalROI_overlay_callback(self,event=None):
-
-        # update roi context
-        self.ui.roi = self.ui.rois['blast']
-        self.update_roinumber_options()
-
-        if self.overlay_value['finalROI'].get() == False:
-            # base display, not data selection
-            self.ui.dataselection = 'raw'
-            if False: # no longer needed?
-                self.ui.data[self.ui.dataselection][self.ui.chselection]['d'] = copy.deepcopy(self.ui.data[self.ui.chselection+'_copy']['d'])
-            self.ui.updateslice()
-        else:
-            self.overlay_value['BLAST'].set(False)
-            self.ui.dataselection = 'seg_fusion'
-            # handle the case of switching manually to ROI mode with only one of ET T2 hyper selected.
-            # eg the INDIGO case there won't be any ET. for now just a temp workaround.
-            # but this might need to become the default behaviour for all cases, and if it's automatic
-            # it won't pass through this callback but will be handled elsewhere.
-            roi = self.ui.get_currentroi()
-            if self.ui.roi[self.ui.s][roi].status is False:
-                if self.ui.roi[self.ui.s][roi].data['WT'] is not None:
-                    self.layerROI_callback(layer='WT')
-                elif self.ui.roi[self.ui.s][roi].data['ET'] is not None:
-                    self.layerROI_callback(layer='ET')
-            self.ui.updateslice(wl=True)
-
-    # callback for raw BLAST segmentation on/off selection
-    def enhancingROI_overlay_callback(self,event=None):
-        # if currently in roi mode, copy relevant data back to blast mode
-        if self.overlay_value['finalROI'].get() == True:
-            self.updateData()
-
-        if self.overlay_value['BLAST'].get() == False:
-            # base display, not data selection
-            self.ui.dataselection = 'raw'
-            if False:
-                self.ui.data['raw'][self.ui.chselection]['d'] = copy.deepcopy(self.ui.data['t1+_copy']['d'])
-            self.ui.updateslice()
-
-        else:
-            self.set_overlay('BLAST')
-            self.ui.dataselection = 'seg_raw_fusion'
-            self.ui.updateslice(wl=True)
-
-    def SAM_overlay_callback(self):
-        if self.overlay_value['SAM'].get() == False:
-            self.ui.dataselection = 'raw'
-            self.ui.updateslice()
-        else:
-            self.set_overlay('SAM')
-            # currently have only one 'seg_fusion' overlay image, so have to regenerate each time
-            # switching between SAM and finalROI
-            self.layerSAM_callback()
-        return
 
     # creates a ROI selection button press event
     def selectROI(self,event=None):
@@ -565,7 +155,7 @@ class CreateSAMROIFrame(CreateFrame):
         # furthermore, clear the points list
         self.ui.reset_pt()
 
-        if self.overlay_value['BLAST'].get(): # only activate cursor in BLAST mode
+        if self.roioverlayframe.overlay_value['BLAST'].get(): # only activate cursor in BLAST mode
             self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.ROIclick)
             self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor='crosshair')
             # lock pan and zoom
@@ -587,12 +177,12 @@ class CreateSAMROIFrame(CreateFrame):
             if event.button > 1: # ROI selection on left mouse only
                 return
             # in the new workflow, BLAST roi is not being depicted, so this check no longer applies
-            if self.overlay_value['BLAST'].get() == False: # no selection if BLAST mode not active
+            if self.roioverlayframe.overlay_value['BLAST'].get() == False: # no selection if BLAST mode not active
                 pass
                 # return
             
         # self.ui.sliceviewerframe.canvas.widgetlock.release(self.ui.sliceviewerframe)
-        self.setCursor('watch')
+        self.blastpointframe.setCursor('watch')
         if event:
             # print(event.xdata,event.ydata)
             # need check for inbounds
@@ -640,14 +230,14 @@ class CreateSAMROIFrame(CreateFrame):
             return
 
         # update layer menu
-        self.update_layermenu_options(self.ui.roi[self.ui.s][roi])
+        self.roioverlayframe.update_layermenu_options(self.ui.roi[self.ui.s][roi])
 
         if True:
             # note some duplicate calls to generate_overlay should be removed
             for ch in [self.ui.chselection]:
                 fusionstack = generate_blast_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
                                                 self.ui.roi[self.ui.s][roi].data['seg'],
-                                                layer=self.ui.roiframe.layer.get(),
+                                                layer=self.ui.roiframe.roioverlayframe.layer.get(),
                                                 overlay_intensity=self.config.OverlayIntensity)
                 self.ui.roi[self.ui.s][roi].data['seg_fusion'][ch] = fusionstack
 
@@ -692,7 +282,7 @@ class CreateSAMROIFrame(CreateFrame):
                     )
 
             # automatically switch to SAM display
-            self.set_overlay('SAM')
+            self.roioverlayframe.set_overlay('SAM')
             # in SAM, the ET bounding box segmentation is interpreted directly as TC
             if False: # calling this from sam2d_callback now
                 self.layerSAM_callback()
@@ -701,10 +291,10 @@ class CreateSAMROIFrame(CreateFrame):
         else:
             # this workflow option shouldn't be triggered in the current implementation of 
             # SAM viewer
-            self.set_overlay('BLAST')
+            self.roioverlayframe.set_overlay('BLAST')
             self.ui.dataselection = 'seg_raw_fusion'
             self.ui.sliceviewerframe.updateslice()
-            self.layer_callback(layer='ET')
+            self.roioverlayframe.layer_callback(layer='ET')
 
 
         return None
@@ -712,28 +302,24 @@ class CreateSAMROIFrame(CreateFrame):
     # records button press coords in a new ROI object
     # create a parallel list of SAM and BLAST roi's. 
     def createROI(self,coords=(0,0,0),bbox={},pt={}):
-        blast_layer = self.layer.get()
-        roi = ROIBLAST(coords,dim=self.ui.sliceviewerframe.dim,layer=blast_layer)
+        self.currentroi.set(self.currentroi.get() + 1)
+        blast_layer = self.roioverlayframe.layer.get()
+        roi = ROIBLAST(coords,dim=self.ui.sliceviewerframe.dim,layer=blast_layer,number=self.currentroi.get())
         self.ui.rois['blast'][self.ui.s].append(roi)
         if blast_layer in ['ET','TC']:
             sam_layer = 'TC'
         else:
             sam_layer = blast_layer
-        if bbox:
-            roi2 = ROISAM(dim=self.ui.sliceviewerframe.dim,bbox=bbox,layer=sam_layer)
-        elif pt:
-            roi2 = ROISAM(dim=self.ui.sliceviewerframe.dim,pt=pt,layer=sam_layer)
-
+        roi2 = ROISAM(dim=self.ui.sliceviewerframe.dim,bbox=bbox,pt=pt,layer=sam_layer,number=self.currentroi.get())
         self.ui.rois['sam'][self.ui.s].append(roi2)
  
-        self.currentroi.set(self.currentroi.get() + 1)
         self.updateROIData()
         self.update_roinumber_options()
 
     # updates button press coords for current ROI
     def updateROI(self,coords=(0,0,0),pt={},bbox={}):
         if coords:
-            blast_layer = self.layer.get()
+            blast_layer = self.roioverlayframe.layer.get()
             roi = self.ui.rois['blast'][self.ui.s][self.ui.get_currentroi()]
             roi.coords[blast_layer]['x'] = coords[0]
             roi.coords[blast_layer]['y'] = coords[1]
@@ -749,7 +335,7 @@ class CreateSAMROIFrame(CreateFrame):
     def closeROI(self,metmaskstack,currentslice,do3d=True):
 
         # process matching ROI to selected BLAST layer
-        m = self.layer.get()
+        m = self.roioverlayframe.layer.get()
         s = self.ui.s
         roi = self.ui.get_currentroi()
         xpos = self.ui.roi[s][roi].coords[m]['x']
@@ -1055,15 +641,21 @@ class CreateSAMROIFrame(CreateFrame):
                     
             # output stats
             # tag is for a unique key in stats.sjon
+            statsfile = os.path.join(self.ui.data[self.ui.s].studydir,'stats.json')                
             for roinumber in roilist:
+                rref = self.ui.rois[r][self.ui.s][roinumber]
                 # temporary arrangement for experiment.
                 if 'slice' in tag:
                     rtag = '_'.join(tag.split('_')[:2])
                 else:
                     rtag = tag
-                self.ROIstats(save=True,roi=roinumber,roitype=r,tag=rtag)
-                
-        self.ui.set_message('ROI saved')
+
+                for dt in ['ET','TC','WT']:
+                    if self.ui.data[self.ui.s].mask['gt'][dt]['ex']:
+                        mask = self.ui.data[self.ui.s].mask['gt'][dt]['d']
+                    rref.ROIstats(mask=mask,dt=dt)
+                rref.save_ROIstats(statsfile,tag=rtag)
+            self.ui.set_message('ROI saved')
 
 
     # back-copy an existing ROI and overlay from current dataset back into the current roi. 
@@ -1080,9 +672,9 @@ class CreateSAMROIFrame(CreateFrame):
         s = self.ui.s
         # record slider values
         if layer is None:
-            layer = self.layer.get()
+            layer = self.roioverlayframe.layer.get()
         for sl in ['t12','flair','bc']:
-            self.ui.blastdata[s]['blast']['params'][layer][sl] = self.thresholds[layer][sl].get()
+            self.ui.blastdata[s]['blast']['params'][layer][sl] = self.sliderframe.thresholds[layer][sl].get()
 
         if all(self.ui.blastdata[s]['blast'][x] is not None for x in ['ET','T2 hyper']):
             # self.ui.data['seg_raw'] = self.ui.blastdata['blast']['ET'].astype('int')*2 + (self.ui.blastdata['blast']['T2 hyper'].astype('int'))
@@ -1100,7 +692,7 @@ class CreateSAMROIFrame(CreateFrame):
     def updateData(self,updatemask=False):
         s = self.ui.s
         # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
-        layer = self.layer.get()
+        layer = self.roioverlayframe.layer.get()
         for dt in ['seg_fusion']:
             for ch in [self.ui.chselection,'flair']:
                 self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt][ch])
@@ -1114,14 +706,14 @@ class CreateSAMROIFrame(CreateFrame):
                 # otherwise, it will be done in separate step from the Overlay sliceviewer. 
                 # would better need a further checkbox on the GUI for this auto option
                 self.ui.data[s].mask[dt]['d'] = copy.deepcopy(self.ui.roi[self.ui.currentroi].data[dt])
-        self.updatesliders()
+        self.sliderframe.updatesliders()
 
     # forward-copy certain results from the SAM ROI to the main dataset
     # duplicates updateData might be able to combine better.
     def updateSAMData(self,updatemask=False):
         s = self.ui.s
         # anything else to copy??  'seg_raw_fusion_d','seg_raw','blast','seg_raw_fusion'
-        layer = self.layer.get()
+        layer = self.roioverlayframe.layer.get()
         for dt in ['seg_fusion']:
             for ch in [self.ui.chselection]:
                 self.ui.data[s].dset[dt][ch]['d'] = copy.deepcopy(self.ui.rois['sam'][s][self.ui.currentroi].data[dt][ch])
@@ -1160,20 +752,20 @@ class CreateSAMROIFrame(CreateFrame):
     # slider bars. 
     def resetROI(self,data=True):
         self.currentroi.set(0)
-        self.set_overlay('')
+        self.roioverlayframe.set_overlay('')
         self.ui.reset_roi()
         self.update_roinumber_options(n=1)
-        self.ui.roiframe.layertype.set('blast')
-        self.ui.roiframe.layer.set(self.ui.config.DefaultBlastLayer)
+        self.roioverlayframe.layertype.set('blast')
+        self.roioverlayframe.layer.set(self.ui.config.DefaultBlastLayer)
         self.ui.chselection = self.config.DefaultChannel
         # awkward check here due to using resetROI for clearROI
         if self.ui.sliceviewerframe.canvas is not None and data:
-            self.enhancingROI_overlay_callback()
+            self.roioverlayframe.enhancingROI_overlay_callback()
         if self.ui.chselection in ['t1+','flair']:
             for l in ['ET','T2 hyper']:
                 for sl in ['t12','flair','bc']:
-                    self.thresholds[l][sl].set(self.ui.config.thresholddefaults[sl])
-                    self.updatesliderlabel(l,sl)
+                    self.sliderframe.thresholds[l][sl].set(self.ui.config.thresholddefaults[sl])
+                    self.sliderframe.updatesliderlabel(l,sl)
         # additionally clear any point selections
         self.ui.sliceviewerframe.clear_points()
         self.ui.reset_pt()
@@ -1195,96 +787,6 @@ class CreateSAMROIFrame(CreateFrame):
             else:
                 v.append(0)
 
-    # various output stats, add more as required. 
-    # an existing stats file is read in if present, and values added for the current roi,
-    # 
-    # roi - optionally provide the roi number to process. 
-    # tag - top-level section key for output .json file. 
-    # roitype - for sam versus blast. dual roi data structure continues to be awkward.
-    # slice - process given slice or whole volume if None
-    # timer - read the SVFrame timer and record
-    def ROIstats(self,roi=None,save=False,tag=None,roitype='blast',slice=None):
-        
-        if roi is None:
-            roi = self.ui.get_currentroi() # ie, there is only 1 roi in SAM viewer for now
-        s = self.ui.s
-        r = self.ui.rois[roitype][s][roi]
-        data = copy.deepcopy(r.data)
-
-        for dt in ['ET','TC','WT']:
-            # check for a complete segmentation
-            if dt not in data.keys():
-                continue
-            # checking for == 0 here but this is a bug, the dataset should 
-            # either be non-zero or None
-            elif data[dt] is None or np.max(data[dt]) == 0:
-                continue
-            if np.max(data[dt]) > 1:
-                data[dt] = data[dt] == np.max(data[dt])
-            if slice is None:
-                dset = data[dt]
-            else:
-                dset = data[dt][slice]
-            r.stats['vol'][dt] = len(np.where(dset)[0])
-
-            # ground truth comparisons
-            if self.ui.data[self.ui.s].mask['gt'][dt]['ex']:
-
-                # pull out the matching lesion using cc3d
-                gt_mask = np.copy(self.ui.data[self.ui.s].mask['gt'][dt]['d'])
-                CC_labeled = cc3d.connected_components(gt_mask,connectivity=6)
-                centroid_point = np.array(list(map(int,np.nanmean(np.where(data[dt]),axis=1)))) 
-                objectnumber = CC_labeled[centroid_point[0],centroid_point[1],centroid_point[2]]
-                gt_lesion = (CC_labeled == objectnumber).astype('uint8')
-                if slice is not None:
-                    gt_lesion = gt_lesion[slice]
-
-                # dice
-                r.stats['dsc'][dt] = 1-dice(gt_lesion.flatten(),dset.flatten()) 
-                # haunsdorff
-                r.stats['hd'][dt] = max(directed_hausdorff(np.array(np.where(gt_lesion)).T,np.array(np.where(dset)).T)[0],
-                                                        directed_hausdorff(np.array(np.where(dset)).T,np.array(np.where(gt_lesion)).T)[0])
-            else:
-                print('No ground truth comparison available')
-            
-        # optional save dict to json
-        if save:
-            studydir = self.ui.data[self.ui.s].studydir
-            statsfile = os.path.join(studydir,'stats.json')
-            if os.path.exists(statsfile):
-                fp = open(statsfile,'r+')
-                sdict = json.load(fp)
-                if tag not in sdict.keys():
-                    sdict[tag] = {}
-                fp.seek(0)
-            else:
-                fp = open(statsfile,'w')
-                sdict = {tag:{}}
-
-            r2 = self.ui.rois[roitype][self.ui.s][roi]
-            sdict[tag]['roi'+str(roi)] = {'stats':None,'bbox':None}
-            sdict[tag]['roi'+str(roi)]['stats'] = r2.stats
-            if hasattr(r2,'bboxs'):
-                bboxs = {}
-                if bool(r2.bboxs):
-                    kset = []
-                    if slice is None:
-                        kset = r2.bboxs.keys()
-                    else:
-                        if slice in r2.bboxs.keys():
-                            kset = [slice]
-                    if len(kset):
-                        for k in kset:
-                            try:
-                                bboxs[k] = {k2:r2.bboxs[k][k2] for k2 in ['p0','p1','slice']}
-                            except KeyError:
-                                pass
-                sdict[tag]['roi'+str(roi)]['bbox'] = bboxs
-
-            json.dump(sdict,fp,indent=4)
-            fp.truncate()
-            fp.close()
-
     def clear_stats(self):
         studydir = self.ui.data[self.ui.s].studydir
         statsfile = os.path.join(studydir,'stats.json')
@@ -1296,467 +798,3 @@ class CreateSAMROIFrame(CreateFrame):
         if len(slicefiles):
             for f in slicefiles:
                 os.remove(f)
-
-
-    # tumour segmenation by SAM
-    # by default, SAM output is TC even as BLAST prompt input derived from t1+ is ET. because BLAST TC is 
-    # a bit arbitrary, not using it as the SAM prompt. So, layer arg here defaults to 'TC'
-    def segment_sam(self,roi=None,dpath=None,model='SAM',layer=None,tag='',prompt='bbox',orient=None,remote=False,session=None):
-        print('SAM segment tumour')
-        if roi is None:
-            roi = self.ui.currentroi
-        if layer is None:
-            layer = self.layerROI.get()
-
-        if dpath is None:
-            dpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
-            if not os.path.exists(dpath):
-                os.mkdir(dpath)
-
-        if orient is None:
-            orient = ['ax','sag','cor']
-
-        if os.name == 'posix':
-            if session is not None: # aws cloud
-
-                casedir = self.ui.caseframe.casedir.replace(self.config.UIlocaldir,self.config.UIawsdir)
-                studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
-                dpath_remote = os.path.join(studydir,'sam')
-
-                # run SAM
-                for p in orient:
-                    command = 'python /home/ec2-user/scripts/main_sam_hf.py  '
-                    command += ' --checkpoint /home/ec2-user/sam_models/' + self.ui.config.SAMModelAWS
-                    command += ' --input ' + casedir
-                    command += ' --prompt ' + prompt
-                    command += ' --layer ' + layer
-                    command += ' --tag ' + tag
-                    command += ' --orient ' + p
-                    res = session.run_command2(command,block=False)
-
-            else: # local
-                for p in orient:
-                    with Profile() as profile:
-                        # mfile = '/media/jbishop/WD4/brainmets/sam_models/' + self.ui.config.SAMModel
-                        mfile = None
-                        self.ui.sam.main(checkpoint=mfile,
-                                        input = self.ui.caseframe.casedir,
-                                        prompt = prompt,
-                                        layer = layer,
-                                        tag = tag,
-                                        orient = p,
-                                        roi = self.ui.rois['sam'][self.ui.s][self.ui.currentroi])
-                        print('Profile: segment_sam, local')
-                        (
-                            Stats(profile)
-                            .strip_dirs()
-                            .sort_stats(SortKey.TIME)
-                            .print_stats(25)
-                        )
-
-        elif os.name == 'nt': # not implemented yet
-
-            if session is not None: # aws cloud
-
-                casedir = self.ui.caseframe.casedir.replace(self.config.UIlocaldir,self.config.UIawsdir)
-                studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
-                dpath_remote = os.path.join(studydir,'sam')
-
-                # run SAM
-                for p in orient:
-                    command = 'python /home/ec2-user/scripts/main_sam_hf.py  '
-                    command += ' --checkpoint /home/ec2-user/sam_models/' + self.ui.config.SAMModelAWS
-                    command += ' --input ' + casedir
-                    command += ' --prompt ' + prompt
-                    command += ' --layer ' + layer
-                    command += ' --tag ' + tag
-                    command += ' --orient ' + p
-                    res = session.run_command2(command,block=False)
-
-            else: # local
-                for p in orient:
-                    with Profile() as profile:
-                        self.ui.sam.main(checkpoint=os.path.join(os.path.expanduser('~'),'data','sam_models',self.ui.config.SAMModel),
-                                        input = self.ui.caseframe.casedir,
-                                        prompt = prompt,
-                                        layer = layer,
-                                        tag = tag,
-                                        orient = p)
-                        print('Profile: segment_sam, local')
-                        (
-                            Stats(profile)
-                            .strip_dirs()
-                            .sort_stats(SortKey.TIME)
-                            .print_stats(25)
-                        )
-
-        return
-    
-    # upload prompts to remote
-    def put_prompts_remote(self,session=None,do2d=True):
-        dpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
-        studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
-        dpath_remote = os.path.join(studydir,'sam')
-
-        for d in ['ax','sag','cor','predictions_nifti']:
-            if False:
-                try:
-                    session.sftp.remove_dir(os.path.join(dpath_remote,d))
-                except FileNotFoundError:
-                    pass
-                except OSError as e:
-                    raise e
-                except Exception as e:
-                    pass
-                session.sftp.mkdir(os.path.join(dpath_remote,d))
-
-        for d in ['ax','sag','cor']:
-            if do2d:
-                if True: # use paramiko. 
-                    localpath = os.path.join(dpath,d)
-                    remotepath = os.path.join(dpath_remote,d) # note here d must exist but be empty
-                    session.sftp.put_dir(localpath,remotepath)
-                    pass
-                else: # use system
-                    localpath = os.path.join(dpath,d)
-                    remotepath = os.path.join(dpath_remote) # note here d does not exist and is copied
-                    command = 'scp -i ~/keystores/aws/awstest.pem -r ' + localpath + ' ec2-user@ec2-35-183-0-25.ca-central-1.compute.amazonaws.com:/' + remotepath
-                    os.system(command)
-            else:
-                for d2 in ['images','prompts']:
-                    localpath = os.path.join(dpath,d,d2)
-                    localfile = os.path.join(localpath,'png.tar')
-                    remotepath = os.path.join(dpath_remote,d,d2)
-                    remotefile = os.path.join(remotepath,'png.tar')
-                    command = 'mkdir -p ' + remotepath
-                    session.run_command2(command,block=True)
-                    session.sftp.put(localfile,remotefile)
-                    command = 'tar -xvf ' + remotefile + ' -C ' + remotepath
-                    command += '; rm ' + remotefile
-                    session.run_command2(command,block=False)
-                for d2 in ['predictions']:
-                    remotepath = os.path.join(dpath_remote,d,d2)
-                    command = 'mkdir -p ' + remotepath
-                    session.run_command2(command,block=False)                    
-
-    # get the SAM results from remote.
-    def get_predictions_remote(self,tag='',session=None):
-
-        dpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam')
-        localpath = os.path.join(dpath,'predictions_nifti')
-        studydir = self.ui.data[self.ui.s].studydir.replace(self.config.UIlocaldir,self.config.UIawsdir)
-        dpath_remote = os.path.join(studydir,'sam')
-        remotepath = os.path.join(dpath_remote,'predictions_nifti')
-
-        # poll until results are complete
-        while True:
-            command = 'ls ' + remotepath
-            res = session.run_command(command)
-            if len(res[0].split()) == 3:
-                break
-            else:
-                time.sleep(.1)
-
-        # download results
-        start_time = time.time()
-        session.sftp.get_dir(remotepath,localpath)
-    
-        # clean up results dir
-        command = 'rm -rf ' + remotepath
-        session.run_command2(command,block=False)
-
-        return time.time() - start_time
-
-    # load the results of SAM
-    def load_sam(self,layer=None,tag='',prompt='bbox',do_ortho=False,do3d=True):
-                
-        if layer is None:
-            layer = self.layerROI.get()
-
-        # shouldn't be needed?
-        self.update_roinumber_options()
-
-        roi = self.ui.currentroi
-        rref = self.ui.rois['sam'][self.ui.s][roi]
-        if do_ortho:
-            img_ortho = {}
-            for p in ['ax','sag','cor']:
-                fname = layer+'_sam_' + prompt + '_' + tag + '_' + p + '.nii.gz'
-                img_ortho[p],_ = self.ui.data[self.ui.s].loadnifti(fname,
-                                                            os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
-                                                            type='uint8')
-                
-            # if padded for hugging face, re-crop here
-            img_ortho[p] = img_ortho[p][:,0:self.ui.sliceviewerframe.dim[1],0:self.ui.sliceviewerframe.dim[2]]
-
-            # in 3d take the AND composite segmentation
-            if do3d:
-                img_comp = img_ortho['ax']
-                for p in ['sag','cor']:
-                    img_comp = (img_comp) & (img_ortho[p])
-                rref.data[layer] = copy.deepcopy(img_comp)
-            # in 2d use the individual slice segmentations by OR
-            else:
-                img_comp = img_ortho['ax']
-                for p in ['sag','cor']:
-                    img_comp = (img_comp) | (img_ortho[p])
-                rref.data[layer] = copy.deepcopy(img_comp)
-
-
-        else:
-            fname = layer+'_sam_' + prompt + '_' + tag + '_ax.nii.gz'
-            rref.data[layer],_ = self.ui.data[self.ui.s].loadnifti(fname,
-                                                            os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
-                                                            type='uint8')
-            
-            # if padded for hugging face, re-crop here
-            rref.data[layer] = rref.data[layer][:,0:self.ui.sliceviewerframe.dim[1],0:self.ui.sliceviewerframe.dim[2]]
-
-        # create a combined seg mask from the three layers
-        # using nnunet convention for labels
-        rref.data['seg'] = 2*rref.data['TC'] + 1*rref.data['WT']
-        # need to add this to updateData() or create similar method
-        if False:
-            self.ui.data[self.ui.s].mask['sam'][layer]['d'] = copy.deepcopy(self.ui.roi[self.ui.s][roi].data[layer])
-            self.ui.data[self.ui.s].mask['sam'][layer]['ex'] = True
-
-        # shouldn't be needed?
-        self.update_roinumber_options()
-
-        return 
-    
-
-    #############################
-    # methods for point selection
-    #############################
-
-    # activates/deactivates Point selection button press events
-    def selectPoint(self,event=None):
-        if not self.selectPointstate:
-            if len(self.ui.pt[self.ui.s]) == 0:
-                self.set_overlay() # deactivate any overlay
-                self.enhancingROI_overlay_callback()
-            self.buttonpress_id = self.ui.sliceviewerframe.canvas.callbacks.connect('button_press_event',self.selectPointClick)
-            self.setCursor('crosshair')
-            self.selectPointstart()
-        else:
-            self.selectPointstop()
-            self.setCursor()
-            if self.buttonpress_id:
-                self.ui.sliceviewerframe.canvas.callbacks.disconnect(self.buttonpress_id)
-                self.buttonpress_id = None
-        return
-
-    def selectPointstart(self):
-        self.selectPointbutton.state(['pressed', '!disabled'])
-        self.s.configure(self.SUNKABLE_BUTTON, relief=tk.SUNKEN, foreground='green')
-        self.selectPointstate = True
-        # point and slider selection not used interchangeably.
-        # but also need a better way to reset blastdata
-        self.ui.blastdata[self.ui.s] = copy.deepcopy(self.ui.blastdatadict)
-
-    def selectPointstop(self):
-        self.selectPointbutton.state(['!pressed', '!disabled'])
-        self.s.configure(self.SUNKABLE_BUTTON, relief=tk.RAISED, foreground='black')
-        self.selectPointstate = False
-
-    # processes a cursor selection button press event for generating/updating raw BLAST seg
-    def selectPointClick(self,event=None):
-        if event:
-            if event.button not in [1]: # ROI selection on left mouse only
-                return
-            
-        if False: # not using this anymore
-            self.setCursor('watch')
-        if event:
-            # print(event.xdata,event.ydata)
-            # need check for inbounds
-            # convert coords from dummy label axis
-            s = event.inaxes.format_coord(event.xdata,event.ydata)
-            xdata,ydata = map(float,re.findall(r"(?:\d*\.\d+)",s))
-            xdata = int(np.round(xdata))
-            ydata = int(np.round(ydata))
-            if xdata < 0 or ydata < 0:
-                return None
-            # check for a click in zero air background
-            elif self.ui.data[self.ui.s].dset['raw'][self.ui.chselection]['d'][self.ui.get_currentslice(),xdata,ydata] == 0:
-                print('Clicked in background')
-                return
- 
-            self.createPoint(xdata,ydata,self.ui.get_currentslice())
-            
-        # this requires to form a temporary BLAST ROI from the current raw mask, by interpreting the current click event
-        # as the ROI selection click, and then delete that ROI immediately afterwards. 
-        if self.ui.config.SAM2dauto:
-            # rref = self.ui.roi[self.ui.s][self.ui.currentroi].data['seg_fusion'][self.ui.chselection]
-            dref = self.ui.data[self.ui.s].dset['seg_fusion'][self.ui.chselection]
-            self.ui.sliceviewerframe.set_ortho_slice(event)
-            self.ROIclick(event=event,do2d=True)
-            self.create_comp_mask()
-            for ch in [self.ui.chselection]:
-                fusion = generate_comp_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
-                                                self.ui.rois['sam'][self.ui.s][self.ui.currentroi].mask,self.ui.currentslice,
-                                                layer=self.ui.roiframe.layer.get(),
-                                                overlay_intensity=self.config.OverlayIntensity)
-                # setting data directly instead of via roi.data and updateData()
-                dref['d'] = np.copy(fusion)
-            self.ui.updateslice()
-            
-        # keep the crosshair cursor until button is unset.
-        self.setCursor('crosshair')
-
-        return None        
-
-    def removePoint(self,event=None):
-        if self.currentpt.get() == 0:
-            return
-        self.ui.pt[self.ui.s].pop()
-        self.set_currentpt(-1)
-        # awkward. reset current slices
-        self.ui.sliceviewerframe.currentslice.set(self.ui.pt[self.ui.s][-1].coords['slice'])
-        self.ui.sliceviewerframe.currentsagslice.set(self.ui.pt[self.ui.s][-1].coords['x'])
-        self.ui.sliceviewerframe.currentcorslice.set(self.ui.pt[self.ui.s][-1].coords['y'])
-
-        if len(self.ui.pt[self.ui.s]) == 0:
-            self.set_overlay() # deactivate any overlay
-            self.enhancingROI_overlay_callback()
-            # points and sliders are not used interchangeably.
-            self.ui.blastdata[self.ui.s] = copy.deepcopy(self.ui.blastdatadict)
-        else:
-            self.updateBLASTMask()
-
-            # duplicates selectPointClick above, make separate function for this 
-            # or SAM mask could be saved with each point and not re-calculated when
-            # a point is removed.
-            if self.ui.config.SAM2dauto:
-                dref = self.ui.data[self.ui.s].dset['seg_fusion'][self.ui.chselection]
-                # need to update this based on current point
-                # self.ui.sliceviewerframe.set_ortho_slice(event)
-                self.ROIclick(coords=(self.ui.pt[self.ui.s][-1].coords['x'],
-                                      self.ui.pt[self.ui.s][-1].coords['y']),do2d=True)
-
-                self.create_comp_mask()
-                for ch in [self.ui.chselection]:
-                    fusion = generate_comp_overlay(self.ui.data[self.ui.s].dset['raw'][ch]['d'],
-                                                    self.ui.rois['sam'][self.ui.s][self.ui.currentroi].mask,self.ui.currentslice,
-                                                    layer=self.ui.roiframe.layer.get(),
-                                                    overlay_intensity=self.config.OverlayIntensity)
-                    # setting data directly instead of via roi.data and updateData()
-                    dref['d'] = np.copy(fusion)
-                self.ui.updateslice()
-
-
-        if 'pressed' in self.selectPointbutton.state():
-            self.setCursor('crosshair')
-        return
-
-    # records button press coords in a new ROI object
-    def createPoint(self,x,y,slice):
-        pt = ROIPoint(x,y,slice)
-        self.ui.pt[self.ui.s].append(pt)
-        self.set_currentpt(1)
-
-    # convenience method for canvas updates
-    # probably should be in SVFrame
-    def setCursor(self,cursor=None):
-        if cursor is None:
-            cursor = 'arrow'
-        self.ui.sliceviewerframe.canvas.get_tk_widget().config(cursor=cursor)
-        self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
-
-    # create updated BLAST seg from collection of ROI Points
-    def updateBLASTMask(self,layer=None):
-        if layer is None:
-            layers = ['ET','T2 hyper']
-        else:
-            layers = [layer]
-        for l in layers:
-            for k in self.ui.blastdata[self.ui.s]['blastpoint']['params'][l].keys():
-                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l][k] = []
-            for i,pt in enumerate(self.ui.pt[self.ui.s]):
-                dslice_t1 = self.ui.data[self.ui.s].dset['z']['t1+']['d'][pt.coords['slice']]
-                dslice_flair = self.ui.data[self.ui.s].dset['z']['flair']['d'][pt.coords['slice']]
-
-                dpt_t1 = dslice_t1[pt.coords['y'],pt.coords['x']]
-                dpt_flair = dslice_flair[pt.coords['y'],pt.coords['x']]
-                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['pt'].append((dpt_flair,dpt_t1))
-
-                # create grid
-                x = np.arange(0,self.ui.sliceviewerframe.dim[2])
-                y = np.arange(0,self.ui.sliceviewerframe.dim[1])
-                vol = np.array(np.meshgrid(x,y,indexing='xy'))
-
-                # circular region of interest around point. should check and exclude background pixels though.
-                croi = np.where(np.sqrt(np.power((vol[0,:]-pt.coords['x']),2)+np.power((vol[1,:]-pt.coords['y']),2)) < self.pointradius.get())
-
-                # centroid of ellipse is mean of circular roi
-                if False:
-                    mu_t1 = np.mean(dslice_t1[croi])
-                    mu_flair = np.mean(dslice_flair[croi])
-                # centroid of the ellipse will be the clicked point
-                else:
-                    mu_t1 = dpt_t1
-                    mu_flair = dpt_flair
-                std_t1 = np.std(dslice_t1[croi])
-                std_flair = np.std(dslice_flair[croi])
-                e = copy.copy(std_flair) / copy.copy(std_t1)
-                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['meant12'].append(mu_t1)
-                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['meanflair'].append(mu_flair)
-                # if the selected point is outside the elliptical roi in parameter space, increase the standard 
-                # deviations proportionally to include it. ie pointclustersize is arbitrary.
-                # this is copied from Blastbratsv3.py should combine into one available method
-                pointclustersize = 1
-                point_perimeter = Ellipse((mu_flair, mu_t1), 2*pointclustersize*std_flair,2*pointclustersize*std_t1)
-                unitverts = point_perimeter.get_path().vertices
-                pointverts = point_perimeter.get_patch_transform().transform(unitverts)
-                xy_layerverts = np.transpose(np.vstack((pointverts[:,0],pointverts[:,1])))
-                p = Path(xy_layerverts,closed=True)
-                if not p.contains_point((dpt_flair,dpt_t1)):
-                    std_flair = np.sqrt((dpt_flair-mu_flair)**2 + (dpt_t1-mu_t1)**2 / (std_t1/std_flair)**2) * 1.01
-                    std_t1 = std_flair / e
-
-                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['stdt12'].append(std_t1)
-                self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['stdflair'].append(std_flair)
-
-        # functionality similar to updateslider() should reconcile
-        # in the original workflow, the raw BLAST mask was being shown
-        if False:
-            self.set_overlay('BLAST')
-            self.enhancingROI_overlay_callback()
-        else: # in the new workflow, only the SAM ROI mask is depicted
-            self.SAM_overlay_callback()
-        self.ui.blastdata[self.ui.s]['blast']['gates']['ET'] = None
-        self.ui.blastdata[self.ui.s]['blast']['gates']['T2 hyper'] = None
-        self.ui.update_blast(layer='ET')
-        self.ui.update_blast(layer='T2 hyper')
-        self.ui.runblast(currentslice=True)
-
-        return
-    
-    def set_currentpt(self,delta):
-        val = self.currentpt.get() + delta
-        self.currentpt.set(value=val)
-        self.ui.set_currentpt()    
-
-    def updatepointlabel(self,*args):
-        try:
-            self.pointLabel['text'] = '{:d}'.format(self.currentpt.get())
-        except KeyError as e:
-            print(e)
-
-    def pointradius_callback(self,radius):
-        self.pointradius.set(int(radius))
-
-    # create a composite mask from a SAM and a BLAST raw mask
-    def create_comp_mask(self):
-        s = self.ui.s
-        roi = self.ui.currentroi
-        layer = self.layerSAM.get()
-        rref = self.ui.rois['sam'][s][roi]
-        self.ui.rois['sam'][s][roi].mask = 5*self.ui.rois['blast'][s][roi].data[layer] + \
-                                                     1*self.ui.rois['sam'][s][roi].data[layer]
-        # add BLAST selection points
-        for i,pt in enumerate(self.ui.pt[self.ui.s]):
-            rref.mask[pt.coords['slice'],pt.coords['y'],pt.coords['x']] = 8
-
-        return
