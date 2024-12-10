@@ -10,7 +10,7 @@ from matplotlib.path import Path
 from matplotlib.patches import Ellipse
 
 from src.CreateFrame import CreateFrame,Command
-from src.roi.ROI import ROIBLAST,ROISAM,ROIPoint
+from src.roi.ROI import ROIBLAST,ROISAM,ROIPoint,Point
 from src.OverlayPlots import *
 
 ##############################################################
@@ -191,7 +191,7 @@ class CreateROIPointFrame(CreateFrame):
         self.ui.sliceviewerframe.canvas.get_tk_widget().update_idletasks()
 
     # create updated BLAST seg from collection of ROI Points
-    def updateBLASTMask(self,layer=None):
+    def updateBLASTMask(self,layer=None,currentslice=True):
         if layer is None:
             layers = ['ET','T2 hyper']
         else:
@@ -255,7 +255,7 @@ class CreateROIPointFrame(CreateFrame):
         self.ui.blastdata[self.ui.s]['blast']['gates']['T2 hyper'] = None
         self.ui.update_blast(layer='ET')
         self.ui.update_blast(layer='T2 hyper')
-        self.ui.runblast(currentslice=True)
+        self.ui.runblast(currentslice=currentslice)
 
         return
     
@@ -286,3 +286,13 @@ class CreateROIPointFrame(CreateFrame):
             rref.mask[pt.coords['slice'],pt.coords['y'],pt.coords['x']] = 8
 
         return
+    
+    # copy points info from a SAM ROI to self.ui.pt list\
+    # this is a stopgap method. ROI points and ui pt list for BLAST should be reconciled properly
+    def copy_points(self):
+        for pt in self.ui.rois['sam'][self.ui.s][self.ui.currentroi].pts:
+            if pt['fg']: # back ground points will be re-generated automatically from BLAST mask
+                uipt = ROIPoint(int(np.round(pt['p0'][0])),int(np.round(pt['p0'][1])),int(pt['slice']))
+                self.ui.pt[self.ui.s].append(uipt)
+                
+

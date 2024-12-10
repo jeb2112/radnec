@@ -568,12 +568,21 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
         self.ui.roiframe.roioverlayframe.layerSAM_callback()
 
-    # run 3d SAM on all bbox's as available from a BLAST ROI. 
-    # this method should probably be in ROIFrame
-    def sam3d_callback(self,do_ortho=None,remote=False):
+        # activate sam 3d
+        self.ui.sliceviewerframe.run3dSAM.configure(state='active')
+
+
+    # in this new workflow, BLAST is not run during 2D, so run it here to begin the 3d segmentation
+    # then run SAM on all slices with propmts's derived a BLAST ROI. 
+    def sam3d_callback(self,do_ortho=None,remote=False,prompt='point'):
         # check for an available blast segmentation
         if not self.ui.rois['blast'][self.ui.s][self.ui.currentroi].status:
-            return
+            # new workflow. take the SAM prompt points, and process them for a BLAST ROI
+            self.ui.roiframe.blastpointframe.copy_points()
+            self.ui.roiframe.blastpointframe.updateBLASTMask(currentslice=None)
+            # any of the clicked points will do to create the BLAST ROI, just use the last one
+            self.ui.roiframe.ROIclick(coords = (self.ui.pt[self.ui.s][-1].coords['x'],self.ui.pt[self.ui.s][-1].coords['y']))
+
         
         print('run SAM 3d')
 
@@ -584,8 +593,9 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         else:
             s1 = None
 
-        self.ui.roiframe.blastpointframe.selectPoint()
-        self.ui.roiframe.blastpointframe.setCursor('watch')
+        if False: # in the previous workflow, point selection mode was activated here. no longer need this.
+            self.ui.roiframe.blastpointframe.selectPoint()
+            self.ui.roiframe.blastpointframe.setCursor('watch')
         if do_ortho is None:
             do_ortho = self.ui.config.SAMortho
         if do_ortho:
@@ -594,14 +604,15 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             planes = ['ax']
 
         for p in planes:
-            # run the SAM segmentation
-            # tag is hard-coded here for a unique key in stats.json
-            # if False:
-            #     self.ui.root.after(1000,Command(self.ui.set_message,msg='SAM 3d '+p))
-            #     self.ui.root.after(1000,self.ui.root.update_idletasks)
-            # else:
-            #     self.ui.set_message(msg='SAM 3d '+p)
-            prompt = self.prompt_type.get()
+
+            if prompt in ['bbox','maskpoint']: # old workflow, derive prompt from existing BLAST segmentation
+                self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
+                    np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerROI.get()]),prompt=prompt,slice=currentslice,orient=p)
+            elif prompt == 'point': # for the new workflow, the 2d point prompt is not derived from a BLAST mask but directly from a list of points
+                self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_points( \
+                    np.copy(self.ui.rois['sam'][self.ui.s][self.ui.currentroi].pts),prompt=prompt,slice=currentslice,orient=p)
+            self.ui.roiframe.save_prompts(slice=currentslice,orient=p,prompt=prompt)
+
             self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
                 np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.roioverlayframe.layerSAM.get()]),prompt=prompt,orient=p)
             self.ui.roiframe.save_prompts(orient=p)

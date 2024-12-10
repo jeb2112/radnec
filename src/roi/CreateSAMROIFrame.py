@@ -256,7 +256,8 @@ class CreateSAMROIFrame(CreateFrame):
         # once a BLAST segmentation is available in either layer. Now, run the SAM segmentation only on the current slice
         # to illustrate whether the BLAST ROI is adequate for prompting.
         # This code should move to a separate function to be called from ROIclick.
-        if self.ui.roi[self.ui.s][roi].status:
+        # in the control point version, 2d SAM is now run before BLAST, so the alternate workflow comes back into play.
+        if self.ui.roi[self.ui.s][roi].status and False:
 
             # temporary. experiment.
             # record the 2d SAM point prompt result, based on the clicked point
@@ -291,10 +292,13 @@ class CreateSAMROIFrame(CreateFrame):
         else:
             # this workflow option shouldn't be triggered in the current implementation of 
             # SAM viewer
-            self.roioverlayframe.set_overlay('BLAST')
-            self.ui.dataselection = 'seg_raw_fusion'
-            self.ui.sliceviewerframe.updateslice()
-            self.roioverlayframe.layer_callback(layer='ET')
+            # update. in the new version it is now restored, but not to display the  BLAST
+            # mask. if any other functionality needs to be added here it can
+            if False:
+                self.roioverlayframe.set_overlay('BLAST')
+                self.ui.dataselection = 'seg_raw_fusion'
+                self.ui.sliceviewerframe.updateslice()
+                self.roioverlayframe.layer_callback()
 
 
         return None
