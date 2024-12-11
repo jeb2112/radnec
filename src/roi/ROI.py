@@ -1,9 +1,12 @@
 import numpy as np
 from matplotlib.path import Path
+import matplotlib.pyplot as plt
 import copy
 import os
 import json
 from scipy.spatial.distance import dice,directed_hausdorff
+from scipy.spatial import ConvexHull
+from scipy.ndimage import binary_dilation,binary_erosion
 import cc3d
 
 # collecting various ROI stats and data
@@ -160,12 +163,19 @@ class ROISAM(ROI):
         # seg - a composite mask of a multi-compartment segmentation combining ET,TC,WT. not currently used in SAM viewer
         # bbox - 3d volume of 2d bbox prompts of each in-plane slice, to be exported as .png files for use with SAM
         # point - a json dict containing lists of point prompts, for use with SAM
+        # maskpoint - a dict of json dicts, keyed by slice number for 3d multi-slice SAM
         self.data = {'TC':np.zeros(self.dim,dtype='uint8'),'ET':np.zeros(self.dim,dtype='uint8'),'WT':np.zeros(self.dim,'uint8'),
                      'seg_fusion':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg_fusion_d':{'t1':None,'t1+':None,'t2':None,'flair':None},
                      'seg':None,
                      'bbox':{'ax':np.zeros(dim,dtype='uint8'),'sag':np.zeros(dim,dtype='uint8'),'cor':np.zeros(dim,dtype='uint8')},
-                     'point':{'ax':copy.deepcopy(self.pjsondict),'sag':copy.deepcopy(self.pjsondict),'cor':copy.deepcopy(self.pjsondict)}
+                    #  'point':{'ax':copy.deepcopy(self.pjsondict),'sag':copy.deepcopy(self.pjsondict),'cor':copy.deepcopy(self.pjsondict)},
+                     'point':{'ax':{k:copy.deepcopy(self.pjsondict) for k in range(self.dim[0])},
+                                  'sag':{k:copy.deepcopy(self.pjsondict) for k in range(self.dim[2])},
+                                  'cor':{k:copy.deepcopy(self.pjsondict) for k in range(self.dim[1])}},
+                     'maskpoint':{'ax':{k:copy.deepcopy(self.pjsondict) for k in range(self.dim[0])},
+                                  'sag':{k:copy.deepcopy(self.pjsondict) for k in range(self.dim[2])},
+                                  'cor':{k:copy.deepcopy(self.pjsondict) for k in range(self.dim[1])}}
                      }
         # initializing with a one-slice bbox might no longer be needed, use set_bbox instead. 
         if bool(bbox):
@@ -185,8 +195,8 @@ class ROISAM(ROI):
                 if len(np.where(mask[r])[0]):
                     if prompt == 'bbox':
                         self.data['bbox'][orient][r],self.bboxs[r] = self.get_bbox_mask(mask[r])
-                    elif prompt == 'point':
-                        self.data['bbox'][orient][r],self.bboxs[r] = self.get_point_mask(mask[r])  
+                    elif prompt == 'maskpoint':
+                        self.get_point_mask(r,mask[r])  
         elif orient == 'sag':
             if slice is None:
                 rslice = range(np.shape(mask)[2]) # do all slices
@@ -196,8 +206,8 @@ class ROISAM(ROI):
                 if len(np.where(mask[:,:,r])[0]):
                     if prompt == 'bbox':
                         self.data['bbox'][orient][:,:,r],_ = self.get_bbox_mask(mask[:,:,r])
-                    elif prompt == 'point':
-                        self.data['bbox'][orient][:,:,r],_ = self.get_point_mask(mask[:,:,r])  
+                    elif prompt == 'maskpoint':
+                        self.get_point_mask(r,mask[:,:,r])  
         elif orient == 'cor':
             if slice is None:
                 rslice = range(np.shape(mask)[1]) # do all slices
@@ -207,18 +217,49 @@ class ROISAM(ROI):
                 if len(np.where(mask[:,r,:])[0]):
                     if prompt == 'bbox':
                         self.data['bbox'][orient][:,r,:],_ = self.get_bbox_mask(mask[:,r,:])
-                    elif prompt == 'point':
-                        self.data['bbox'][orient][:,r,:],_ = self.get_point_mask(mask[:,r,:])  
+                    elif prompt == 'maskpoint':
+                        self.get_point_mask(r,mask[:,r,:])  
          
-    def get_point_mask(self,mask):
+    def get_point_mask(self,slice,mask,orient='ax',hull_extension=0):
         cy,cx = map(int,np.round(np.mean(np.where(mask),axis=1)))
-        mask = np.zeros_like(mask)
-        mask[cy,cx] = 1
+        centroid_point = np.atleast_2d([cx,cy])
+        point_set = centroid_point
 
-        bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'slice':None}
-        bbox['p0'] = [cx,cy]
+        # for generating point prompts, multiple foreground points are ok, but multiple exclusion points
+        # breaks SAM so use only 1.
+        if len(np.where(mask)[0]) > 25: # use only centroid for small masks
+            hcoords = self.compute_hull_from_mask(mask,hull_extension=-hull_extension)
+            if hcoords is None:
+                convexhull_fg = np.array([])
+            else:
+                convexhull_fg = np.atleast_2d(hcoords)
+                point_set = np.concatenate((np.atleast_2d(point_set),convexhull_fg),axis=0)
+        else:
+            convexhull_fg = np.array([])
+        # the exclusion points should be checked against the region of support of the image slice. in this version of
+        # the viewer, the assumption is that brain extractions are not being done, so there should be plenty of scalp pixels to cover the case of
+        # a lesion right at the skull.
+        convexhull_bg = np.atleast_2d(self.compute_hull_from_mask(mask,hull_extension=np.abs(hull_extension)+5)[0]) # use only 1 point for bg
+        point_set = np.concatenate((point_set,convexhull_bg),axis=0)
+        point_set_labels = np.array([1]+[1]*len(convexhull_fg)+[0]*len(convexhull_bg))
 
-        return mask,bbox
+        self.data['maskpoint'][orient][slice]['x'] = [int(np.round(p[0])) for p in point_set]
+        # huggingface convention y increases from top to bottom, same as plotted in FigureCanvasTkAgg 
+        if False:
+            self.data['maskpoint'][orient]['y'] = [self.dim[1] - int(np.round(p[1])) for p in convexhull_points]
+        else:
+            self.data['maskpoint'][orient][slice]['y'] = [int(np.round(p[1])) for p in point_set]
+        self.data['maskpoint'][orient][slice]['fg'] = [int(l) for l in point_set_labels]
+
+        if True:
+            plt.figure(7)
+            plt.cla()
+            plt.imshow(mask)
+            plt.plot(self.data['maskpoint'][orient][slice]['x'],self.data['maskpoint'][orient][slice]['y'],'r.',markersize=2)
+            plt.show(block=False)
+            a=1
+
+        return
 
     def get_bbox_mask(self,mask):
         # Find minimum mask bounding all included mask points.
@@ -235,13 +276,21 @@ class ROISAM(ROI):
 
     # create a set of point prompts directly from a list of control points
     def create_prompts_from_points(self,pts,prompt='point',slice=None,orient='ax'):
-        self.data['point'][orient]['x'] = [int(np.round(p['p0'][0])) for p in pts]
+        self.data['point'][orient][slice]['x'] = [int(np.round(p['p0'][0])) for p in pts]
         # huggingface convention y increases from top to bottom, same as plotted in FigureCanvasTkAgg 
         if False:
             self.data['point'][orient]['y'] = [self.dim[1] - int(np.round(p['p0'][1])) for p in pts]
         else:
-            self.data['point'][orient]['y'] = [int(np.round(p['p0'][1])) for p in pts]
-        self.data['point'][orient]['fg'] = [int(p['fg']) for p in pts]
+            self.data['point'][orient][slice]['y'] = [int(np.round(p['p0'][1])) for p in pts]
+        self.data['point'][orient][slice]['fg'] = [int(p['fg']) for p in pts]
+
+        if True:
+            plt.figure(7)
+            plt.cla()
+            plt.imshow(np.zeros(self.dim[1:]))
+            plt.plot(self.data['point'][orient][slice]['x'],self.data['point'][orient][slice]['y'],'r.',markersize=2)
+            plt.show(block=False)
+            a=1
         return
 
     # set a bbox for a given slice    
@@ -291,6 +340,34 @@ class ROISAM(ROI):
         for p in pts:
             pcoords = np.round(np.array(p['p0'])).astype('int')
             self.data['bbox'][orient][p['slice'],pcoords[1],pcoords[0]] = 1
+
+    # compute the bounding hull from a mask. 
+    def compute_hull_from_mask(self,mask, original_size=None, hull_extension=0):
+        mask2 = np.copy(mask)
+        if hull_extension > 0:
+            for h in range(hull_extension):
+                mask2 = binary_dilation(mask2)
+        elif hull_extension < 0:
+            for h in range(np.abs(hull_extension)):
+                test = binary_erosion(mask2)
+                if len(np.where(test == 1)[0]) > 15: # arbitrary minimum size of eroded hull
+                    mask2 = test
+                else:
+                    return None
+            
+        coords = np.transpose(np.array(np.where(mask2 == 1)))
+        hull = ConvexHull(coords)
+        hcoords = np.transpose(np.vstack((coords[hull.vertices,1],coords[hull.vertices,0])))
+        if False:
+            plt.figure(7)
+            plt.cla()
+            plt.imshow(mask)
+            plt.plot(hcoords[:,0],hcoords[:,1],'r.',markersize=5)
+            plt.show(block=False)
+            a=1
+        return hcoords
+
+
 
 # for linear measurements in 4panel viewer
 class ROILinear():

@@ -574,7 +574,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
 
     # in this new workflow, BLAST is not run during 2D, so run it here to begin the 3d segmentation
     # then run SAM on all slices with propmts's derived a BLAST ROI. 
-    def sam3d_callback(self,do_ortho=None,remote=False,prompt='point'):
+    def sam3d_callback(self,do_ortho=None,remote=False,prompt='maskpoint'):
         # check for an available blast segmentation
         if not self.ui.rois['blast'][self.ui.s][self.ui.currentroi].status:
             # new workflow. take the SAM prompt points, and process them for a BLAST ROI
@@ -604,18 +604,16 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             planes = ['ax']
 
         for p in planes:
-
-            if prompt in ['bbox','maskpoint']: # old workflow, derive prompt from existing BLAST segmentation
+ 
+            if prompt in ['bbox','maskpoint']: # derive prompt from existing BLAST segmentation. in old workflow it was bbox, in new workflow points hence 'maskpoint' option
                 self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
-                    np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.layerROI.get()]),prompt=prompt,slice=currentslice,orient=p)
-            elif prompt == 'point': # for the new workflow, the 2d point prompt is not derived from a BLAST mask but directly from a list of points
+                    np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.roioverlayframe.layerSAM.get()]),prompt=prompt,slice=None,orient=p)
+            elif prompt == 'point': # for the new workflow, the 3d multi-slice won't likely ever be directly from a list of points
                 self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_points( \
-                    np.copy(self.ui.rois['sam'][self.ui.s][self.ui.currentroi].pts),prompt=prompt,slice=currentslice,orient=p)
-            self.ui.roiframe.save_prompts(slice=currentslice,orient=p,prompt=prompt)
+                    np.copy(self.ui.rois['sam'][self.ui.s][self.ui.currentroi].pts),prompt=prompt,slice=None,orient=p)
 
-            self.ui.rois['sam'][self.ui.s][self.ui.currentroi].create_prompts_from_mask( \
-                np.copy(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.roioverlayframe.layerSAM.get()]),prompt=prompt,orient=p)
-            self.ui.roiframe.save_prompts(orient=p)
+            # still need to reconcile maskpoint wtih point
+            self.ui.roiframe.save_prompts(orient=p,prompt=prompt)
 
         # upload prompts to remote
         if remote:
@@ -626,7 +624,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             upload_time = 0
 
         st2 = time.time()
-        self.ui.sam.segment_sam(orient=None,tag='blast_3d',session=s1)
+        # for now, only 'ax'
+        self.ui.sam.segment_sam(orient=['ax'],tag='blast_3d',session=s1,prompt=prompt)
         
         if remote:
             download_time = self.ui.sam.get_predictions_remote(tag = 'blast_3d',session=s1)
@@ -636,6 +635,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.ui.set_message(msg='SAM 3d up = {:.1f}, elapse = {:.1f}, down = {:.1f}'.format(upload_time,elapsed_time,download_time))
         self.ui.root.update_idletasks()
 
+        # maskpoint/point prompt naming
         self.ui.sam.load_sam(tag = 'blast_3d',prompt=prompt,do_ortho=do_ortho)
         # switch to SAM display
         self.ui.roiframe.roioverlayframe.set_overlay('SAM')
@@ -830,7 +830,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         if self.bbox['p1'] is None: # ie there has been no drag during the b1 click event
             self.record_pt(foreground=True)
         else:
-            if np.sum(np.abs(self.bbox['p1']-self.bbox['p0'])) < 5: # catch an arbitrarily small bbox
+            if np.sum(np.abs(np.array(self.bbox['p1'])-np.array(self.bbox['p0']))) < 5: # catch an arbitrarily small bbox
                 self.bbox['p1'] = None
                 self.record_pt(foreground=True)
             else:

@@ -556,10 +556,16 @@ class CreateSAMROIFrame(CreateFrame):
                         os.system(command)
 
 
-        elif prompt == 'point':
-            ctrl_pts = copy.deepcopy(self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data[prompt][orient])
+        elif 'point' in prompt:
+            # roi.data['layer'] is the multi-slice mask for deriving 'maskpoint' prompts
+            rref = self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.roioverlayframe.layerSAM.get()]
             idx = 0
-            for slice in rslice: # dummy loop, this workflow is currently only coded for 1 slice in 2d
+            for slice in rslice:
+                if len(rslice) > 1: #ie 3d mult-slice, skip any blank slices
+                    if len(np.where(self.get_prompt_slice(slice,rref,orient))[0]) == 0:
+                        continue
+
+                ctrl_pts = copy.deepcopy(self.ui.rois['sam'][self.ui.s][self.ui.currentroi].data[prompt][orient][slice])
                 prompt_filename = os.path.join(fileroot,orient,'prompts',
                         'pts_' + str(idx).zfill(5) + '_case_' + self.ui.caseframe.casename.get() + '_slice_' + str(slice).zfill(3) + '.json')
                 img_filename = os.path.join(fileroot,orient,'images',

@@ -44,7 +44,7 @@ class SAMDataset(Dataset):
 
     def __getitem__(self, idx):  
 
- 
+
         # hard-coded file syntax
         try:
             ifile = glob.glob(os.path.join(self.datadir,'images','img_' + str(idx).zfill(5) + '_case_*_slice_???.png'))[0]

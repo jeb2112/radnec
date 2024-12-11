@@ -425,6 +425,10 @@ class SAM():
             "prompt_type": PromptType.CONTROL_POINTS,
             "multi_mask": None,
             },
+            'maskpoint':{ # variant of control points version derived from BLAST mask
+            "prompt_type": PromptType.CONTROL_POINTS,
+            "multi_mask": None,
+            },
             'bbox':{ # Bounding boxes version:
             "prompt_type": PromptType.BOUNDING_BOX,
             "perturbation": 0,
