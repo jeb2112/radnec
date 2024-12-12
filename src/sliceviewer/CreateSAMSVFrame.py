@@ -583,6 +583,9 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             # any of the clicked points will do to create the BLAST ROI, just use the last one
             self.ui.roiframe.ROIclick(coords = (self.ui.pt[self.ui.s][-1].coords['x'],self.ui.pt[self.ui.s][-1].coords['y']))
 
+        # deactivate bbox selection tool if any.
+        if self.tbar.mode == "bbox":
+            self.tbar.bbox()
         
         print('run SAM 3d')
 

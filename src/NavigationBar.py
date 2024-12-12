@@ -307,7 +307,7 @@ class NavigationBar(NavigationToolbar2Tk):
     # override to add WL
     def _update_buttons_checked(self):
         # sync button checkstates to match active mode
-        for text, mode in [('Zoom', _Mode.ZOOM), ('Pan', _Mode.PAN),('WL',_Mode.WL),('Measure',_Mode.MEASURE)]:
+        for text, mode in [('Zoom', _Mode.ZOOM), ('bbox', _Mode.BBOX),('Pan', _Mode.PAN),('WL',_Mode.WL),('Measure',_Mode.MEASURE)]:
             if text in self._buttons:
                 if self.mode == mode:
                     self._buttons[text].select()  # NOT .invoke()

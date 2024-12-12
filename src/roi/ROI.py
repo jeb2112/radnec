@@ -251,7 +251,7 @@ class ROISAM(ROI):
             self.data['maskpoint'][orient][slice]['y'] = [int(np.round(p[1])) for p in point_set]
         self.data['maskpoint'][orient][slice]['fg'] = [int(l) for l in point_set_labels]
 
-        if True:
+        if False:
             plt.figure(7)
             plt.cla()
             plt.imshow(mask)
@@ -284,7 +284,7 @@ class ROISAM(ROI):
             self.data['point'][orient][slice]['y'] = [int(np.round(p['p0'][1])) for p in pts]
         self.data['point'][orient][slice]['fg'] = [int(p['fg']) for p in pts]
 
-        if True:
+        if False:
             plt.figure(7)
             plt.cla()
             plt.imshow(np.zeros(self.dim[1:]))
