@@ -207,7 +207,7 @@ class ROISAM(ROI):
                     if prompt == 'bbox':
                         self.data['bbox'][orient][:,:,r],_ = self.get_bbox_mask(mask[:,:,r])
                     elif prompt == 'maskpoint':
-                        self.get_point_mask(r,mask[:,:,r])  
+                        self.get_point_mask(r,mask[:,:,r],orient=orient)  
         elif orient == 'cor':
             if slice is None:
                 rslice = range(np.shape(mask)[1]) # do all slices
@@ -218,7 +218,7 @@ class ROISAM(ROI):
                     if prompt == 'bbox':
                         self.data['bbox'][orient][:,r,:],_ = self.get_bbox_mask(mask[:,r,:])
                     elif prompt == 'maskpoint':
-                        self.get_point_mask(r,mask[:,r,:])  
+                        self.get_point_mask(r,mask[:,r,:],orient=orient)  
          
     def get_point_mask(self,slice,mask,orient='ax',hull_extension=0):
         cy,cx = map(int,np.round(np.mean(np.where(mask),axis=1)))

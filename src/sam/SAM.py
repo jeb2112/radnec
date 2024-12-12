@@ -223,7 +223,7 @@ class SAM():
                                                             os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
                                                             type='uint8')
                 # if padded for hugging face, re-crop here
-                img_ortho[p] = img_ortho[p][:,0:self.ui.sliceviewerframe.dim[1],0:self.ui.sliceviewerframe.dim[2]]
+                img_ortho[p] = img_ortho[p][:self.ui.sliceviewerframe.dim[0],:self.ui.sliceviewerframe.dim[1],:self.ui.sliceviewerframe.dim[2]]
 
             # in 3d take the AND composite segmentation
             if do3d:

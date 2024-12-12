@@ -76,7 +76,7 @@ class Config(object):
         self.SAMModel = 'sam_brats2024_10sep24_9000_50epoch.pth'
         self.SAMModelAWS = 'best_base_AdamW_lr=7e-06_wd=0.0002_bs=8_mp=fp16_bbox_0_3_loss=dice_20set.pth'
         # improve 3d SAM with orthogonal segmentations
-        self.SAMortho = False
+        self.SAMortho = True
         # auto-update the SAM 2d in current slice during assembly of the BLAST ROI
         self.SAM2dauto = False
 

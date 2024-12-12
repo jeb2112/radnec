@@ -119,7 +119,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         normalSlice = ttk.Button(self.normal_frame,text='normal stats',command=self.normalslice_callback)
         normalSlice.grid(row=1,column=2,sticky='w')
         # button to run 2d SAM on current prompt (point or bbox)
-        self.run2dSAM = ttk.Button(self.normal_frame,text='2D',command=Command(self.sam2d_callback,prompt=self.prompt_type.get(),do_ortho=False),state='disabled')
+        self.run2dSAM = ttk.Button(self.normal_frame,text='2D',command=Command(self.sam2d_callback,prompt=self.prompt_type.get(),do_ortho=None),state='disabled')
         self.run2dSAM.grid(row=1,column=3,sticky='w')
         # button to run 3d SAM on current BLAST ROI (bbox)
         self.run3dSAM = ttk.Button(self.normal_frame,text='3D',command=Command(self.sam3d_callback,remote=self.ui.config.AWS,do_ortho=None),state='disabled')
@@ -509,7 +509,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # self.ui.roiframe.sliderframe.sliders['ET']['t12']['state']='disabled'
 
     # run 2d SAM on available prompt. currently this is either a bbox or a single point
-    # this method should probably be in ROIFrame
     def sam2d_callback(self,prompt='bbox',do_ortho=None,remote=False):
     
         print('run sam 2D')
@@ -527,8 +526,19 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             do_ortho = self.ui.config.SAMortho
         if do_ortho:
             planes = ['ax','sag','cor']
+            # set orthogonal slices off the 1st foreground point
+            pt = [p for p in self.ui.rois['sam'][self.ui.s][self.ui.currentroi].pts if p['fg']][0]
+            self.set_ortho_slice(coords=(pt['p0'][0],pt['p0'][1]))
+
         else:
             planes = ['ax']
+
+        # for the 2d workflow in this version, there could be multiple SAM point prompts, but they all only 
+        # apply to the 'ax' slice, so there isn't the same equivalence in generating the orthogonal
+        # 2d segmentations as there was in the previous workflow. further, the multiple points would have to
+        # be limited to just one point in the orthogonal slices, and which point to choose would be
+        # arbitrary. for now, don't run the orthogonal slices in the 2dcallback
+        planes = ['ax']
 
         for p in planes:
              
@@ -551,7 +561,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             upload_time = 0
 
         st2 = time.time()
-        # in the initial version of this workflow, only 'ax' is used.
+        # 'ax' still hard-coded here for the 2d workflow
         self.ui.sam.segment_sam(orient=['ax'],tag='2d',prompt=prompt,session=s1)
         # download results if remote
         if remote:
@@ -562,7 +572,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.ui.set_message(msg='SAM 2d up = {:.1f}, elapse = {:.1f}, down = {:.1f}'.format(upload_time,elapsed_time,download_time))
         self.ui.root.update_idletasks()
 
-        self.ui.sam.load_sam(tag='2d',prompt=prompt,do_ortho=do_ortho,do3d=False)
+        # do_ortho hard-coded here for 2d workflow
+        self.ui.sam.load_sam(tag='2d',prompt=prompt,do_ortho=False,do3d=False)
         # switch to SAM display
         self.ui.roiframe.roioverlayframe.set_overlay('SAM')
         # in SAM, the ET bounding box segmentation is interpreted directly as TC
@@ -571,10 +582,10 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         # activate sam 3d
         self.ui.sliceviewerframe.run3dSAM.configure(state='active')
 
-
-    # in this new workflow, BLAST is not run during 2D, so run it here to begin the 3d segmentation
-    # then run SAM on all slices with propmts's derived a BLAST ROI. 
+    # run 3d SAM after a satisfactory 2d SAM result
     def sam3d_callback(self,do_ortho=None,remote=False,prompt='maskpoint'):
+        # in this new workflow, BLAST is not run during 2D, so run it here to begin the 3d segmentation
+        # then run SAM on all slices with propmts's derived a BLAST ROI. 
         # check for an available blast segmentation
         if not self.ui.rois['blast'][self.ui.s][self.ui.currentroi].status:
             # new workflow. take the SAM prompt points, and process them for a BLAST ROI
@@ -627,8 +638,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             upload_time = 0
 
         st2 = time.time()
-        # for now, only 'ax'
-        self.ui.sam.segment_sam(orient=['ax'],tag='blast_3d',session=s1,prompt=prompt)
+        self.ui.sam.segment_sam(orient=None,tag='blast_3d',session=s1,prompt=prompt)
         
         if remote:
             download_time = self.ui.sam.get_predictions_remote(tag = 'blast_3d',session=s1)
@@ -716,11 +726,14 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
     # convenience method related to the b1motion crosshair
     # for now this is just hard-coded to axis 'A' but should be
     # developed generally
-    def set_ortho_slice(self,event,ax='A'):
+    def set_ortho_slice(self,event=None,coords=None,ax='A'):
         if ax == 'A':
-            x,y = self.axs[ax].transData.inverted().transform((event.x,event.y))
-            if False:
-                y = self.dim[1]-y
+            if event is not None:
+                x,y = self.axs[ax].transData.inverted().transform((event.x,event.y))
+                if False:
+                    y = self.dim[1]-y
+            elif coords is not None:
+                x,y = coords
             self.currentsagslice.set(int(np.round(x)))
             self.currentcorslice.set(int(np.round(y)))
         self.updateslice()
