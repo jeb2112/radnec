@@ -586,13 +586,19 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
     def sam3d_callback(self,do_ortho=None,remote=False,prompt='maskpoint'):
         # in this new workflow, BLAST is not run during 2D, so run it here to begin the 3d segmentation
         # then run SAM on all slices with propmts's derived a BLAST ROI. 
-        # check for an available blast segmentation
-        if not self.ui.rois['blast'][self.ui.s][self.ui.currentroi].status:
-            # new workflow. take the SAM prompt points, and process them for a BLAST ROI
-            self.ui.roiframe.blastpointframe.copy_points()
-            self.ui.roiframe.blastpointframe.updateBLASTMask(currentslice=None)
-            # any of the clicked points will do to create the BLAST ROI, just use the last one
-            self.ui.roiframe.ROIclick(coords = (self.ui.pt[self.ui.s][-1].coords['x'],self.ui.pt[self.ui.s][-1].coords['y']))
+        # check for an available blast segmentation or
+        # optionally, load an alternative (eg BraTS) mask
+        if self.ui.config.UseBraTSMask:
+            layer = self.ui.roiframe.roioverlayframe.layerSAM.get()
+            self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[layer] = self.load_brats_mask(layer)
+            self.ui.rois['blast'][self.ui.s][self.ui.currentroi].status = True
+        else:
+            if not self.ui.rois['blast'][self.ui.s][self.ui.currentroi].status:
+                # new workflow. take the SAM prompt points, and process them for a BLAST ROI
+                self.ui.roiframe.blastpointframe.copy_points()
+                self.ui.roiframe.blastpointframe.updateBLASTMask(currentslice=None)
+                # any of the clicked points will do to create the BLAST ROI, just use the last one
+                self.ui.roiframe.ROIclick(coords = (self.ui.pt[self.ui.s][-1].coords['x'],self.ui.pt[self.ui.s][-1].coords['y']))
 
         # deactivate bbox selection tool if any.
         if self.tbar.mode == "bbox":
@@ -1027,3 +1033,24 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             self.ui.set_message('Elapsed time = {:d} seconds'.format(int(np.ceil(self.elapsedtime))))
         return
  
+
+    #######
+    # other
+    #######
+
+    # load an alternate mask.
+    # just hard-coded for BraTS now.
+    def load_brats_mask(self,layer='WT'):
+
+        # BraTS 2024 convention
+        layersdict = {'WT':2,'TC':1,'ET':3}
+        # convention to accumulate layers
+        layersdict = {'WT':[1,2,3],'TC':1,'ET':3}
+
+        fname = glob.glob(os.path.join(self.ui.data[self.ui.s].studydir,'BraTS-*-seg.nii.gz'))
+        if len(fname) == 1:
+            mask,_ = self.ui.data[self.ui.s].loadnifti(os.path.split(fname[0])[1],os.path.split(fname[0])[0],type='uint8')
+            mask = np.where(np.isin(mask,layersdict[layer]),1,0)
+            return mask
+        else:
+            return None

@@ -147,12 +147,16 @@ class BlastGui(object):
 
             # load a nifti case for BLAST 
             if True:
-                debugdir = os.path.join(os.path.expanduser('~'),'data','brats2024_nifti')
-                debugdir = self.config.UIlocaldir
+                if False:
+                    debugdir = os.path.join(os.path.expanduser('~'),'data','brats2024_nifti')
+                else:
+                    debugdir = self.config.UIlocaldir
                 self.caseframe.datadir.set(debugdir)
                 self.caseframe.datadirentry_callback()
-                caseselect = 'M00002'
-                caseslice = 117
+                # caseselect = 'M00001'
+                # caseslice = 117
+                caseselect = 'M00004'
+                caseslice = 85
                 self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
                 self.sliceviewerframe.currentslice.set(caseslice)
