@@ -65,7 +65,8 @@ class SAMDataset(Dataset):
         # standalone sam preprocess script outputs a gray-scale image which has to be tiled back to rgb
         # viewer code currently outputs a RGBA image, in the 3rd dim, which has to be switched to rgb, in the first dim
         if len(np.shape(input_image1)) == 3:
-            input_image1 = np.tile(input_image1[:,:,0],(3,1,1))
+            # input_image1 = np.tile(input_image1[:,:,0],(3,1,1))
+            input_image1 = np.moveaxis(input_image1[:,:,:3],-1,0)
         elif len(np.shape(input_image1)) == 2:
             input_image1 = np.tile(input_image1,(3,1,1))
             

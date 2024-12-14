@@ -27,7 +27,7 @@ import PIL
 from skimage.morphology import disk,square,binary_dilation,binary_closing,flood_fill,ball,cube,reconstruction
 from skimage.measure import find_contours
 import cc3d
-
+import cv2
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
 if os.name == 'posix':
@@ -36,6 +36,9 @@ if os.name == 'posix':
 elif os.name == 'nt':
     from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
 import cupy as cp
+import scripts.src.colorizers as colorizers
+import torch
+import gc
 
 from src.OverlayPlots import *
 from src.CreateFrame import CreateFrame,Command
@@ -47,7 +50,7 @@ from src.SSHSession import SSHSession
 
 # contains various ROI methods and variables for 'SAM' mode
 class CreateSAMROIFrame(CreateFrame):
-    def __init__(self,frame,ui=None,padding='10'):
+    def __init__(self,frame,ui=None,padding='10',colorize=True):
         super().__init__(frame,ui=ui,padding=padding)
 
         self.buttonpress_id = None # temp var for keeping track of button press event
@@ -106,6 +109,11 @@ class CreateSAMROIFrame(CreateFrame):
         self.sliderframe = CreateROISliderFrame(self.frame,ui=self.ui)
         if False:
             self.sliderframe.frame.grid(row=2,column=4,sticky='e')
+
+        # optional for colorization
+        if colorize:
+            self.colorize = True
+
 
     #############
     # ROI methods
@@ -491,7 +499,6 @@ class CreateSAMROIFrame(CreateFrame):
         return None
 
     # output images and prompts for sam segmentation
-    # using tmpfiles and standalone script for separate ptorch env. ultimately should add ptorch to the blast env
     def save_prompts(self,slice=None,orient='ax',prompt='bbox'):
 
         if orient == 'ax':
@@ -560,6 +567,16 @@ class CreateSAMROIFrame(CreateFrame):
             # roi.data['layer'] is the multi-slice mask for deriving 'maskpoint' prompts
             rref = self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[self.ui.roiframe.roioverlayframe.layerSAM.get()]
             idx = 0
+
+            if self.colorize:
+                if True:
+                    self.colorizer = colorizers.eccv16(pretrained=True).eval()
+                    self.colorizer.cuda()
+                else:
+                    self.colorizer = colorizers.siggraph17(pretrained=True).eval()
+                    self.colorizer.cuda()
+
+
             for slice in rslice:
                 if len(rslice) > 1: #ie 3d mult-slice, skip any blank slices
                     if len(np.where(self.get_prompt_slice(slice,rref,orient))[0]) == 0:
@@ -575,16 +592,25 @@ class CreateSAMROIFrame(CreateFrame):
                 meta = PIL.PngImagePlugin.PngInfo()
                 meta.add_text('slicedim',str(slicedim))
                 meta.add_text('affine',affine_bytes_str)
-                img_slice = self.get_prompt_slice(slice,dref,orient,pad=True)
-                plt.imsave(img_filename,img_slice,cmap='gray',pil_kwargs={'pnginfo':meta})
+                img_slice = self.get_prompt_slice(slice,dref,orient,pad=True,colorize=True)
+                if self.colorize:
+                    plt.imsave(img_filename,img_slice,pil_kwargs={'pnginfo':meta})
+                else:
+                    plt.imsave(img_filename,img_slice,cmap='gray',pil_kwargs={'pnginfo':meta})
 
                 idx += 1
 
+            if self.colorize:
+                torch.cuda.empty_cache()
+                # Clear occupied memory by tensors no longer in use
+                del self.colorizer  # or any tensor variable occupying memory
+                gc.collect()
+                torch.cuda.empty_cache()
 
         return
 
     # convenience method, could use rotations instead
-    def get_prompt_slice(self,idx,img_arr,orient,pad=False):
+    def get_prompt_slice(self,idx,img_arr,orient,pad=False,colorize=False):
         if orient == 'ax':
             img = img_arr[idx]
         elif orient == 'sag':
@@ -605,6 +631,18 @@ class CreateSAMROIFrame(CreateFrame):
                 self.padding = (0,pad_amount),(0,0)
                 img = np.pad(img,self.padding)
 
+        # optionally colorize the gray-scale image
+        if self.colorize:
+            img_rgb = np.tile(img[:,:,np.newaxis],(1,1,3))
+            img_rgb /= np.max(img_rgb)
+            (tens_l_orig, tens_l_rs) = colorizers.preprocess_img(img_rgb, HW=(256,256))
+            tens_l_rs = tens_l_rs.cuda()
+
+            # colorizer outputs 256x256 ab map
+            # resize and concatenate to original L channel
+            # img_bw = colorizers.postprocess_tens(tens_l_orig, torch.cat((0*tens_l_orig,0*tens_l_orig),dim=1))
+            img = colorizers.postprocess_tens(tens_l_orig, self.colorizer(tens_l_rs).cpu())
+      
         return img
 
     # for exporting BLAST/SAM segmentations.
