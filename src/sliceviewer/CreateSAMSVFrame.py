@@ -644,7 +644,11 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             upload_time = 0
 
         st2 = time.time()
-        self.ui.sam.segment_sam(orient=None,tag='blast_3d',session=s1,prompt=prompt)
+        if self.ui.config.SAMortho is False:
+            orient = ['ax']
+        else:
+            orient = None
+        self.ui.sam.segment_sam(orient=orient,tag='blast_3d',session=s1,prompt=prompt)
         
         if remote:
             download_time = self.ui.sam.get_predictions_remote(tag = 'blast_3d',session=s1)

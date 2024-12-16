@@ -32,6 +32,7 @@ class SAM():
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.remote = remote
         self.ui = ui
+        self.samp = None
 
     ################
     # prep functions
@@ -267,13 +268,13 @@ class SAM():
     def upsample_mask(self,pred_mask, target_size):
         return F.interpolate(pred_mask.unsqueeze(1), size=target_size, mode="nearest").squeeze(1)
 
-    def forward_pass(self,model: SamModel, batch, prompt_type: PromptType):
+    def forward_pass(self,model: SamModel, batch, prompt_type: PromptType, multi_mask=False):
         if prompt_type == PromptType.CONTROL_POINTS:
             outputs = model(
                 pixel_values=batch["pixel_values"],
                 input_points=batch["input_points"],
                 input_labels=batch["input_labels"],
-                multimask_output=False,
+                multimask_output=multi_mask,
             )
         elif prompt_type == PromptType.BOUNDING_BOX:
             outputs = model(
@@ -300,35 +301,46 @@ class SAM():
 
     def predict_model(self,model: SamModel, batch, prompt_args, confidence_threshold=0.5):
 
+        # Squeeze the 0th dim since prediction dataloader always has batch size 1
+        # need to check this in a training context
+        for k in batch.keys(): 
+            batch[k] = batch[k].squeeze(0)
+            
         batch = {k: v.to(self.device) for k, v in batch.items()}
         with torch.no_grad():
             if True:
-                outputs = self.forward_pass(model, batch, prompt_args['prompt_type'])
+                outputs = self.forward_pass(model, batch, prompt_args['prompt_type'], multi_mask=prompt_args['multi_mask'])
             else:
-                outputs = model(**batch, multimask_output=False)
+                outputs = model(**batch, multimask_output=True)
 
-        # Squeeze the 0th dim since validation dataloader always has batch size 1, and
-        # attempt to squeeze the 1st dim since bbox predictions only have 1 output mask.
+        # squeeze extra dimensions. this appears to be the same for both bbox and points.
+        raw_predicted_masks = outputs.pred_masks.squeeze((0, 1)).cpu()
         if prompt_args['prompt_type'] == 'bbox':
-            raw_predicted_masks = outputs.pred_masks.squeeze((0, 1)).cpu()
             ground_truth_mask = batch["ground_truth_mask"].squeeze(0).float().cpu()
-        elif prompt_args['prompt_type'] == 'pts':
-            # point predicts have several output masks so only squeeze 0 dim
-            raw_predicted_masks = outputs.pred_masks.squeeze((0)).cpu()
 
-        if True:
-            predicted_mask = torch.sigmoid(self.upsample_mask(raw_predicted_masks, (1,)+self.ui.sliceviewerframe.dim[1:])).squeeze()
-        else:
-            predicted_mask = torch.sigmoid(raw_predicted_masks).squeeze()
-        raw_mask = predicted_mask.cpu().numpy()
-        mask = (raw_mask > confidence_threshold).astype(np.uint8) * 255
+        if False: # sigmoid processing
+            predicted_masks = torch.sigmoid(self.upsample_mask(raw_predicted_masks, self.ui.sliceviewerframe.dim[1:])).cpu().numpy()
+            predicted_masks = (sigmoid_mask > confidence_threshold).astype(np.uint8) * 255
+        else: # huggingface default processing
+            predicted_masks = self.samp.processor.image_processor.post_process_masks(outputs.pred_masks.cpu(), batch["original_sizes"].cpu(), batch["reshaped_input_sizes"].cpu())
+            predicted_masks = predicted_masks[0].squeeze().cpu().numpy().astype(np.uint8) * 255
         # metrics = calc_datapoint_metrics(ground_truth_mask.numpy().astype(np.uint8), mask)
         metrics = None
 
         # pick best mask if multiple
-        if len(np.shape(mask)) > 2:
-            confidence_idx = torch.argmax(outputs['iou_scores']).cpu()  # Index of the most confident mask
-            mask = mask[confidence_idx]
+        if len(np.shape(predicted_masks)) > 2:
+            if False: # anecdotally, the highest iou is turning out to be the entire brain, not the lesion. 
+                    # generally, the desired mask is looking like the 3rd mask. 
+                    # but even the intermediate mask has sometimes higher iou. 
+                    # however, turning multi-mask off makes a worse result.
+                    # so not sure what the logic can be here
+                confidence_idx = torch.argmax(outputs['iou_scores']).cpu()  # Index of the most confident mask
+                mask = predicted_masks[confidence_idx]
+            else:
+                mask = predicted_masks[-1]
+        else:
+            mask = predicted_masks
+
 
         mask_comb = None
         if False:
@@ -336,7 +348,7 @@ class SAM():
             bbox_shape = tuple(batch['reshaped_input_sizes'][0].cpu().numpy())
             mask_comb = predict_plot(ground_truth_mask.numpy().astype(np.uint8),mask,bbox,bbox_shape)
 
-        return raw_mask, mask, metrics, mask_comb
+        return mask, metrics, mask_comb
 
 
     def predict_metrics(self,model: SamModel, dataloader: DataLoader, prompt_args, datadir=None):
@@ -346,7 +358,7 @@ class SAM():
         metrics = []    
         
         for idx, batch in enumerate(dataloader):
-            _, mask, batch_metrics, _ = self.predict_model(model, batch, prompt_args)
+            mask, batch_metrics, _ = self.predict_model(model, batch, prompt_args)
             metrics.append(batch_metrics)
 
             if datadir is not None:
@@ -423,11 +435,11 @@ class SAM():
 
         prompt_args = {'point':{    # Control points version:
             "prompt_type": PromptType.CONTROL_POINTS,
-            "multi_mask": None,
+            "multi_mask": True,
             },
             'maskpoint':{ # variant of control points version derived from BLAST mask
             "prompt_type": PromptType.CONTROL_POINTS,
-            "multi_mask": None,
+            "multi_mask": True,
             },
             'bbox':{ # Bounding boxes version:
             "prompt_type": PromptType.BOUNDING_BOX,
@@ -448,9 +460,11 @@ class SAM():
                 model = SamModel.from_pretrained(f"facebook/sam-vit-base")
         if checkpoint is not None:
             checkpoint_data = torch.load(checkpoint)
-            model_state_dict = checkpoint_data["model_state_dict"]
-            if True: # also done in huggingface but again duplication
+            if hasattr(checkpoint_data,'model_state_dict'):
+                model_state_dict = checkpoint_data["model_state_dict"]
                 model.load_state_dict(model_state_dict)
+            else:
+                model_state_dict = None
         else:
             model_state_dict = None
         if True:
@@ -496,13 +510,13 @@ class SAM():
             affine = np.reshape(np.frombuffer(affine_dec, dtype=np.float64),(4,4))
 
             eval_datadir = {'test':spath}
-            samp = SAMProcessing(eval_datadir,model_dict=model_state_dict,
+            self.samp = SAMProcessing(eval_datadir,model_dict=model_state_dict,
                                  model_size='base',
                                  prompt_type=prompt_args[prompt]['prompt_type'])
                                 #  image_size=img_size)
 
             if debug == False:
-                res = self.predict_metrics(model,samp.dataloaders['test'],prompt_args[prompt],datadir=spath)
+                res = self.predict_metrics(model,self.samp.dataloaders['test'],prompt_args[prompt],datadir=spath)
 
             # gather the sam-predicted 2d slices into a nifti volume
             # with the torch DataLoader, the output masks for a set of image files are just in 

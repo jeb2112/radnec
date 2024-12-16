@@ -227,7 +227,8 @@ class ROISAM(ROI):
 
         # for generating point prompts, multiple foreground points are ok, but multiple exclusion points
         # breaks SAM so use only 1.
-        if len(np.where(mask)[0]) > 25: # use only centroid for small masks
+        # for now, use only a single centroid point
+        if len(np.where(mask)[0]) > 25 and False: # use only centroid for small masks
             hcoords = self.compute_hull_from_mask(mask,hull_extension=-hull_extension)
             if hcoords is None:
                 convexhull_fg = np.array([])
@@ -239,8 +240,12 @@ class ROISAM(ROI):
         # the exclusion points should be checked against the region of support of the image slice. in this version of
         # the viewer, the assumption is that brain extractions are not being done, so there should be plenty of scalp pixels to cover the case of
         # a lesion right at the skull.
-        convexhull_bg = np.atleast_2d(self.compute_hull_from_mask(mask,hull_extension=np.abs(hull_extension)+5)[0]) # use only 1 point for bg
-        point_set = np.concatenate((point_set,convexhull_bg),axis=0)
+        if False:
+            convexhull_bg = np.atleast_2d(self.compute_hull_from_mask(mask,hull_extension=np.abs(hull_extension)+5)[0]) # use only 1 point for bg
+            point_set = np.concatenate((point_set,convexhull_bg),axis=0)
+        # until bg points can be verified somehow, just use the single centroid point.
+        else:
+            convexhull_bg = np.array([])
         point_set_labels = np.array([1]+[1]*len(convexhull_fg)+[0]*len(convexhull_bg))
 
         self.data['maskpoint'][orient][slice]['x'] = [int(np.round(p[0])) for p in point_set]

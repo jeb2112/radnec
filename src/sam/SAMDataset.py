@@ -121,16 +121,17 @@ class SAMDataset(Dataset):
                         imsave(ofile,check_comb)
 
             elif self.prompt_type == PromptType.CONTROL_POINTS:
-                check_image = np.copy(inputs['pixel_values'])[0]
+                check_image = np.moveaxis(np.array(inputs['pixel_values'][0].cpu()),0,-1)
                 pts = np.array(inputs['input_points'][0]).astype('int')
 
                 # 8 bit pngs
-                check_image2 = (skimage.transform.resize(input_image,np.shape(check_image))*255).astype('uint8')
-                for p in pts:
-                    check_image2[p[1]-4:p[1]+4,p[0]-4:p[0]+4] = np.array([255,0,0,255],dtype='uint8')
+                # check_image2 = (skimage.transform.resize(input_image,np.shape(check_image))*255).astype('uint8')
+                for p in pts[0]:
+                    # check_image2[p[1]-4:p[1]+4,p[0]-4:p[0]+4] = np.array([255,0,0,255],dtype='uint8')
+                    check_image[p[1]-4:p[1]+4,p[0]-4:p[0]+4] = np.array([255,0,0],dtype='uint8')
                 ofile = os.path.join(self.datadir,'datacheck','comb_' + str(idx).zfill(4) + '.png')
                 plt.figure(8)
-                plt.imshow(check_image2)
+                plt.imshow(check_image)
                 plt.show(block=False)
                 # imsave(ofile,check_image2)
 
@@ -161,12 +162,17 @@ class SAMDataset(Dataset):
             pts=ground_truth_pts
         )  
         # Samprocessor requires lists not np arrays
-        input_points = [input_points.astype(float).tolist()]  
+        if True:
+            input_points = [input_points.astype(float).tolist()]  
+        else:
+            input_points = input_points.astype(float).tolist()
         input_labels = input_labels.tolist()  
         if False:
             input_labels = [[x] for x in input_labels] # teodoran code
-        else:
+        elif True:
             input_labels = [input_labels] # chatgpt code
+        elif False:
+            input_labels = input_labels # other chatgpt code
 
         # Prepare the image and prompt for the model.  
         inputs = self.processor(  
@@ -178,8 +184,9 @@ class SAMDataset(Dataset):
 
         # pre-Remove batch dimension because it gets added back later.  
         # inputs = {k: v for k, v in inputs.items()}
-        for k in inputs.keys(): 
-            inputs[k] = inputs[k].squeeze(0)
+        if False:
+            for k in inputs.keys(): 
+                inputs[k] = inputs[k].squeeze(0)
 
         return inputs
 

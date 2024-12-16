@@ -111,8 +111,7 @@ class CreateSAMROIFrame(CreateFrame):
             self.sliderframe.frame.grid(row=2,column=4,sticky='e')
 
         # optional for colorization
-        if colorize:
-            self.colorize = True
+        self.colorize = self.ui.config.Colorize
 
 
     #############

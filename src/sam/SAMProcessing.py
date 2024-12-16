@@ -18,6 +18,7 @@ class SAMProcessing():
         self.model_size = model_size
         self.batch_size = batch_size
         self.model_dict = model_dict # full path to local model
+        self.processor = None
 
         self.datasets = {}
         self.dataloaders = {}
@@ -42,13 +43,13 @@ class SAMProcessing():
     ):
         model_name = self.get_model_name(self.model_size)
         try:
-            processor = SamProcessor.from_pretrained(model_name,state_dict=self.model_dict)
+            self.processor = SamProcessor.from_pretrained(model_name,state_dict=self.model_dict)
         except OSError as e:
             raise OSError
 
         self.datasets[dkey] = SAMDataset(
             datadir=self.datadirs[dkey], 
-            processor=processor, 
+            processor=self.processor, 
             **kwargs,
         )
  

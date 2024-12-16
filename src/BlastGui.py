@@ -147,15 +147,18 @@ class BlastGui(object):
 
             # load a nifti case for BLAST 
             if True:
-                if False:
+                if True:
                     debugdir = os.path.join(os.path.expanduser('~'),'data','brats2024_nifti')
+                    debugdir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/SAM_BraTS_2024/brats2nifti'
                 else:
                     debugdir = self.config.UIlocaldir
                 self.caseframe.datadir.set(debugdir)
                 self.caseframe.datadirentry_callback()
                 # caseselect = 'M00001'
                 # caseslice = 117
-                caseselect = 'M00004'
+                # caseselect = 'M00004'
+                # caseslice = 85
+                caseselect = 'M00012'
                 caseslice = 85
                 self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
