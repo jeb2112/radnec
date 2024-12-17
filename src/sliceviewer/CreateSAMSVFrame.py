@@ -30,6 +30,7 @@ import SimpleITK as sitk
 from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice
 import scipy
+import cc3d
 
 from src.NavigationBar import NavigationBar
 
@@ -46,42 +47,18 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         super().__init__(parentframe,ui=ui,padding=padding,style=style)
 
         # ui variables
-        self.currentslice = tk.IntVar(value=75)
-        self.currentsagslice = tk.IntVar(value=120)
-        self.currentcorslice = tk.IntVar(value=120)
-        self.labels = {'Im_A':None,'Im_B':None,'Im_C':None,'W_A':None,'L_A':None,'W_B':None,'L_B':None}
+
         self.axslicelabel = None
         self.corslicelabel = None
         self.sagslicelabel = None
         self.windowlabel = None
         self.levellabel = None
-        self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
         self.sagcordisplay = tk.IntVar(value=0)
         self.overlay_type = tk.IntVar(value=self.config.BlastOverlayType)
-        # self.slicevolume_norm = tk.IntVar(value=1)
         self.prompt_type = tk.StringVar(value='point')
-        # window/level stuff will need further tidying up
-        # window/level values for T1,T2
-        self.window = np.array([1.,1.],dtype='float')
-        self.level = np.array([0.5,0.5],dtype='float')
-        # window/level values for overlays and images. hard-coded for now.
-        self.wl = {'t1+':[600,300],'flair':[600,300]}
-        self.wlflag = False
-        self.b1x = self.b1y = None # for tracking window/level mouse drags
-        self.b3y = None # mouse drag for cor,sag slices\
-        self.sliceinc = 0
-        # image dimensions
-        self.dim = self.ui.config.ImageDim
-        self.canvas = None
-        self.cw = None
-        self.blankcanvas = None
-        self.fig = None
-        self.resizer_count = 1
-        self.ui = ui
+
         # user interaction time
         self.dwelltime = None
-        # previous time for timer
-        self.prevtime = None
         self.timingtext = tk.StringVar(value='off')
         self.timing = tk.IntVar(value=0)
         self.elapsedtime = 0
@@ -1055,6 +1032,13 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         if len(fname) == 1:
             mask,_ = self.ui.data[self.ui.s].loadnifti(os.path.split(fname[0])[1],os.path.split(fname[0])[0],type='uint8')
             mask = np.where(np.isin(mask,layersdict[layer]),1,0)
+            CC_labeled = cc3d.connected_components(mask,connectivity=6)
+            # select the lesion based on the first available clickpoint
+
+            clicked_point =  self.ui.rois['sam'][self.ui.s][self.ui.currentroi].pts[0]
+            objectnumber = CC_labeled[clicked_point['slice'],int(np.round(clicked_point['p0'][1])),int(np.round(clicked_point['p0'][0]))]
+            mask = (CC_labeled == objectnumber).astype('uint8')
+
             return mask
         else:
             return None

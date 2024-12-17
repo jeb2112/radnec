@@ -437,7 +437,7 @@ class Study():
         return
     
     # load a single nifti file
-    def loadnifti(self,t1_file,dir=None,type=None):
+    def loadnifti(self,t1_file,dir=None,type='uint8'):
         img_arr_t1 = None
         if dir is None:
             dir = self.studydir

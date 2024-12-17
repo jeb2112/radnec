@@ -78,6 +78,8 @@ class Config(object):
         self.SAMModelAWS = 'best_base_AdamW_lr=7e-06_wd=0.0002_bs=8_mp=fp16_bbox_0_3_loss=dice_20set.pth'
         # improve 3d SAM with orthogonal segmentations
         self.SAMortho = True
+        # combine orthogonal segmentation as raw probability otherwise AND the binary final mask
+        self.SAMRawCombine = True
         # auto-update the SAM 2d in current slice during assembly of the BLAST ROI
         self.SAM2dauto = False
 

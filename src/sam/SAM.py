@@ -3,18 +3,20 @@ import os
 import re
 import matplotlib.pyplot as plt
 import shutil
-from sklearn.metrics import f1_score, precision_score
-from scipy.spatial.distance import dice,directed_hausdorff
 import copy
 from cProfile import Profile
 from pstats import SortKey,Stats
 import time
 
+from sklearn.metrics import f1_score, precision_score
+from scipy.spatial.distance import dice,directed_hausdorff
+from scipy.stats import logistic
 import skimage
 from skimage.io import imread,imsave
 from skimage.transform import resize
 import nibabel as nb
 import PIL 
+import cv2
 
 from transformers import SamModel
 import torch
@@ -217,21 +219,35 @@ class SAM():
         roi = self.ui.currentroi
         rref = self.ui.rois['sam'][self.ui.s][roi]
         if do_ortho:
-            img_ortho = {}
+            img_ortho = {'sam':{},'sam_raw':{}}
             for p in ['ax','sag','cor']:
-                fname = layer+'_sam_' + prompt + '_' + tag + '_' + p + '.nii.gz'
-                img_ortho[p],_ = self.ui.data[self.ui.s].loadnifti(fname,
-                                                            os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
-                                                            type='uint8')
-                # if padded for hugging face, re-crop here
-                img_ortho[p] = img_ortho[p][:self.ui.sliceviewerframe.dim[0],:self.ui.sliceviewerframe.dim[1],:self.ui.sliceviewerframe.dim[2]]
+                for m in img_ortho.keys():
+                    fname = layer+'_' + m +'_' + prompt + '_' + tag + '_' + p + '.nii.gz'
+                    if m == 'sam_raw':
+                        dtype = 'float'
+                    else:
+                        dtype = 'uint8'
+                    img_ortho[m][p],_ = self.ui.data[self.ui.s].loadnifti(fname,
+                                                                os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
+                                                                type=dtype)
+                    # if padded for hugging face, re-crop here
+                    img_ortho[m][p] = img_ortho[m][p][:self.ui.sliceviewerframe.dim[0],:self.ui.sliceviewerframe.dim[1],:self.ui.sliceviewerframe.dim[2]]
 
-            # in 3d take the AND composite segmentation
+            # in 3d take the AND composite segmentation or average the probabilities
             if do3d:
-                img_comp = img_ortho['ax']
+                img_comp = img_ortho['sam']['ax']
                 for p in ['sag','cor']:
-                    img_comp = (img_comp) & (img_ortho[p])
-                rref.data[layer] = copy.deepcopy(img_comp)
+                    img_comp = (img_comp) & (img_ortho['sam'][p])
+                raw_comp = np.zeros_like(img_ortho['sam_raw']['ax'],dtype='float')
+                for p in ['ax','sag','cor']:
+                    raw_comp += img_ortho['sam_raw'][p]/3
+                raw_comp = logistic.cdf(raw_comp)
+                raw_comp = (raw_comp > 0.5).astype(np.uint8) * 255
+
+                if self.ui.config.SAMRawCombine:
+                    rref.data[layer] = copy.deepcopy(raw_comp)
+                else:
+                    rref.data[layer] = copy.deepcopy(img_comp)
             # in 2d use the individual slice segmentations by OR
             else:
                 img_comp = img_ortho['ax']
@@ -324,6 +340,7 @@ class SAM():
         else: # huggingface default processing
             predicted_masks = self.samp.processor.image_processor.post_process_masks(outputs.pred_masks.cpu(), batch["original_sizes"].cpu(), batch["reshaped_input_sizes"].cpu())
             predicted_masks = predicted_masks[0].squeeze().cpu().numpy().astype(np.uint8) * 255
+            raw_predicted_masks = self.upsample_mask(outputs.pred_masks.cpu().squeeze(),self.ui.sliceviewerframe.dim[1:]).cpu().numpy()
         # metrics = calc_datapoint_metrics(ground_truth_mask.numpy().astype(np.uint8), mask)
         metrics = None
 
@@ -338,8 +355,10 @@ class SAM():
                 mask = predicted_masks[confidence_idx]
             else:
                 mask = predicted_masks[-1]
+                raw_mask = raw_predicted_masks[-1]
         else:
             mask = predicted_masks
+            raw_mask = raw_predicted_masks
 
 
         mask_comb = None
@@ -348,7 +367,7 @@ class SAM():
             bbox_shape = tuple(batch['reshaped_input_sizes'][0].cpu().numpy())
             mask_comb = predict_plot(ground_truth_mask.numpy().astype(np.uint8),mask,bbox,bbox_shape)
 
-        return mask, metrics, mask_comb
+        return mask, raw_mask, metrics
 
 
     def predict_metrics(self,model: SamModel, dataloader: DataLoader, prompt_args, datadir=None):
@@ -358,12 +377,15 @@ class SAM():
         metrics = []    
         
         for idx, batch in enumerate(dataloader):
-            mask, batch_metrics, _ = self.predict_model(model, batch, prompt_args)
+            mask, raw_mask, batch_metrics = self.predict_model(model, batch, prompt_args)
             metrics.append(batch_metrics)
 
             if datadir is not None:
                 ofile = os.path.join(datadir,'predictions','pred_mask_' + str(idx).zfill(5) + '.png')
                 imsave(ofile,mask,check_contrast=False)
+                ofile = os.path.join(datadir,'predictions','raw_pred_mask_' + str(idx).zfill(5) + '.tiff')
+                cv2.imwrite(ofile,raw_mask)
+                # imsave(ofile,raw_mask,check_contrast=False)
 
         return metrics
 
@@ -524,28 +546,36 @@ class SAM():
             # of the input image files. it is thus assumed that the DataLoader is processing the image
             # files in a sorted order since it is batchsize=1 and no shuffling (to be verified)
 
+            sam_predict = {'sam':None,'sam_raw':None}
             if orient == 'ax':
-                sam_predict = np.zeros((slicedim,)+image_pil.size[-1::-1],dtype='uint8')
+                sam_predict['sam'] = np.zeros((slicedim,)+image_pil.size[-1::-1],dtype='uint8')
+                sam_predict['sam_raw'] = np.zeros((slicedim,)+image_pil.size[-1::-1],dtype='float')
             elif orient == 'sag':
-                sam_predict = np.zeros(image_pil.size[-1::-1]+(slicedim,),dtype='uint8')
+                sam_predict['sam'] = np.zeros(image_pil.size[-1::-1]+(slicedim,),dtype='uint8')
+                sam_predict['sam_raw'] = np.zeros(image_pil.size[-1::-1]+(slicedim,),dtype='float')
             elif orient == 'cor': 
-                sam_predict = np.zeros((image_pil.size[-1],slicedim,image_pil.size[0]),dtype='uint8')
+                sam_predict['sam'] = np.zeros((image_pil.size[-1],slicedim,image_pil.size[0]),dtype='uint8')
+                sam_predict['sam_raw'] = np.zeros((image_pil.size[-1],slicedim,image_pil.size[0]),dtype='float')
             image_pil.close()
 
             pred_files = os.listdir(os.path.join(spath,'predictions'))
-            pred_masks = sorted([ f for f in pred_files if re.match('pred_mask',f) ])
-            for i,m in zip(images,pred_masks):
-                slice = int(re.search('slice_([0-9]{3})',i).group(1))
-                mask_pil = PIL.Image.open(os.path.join(spath,'predictions',m))
-                mask = skimage.transform.resize(np.array(mask_pil),image_pil.size[-1::-1],order=0)
-                self.set_slice(slice,sam_predict,mask,orient)
-                mask_pil.close()
-                # sam_predict[slice] = mask
+            # binary, probability masks
+            for ttag,mtag in zip(['sam','sam_raw'],['pred_mask','raw_pred_mask']):
+                pred_masks = sorted([ f for f in pred_files if re.match(mtag,f) ])
+                for i,m in zip(images,pred_masks):
+                    slice = int(re.search('slice_([0-9]{3})',i).group(1))
+                    mask_pil = PIL.Image.open(os.path.join(spath,'predictions',m))
+                    mask = skimage.transform.resize(np.array(mask_pil),image_pil.size[-1::-1],order=0)
+                    self.set_slice(slice,sam_predict[ttag],mask,orient)
+                    mask_pil.close() 
 
-            if np.max(sam_predict) > 1:
-                sam_predict[np.where(sam_predict)] = 1
-            fname = '{}_sam_{}_{}_{}.nii'.format(layer,prompt,tag,orient)
-            self.writenifti(sam_predict,os.path.join(outputdir,fname),type=np.uint8,affine=affine)
+                fname = '{}_{}_{}_{}_{}.nii'.format(layer,ttag,prompt,tag,orient)
+                if ttag == 'sam':
+                    if np.max(sam_predict[ttag]) > 1:
+                        sam_predict[ttag][np.where(sam_predict[ttag])] = 1
+                    self.writenifti(sam_predict[ttag],os.path.join(outputdir,fname),type=np.uint8,affine=affine)
+                else:
+                    self.writenifti(sam_predict[ttag],os.path.join(outputdir,fname),type=np.float32,affine=affine)
 
             # clean up working directories
             if True:

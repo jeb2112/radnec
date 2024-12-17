@@ -159,7 +159,7 @@ class BlastGui(object):
                 # caseselect = 'M00004'
                 # caseslice = 85
                 caseselect = 'M00012'
-                caseslice = 85
+                caseslice = 121
                 self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
                 self.sliceviewerframe.currentslice.set(caseslice)
