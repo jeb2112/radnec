@@ -21,6 +21,7 @@ dependencies = [
             "versioneer",
             "build",
             "nibabel",
+            "opencv-python",
             "screeninfo",
             "pydicom",
             "tkinter-async-execute",

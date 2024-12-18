@@ -71,8 +71,8 @@ class Config(object):
 
         # sam model
         # base SAM
-        self.SAMModel = 'sam_vit_b_01ec64.pth'
-        # self.SAMModel = 'sam_vit_h_4b8939.pth'
+        # self.SAMModel = 'sam_vit_b_01ec64.pth'
+        self.SAMModel = 'sam_vit_h_4b8939.pth'
         # SAM fine-tuned on BraTS2024 MET
         # self.SAMModel = 'sam_brats2024_10sep24_9000_50epoch.pth'
         self.SAMModelAWS = 'best_base_AdamW_lr=7e-06_wd=0.0002_bs=8_mp=fp16_bbox_0_3_loss=dice_20set.pth'
