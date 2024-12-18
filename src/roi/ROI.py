@@ -45,9 +45,6 @@ class ROI():
     # dt - tumor layer to process
     def ROIstats(self,roitype='blast',slice=None,mask=None,dt='ET'):
         
-        if roi is None:
-            roi = self.ui.get_currentroi() # ie, there is only 1 roi in SAM viewer for now
-
         # checking for == 0 here but this is a bug, the dataset should 
         # either be non-zero or None
         if self.data[dt] is None or np.max(self.data[dt]) == 0:
@@ -141,7 +138,7 @@ class ROIBLAST(ROI):
 
 class ROISAM(ROI):
     def __init__(self,dim,bbox={},pt={},layer='TC',number=None):
-        super().__init__(dim)
+        super().__init__(dim,number=number)
 
         # a SAM drawn bbox coordinates and values, or bbox from BLAST mask
         self.bbox = {'ax':None,'p0':None,'p1':None,'plot':None,'l':None,'ch':None,'slice':None} 

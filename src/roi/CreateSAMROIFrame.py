@@ -659,7 +659,11 @@ class CreateSAMROIFrame(CreateFrame):
         if outputpath is None:
             outputpath = self.ui.caseframe.casedir
         if roi is None:
-            roilist = list(map(int,self.roilist))
+            if False:
+                roilist = list(map(int,self.roilist))
+            else:
+            # until the 2d SAM roi's are cleaned up, will save only one (the current) roi
+                roilist = [self.ui.get_currentroi()]
         else:
             if type(roi) == list:
                 roilist = roi
@@ -701,7 +705,7 @@ class CreateSAMROIFrame(CreateFrame):
                     if self.ui.data[self.ui.s].mask['gt'][dt]['ex']:
                         mask = self.ui.data[self.ui.s].mask['gt'][dt]['d']
                     rref.ROIstats(mask=mask,dt=dt)
-                rref.save_ROIstats(statsfile,tag=rtag)
+                rref.save_ROIstats(rref,statsfile,tag=rtag)
             self.ui.set_message('ROI saved')
 
 

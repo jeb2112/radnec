@@ -227,7 +227,7 @@ class SAM():
                         dtype = 'float'
                     else:
                         dtype = 'uint8'
-                    img_ortho[m][p],_ = self.ui.data[self.ui.s].loadnifti(fname,
+                    img_ortho[m][p],affine = self.ui.data[self.ui.s].loadnifti(fname,
                                                                 os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti'),
                                                                 type=dtype)
                     # if padded for hugging face, re-crop here
@@ -244,7 +244,11 @@ class SAM():
                 raw_comp = logistic.cdf(raw_comp)
                 raw_comp = (raw_comp > 0.5).astype(np.uint8) * 255
 
+                fname = layer+'_samcombined_' + prompt + '_' + tag + '_' + p + '.nii'
+                fpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti',fname)
                 if self.ui.config.SAMRawCombine:
+                    # re save the combined mask
+                    self.ui.data[self.ui.s].writenifti(raw_comp,fpath, affine=affine, type='uint8')
                     rref.data[layer] = copy.deepcopy(raw_comp)
                 else:
                     rref.data[layer] = copy.deepcopy(img_comp)
