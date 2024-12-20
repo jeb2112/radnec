@@ -679,11 +679,12 @@ class CreateSAMROIFrame(CreateFrame):
                 tag = r + '_' + tag
             # not sure if this check is needed?
             if len(self.ui.rois[r][self.ui.s]) > self.ui.currentroi: # > for 1-based indexing
+
                 for img in ['ET','TC','WT']:
-                    if self.ui.rois[r][self.ui.s][1].data[img] is None:
-                        continue
                     img_output = np.zeros(self.ui.sliceviewerframe.dim)
                     for roinumber in roilist:
+                        if self.ui.rois[r][self.ui.s][roinumber].data[img] is None:
+                            continue
                         img_output += self.ui.rois[r][self.ui.s][int(roinumber)].data[img]
                     outputfilename = os.path.join(fileroot,'{}_'.format(img) + tag + '.nii')
                     self.ui.data[self.ui.s].writenifti(img_output,

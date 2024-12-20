@@ -220,30 +220,36 @@ class ROISAM(ROI):
     def get_point_mask(self,slice,mask,orient='ax',hull_extension=0):
         cy,cx = map(int,np.round(np.mean(np.where(mask),axis=1)))
         centroid_point = np.atleast_2d([cx,cy])
-        point_set = centroid_point
 
-        # for generating point prompts, multiple foreground points are ok, but multiple exclusion points
-        # breaks SAM so use only 1.
-        # for now, use only a single centroid point
-        if len(np.where(mask)[0]) > 25 and False: # use only centroid for small masks
-            hcoords = self.compute_hull_from_mask(mask,hull_extension=-hull_extension)
-            if hcoords is None:
-                convexhull_fg = np.array([])
+        if False: # use convex hull to generate points near the boundaries
+            point_set = centroid_point
+            # for generating point prompts, multiple foreground points are ok, but multiple exclusion points
+            # breaks SAM so use only 1.
+            # for now, use only a single centroid point
+            if len(np.where(mask)[0]) > 25 and False: # use only centroid for small masks
+                hcoords = self.compute_hull_from_mask(mask,hull_extension=-hull_extension)
+                if hcoords is None:
+                    convexhull_fg = np.array([])
+                else:
+                    convexhull_fg = np.atleast_2d(hcoords)
+                    point_set = np.concatenate((np.atleast_2d(point_set),convexhull_fg),axis=0)
             else:
-                convexhull_fg = np.atleast_2d(hcoords)
-                point_set = np.concatenate((np.atleast_2d(point_set),convexhull_fg),axis=0)
-        else:
-            convexhull_fg = np.array([])
-        # the exclusion points should be checked against the region of support of the image slice. in this version of
-        # the viewer, the assumption is that brain extractions are not being done, so there should be plenty of scalp pixels to cover the case of
-        # a lesion right at the skull.
-        if False:
-            convexhull_bg = np.atleast_2d(self.compute_hull_from_mask(mask,hull_extension=np.abs(hull_extension)+5)[0]) # use only 1 point for bg
-            point_set = np.concatenate((point_set,convexhull_bg),axis=0)
-        # until bg points can be verified somehow, just use the single centroid point.
-        else:
-            convexhull_bg = np.array([])
-        point_set_labels = np.array([1]+[1]*len(convexhull_fg)+[0]*len(convexhull_bg))
+                convexhull_fg = np.array([])
+            # the exclusion points should be checked against the region of support of the image slice. in this version of
+            # the viewer, the assumption is that brain extractions are not being done, so there should be plenty of scalp pixels to cover the case of
+            # a lesion right at the skull.
+            if False:
+                convexhull_bg = np.atleast_2d(self.compute_hull_from_mask(mask,hull_extension=np.abs(hull_extension)+5)[0]) # use only 1 point for bg
+                point_set = np.concatenate((point_set,convexhull_bg),axis=0)
+            # until bg points can be verified somehow, just use the single centroid point.
+            else:
+                convexhull_bg = np.array([])
+            point_set_labels = np.array([1]+[1]*len(convexhull_fg)+[0]*len(convexhull_bg))
+        else: # generate more uniform set of sparse points
+            ycoords,xcoords = np.where(mask)
+            sparse_indices = np.linspace(0, len(ycoords) - 1, num=min(5, len(ycoords)), dtype=int) 
+            point_set = np.atleast_2d([x for x in zip(xcoords[sparse_indices],ycoords[sparse_indices])])
+            point_set_labels = np.array([1]*len(point_set))
 
         self.data['maskpoint'][orient][slice]['x'] = [int(np.round(p[0])) for p in point_set]
         # huggingface convention y increases from top to bottom, same as plotted in FigureCanvasTkAgg 
@@ -253,7 +259,7 @@ class ROISAM(ROI):
             self.data['maskpoint'][orient][slice]['y'] = [int(np.round(p[1])) for p in point_set]
         self.data['maskpoint'][orient][slice]['fg'] = [int(l) for l in point_set_labels]
 
-        if False:
+        if True:
             plt.figure(7)
             plt.cla()
             plt.imshow(mask)

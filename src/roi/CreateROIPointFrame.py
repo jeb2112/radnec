@@ -223,23 +223,28 @@ class CreateROIPointFrame(CreateFrame):
                 else:
                     mu_t1 = dpt_t1
                     mu_flair = dpt_flair
-                std_t1 = np.std(dslice_t1[croi])
-                std_flair = np.std(dslice_flair[croi])
-                e = copy.copy(std_flair) / copy.copy(std_t1)
+
                 self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['meant12'].append(mu_t1)
                 self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['meanflair'].append(mu_flair)
-                # if the selected point is outside the elliptical roi in parameter space, increase the standard 
-                # deviations proportionally to include it. ie pointclustersize is arbitrary.
-                # this is copied from Blastbratsv3.py should combine into one available method
-                pointclustersize = 1
-                point_perimeter = Ellipse((mu_flair, mu_t1), 2*pointclustersize*std_flair,2*pointclustersize*std_t1)
-                unitverts = point_perimeter.get_path().vertices
-                pointverts = point_perimeter.get_patch_transform().transform(unitverts)
-                xy_layerverts = np.transpose(np.vstack((pointverts[:,0],pointverts[:,1])))
-                p = Path(xy_layerverts,closed=True)
-                if not p.contains_point((dpt_flair,dpt_t1)):
-                    std_flair = np.sqrt((dpt_flair-mu_flair)**2 + (dpt_t1-mu_t1)**2 / (std_t1/std_flair)**2) * 1.01
-                    std_t1 = std_flair / e
+                if False: # use stats in the croi about the clicked point
+                    std_t1 = np.std(dslice_t1[croi])
+                    std_flair = np.std(dslice_flair[croi])
+                    e = copy.copy(std_flair) / copy.copy(std_t1)
+                    # if the selected point is outside the elliptical roi in parameter space, increase the standard 
+                    # deviations proportionally to include it. ie pointclustersize is arbitrary.
+                    # this is copied from Blastbratsv3.py should combine into one available method
+                    pointclustersize = 1
+                    point_perimeter = Ellipse((mu_flair, mu_t1), 2*pointclustersize*std_flair,2*pointclustersize*std_t1)
+                    unitverts = point_perimeter.get_path().vertices
+                    pointverts = point_perimeter.get_patch_transform().transform(unitverts)
+                    xy_layerverts = np.transpose(np.vstack((pointverts[:,0],pointverts[:,1])))
+                    p = Path(xy_layerverts,closed=True)
+                    if not p.contains_point((dpt_flair,dpt_t1)):
+                        std_flair = np.sqrt((dpt_flair-mu_flair)**2 + (dpt_t1-mu_t1)**2 / (std_t1/std_flair)**2) * 1.01
+                        std_t1 = std_flair / e
+                else: # just use k-means centroid std
+                    std_flair = self.ui.blastdata[self.ui.s]['blast']['params'][l]['stdflair']
+                    std_t1 = self.ui.blastdata[self.ui.s]['blast']['params'][l]['stdt12'] 
 
                 self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['stdt12'].append(std_t1)
                 self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['stdflair'].append(std_flair)

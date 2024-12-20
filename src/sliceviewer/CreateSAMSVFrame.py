@@ -453,25 +453,26 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             kmeans = KMeans(n_clusters=2,n_init='auto').fit(X[layer])
             background_cluster = np.argmin(np.power(kmeans.cluster_centers_[:,0],2)+np.power(kmeans.cluster_centers_[:,1],2))
 
-            # Calculate stats for brain cluster. currently hard-coded to study #0
+            # Calculate stats for brain cluster.
             self.ui.blastdata[s]['blast']['params'][layer]['stdt12'] = np.std(X[layer][kmeans.labels_==background_cluster,1])
             self.ui.blastdata[s]['blast']['params'][layer]['stdflair'] = np.std(X[layer][kmeans.labels_==background_cluster,0])
             self.ui.blastdata[s]['blast']['params'][layer]['meant12'] = np.mean(X[layer][kmeans.labels_==background_cluster,1])
             self.ui.blastdata[s]['blast']['params'][layer]['meanflair'] = np.mean(X[layer][kmeans.labels_==background_cluster,0])
 
-            if False:
+            if True:
                 plt.figure(7)
                 ax = plt.subplot(1,2,i+1)
                 plt.scatter(X[layer][kmeans.labels_==1-background_cluster,0],X[layer][kmeans.labels_==1-background_cluster,1],c='b',s=1)
                 plt.scatter(X[layer][kmeans.labels_==background_cluster,0],X[layer][kmeans.labels_==background_cluster,1],c='r',s=1)
                 ax.set_aspect('equal')
-                ax.set_xlim(left=0,right=1.0)
-                ax.set_ylim(bottom=0,top=1.0)
-                plt.text(0,1.02,'{:.3f},{:.3f}'.format(self.ui.data['blast']['params'][layer]['meanflair'],self.ui.data['blast']['params'][layer]['stdflair']))
+                ax.set_xlim(left=-10,right=10.0)
+                ax.set_ylim(bottom=-10,top=10.0)
+                plt.text(0,1.02,'{:.3f},{:.3f}'.format(self.ui.blastdata[s]['blast']['params'][layer]['meanflair'],
+                                                       self.ui.blastdata[s]['blast']['params'][layer]['stdflair']))
 
                 plt.savefig('/home/jbishop/Pictures/scatterplot_normal.png')
-                plt.clf()
                 # plt.show(block=False)
+                plt.clf()
 
         # automatically run BLAST
             self.ui.roiframe.roioverlayframe.layer_callback(layer=layer,updateslice=False,overlay=False)
@@ -576,6 +577,12 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
                 self.ui.roiframe.blastpointframe.updateBLASTMask(currentslice=None)
                 # any of the clicked points will do to create the BLAST ROI, just use the last one
                 self.ui.roiframe.ROIclick(coords = (self.ui.pt[self.ui.s][-1].coords['x'],self.ui.pt[self.ui.s][-1].coords['y']))
+                if True: #debugging output of BLAST mask
+                    layer = self.ui.roiframe.roioverlayframe.layerSAM.get()
+                    outputfilename = os.path.join(self.ui.data[self.ui.s].studydir,'{}_blast.nii'.format(layer))
+                    self.ui.data[self.ui.s].writenifti(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[layer],
+                                                        outputfilename,
+                                                        affine=self.ui.data[self.ui.s].dset['raw']['t1+']['affine'])
 
         # deactivate bbox selection tool if any.
         if self.tbar.mode == "bbox":
