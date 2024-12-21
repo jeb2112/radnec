@@ -236,21 +236,25 @@ class SAM():
             # in 3d take the AND composite segmentation or average the probabilities
             if do3d:
                 img_comp = img_ortho['sam']['ax']
-                for p in ['sag','cor']:
+                for p in ['sag','cor']: # binary recombination by AND
                     img_comp = (img_comp) & (img_ortho['sam'][p])
-                raw_comp = np.zeros_like(img_ortho['sam_raw']['ax'],dtype='float')
-                for p in ['ax','sag','cor']:
-                    raw_comp += img_ortho['sam_raw'][p]/3
+                if False: # incorporating some measure of correlation?
+                    raw_comp = np.zeros_like(img_ortho['sam_raw']['ax'],dtype='float')
+                else: # assuming independence
+                    raw_comp = img_ortho['sam_raw']['ax']
+                    for p in ['sag','cor']:
+                        raw_comp *= img_ortho['sam_raw'][p]
                 raw_comp = logistic.cdf(raw_comp)
                 raw_comp = (raw_comp > 0.5).astype(np.uint8) * 255
 
-                fname = layer+'_samcombined_' + prompt + '_' + tag + '_' + p + '.nii'
+                fname = layer+'_samcombined_' + prompt + '_' + tag + '.nii'
                 fpath = os.path.join(self.ui.data[self.ui.s].studydir,'sam','predictions_nifti',fname)
                 if self.ui.config.SAMRawCombine:
                     # re save the combined mask
                     self.ui.data[self.ui.s].writenifti(raw_comp,fpath, affine=affine, type='uint8')
                     rref.data[layer] = copy.deepcopy(raw_comp)
                 else:
+                    self.ui.data[self.ui.s].writenifti(img_comp,fpath, affine=affine, type='uint8')
                     rref.data[layer] = copy.deepcopy(img_comp)
             # in 2d use the individual slice segmentations by OR
             else:

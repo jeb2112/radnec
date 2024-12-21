@@ -577,7 +577,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
                 self.ui.roiframe.blastpointframe.updateBLASTMask(currentslice=None)
                 # any of the clicked points will do to create the BLAST ROI, just use the last one
                 self.ui.roiframe.ROIclick(coords = (self.ui.pt[self.ui.s][-1].coords['x'],self.ui.pt[self.ui.s][-1].coords['y']))
-                if True: #debugging output of BLAST mask
+                if False: #debugging output of BLAST mask
                     layer = self.ui.roiframe.roioverlayframe.layerSAM.get()
                     outputfilename = os.path.join(self.ui.data[self.ui.s].studydir,'{}_blast.nii'.format(layer))
                     self.ui.data[self.ui.s].writenifti(self.ui.rois['blast'][self.ui.s][self.ui.currentroi].data[layer],

@@ -79,7 +79,7 @@ class Config(object):
         # improve 3d SAM with orthogonal segmentations
         self.SAMortho = True
         # combine orthogonal segmentation as raw probability otherwise AND the binary final mask
-        self.SAMRawCombine = True
+        self.SAMRawCombine = False
         # auto-update the SAM 2d in current slice during assembly of the BLAST ROI
         self.SAM2dauto = False
 
