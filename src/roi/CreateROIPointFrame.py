@@ -226,7 +226,7 @@ class CreateROIPointFrame(CreateFrame):
 
                 self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['meant12'].append(mu_t1)
                 self.ui.blastdata[self.ui.s]['blastpoint']['params'][l]['meanflair'].append(mu_flair)
-                if False: # use stats in the croi about the clicked point
+                if True: # use stats in the croi about the clicked point
                     std_t1 = np.std(dslice_t1[croi])
                     std_flair = np.std(dslice_flair[croi])
                     e = copy.copy(std_flair) / copy.copy(std_t1)
@@ -242,7 +242,7 @@ class CreateROIPointFrame(CreateFrame):
                     if not p.contains_point((dpt_flair,dpt_t1)):
                         std_flair = np.sqrt((dpt_flair-mu_flair)**2 + (dpt_t1-mu_t1)**2 / (std_t1/std_flair)**2) * 1.01
                         std_t1 = std_flair / e
-                else: # just use k-means centroid std
+                else: # use k-means centroid std
                     std_flair = self.ui.blastdata[self.ui.s]['blast']['params'][l]['stdflair']
                     std_t1 = self.ui.blastdata[self.ui.s]['blast']['params'][l]['stdt12'] 
 

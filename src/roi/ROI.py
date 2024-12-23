@@ -221,7 +221,7 @@ class ROISAM(ROI):
         cy,cx = map(int,np.round(np.mean(np.where(mask),axis=1)))
         centroid_point = np.atleast_2d([cx,cy])
 
-        if False: # use convex hull to generate points near the boundaries
+        if True: # use convex hull to generate points near the boundaries
             point_set = centroid_point
             # for generating point prompts, multiple foreground points are ok, but multiple exclusion points
             # breaks SAM so use only 1.

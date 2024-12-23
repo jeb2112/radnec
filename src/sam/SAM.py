@@ -238,7 +238,7 @@ class SAM():
                 img_comp = img_ortho['sam']['ax']
                 for p in ['sag','cor']: # binary recombination by AND
                     img_comp = (img_comp) & (img_ortho['sam'][p])
-                if False: # incorporating some measure of correlation?
+                if False: # CDF recombination incorporating some measure of correlation?
                     raw_comp = np.zeros_like(img_ortho['sam_raw']['ax'],dtype='float')
                 else: # assuming independence
                     raw_comp = img_ortho['sam_raw']['ax']
