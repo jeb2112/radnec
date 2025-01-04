@@ -124,7 +124,7 @@ class Case():
         else:
             for i,s in enumerate(self.studies):
                 s.preprocess()
-            if True:
+            if False:
                 with open(pname,'wb') as fp:
                     pickle.dump(self.studies,fp)
 
@@ -188,7 +188,7 @@ class Case():
     def write_all(self):
         for s in self.studies:
             localstudydir = os.path.join(self.datadir,self.case,s.studytimeattrs['StudyDate'])
-            localniftidir = os.path.join(self.datadir,'dicom2nifti',self.case,s.studytimeattrs['StudyDate'])
+            localniftidir = os.path.join(self.datadir,'..','dicom2nifti',self.case,s.studytimeattrs['StudyDate'])
             if not os.path.exists(localniftidir):
                 os.makedirs(localniftidir,exist_ok=True)
             for dc in ['raw','z','cbv','adc']:
