@@ -44,7 +44,7 @@ class CreateCaseFrame(CreateFrame):
         self.casename = StringVar()
         self.studynumber = IntVar(value=0)
         self.casefile_prefix = None
-        self.casedir_prefix = 'M' # simple convention to identify root dir of a case
+        self.casedir_prefix = ('M','DSC') # list of simple conventions to identify root dir of a case
         self.caselist = {'casetags':[],'casedirs':[]} # list of case directories in self.datadir, and short-form tags
         self.studylist = {'studytags':[],'studynumbers':[0,1]}
         self.processed = False

@@ -625,7 +625,9 @@ class DcmStudy(Study):
         # params for z-score
         self.params = {dt:{'mean':0,'std':0} for dt in ['t1','t1+','flair','flair']}
         # reference for talairach coords
-        self.dset['ref']['d'],self.dset['ref']['affine'] = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',dir=os.path.join(self.config.UIdatadir,'mni152'))
+        self.dset['ref']['d'],self.dset['ref']['affine'] = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',
+                                                                          dir=os.path.join(self.config.UIdatadir,'mni152'),
+                                                                          type='uint16')
         mask,_ = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a_mask.nii',dir=os.path.join(self.config.UIdatadir,'mni152'))
         self.dset['ref']['d'] *= mask
         # self.dset['ref']['d'] = self.rescale(self.dset['ref']['d'])
@@ -703,7 +705,7 @@ class DcmStudy(Study):
                 if dt in list(self.channels.values()):
                     dref = self.dset[dc][dt]
                     dref['ex'] = True
-                    dref['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns))
+                    dref['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns),dtype='uint16')
                     dref['affine'] = self.get_affine(ds0,dslice)
                     dref['d'][0,:,:] = ds0.pixel_array
                     for i,f in enumerate(files[1:]):
@@ -800,13 +802,14 @@ class DcmStudy(Study):
 
         # skull strip
         # hd-bet model extraction
-        for dt in ['t1+','t2','t1','flair','dwi']:
-            if self.dset['raw'][dt]['ex']:
-                if extract:
-                    self.dset['raw'][dt]['d'],self.dset['raw'][dt]['mask'] = self.extractbrain2(self.dset['raw'][dt]['d'],
-                                                                                                affine=self.dset['raw'][dt]['affine'],fname=dt)
-                else:
-                    self.dset['raw'][dt]['mask'] = np.zeros_like(self.dset['raw'][dt]['d'])
+        if True:
+            for dt in ['t1+','t2','t1','flair','dwi']:
+                if self.dset['raw'][dt]['ex']:
+                    if extract:
+                        self.dset['raw'][dt]['d'],self.dset['raw'][dt]['mask'] = self.extractbrain2(self.dset['raw'][dt]['d'],
+                                                                                                    affine=self.dset['raw'][dt]['affine'],fname=dt)
+                    else:
+                        self.dset['raw'][dt]['mask'] = np.ones_like(self.dset['raw'][dt]['d'])
                                                                                                 
         # For ADC can just use the DWI mask
         if self.dset['adc']['dwi']['ex']:
@@ -851,7 +854,7 @@ class DcmStudy(Study):
         # bias correction.
         # self.dbias = {} # working data for calculating z-scores
         # TODO: use viewer mode designation here
-        if True:
+        if False:
             for dt in ['t1','t1+','flair','t2','dwi']:
                 if self.dset['raw'][dt]['ex']:   
                     self.dset['z'][dt]['d'] = np.copy(self.n4bias(self.dset['raw'][dt]['d']))

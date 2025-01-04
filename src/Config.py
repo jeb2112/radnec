@@ -49,12 +49,12 @@ class Config(object):
             self.UIlocaldir = os.path.join(os.path.expanduser('~'),'data','radnec_sam')
         elif os.name == 'posix':
             # brats dataset
-            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases'
-            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
-            self.UIawsdir = '/home/ec2-user'
+            # self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases'
+            # self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
+            # self.UIawsdir = '/home/ec2-user'
             # dicoms
-            # self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec'
-            # self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec/dicom2nifti'
+            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2'
+            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2/dicom2nifti'
 
         # the value here is no longer being using, instead the default is assigned in CreateCaseFrame
         self.UIdataroot = 'BraTS2021_'
