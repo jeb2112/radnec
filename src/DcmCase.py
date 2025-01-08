@@ -31,6 +31,7 @@ from sklearn.cluster import KMeans,MiniBatchKMeans,DBSCAN
 from scipy.spatial.distance import dice
 from scipy.interpolate import splev, splrep
 from sklearn.linear_model import LinearRegression,RANSACRegressor
+import SimpleITK as sitk
 
 
 # convenience function
@@ -90,6 +91,7 @@ class Case():
         studies = []
         for i,d in enumerate(dates):
             dstudies = [s for s in self.studies if s.studytimeattrs['StudyDate'] == d]
+        if len(dstudies) > 1:
             for ds in dstudies[-1:0:-1]:
                 for dc in ['raw']:
                     for series in list(ds.channels.values()):
@@ -107,7 +109,7 @@ class Case():
 
                 dstudies.remove(ds)
             studies.append(dstudies[0])
-        self.studies = studies
+            self.studies = studies
 
         return
 
@@ -130,18 +132,9 @@ class Case():
 
 
     # register time point0 to talairach, and all subsequent time points to time point 0
-    def process_timepoints(self,flip=False):
+    def process_timepoints(self):
         s = self.studies[0]
-        # TODO. there is a possible flip in axis=1 that comes down from 
-        # something that is missed/undone in the prior dicom processing.
-        # ant register can't handle an exact flip in this dimension.
-        # until it is figured out properly, optionally flip the data here 
-        # if needed to facilitate ants
-        if flip:
-            for dc in ['raw','z','cbv','adc']:
-                for dt in list(s.channels.values()):
-                    if s.dset[dc][dt]['ex']:
-                        s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
+
         if s.dset['raw']['t1+']['ex']:
             dref = 't1+'
         elif s.dset['raw']['t1']['ex']:
@@ -151,6 +144,8 @@ class Case():
         # register the designated reference image to the talairach coords
         s.dset['raw'][dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset['raw'][dref]['d'],transform='Rigid')
         if False:
+            # tx_transform = sitk.ReadTransform(tx)
+            # print(tx_transform)
             s.writenifti(s.dset['raw'][dref]['d'],os.path.join(self.datadir,self.case,dref+'_talairach.nii'),affine=s.dset['ref']['affine'])
         # apply that same registration transform to all remaining images in this study
         for dc in ['raw','z','cbv','adc']:
@@ -163,11 +158,7 @@ class Case():
 
         # repeat process for remainder of studies
         for s in self.studies[1:]:
-            if flip:
-                for dc in ['raw','z','cbv','adc']:
-                    for dt in list(s.channels.values()):
-                        if s.dset[dc][dt]['ex']:
-                            s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=1)
+
             if s.dset['raw']['t1+']['ex']:
                 dref = 't1+'
                 s.dset['raw'][dref]['d'],tx = s.register(self.studies[0].dset['raw'][dref]['d'],s.dset['raw'][dref]['d'],transform='Rigid')
@@ -181,11 +172,14 @@ class Case():
                         if s.dset[dc][dt]['ex']:
                             s.dset[dc][dt]['d'] = s.tx(self.studies[0].dset['raw'][dref]['d'],s.dset[dc][dt]['d'],tx)
 
-        self.write_all()
+        # use the affine of the designated reference
+        self.write_all(affine = self.studies[0].dset['raw'][dref]['affine'])
         return
 
     # save all data to nifti files for future use
-    def write_all(self):
+    def write_all(self,affine=None):
+        if affine is None:
+            affine = self.studies[0].dset['ref']['affine']
         for s in self.studies:
             localstudydir = os.path.join(self.datadir,self.case,s.studytimeattrs['StudyDate'])
             localniftidir = os.path.join(self.datadir,'..','dicom2nifti',self.case,s.studytimeattrs['StudyDate'])
@@ -201,7 +195,8 @@ class Case():
                         else:
                             dstr = dt+'_processed.nii'
                         s.writenifti(s.dset[dc][dt]['d'],os.path.join(localniftidir,dstr),
-                                                    type='float',affine=s.dset['ref']['affine'])
+                                                    type='float',affine=affine)
+        print('Case {} nifti files written'.format(self.case))
 
     # run nnunet segmentation                
     def segment(self):
@@ -371,9 +366,10 @@ class Study():
         self.date = None
         self.localstudydir = None
         if channellist is None:
-            self.channels = {0:'t1',1:'t1+',2:'t2',3:'flair',4:'dwi'}
+            self.channels = {0:'t1',1:'t1+',2:'t2',3:'flair',4:'dwi',5:'flair+'}
         else:
             self.channels = {k:v for k,v in enumerate(channellist)}
+        self.channellist = list(self.channels.values())
 
         ####################################
         # main data structure for the viewer
@@ -623,7 +619,7 @@ class DcmStudy(Study):
         self.studytimeattrs = {'StudyDate':None,'StudyTime':None}
         self.date = None
         # params for z-score
-        self.params = {dt:{'mean':0,'std':0} for dt in ['t1','t1+','flair','flair']}
+        self.params = {dt:{'mean':0,'std':0} for dt in ['t1','t1+','flair','flair+']}
         # reference for talairach coords
         self.dset['ref']['d'],self.dset['ref']['affine'] = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',
                                                                           dir=os.path.join(self.config.UIdatadir,'mni152'),
@@ -654,16 +650,21 @@ class DcmStudy(Study):
             dpath = os.path.join(d,sd)
             files = sorted(os.listdir(dpath))
             ds0 = pd.dcmread(os.path.join(dpath,files[0]))
-            if (0x0020,0x0032) in ds0.keys():
+            # check for reverse slice order using ImagePositionPatient
+            if '(0020, 0032)' in str(ds0._dict.keys()):
                 slice0 = ds0[(0x0020,0x0032)].value[2]
                 ds = pd.dcmread(os.path.join(dpath,files[-1]))
-                dslice = ds[(0x0020,0x0032)].value[2] - slice0
-                if dslice < 0:
+                sliceorder = ds[(0x0020,0x0032)].value[2] - slice0
+                if sliceorder < 0:
+                    # not sure why some dicom dirs have reversed slice order
+                    # but patch it back here, plus in get_affine()
                     files = sorted(files,reverse=True)
-            elif hasattr(ds0,'SliceThickness'):
-                dslice = float(ds0['SliceThickness'].value)
+            
+            if hasattr(ds0,'SliceThickness'):
+                slthick = float(ds0['SliceThickness'].value)
             else:
-                print('No slice thickness found, skipping...')
+                print('No SliceThickness tag...')
+                slthick = None
                 continue
             print(ds0.SeriesDescription)
             for t in self.studytimeattrs.keys():
@@ -678,11 +679,13 @@ class DcmStudy(Study):
                 else:
                     dt = 't1+'
 
-            # assuming flair scans aren't designated pre/post, and will generally
-            # be post, but never would be both.  
+            # there could be both a pre and post gd flair, or just one. 
+            # trying 'pre' same as for t1.
             elif any([f in ds0.SeriesDescription.lower() for f in ['flair','fluid']]):
-                dt = 'flair'
-
+                if 'pre' in ds0.SeriesDescription.lower():
+                    dt = 'flair'
+                else:
+                    dt = 'flair+'
             #   
             elif any([f in ds0.SeriesDescription.lower() for f in ['tracew']]):
                 dt = 'dwi'
@@ -706,7 +709,8 @@ class DcmStudy(Study):
                     dref = self.dset[dc][dt]
                     dref['ex'] = True
                     dref['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns),dtype='uint16')
-                    dref['affine'] = self.get_affine(ds0,dslice)
+                    dref['affine'] = self.get_affine(ds0,slthick)
+                    # print(dref['affine'])
                     dref['d'][0,:,:] = ds0.pixel_array
                     for i,f in enumerate(files[1:]):
                         data = pd.dcmread(os.path.join(dpath,f))
@@ -720,28 +724,60 @@ class DcmStudy(Study):
         return
 
     # create nb affine from dicom 
-    def get_affine(self,dicomdata,dslice):
+    def get_affine(self,dicomdata,slthick=None):
         dircos = np.array(list(map(float,dicomdata.ImageOrientationPatient)))
         affine = np.zeros((4,4))
         affine[:3,0] = dircos[0:3]*float(dicomdata.PixelSpacing[0])
         affine[:3,1] = dircos[3:]*float(dicomdata.PixelSpacing[1])
         d3 = np.cross(dircos[:3],dircos[3:])
+
         # not entirely sure if these three tags all work the same across the 3 vendors
-        if dicomdata[(0x0018,0x0023)].value == '3D':
-            if hasattr(dicomdata,'SpacingBetweenSlices'):
-                slthick = float(dicomdata.SpacingBetweenSlices)
-            elif hasattr(dicomdata,'SliceThickness'):
-                slthick = float(dicomdata.SliceThickness)
+        if slthick is None:
+            if dicomdata[(0x0018,0x0023)].value == '3D':
+                if hasattr(dicomdata,'SpacingBetweenSlices'):
+                    slthick = float(dicomdata.SpacingBetweenSlices)
+                elif hasattr(dicomdata,'SliceThickness'):
+                    slthick = float(dicomdata.SliceThickness)
+                else:
+                    raise ValueError('Slice thickness not parsed')
             else:
-                raise ValueError('Slice thickness not parsed')
-        else:
-            if hasattr(dicomdata,'SliceThickness'):
-                slthick = float(dicomdata.SliceThickness)
-            else:
-                raise ValueError('Slice thickness not parsed')
+                if hasattr(dicomdata,'SliceThickness'):
+                    slthick = float(dicomdata.SliceThickness)
+                else:
+                    raise ValueError('Slice thickness not parsed')
 
         affine[:3,2] = d3*slthick
         affine[:3,3] = dicomdata.ImagePositionPatient
+
+        # in dicom patient coords, pos x=R->L and pos y = A->P
+        # define magnet coords such that magnet Y is positive from down to up.
+        # by right hand rule, for HFS standard positioning, this is the
+        # opposite of patient Y, and magnet X is therefore
+        # also the opposite of patient X, while magnet Z is the same.
+        # the patient voxel to magnet matrix is therefore [-100;0-10;001]
+
+        affine[:3,:3] = np.matmul(affine[:3,:3],[[-1,0,0],[0,-1,0],[0,0,1]])
+        affine[:2,3] *= -1
+
+        # check for reversed slices on siemens. according to the usage in loaddat(), the first file
+        # from the dicom dir (ds0) is being passed in here, so this wouldn't work for an 
+        # arbitrary slice file being passed in. 
+        # in the first part of the kludge in loaddata() above, the slices were reversed in order
+        # here additionally the offset for the affine is adjusted accordingly.
+        if True:
+            if 'Siemens' in dicomdata.Manufacturer:
+                if '(0021, 114e)' in str(dicomdata._dict.keys()):
+                    slicenumber = int(dicomdata[(0x0021,0x114E)].value) # this tag is zero-based
+                elif '(0021, 118a)' in str(dicomdata._dict.keys()):
+                    slicenumber = int(dicomdata[(0x0021,0x118A)].value)-1 # this tag is one-based
+                else:
+                    slicenumber = 0
+                if slicenumber > 0:
+                    # slices have been physically re-ordered so the sign of the 
+                    # dircos isn't being changed, only the offset
+                    # affine[2,2] *= -1
+                    affine[2,3] -= slthick * slicenumber
+
         affine[3,3] = 1
         # print(affine)
         return affine
@@ -773,19 +809,28 @@ class DcmStudy(Study):
     # eg resampling, registration, bias correction
     def preprocess(self,extract=False):
 
+        # if '11_19' not in self.studydir:
+        #     return
         print('case = {},{}'.format(self.case,self.studydir))
         # TODO. don't have a great arrangement for parallel dicom and nifti directories 
         # currently localstudydir just creates an output directory for nifti files based on the 
         # StudyDate attribute.
         self.localstudydir = os.path.join(self.localcasedir,self.studytimeattrs['StudyDate'])
-        # self.localstudydir = os.path.join(self.ui.caseframe.datadir.get(),self.case,self.studytimeattrs['StudyDate'])
         if not os.path.exists(self.localstudydir):
             os.makedirs(self.localstudydir)
+
+        if False and '11_19' in self.studydir:
+            for dt in ['t1+','t1','t2','flair','flair+','dwi']:
+                if self.dset['raw'][dt]['ex']:
+                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localstudydir,'img_'+dt+'_presampled.nii'),
+                                        type='float',affine=self.dset['raw'][dt]['affine'])
+
 
         # resample to target matrix (t1+ for now)
         if True:
             for dc in ['raw','cbv','adc']:
-                for dt in ['flair','t1','t2','dwi']:
+                for dt in [c for c in self.channellist if c != 't1+']:
+                # ['flair','flair+','t1','t2','dwi']:
                     if self.dset[dc][dt]['ex'] and self.dset['raw']['t1+']['ex']:
                         print('Resampling ' + dc+','+dt + ' into target space...')
                         self.dset[dc][dt]['d'],self.dset[dc][dt]['affine'] = self.resamplet2(self.dset['raw']['t1+']['d'],self.dset[dc][dt]['d'],
@@ -793,17 +838,17 @@ class DcmStudy(Study):
                         self.dset[dc][dt]['d']= np.clip(self.dset[dc][dt]['d'],0,None)
 
 
-        if False:
-            for dt in ['t1pre','t1','t2','flair']:
+        if False and '11_19' in self.studydir:
+            for dt in ['t1+','t1','t2','flair','flair+','dwi']:
                 if self.dset['raw'][dt]['ex']:
-                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(d,'img_'+t+'_resampled.nii.gz'),
-                                        type='float',affine=self.ui.affine['t1'])
+                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localstudydir,'img_'+dt+'_resampled.nii'),
+                                        type='float',affine=self.dset['raw'][dt]['affine'])
                     
 
         # skull strip
         # hd-bet model extraction
         if True:
-            for dt in ['t1+','t2','t1','flair','dwi']:
+            for dt in self.channels.values():
                 if self.dset['raw'][dt]['ex']:
                     if extract:
                         self.dset['raw'][dt]['d'],self.dset['raw'][dt]['mask'] = self.extractbrain2(self.dset['raw'][dt]['d'],
@@ -821,7 +866,7 @@ class DcmStudy(Study):
         if True:
             if self.dset['raw']['t1+']['ex']:
                 fixed_image = self.dset['raw']['t1+']['d']
-                for dt in ['t1','flair','t2']:
+                for dt in ['t1','flair','t2','flair+']:
                     if self.dset['raw'][dt]['ex']:
                         moving_image = self.dset['raw'][dt]['d']
                         self.dset['raw'][dt]['d'],tx = self.register(fixed_image,moving_image,transform='Rigid')
@@ -855,13 +900,13 @@ class DcmStudy(Study):
         # self.dbias = {} # working data for calculating z-scores
         # TODO: use viewer mode designation here
         if False:
-            for dt in ['t1','t1+','flair','t2','dwi']:
+            for dt in self.channels.values():
                 if self.dset['raw'][dt]['ex']:   
                     self.dset['z'][dt]['d'] = np.copy(self.n4bias(self.dset['raw'][dt]['d']))
                     self.dset['z'][dt]['ex'] = True
 
             # if necessary clip any negative values introduced by the processing
-            for dt in ['t1','t1+','flair','t2','dwi']:
+            for dt in self.channels.values():
                 if self.dset['z'][dt]['ex']:
                     if np.min(self.dset['z'][dt]['d']) < 0:
                         self.dset['z'][dt]['d'][self.dset['z'][dt]['d'] < 0] = 0
@@ -1062,7 +1107,11 @@ class DcmStudy(Study):
 
         fixed_ants = ants.from_numpy(img_arr_fixed)
         moving_ants = ants.from_numpy(img_arr_moving)
-        mytx = ants.registration(fixed=fixed_ants, moving=moving_ants, type_of_transform = transform )
+        try:
+            mytx = ants.registration(fixed=fixed_ants, moving=moving_ants, type_of_transform = transform )
+        except RuntimeError as e:
+            print(e)
+            raise RuntimeError
         img_arr_reg = mytx['warpedmovout'].numpy()
         a=1
 
