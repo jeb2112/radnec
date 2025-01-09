@@ -91,25 +91,26 @@ class Case():
         studies = []
         for i,d in enumerate(dates):
             dstudies = [s for s in self.studies if s.studytimeattrs['StudyDate'] == d]
-        if len(dstudies) > 1:
-            for ds in dstudies[-1:0:-1]:
-                for dc in ['raw']:
-                    for series in list(ds.channels.values()):
-                        if ds.dset[dc][series]['ex']:
-                            dstudies[0].dset[dc][series]['d'] = np.copy(ds.dset[dc][series]['d'])
-                            dstudies[0].dset[dc][series]['affine'] = np.copy(ds.dset[dc][series]['affine'])
-                            dstudies[0].dset[dc][series]['time'] = np.copy(ds.dset[dc][series]['time'])
-                            dstudies[0].dset[dc][series]['ex'] = True
-                # for series in ['cbv']:
-                #     if ds.dset[series]['ex']:
-                #         dstudies[0].dset[series]['d'] = np.copy(ds.dset[series]['d'])
-                #         dstudies[0].dset[series]['affine'] = np.copy(ds.dset[series]['affine'])
-                #         dstudies[0].dset[series]['time'] = ds.dset[series]['time']
-                #         dstudies[0].dset[series]['ex'] = True
+            if len(dstudies) > 1:
+                print('multiple studies for {}'.format(d))
+                for ds in dstudies[-1:0:-1]:
+                    for dc in ['raw']:
+                        for series in list(ds.channels.values()):
+                            if ds.dset[dc][series]['ex']:
+                                dstudies[0].dset[dc][series]['d'] = np.copy(ds.dset[dc][series]['d'])
+                                dstudies[0].dset[dc][series]['affine'] = np.copy(ds.dset[dc][series]['affine'])
+                                dstudies[0].dset[dc][series]['time'] = np.copy(ds.dset[dc][series]['time'])
+                                dstudies[0].dset[dc][series]['ex'] = True
+                    # for series in ['cbv']:
+                    #     if ds.dset[series]['ex']:
+                    #         dstudies[0].dset[series]['d'] = np.copy(ds.dset[series]['d'])
+                    #         dstudies[0].dset[series]['affine'] = np.copy(ds.dset[series]['affine'])
+                    #         dstudies[0].dset[series]['time'] = ds.dset[series]['time']
+                    #         dstudies[0].dset[series]['ex'] = True
 
-                dstudies.remove(ds)
+                    dstudies.remove(ds)
             studies.append(dstudies[0])
-            self.studies = studies
+        self.studies = studies
 
         return
 
@@ -182,7 +183,7 @@ class Case():
             affine = self.studies[0].dset['ref']['affine']
         for s in self.studies:
             localstudydir = os.path.join(self.datadir,self.case,s.studytimeattrs['StudyDate'])
-            localniftidir = os.path.join(self.datadir,'..','dicom2nifti',self.case,s.studytimeattrs['StudyDate'])
+            localniftidir = os.path.join(self.datadir,'..','dicom2nifti_radnec1',self.case,s.studytimeattrs['StudyDate'])
             if not os.path.exists(localniftidir):
                 os.makedirs(localniftidir,exist_ok=True)
             for dc in ['raw','z','cbv','adc']:
