@@ -26,7 +26,7 @@ from scipy.spatial.distance import dice
 from src.NavigationBar import NavigationBar
 from src.FileDialog import FileDialog
 from src.CreateFrame import *
-from src.DcmCase import Case,NiftiStudy
+from src.DcmCase import Case,NiftiStudy,RegistrationError
 
 
 ################
@@ -324,7 +324,16 @@ class CreateCaseFrame(CreateFrame):
                 elif len(dcmdirs):
                     dcmdirs = self.group_dcmdirs(dcmdirs)
                     for c in dcmdirs.keys():
-                        case = Case(c,dcmdirs[c],self.datadir.get(),self.config)
+                        try:
+                            case = Case(c,dcmdirs[c],self.datadir.get(),self.config)
+                        except RegistrationError:
+                            print('Registration failure, moving case {}\n\n'.format(c))
+                            ddir = self.datadir.get()
+                            faildir = os.path.join(self.config.UIdatadir,'dicom_failedregistration')
+                            if not os.path.exists(faildir):
+                                os.mkdir(faildir)
+                            mvcmd = 'mv ' + os.path.join(ddir,c) + ' ' + faildir
+                            os.system(mvcmd)
                     return
 
             if len(self.caselist['casetags']):

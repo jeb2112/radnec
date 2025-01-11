@@ -34,9 +34,17 @@ from sklearn.linear_model import LinearRegression,RANSACRegressor
 import SimpleITK as sitk
 
 
-# convenience function
+# convenience items
 def cp(item):
     return copy.deepcopy(item)
+
+class RegistrationError(Exception):
+    def __init__(self, message=None):
+        super().__init__(message)
+        self.message = message 
+
+    def __str__(self):
+        return self.message or "ANTS registration error"
 
 
 # Classes and methods for loading a collection of multiple dicom studies as a case
@@ -63,7 +71,11 @@ class Case():
 
         self.load_studydirs()
         self.process_studydirs()
-        self.process_timepoints()
+        try:
+            self.process_timepoints()
+        except RuntimeError:
+            raise RuntimeError
+        
         if False:
             self.regression()
             self.segment()
@@ -126,7 +138,10 @@ class Case():
                         s.normalstats()
         else:
             for i,s in enumerate(self.studies):
-                s.preprocess()
+                try:
+                    s.preprocess()
+                except RegistrationError:
+                    raise RegistrationError
             if False:
                 with open(pname,'wb') as fp:
                     pickle.dump(self.studies,fp)
@@ -143,7 +158,12 @@ class Case():
         else:
             raise ValueError('No T1 data to register to')
         # register the designated reference image to the talairach coords
-        s.dset['raw'][dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset['raw'][dref]['d'],transform='Rigid')
+        # this one is prone to failure if brain is not extracted
+        try:
+            s.dset['raw'][dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset['raw'][dref]['d'],transform='Rigid')
+        except RuntimeError as e:
+            raise RuntimeError('Failed to register to MNI reference')
+
         if False:
             # tx_transform = sitk.ReadTransform(tx)
             # print(tx_transform)
@@ -765,7 +785,7 @@ class DcmStudy(Study):
         # arbitrary slice file being passed in. 
         # in the first part of the kludge in loaddata() above, the slices were reversed in order
         # here additionally the offset for the affine is adjusted accordingly.
-        if True:
+        if hasattr(dicomdata,'Manufacturer'):
             if 'Siemens' in dicomdata.Manufacturer:
                 if '(0021, 114e)' in str(dicomdata._dict.keys()):
                     slicenumber = int(dicomdata[(0x0021,0x114E)].value) # this tag is zero-based
@@ -1112,7 +1132,7 @@ class DcmStudy(Study):
             mytx = ants.registration(fixed=fixed_ants, moving=moving_ants, type_of_transform = transform )
         except RuntimeError as e:
             print(e)
-            raise RuntimeError
+            raise RegistrationError
         img_arr_reg = mytx['warpedmovout'].numpy()
         a=1
 
