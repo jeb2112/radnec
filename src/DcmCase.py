@@ -33,6 +33,8 @@ from scipy.interpolate import splev, splrep
 from sklearn.linear_model import LinearRegression,RANSACRegressor
 import SimpleITK as sitk
 
+from src.dicom2nifti import convert_siemens
+from src.dicom2nifti import common
 
 # convenience items
 def cp(item):
@@ -161,8 +163,8 @@ class Case():
         # this one is prone to failure if brain is not extracted
         try:
             s.dset['raw'][dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset['raw'][dref]['d'],transform='Rigid')
-        except RuntimeError as e:
-            raise RuntimeError('Failed to register to MNI reference')
+        except RegistrationError:
+            raise RegistrationError('Failed to register to MNI reference')
 
         if False:
             # tx_transform = sitk.ReadTransform(tx)
@@ -203,7 +205,7 @@ class Case():
             affine = self.studies[0].dset['ref']['affine']
         for s in self.studies:
             localstudydir = os.path.join(self.datadir,self.case,s.studytimeattrs['StudyDate'])
-            localniftidir = os.path.join(self.datadir,'..','dicom2nifti_radnec1',self.case,s.studytimeattrs['StudyDate'])
+            localniftidir = os.path.join(self.config.UIlocaldir,self.case,s.studytimeattrs['StudyDate'])
             if not os.path.exists(localniftidir):
                 os.makedirs(localniftidir,exist_ok=True)
             for dc in ['raw','z','cbv','adc']:
@@ -670,6 +672,7 @@ class DcmStudy(Study):
         for sd in seriesdirs:
             dpath = os.path.join(d,sd)
             files = sorted(os.listdir(dpath))
+
             ds0 = pd.dcmread(os.path.join(dpath,files[0]))
             # check for reverse slice order using ImagePositionPatient
             if '(0020, 0032)' in str(ds0._dict.keys()):
@@ -688,11 +691,16 @@ class DcmStudy(Study):
                 slthick = None
                 continue
             print(ds0.SeriesDescription)
+
+            # for now won't make use of any MPR
+            if re.search('mpr[^a][^g][^e]',ds0.SeriesDescription.lower()) is not None:
+                continue
+
             for t in self.studytimeattrs.keys():
                 if hasattr(ds0,t):
                     self.studytimeattrs[t] = getattr(ds0,t)
 
-            dc = 'raw'
+            dc = 'raw'            
             if 't1' in ds0.SeriesDescription.lower():
                 # so far 'pre' is sufficient for t1
                 if 'pre' in ds0.SeriesDescription.lower():
@@ -729,18 +737,38 @@ class DcmStudy(Study):
                 if dt in list(self.channels.values()):
                     dref = self.dset[dc][dt]
                     dref['ex'] = True
-                    dref['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns),dtype='uint16')
-                    dref['affine'] = self.get_affine(ds0,slthick)
-                    # print(dref['affine'])
-                    dref['d'][0,:,:] = ds0.pixel_array
-                    for i,f in enumerate(files[1:]):
-                        data = pd.dcmread(os.path.join(dpath,f))
-                        dref['d'][i+1,:,:] = data.pixel_array
 
-                    for t in self.seriestimeattrs:
-                        if hasattr(ds0,t):
-                            dref['time'] = float(getattr(ds0,t))
-                            break
+                    if False:
+                        dref['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns),dtype='uint16')
+                        dref['affine'] = self.get_affine(ds0,slthick)
+                        dref['d'][0,:,:] = ds0.pixel_array
+                        for i,f in enumerate(files[1:]):
+                            data = pd.dcmread(os.path.join(dpath,f))
+                            dref['d'][i+1,:,:] = data.pixel_array
+
+                        for t in self.seriestimeattrs:
+                            if hasattr(ds0,t):
+                                dref['time'] = float(getattr(ds0,t))
+                                break
+                    else:
+                        if hasattr(ds0,'Manufacturer'):
+                            if 'siemens' in ds0.Manufacturer.lower():
+                                res = convert_siemens.dicom_to_nifti(common.read_dicom_directory(dpath),None)
+                        img_arr = np.array(res['NII'].dataobj)
+                        if len(np.shape(img_arr)) == 3:
+                            dref['d'] = np.transpose(img_arr,axes=(2,1,0))
+                        elif len(np.shape(img_arr)) == 4:
+                            if 'trace' in ds0.SeriesDescription.lower():
+                                img_arr = img_arr[:,:,:,1] # arbitrarily taking b-value image for now
+                                dref['d'] = np.transpose(img_arr,axes=(2,1,0))
+                        else:
+                            raise ValueError
+                        dref['affine'] = res['NII'].affine
+                        for t in self.seriestimeattrs:
+                            if hasattr(ds0,t):
+                                dref['time'] = float(getattr(ds0,t))
+                                break
+
 
         return
 
@@ -777,8 +805,9 @@ class DcmStudy(Study):
         # also the opposite of patient X, while magnet Z is the same.
         # the patient voxel to magnet matrix is therefore [-100;0-10;001]
 
-        affine[:3,:3] = np.matmul(affine[:3,:3],[[-1,0,0],[0,-1,0],[0,0,1]])
-        affine[:2,3] *= -1
+        if True:
+            affine[:3,:3] = np.matmul(affine[:3,:3],[[-1,0,0],[0,-1,0],[0,0,1]])
+            affine[:2,3] *= -1
 
         # check for reversed slices on siemens. according to the usage in loaddat(), the first file
         # from the dicom dir (ds0) is being passed in here, so this wouldn't work for an 
@@ -840,7 +869,7 @@ class DcmStudy(Study):
         if not os.path.exists(self.localstudydir):
             os.makedirs(self.localstudydir)
 
-        if False and '11_19' in self.studydir:
+        if False and '0910' in self.localstudydir:
             for dt in ['t1+','t1','t2','flair','flair+','dwi']:
                 if self.dset['raw'][dt]['ex']:
                     self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localstudydir,'img_'+dt+'_presampled.nii'),
@@ -859,7 +888,7 @@ class DcmStudy(Study):
                         self.dset[dc][dt]['d']= np.clip(self.dset[dc][dt]['d'],0,None)
 
 
-        if False and '11_19' in self.studydir:
+        if True and '0910' in self.localstudydir:
             for dt in ['t1+','t1','t2','flair','flair+','dwi']:
                 if self.dset['raw'][dt]['ex']:
                     self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localstudydir,'img_'+dt+'_resampled.nii'),
@@ -910,8 +939,6 @@ class DcmStudy(Study):
                         self.dset['raw'][dt]['d'],tx = self.register(fixed_image,moving_image,transform='Rigid')
                     if self.dset['adc']['dwi']['ex']:
                         self.dset['adc']['dwi']['d'] = self.tx(fixed_image,self.dset['adc']['dwi']['d'],tx)
-
-
 
             else:
                 print('No T1+ to register on, skipping...')
