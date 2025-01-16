@@ -14,8 +14,8 @@ import pydicom
 from pydicom import dcmread
 from pydicom.tag import Tag
 
-import dicom2nifti.settings
-from dicom2nifti.exceptions import ConversionValidationError, ConversionError
+import src.dicom2nifti.settings as settings
+from src.dicom2nifti.exceptions import ConversionValidationError, ConversionError
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def read_dicom_directory(dicom_directory, stop_before_pixels=False):
                 dicom_headers = dcmread(file_path,
                                                   defer_size="1 KB",
                                                   stop_before_pixels=stop_before_pixels,
-                                                  force=dicom2nifti.settings.pydicom_read_force)
+                                                  force=settings.pydicom_read_force)
                 if is_valid_imaging_dicom(dicom_headers):
                     dicom_input.append(dicom_headers)
     return dicom_input
@@ -1160,7 +1160,7 @@ def is_dicom_file(filename):
     file_stream.close()
     if data == b'DICM':
         return True
-    if dicom2nifti.settings.pydicom_read_force:
+    if settings.pydicom_read_force:
         try:
             dicom_headers = dcmread(filename, defer_size="1 KB", stop_before_pixels=True, force=True)
             if dicom_headers is not None:

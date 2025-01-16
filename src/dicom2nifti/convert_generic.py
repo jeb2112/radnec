@@ -10,10 +10,10 @@ import numpy
 
 from pydicom.tag import Tag
 
-import dicom2nifti.common as common
-import dicom2nifti.settings as settings
-import dicom2nifti.resample as resample
-from dicom2nifti.exceptions import ConversionError, ConversionValidationError
+import src.dicom2nifti.common as common
+import src.dicom2nifti.settings as settings
+import src.dicom2nifti.resample as resample
+from src.dicom2nifti.exceptions import ConversionError, ConversionValidationError
 
 logger = logging.getLogger(__name__)
 
