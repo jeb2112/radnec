@@ -758,6 +758,8 @@ class DcmStudy(Study):
                         if hasattr(ds0,'Manufacturer'):
                             if 'siemens' in ds0.Manufacturer.lower():
                                 res = convert_siemens.dicom_to_nifti(common.read_dicom_directory(dpath),None)
+                            else:
+                                raise ValueError('Manufacturer {} not coded yet'.format(ds0.Manufacturer))
                         img_arr = np.array(res['NII'].dataobj)
                         if len(np.shape(img_arr)) == 3:
                             dref['d'] = np.transpose(img_arr,axes=(2,1,0))
