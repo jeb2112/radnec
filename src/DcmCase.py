@@ -705,16 +705,20 @@ class DcmStudy(Study):
                 # so far 'pre' is sufficient for t1
                 if 'pre' in ds0.SeriesDescription.lower():
                     dt = 't1'
-                else:
+                elif any(s in ds0.SeriesDescription.lower() for s in ['post','gad']):
                     dt = 't1+'
+                else:
+                    dt = 't1'
 
             # there could be both a pre and post gd flair, or just one. 
             # trying 'pre' same as for t1.
-            elif any([f in ds0.SeriesDescription.lower() for f in ['flair','fluid']]):
+            elif any(f in ds0.SeriesDescription.lower() for f in ['flair','fluid']):
                 if 'pre' in ds0.SeriesDescription.lower():
                     dt = 'flair'
-                else:
+                elif any(s in ds0.SeriesDescription.lower() for s in ['post','gad']):
                     dt = 'flair+'
+                else:
+                    dt = 'flair'
             #   
             elif any([f in ds0.SeriesDescription.lower() for f in ['tracew']]):
                 dt = 'dwi'
