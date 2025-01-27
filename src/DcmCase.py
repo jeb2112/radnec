@@ -33,7 +33,7 @@ from scipy.interpolate import splev, splrep
 from sklearn.linear_model import LinearRegression,RANSACRegressor
 import SimpleITK as sitk
 
-from src.dicom2nifti import convert_siemens
+from src.dicom2nifti import convert_siemens,convert_philips
 from src.dicom2nifti import common
 
 # convenience items
@@ -86,10 +86,13 @@ class Case():
     # load all studies of current case
     def load_studydirs(self):
 
-        for i,sd in enumerate(self.studydirs):
+        for sd in self.studydirs:
             print('loading {}\n'.format(sd))
             self.studies.append(DcmStudy(self.case,sd,self.config))
-            self.studies[i].loaddata()
+            try:
+                self.studies[-1].loaddata()
+            except Exception as e: # might need a general arrangement for failed load
+                self.studies.pop()
         # sort studies by time and number of series
         # self.studies = sorted(self.studies,key=lambda x:(x.studytimeattrs['StudyDate'],
         #                                                  len([t for t in x.dset.keys() if not x.dset[t]['ex']])))
@@ -154,15 +157,15 @@ class Case():
         s = self.studies[0]
 
         if s.dset['raw']['t1+']['ex']:
-            dref = 't1+'
+            dref0 = 't1+'
         elif s.dset['raw']['t1']['ex']:
-            dref = 't1'
+            dref0 = 't1'
         else:
             raise ValueError('No T1 data to register to')
         # register the designated reference image to the talairach coords
         # this one is prone to failure if brain is not extracted
         try:
-            s.dset['raw'][dref]['d'],tx = s.register(s.dset['ref']['d'],s.dset['raw'][dref]['d'],transform='Rigid')
+            s.dset['raw'][dref0]['d'],tx = s.register(s.dset['ref']['d'],s.dset['raw'][dref0]['d'],transform='Rigid')
         except RegistrationError:
             raise RegistrationError('Failed to register to MNI reference')
 
@@ -173,7 +176,7 @@ class Case():
         # apply that same registration transform to all remaining images in this study
         for dc in ['raw','z','cbv','adc']:
             for dt in list(s.channels.values()):
-                if dt == dref and dc == 'raw':
+                if dt == dref0 and dc == 'raw':
                     continue
                 else:
                     if s.dset[dc][dt]['ex']:
@@ -182,18 +185,30 @@ class Case():
         # repeat process for remainder of studies
         for s in self.studies[1:]:
 
+            study_skiplist = []
             if s.dset['raw']['t1+']['ex']:
                 dref = 't1+'
-                s.dset['raw'][dref]['d'],tx = s.register(self.studies[0].dset['raw'][dref]['d'],s.dset['raw'][dref]['d'],transform='Rigid')
+            elif s.dset['raw']['t1']['ex']:
+                dref = 't1'
             else:
-                raise ValueError('No T1+ to register to')
+                # remove this study, TODO handle this better
+                study_skiplist.append(s)
+                print('No T1,T1+ to register to time point 0, skipping this study...')
+                continue
+            s.dset['raw'][dref]['d'],tx = s.register(self.studies[0].dset['raw'][dref0]['d'],s.dset['raw'][dref]['d'],transform='Rigid')
             for dc in ['raw','z','cbv','adc']:
                 for dt in list(s.channels.values()) :
                     if dt == dref and dc == 'raw':
                         continue
+                    elif s.dset[dc][dt]['ex'] is False:
+                        continue
                     else:
-                        if s.dset[dc][dt]['ex']:
-                            s.dset[dc][dt]['d'] = s.tx(self.studies[0].dset['raw'][dref]['d'],s.dset[dc][dt]['d'],tx)
+                        try:
+                            if s.dset[dc][dt]['ex']:
+                                s.dset[dc][dt]['d'] = s.tx(self.studies[0].dset['raw'][dref0]['d'],s.dset[dc][dt]['d'],tx)
+                        except AttributeError:
+                            continue
+        self.studies = [s for s in self.studies if s not in study_skiplist]
 
         # use the affine of the designated reference
         self.write_all(affine = self.studies[0].dset['raw'][dref]['affine'])
@@ -638,7 +653,7 @@ class DcmStudy(Study):
         # re-generating this path for output plots but awkward, needs better arrangement
         self.localcasedir = self.studydir.split(case)[0]+case
         # list of time attributes to check
-        self.seriestimeattrs = ['AcquisitionTime']
+        self.seriestimeattrs = ['AcquisitionTime','SeriesTime']
         self.studytimeattrs = {'StudyDate':None,'StudyTime':None}
         self.date = None
         # params for z-score
@@ -684,21 +699,36 @@ class DcmStudy(Study):
                     # but patch it back here, plus in get_affine()
                     files = sorted(files,reverse=True)
             
-            if hasattr(ds0,'SliceThickness'):
-                slthick = float(ds0['SliceThickness'].value)
-            else:
-                print('No SliceThickness tag...')
-                slthick = None
-                continue
             print(ds0.SeriesDescription)
 
             # for now won't make use of any MPR
             if re.search('mpr[^a][^g][^e]',ds0.SeriesDescription.lower()) is not None:
                 continue
 
+            # repetition here, some overlap with seriestimes
             for t in self.studytimeattrs.keys():
                 if hasattr(ds0,t):
-                    self.studytimeattrs[t] = getattr(ds0,t)
+                    val = getattr(ds0,t)
+                    if t=='StudyTime':
+                        if self.studytimeattrs[t] is None:
+                            self.studytimeattrs[t] = copy.copy(val)
+                        elif val < self.studytimeattrs[t]:
+                            self.studytimeattrs[t] = copy.copy(val)
+                    else:
+                        self.studytimeattrs[t] = getattr(ds0,t)
+                else:
+                    # raise KeyError('attribute {} not found...'.format(t))
+                    print('attribute {} not found...'.format(t))
+                    continue
+
+            if hasattr(ds0,'SliceThickness'):
+                slthick = float(ds0['SliceThickness'].value)
+            elif hasattr(ds0,'SpacingBetweenSlices'):
+                slthick = float(ds0.SpacingBetweenSlices)
+            else:
+                print('No SliceThickness tag...')
+                continue
+                # raise KeyError('attribute SliceThickness not found...')
 
             dc = 'raw'            
             if 't1' in ds0.SeriesDescription.lower():
@@ -758,8 +788,23 @@ class DcmStudy(Study):
                         if hasattr(ds0,'Manufacturer'):
                             if 'siemens' in ds0.Manufacturer.lower():
                                 res = convert_siemens.dicom_to_nifti(common.read_dicom_directory(dpath),None)
+                            elif 'philips' in ds0.Manufacturer.lower():
+                                res = convert_philips.dicom_to_nifti(common.read_dicom_directory(dpath),None)
                             else:
                                 raise ValueError('Manufacturer {} not coded yet'.format(ds0.Manufacturer))
+    
+                        # record series time
+                        for t in self.seriestimeattrs:
+                            if hasattr(ds0,t):
+                                dref['time'] = float(getattr(ds0,t))
+                                break
+                            else:
+                                if t == self.seriestimeattrs[-1]:
+                                    print('no series time detected')
+                                    # raise ValueError('no series time detected')
+                                    continue
+                                continue
+
                         img_arr = np.array(res['NII'].dataobj)
                         if len(np.shape(img_arr)) == 3:
                             dref['d'] = np.transpose(img_arr,axes=(2,1,0))
@@ -770,11 +815,6 @@ class DcmStudy(Study):
                         else:
                             raise ValueError
                         dref['affine'] = res['NII'].affine
-                        for t in self.seriestimeattrs:
-                            if hasattr(ds0,t):
-                                dref['time'] = float(getattr(ds0,t))
-                                break
-
 
         return
 
@@ -916,27 +956,34 @@ class DcmStudy(Study):
         if self.dset['adc']['dwi']['ex']:
             self.dset['adc']['dwi']['d'] *= self.dset['raw']['dwi']['mask']
 
-        # preliminary registration, within the study to t1+ image. probably this is minimal
+        # preliminary registration, within the study to t1,t1+ image. probably this is minimal
         # and skipping it shouldn't matter too much.
-        # TODO. cbv should be handled here as well.
         if True:
             if self.dset['raw']['t1+']['ex']:
-                fixed_image = self.dset['raw']['t1+']['d']
-                for dt in ['t1','flair','t2','flair+']:
+                t1ref = 't1+'
+            elif self.dset['raw']['t1']['ex']:
+                t1ref = 't1'
+            else:
+                print('No T1,T1+ to pre-register on, skipping...')
+                t1ref=None
+
+            if t1ref is not None:
+                fixed_image = self.dset['raw'][t1ref]['d']
+                for dt in [d for d in ['t1','t1+','flair','t2','flair+'] if d != t1ref]:
                     if self.dset['raw'][dt]['ex']:
                         moving_image = self.dset['raw'][dt]['d']
                         self.dset['raw'][dt]['d'],tx = self.register(fixed_image,moving_image,transform='Rigid')
 
-                # if t1+ image took place immediately after cbv it can be assumed no registration is 
+                # if t1ref image took place immediately after cbv it can be assumed no registration is 
                 # needed. 
                 if self.dset['cbv']['flair']['ex']:
                     # flair_cbv_time = self.dset['cbv']['flair']['time'] - self.dset['raw']['flair']['time']
-                    cbv_t1post_time = self.dset['raw']['t1+']['time'] - self.dset['cbv']['flair']['time']
+                    cbv_t1post_time = self.dset['raw'][t1ref]['time'] - self.dset['cbv']['flair']['time']
                     if cbv_t1post_time > 0 and cbv_t1post_time < 600:
-                        print('CBV-t1post time: {:.0f}'.format(cbv_t1post_time))
+                        print('CBV-t1 time: {:.0f}'.format(cbv_t1post_time))
                         print('Not attempting pre-registration')
                     else:
-                        print('CBV reference time uncertain, pre-registration is required')
+                        raise RuntimeError('CBV reference time uncertain, pre-registration is required')
 
                 # for adc, just use dwi registration
                 for dt in ['dwi']:
@@ -945,10 +992,6 @@ class DcmStudy(Study):
                         self.dset['raw'][dt]['d'],tx = self.register(fixed_image,moving_image,transform='Rigid')
                     if self.dset['adc']['dwi']['ex']:
                         self.dset['adc']['dwi']['d'] = self.tx(fixed_image,self.dset['adc']['dwi']['d'],tx)
-
-            else:
-                print('No T1+ to register on, skipping...')
-
 
         # bias correction.
         # self.dbias = {} # working data for calculating z-scores
@@ -1158,6 +1201,9 @@ class DcmStudy(Study):
     # ants registration
     def register(self,img_arr_fixed,img_arr_moving,transform='Affine'):
         print('register fixed, moving')
+
+        if (img_arr_fixed is None or img_arr_moving is None):
+            raise RegistrationError
 
         fixed_ants = ants.from_numpy(img_arr_fixed)
         moving_ants = ants.from_numpy(img_arr_moving)
