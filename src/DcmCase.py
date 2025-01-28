@@ -66,7 +66,7 @@ class Case():
         self.casedir = os.path.join(self.datadir,self.case)
         self.studydirs = studydirs
         self.studies = []
-        self.debug_study = '11_14' # date tag for identifying a study to debug from current case
+        self.debug_study = None # date tag for identifying a study to debug from current case
         self.skip_study = [] # list of studies to skip for whatever reason
         # convention for two displayed images: the left image is more recent/index1, and right image is earlier/index0
         # in future when more than two study/timepoints are available, self.timepoints will select for display
@@ -174,9 +174,10 @@ class Case():
                             s.dset[dc][dt]['d'],s.dset[dc][dt]['affine'] = s.resample_voxel(s.dset[dc][dt]['d'],
                                                                                             voxel_sizes=np.abs(voxel_sizes),
                                                                                 affine=s.dset[dc][dt]['affine'])
-                            for i,v in enumerate(voxel_sizes):
-                                if v < 0:
-                                    s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=i)
+                            if False: # needed if reference has been converted to RAI
+                                for i,v in enumerate(voxel_sizes):
+                                    if v < 0:
+                                        s.dset[dc][dt]['d'] = np.flip(s.dset[dc][dt]['d'],axis=i)
                             s.dset[dc][dt]['d']= np.clip(s.dset[dc][dt]['d'],0,None)
 
         # pick a reference image, usually t1 or t1+
@@ -192,11 +193,15 @@ class Case():
         # this one is prone to failure if brain is not extracted
         try:
             _,tx0 = s0.register(s0.dset['ref']['d'],s0.dset['raw'][dref0]['d'],transform='Rigid')
+            # cropping to the MNI reference voxel space here
             s0.dset['raw'][dref0]['d'] = s0.tx(s0.dset['ref']['d'],s0.dset['raw'][dref0]['d'],tx0)
+            # with the combined resampling and registration to MNI reference, the resulting affine is therefore
+            # just the MNI affine
             s0.dset['raw'][dref0]['affine'] = s0.dset['ref']['affine']
-            tx0_affine = np.reshape(ants.read_transform(tx0[0]).parameters,(4,3)).T
-            tx0_affine = np.vstack((tx0_affine,np.array([0,0,0,1])))
-            # print(tx0_affine)
+            if False:
+                tx0_affine = np.reshape(ants.read_transform(tx0[0]).parameters,(4,3)).T
+                tx0_affine = np.vstack((tx0_affine,np.array([0,0,0,1])))
+                print(tx0_affine)
         except RegistrationError:
             raise RegistrationError('Failed to register to MNI reference')
 
@@ -204,6 +209,7 @@ class Case():
             # tx_transform = sitk.ReadTransform(tx)
             # print(tx_transform)
             s.writenifti(s.dset['raw'][dref]['d'],os.path.join(self.datadir,self.case,dref+'_talairach.nii'),affine=s.dset['ref']['affine'])
+
         # apply that same registration transform to all remaining images in this study
         for dc in ['raw','z','cbv','adc']:
             for dt in list(s0.channels.values()):
@@ -226,10 +232,14 @@ class Case():
                 self.skip_study.append(s)
                 print('No T1,T1+ to register to time point 0, skipping this study...')
                 continue
+            # could also register to MNI reference directly here, but anecdotally it can be seen that repeat registrations
+            # to MNI reproduce with an error > 1 pixel, especially if brains have not been 
+            # extracted. So the registration to MNI is limited to first time point only.
             s.dset['raw'][dref]['d'],tx = s.register(self.studies[0].dset['raw'][dref0]['d'],s.dset['raw'][dref]['d'],transform='Rigid')
             tx_affine = np.reshape(ants.read_transform(tx[0]).parameters,(4,3)).T
             tx_affine = np.vstack((tx_affine,np.array([0,0,0,1])))
-            s.dset['raw'][dref]['affine'] = np.dot(tx_affine,s0.dset['raw'][dref]['affine'])
+            # s.dset['raw'][dref]['affine'] = np.dot(tx_affine,s0.dset['raw'][dref]['affine'])
+            s.dset['raw'][dref]['affine'] = s0.dset['ref']['affine']
 
             for dc in ['raw','z','cbv','adc']:
                 for dt in list(s.channels.values()) :
@@ -240,26 +250,15 @@ class Case():
                     else:
                         try:
                             if s.dset[dc][dt]['ex']:
+                                # image or ref voxel space?
                                 s.dset[dc][dt]['d'] = s.tx(self.studies[0].dset['raw'][dref0]['d'],s.dset[dc][dt]['d'],tx)
-                                s.dset[dc][dt]['affine'] = np.dot(tx_affine,s.dset[dc][dt]['affine'])
+                                # s.dset[dc][dt]['affine'] = np.dot(tx_affine,s.dset[dc][dt]['affine'])
+                                s.dset[dc][dt]['affine'] = s0.dset['ref']['affine']
                         except AttributeError:
                             continue
 
         self.studies = [s for s in self.studies if s not in self.skip_study]
 
-        # resample all to target matrix (MNI)
-        if False:
-            for s in self.studies:
-                for dc in ['raw','z','cbv','adc']:
-                    for dt in list(s.channels.values()):
-                        if s.dset[dc][dt]['ex']:
-                            print('Resampling ' + dc+','+dt + ' into MNI target space...')
-                            s.dset[dc][dt]['d'],s.dset[dc][dt]['affine'] = s.resample_affine(s.dset['ref']['d'],s.dset[dc][dt]['d'],
-                                                                                s.dset['ref']['affine'],s.dset[dc][dt]['affine'])
-                            s.dset[dc][dt]['d']= np.clip(s.dset[dc][dt]['d'],0,None)
-
-        # use the affine of the designated reference
-        # self.write_all(affine = self.studies[0].dset['raw'][dref]['affine'])
         self.write_all(affine = self.studies[0].dset['ref']['affine'])
         return
 
@@ -520,7 +519,7 @@ class Study():
         return
     
     # load a single nifti file
-    def loadnifti(self,t1_file,dir=None,type='uint8',rai=False):
+    def loadnifti(self,t1_file,dir=None,type='uint8',rai=True):
         img_arr_t1 = None
         if dir is None:
             dir = self.studydir
@@ -711,8 +710,8 @@ class DcmStudy(Study):
         # reference for talairach coords
         self.dset['ref']['d'],self.dset['ref']['affine'] = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',
                                                                           dir=os.path.join(self.config.UIdatadir,'mni152'),
-                                                                          type='uint16')
-        mask,_ = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a_mask.nii',dir=os.path.join(self.config.UIdatadir,'mni152'))
+                                                                          type='uint16',rai=False)
+        mask,_ = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a_mask.nii',dir=os.path.join(self.config.UIdatadir,'mni152'),rai=False)
         self.dset['ref']['d'] *= mask
         # self.dset['ref']['d'] = self.rescale(self.dset['ref']['d'])
         return
@@ -969,7 +968,7 @@ class DcmStudy(Study):
                                         type='float',affine=self.dset['raw'][dt]['affine'])
 
 
-        # resample to target matrix (t1+ for now)
+        # resample to target matrix (t1,t1+ for now)
         if True:
             if self.dset['raw']['t1+']['ex']:
                 t1ref = 't1+'
