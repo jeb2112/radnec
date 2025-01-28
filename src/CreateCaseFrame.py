@@ -84,7 +84,6 @@ class CreateCaseFrame(CreateFrame):
         self.s.bind("<<ComboboxSelected>>",self.study_callback)
         self.studynumber.trace_add('write',lambda *args: self.ui.set_studynumber())
 
-
     # callback for file dialog 
     def select_dir(self):
         self.resetCase()
@@ -323,7 +322,7 @@ class CreateCaseFrame(CreateFrame):
                 # if dicom dirs, then preprocess only. could be a single case or multiple cases
                 elif len(dcmdirs):
                     dcmdirs = self.group_dcmdirs(dcmdirs)
-                    for c in dcmdirs.keys():
+                    for c in sorted(list(dcmdirs.keys())):
                         try:
                             case = Case(c,dcmdirs[c],self.datadir.get(),self.config)
                         except RegistrationError:

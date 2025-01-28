@@ -739,14 +739,16 @@ class DcmStudy(Study):
 
             ds0 = pd.dcmread(os.path.join(dpath,files[0]))
             # check for reverse slice order using ImagePositionPatient
-            if '(0020, 0032)' in str(ds0._dict.keys()):
-                slice0 = ds0[(0x0020,0x0032)].value[2]
-                ds = pd.dcmread(os.path.join(dpath,files[-1]))
-                sliceorder = ds[(0x0020,0x0032)].value[2] - slice0
-                if sliceorder < 0:
-                    # not sure why some dicom dirs have reversed slice order
-                    # but patch it back here, plus in get_affine()
-                    files = sorted(files,reverse=True)
+            # not using get_affine() anymore
+            if False:
+                if '(0020, 0032)' in str(ds0._dict.keys()):
+                    slice0 = ds0[(0x0020,0x0032)].value[2]
+                    ds = pd.dcmread(os.path.join(dpath,files[-1]))
+                    sliceorder = ds[(0x0020,0x0032)].value[2] - slice0
+                    if sliceorder < 0:
+                        # not sure why some dicom dirs have reversed slice order
+                        # but patch it back here, plus in get_affine()
+                        files = sorted(files,reverse=True)
             
             print(ds0.SeriesDescription)
 
@@ -841,7 +843,14 @@ class DcmStudy(Study):
                     else:
                         if hasattr(ds0,'Manufacturer'):
                             if 'siemens' in ds0.Manufacturer.lower():
-                                res = convert_siemens.dicom_to_nifti(common.read_dicom_directory(dpath),None)
+                                try:
+                                    res = convert_siemens.dicom_to_nifti(common.read_dicom_directory(dpath),None)
+                                except IndexError as e:
+                                    if hasattr(ds0,'NumberOfFrames'):
+                                        if len(str(ds0[(0x0028,0x0008)].value)):
+                                            print('possible error reading multi-frame dicom, skipping this series...')
+                                            dref['ex'] = False
+                                            continue
                             elif 'philips' in ds0.Manufacturer.lower():
                                 res = convert_philips.dicom_to_nifti(common.read_dicom_directory(dpath),None)
                             else:
@@ -959,7 +968,7 @@ class DcmStudy(Study):
     # eg resampling, registration, bias correction
     def preprocess(self,extract=False):
 
-        print('case = {},{}'.format(self.case,self.studydir))
+        print('preprocess case = {},{}'.format(self.case,self.studydir))
         # TODO. don't have a great arrangement for parallel dicom and nifti directories 
         # currently localstudydir just creates an output directory for nifti files based on the 
         # StudyDate attribute.
