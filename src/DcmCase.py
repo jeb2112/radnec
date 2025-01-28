@@ -66,7 +66,8 @@ class Case():
         self.casedir = os.path.join(self.datadir,self.case)
         self.studydirs = studydirs
         self.studies = []
-        self.debug_study = None # date tag for identifying a study to debug from current case
+        self.debug_study = None # tag for identifying a study to debug from current case eg '04_23' for date. depends on 
+                                # how the subdirs of dicoms were named after downloading from PACS
         self.skip_study = [] # list of studies to skip for whatever reason
         # convention for two displayed images: the left image is more recent/index1, and right image is earlier/index0
         # in future when more than two study/timepoints are available, self.timepoints will select for display
@@ -766,15 +767,20 @@ class DcmStudy(Study):
                         self.studytimeattrs[t] = getattr(ds0,t)
                 else:
                     # raise KeyError('attribute {} not found...'.format(t))
-                    print('attribute {} not found...'.format(t))
+                    print('attribute {} not found, skipping this series...'.format(t))
                     continue
 
             if hasattr(ds0,'SliceThickness'):
                 slthick = float(ds0['SliceThickness'].value)
             elif hasattr(ds0,'SpacingBetweenSlices'):
                 slthick = float(ds0.SpacingBetweenSlices)
+            elif '(0018, 0050)' in str(ds0._dict.keys()):
+                slthick = float(ds0[(0x0018,0x0050)].value)
+            # for 3d on vida. SharedFunctionalGroupsSequence could also be needed
+            elif hasattr(ds0,'PerFrameFunctionalGroupsSequence'):
+                slthick = float(ds0.PerFrameFunctionalGroupsSequence[0]['PixelMeasuresSequence'][0].get('SliceThickness'))
             else:
-                print('No SliceThickness tag...')
+                print('No SliceThickness tag, skipping this series...')
                 continue
                 # raise KeyError('attribute SliceThickness not found...')
 
