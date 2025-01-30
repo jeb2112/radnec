@@ -30,12 +30,12 @@ def get_dicomdirs(dir):
 if __name__ == '__main__':
 
     # brats source dir
-    dicom_data_dir = os.path.join(os.path.expanduser('~'),'data','dicom')
+    dicom_data_dir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2/dicom'
     dcmdirs = sorted(get_dicomdirs(dicom_data_dir))
 
     for d in dcmdirs:
 
-        print('case {}'.format(d))
+        print('case {}\t'.format(d.removeprefix(dicom_data_dir)),end='')
         seriesdirs = os.listdir(d)
 
         for sd in seriesdirs:
@@ -43,6 +43,10 @@ if __name__ == '__main__':
             files = sorted(os.listdir(dpath))
 
             ds0 = pd.dcmread(os.path.join(dpath,files[0]))
+            if sd == seriesdirs[0]:
+                if hasattr(ds0,'AcquisitionDate'):
+                    print(ds0.AcquisitionDate)
+                else:
+                    continue
             if 'philips' in ds0.Manufacturer.lower():
                 print(ds0.SeriesDescription)
-                print('philips')
