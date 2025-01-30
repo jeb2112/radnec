@@ -733,11 +733,16 @@ class DcmStudy(Study):
                 img_nb = nb.load(os.path.join(dpath,'img_reference.nii.gz'))
                 self.dset['ref']['d'] = np.transpose(np.array(img_nb.dataobj),axes=(2,1,0))
 
+        # presort series by sequence type and record the time
+        sortedseries = {}
+        nflair = 0
         for sd in seriesdirs:
             dpath = os.path.join(d,sd)
             files = sorted(os.listdir(dpath))
 
             ds0 = pd.dcmread(os.path.join(dpath,files[0]))
+            print(ds0.SeriesDescription)
+
             # check for reverse slice order using ImagePositionPatient
             # not using get_affine() anymore
             if False:
@@ -749,14 +754,21 @@ class DcmStudy(Study):
                         # not sure why some dicom dirs have reversed slice order
                         # but patch it back here, plus in get_affine()
                         files = sorted(files,reverse=True)
-            
-            print(ds0.SeriesDescription)
 
             # for now won't make use of any MPR (siemens only so far)
             if re.search('mpr[^a][^g][^e]',ds0.SeriesDescription.lower()) is not None:
                 continue
 
-            # repetition here, some overlap with seriestimes
+            # record series time
+            for t in self.seriestimeattrs:
+                if hasattr(ds0,t):
+                    seriestime = float(getattr(ds0,t))
+                    break
+                else:
+                    if t == self.seriestimeattrs[-1]:
+                        seriestime = None
+
+            # repetition here, some overlap with seriestimes TODO clean up
             for t in self.studytimeattrs.keys():
                 if hasattr(ds0,t):
                     val = getattr(ds0,t)
@@ -767,117 +779,118 @@ class DcmStudy(Study):
                             self.studytimeattrs[t] = copy.copy(val)
                     else:
                         self.studytimeattrs[t] = getattr(ds0,t)
+
+            if False: # no longer using slthick 
+                if hasattr(ds0,'SliceThickness'):
+                    slthick = float(ds0['SliceThickness'].value)
+                elif hasattr(ds0,'SpacingBetweenSlices'):
+                    slthick = float(ds0.SpacingBetweenSlices)
+                elif '(0018, 0050)' in str(ds0._dict.keys()):
+                    slthick = float(ds0[(0x0018,0x0050)].value)
+                # for 3d on vida. SharedFunctionalGroupsSequence could also be needed
+                elif hasattr(ds0,'PerFrameFunctionalGroupsSequence'):
+                    slthick = float(ds0.PerFrameFunctionalGroupsSequence[0]['PixelMeasuresSequence'][0].get('SliceThickness'))
                 else:
-                    # raise KeyError('attribute {} not found...'.format(t))
-                    print('attribute {} not found, skipping this series...'.format(t))
-                    continue
+                    print('No SliceThickness tag...')
 
-            if hasattr(ds0,'SliceThickness'):
-                slthick = float(ds0['SliceThickness'].value)
-            elif hasattr(ds0,'SpacingBetweenSlices'):
-                slthick = float(ds0.SpacingBetweenSlices)
-            elif '(0018, 0050)' in str(ds0._dict.keys()):
-                slthick = float(ds0[(0x0018,0x0050)].value)
-            # for 3d on vida. SharedFunctionalGroupsSequence could also be needed
-            elif hasattr(ds0,'PerFrameFunctionalGroupsSequence'):
-                slthick = float(ds0.PerFrameFunctionalGroupsSequence[0]['PixelMeasuresSequence'][0].get('SliceThickness'))
-            else:
-                print('No SliceThickness tag, skipping this series...')
+            # for now won't make use of any Siemens MPR
+            if re.search('mpr[^a][^g][^e]',ds0.SeriesDescription.lower()) is not None:
+                print('MPR, skipping...')
                 continue
-                # raise KeyError('attribute SliceThickness not found...')
 
-            dc = 'raw'            
+            # currently assuming that the pre/post Gd status can be determined for t1 from series description
+            # while flair can be deduced from series times
             if 't1' in ds0.SeriesDescription.lower():
-                # so far 'pre' is sufficient for t1
+                # so far 'pre' is sufficient for t1 on Siemens
                 if 'pre' in ds0.SeriesDescription.lower():
                     dt = 't1'
-                elif any(s in ds0.SeriesDescription.lower() for s in ['post','gad']):
+                # these tags account for all post Gd on siemens philips
+                elif any(s in ds0.SeriesDescription.lower() for s in ['post','gad',' c ','_c_']):
                     dt = 't1+'
+                # otherwise it's preGd philips
                 else:
                     dt = 't1'
+                if hasattr(sortedseries,dt):
+                    raise KeyError('sequence {} already exists'.format(dt))
+                sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':dt,'dpath':copy.copy(dpath)}
+                continue
 
             # there could be both a pre and post gd flair, or just one. 
-            # trying 'pre' same as for t1.
             elif any(f in ds0.SeriesDescription.lower() for f in ['flair','fluid']):
-                if 'pre' in ds0.SeriesDescription.lower():
-                    dt = 'flair'
-                elif any(s in ds0.SeriesDescription.lower() for s in ['post','gad']):
-                    dt = 'flair+'
-                else:
-                    dt = 'flair'
-            #   
+                dt = 'flair'+str(nflair)
+                sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':dt,'dpath':copy.copy(dpath)}
+                nflair += 1
+                continue
+
             elif any([f in ds0.SeriesDescription.lower() for f in ['tracew']]):
-                dt = 'dwi'
+                sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':'dwi','dpath':copy.copy(dpath)}
+                continue
 
             # not taking relcbv or relcbf, just relccbv. could use 'perf' as well.
             # note this may be exported in a separate studydir, without a matching t1
             # TODO: the matching t1 has to come from another studydir, based on time tags
             elif any([f in ds0.SeriesDescription.lower() for f in ['relccbv']]):
                 dt = 'flair' # cbv will be stored arbitrarily as a flair channel for processing purposes
-                dc = 'cbv'
+                sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'cbv','dt':dt,'dpath':copy.copy(dpath)}
+                continue
+
             # likewise adc will be stored in the 'dwi' channel for processing purposes 
             elif any([f in ds0.SeriesDescription.lower() for f in ['adc']]):
                 dt = 'dwi'
-                dc = 'adc'
+                sortedseries[dc] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'adc','dt':dt,'dpath':copy.copy(dpath)}
+                continue 
+
             else:
-                dt = None
+                print('series type not recognized, skipping...')
                 continue
+
+        # sort series by acquisition time
+        timesortedserieskeys = sorted(list(sortedseries.keys()),key=lambda x:(sortedseries[x]['time']))
+
+        # adjust flair pre/post according to t1 gd status
+        t1gdtime = 1e7
+        for k in timesortedserieskeys:
+            if sortedseries[k]['dt'] == 't1+':   
+                t1gdtime = sortedseries[k]['time']
+                continue
+            if 'flair' in sortedseries[k]['dt']:
+                if sortedseries[k]['time'] > t1gdtime:
+                    sortedseries[k]['dt'] = 'flair+'
+                else:
+                    sortedseries[k]['dt'] = 'flair'
+
+        # load the img arrays for each series
+        for sdkey in sortedseries.keys():
+            ds0 = sortedseries[sdkey]['ds0']
+            dc = sortedseries[sdkey]['dc']
+            dt = sortedseries[sdkey]['dt']
+            dpath = sortedseries[sdkey]['dpath']
+            dtime = sortedseries[sdkey]['time']
 
             if dt is not None:
                 if dt in list(self.channels.values()):
                     dref = self.dset[dc][dt]
                     dref['ex'] = True
 
-                    if False:
-                        dref['d'] = np.zeros((len(files),ds0.Rows,ds0.Columns),dtype='uint16')
-                        dref['affine'] = self.get_affine(ds0,slthick)
-                        dref['d'][0,:,:] = ds0.pixel_array
-                        for i,f in enumerate(files[1:]):
-                            data = pd.dcmread(os.path.join(dpath,f))
-                            dref['d'][i+1,:,:] = data.pixel_array
-
-                        for t in self.seriestimeattrs:
-                            if hasattr(ds0,t):
-                                dref['time'] = float(getattr(ds0,t))
-                                break
-                    else:
-                        if hasattr(ds0,'Manufacturer'):
-                            if 'siemens' in ds0.Manufacturer.lower():
-                                try:
-                                    res = convert_siemens.dicom_to_nifti(common.read_dicom_directory(dpath),None)
-                                except IndexError as e:
-                                    if hasattr(ds0,'NumberOfFrames'):
-                                        if len(str(ds0[(0x0028,0x0008)].value)):
-                                            print('possible error reading multi-frame dicom, skipping this series...')
-                                            dref['ex'] = False
-                                            continue
-                            elif 'philips' in ds0.Manufacturer.lower():
-                                res = convert_philips.dicom_to_nifti(common.read_dicom_directory(dpath),None)
-                            else:
-                                raise ValueError('Manufacturer {} not coded yet'.format(ds0.Manufacturer))
-    
-                        # record series time
-                        for t in self.seriestimeattrs:
-                            if hasattr(ds0,t):
-                                dref['time'] = float(getattr(ds0,t))
-                                break
-                            else:
-                                if t == self.seriestimeattrs[-1]:
-                                    print('no series time detected')
-                                    # raise ValueError('no series time detected')
-                                    continue
-                                continue
-
-                        img_arr = np.array(res['NII'].dataobj)
-                        if len(np.shape(img_arr)) == 3:
-                            dref['d'] = np.transpose(img_arr,axes=(2,1,0))
-                        elif len(np.shape(img_arr)) == 4:
-                            if 'trace' in ds0.SeriesDescription.lower():
-                                img_arr = img_arr[:,:,:,1] # arbitrarily taking b-value image for now
-                                dref['d'] = np.transpose(img_arr,axes=(2,1,0))
+                    if hasattr(ds0,'Manufacturer'):
+                        if 'siemens' in ds0.Manufacturer.lower():
+                            res = convert_siemens.dicom_to_nifti(common.read_dicom_directory(dpath),None)
+                        elif 'philips' in ds0.Manufacturer.lower():
+                            res = convert_philips.dicom_to_nifti(common.read_dicom_directory(dpath),None)
                         else:
-                            raise ValueError
-                        dref['affine'] = res['NII'].affine
+                            raise ValueError('Manufacturer {} not coded yet'.format(ds0.Manufacturer))
+
+                    img_arr = np.array(res['NII'].dataobj)
+                    if len(np.shape(img_arr)) == 3:
+                        dref['d'] = np.transpose(img_arr,axes=(2,1,0))
+                    elif len(np.shape(img_arr)) == 4:
+                        if 'trace' in ds0.SeriesDescription.lower():
+                            img_arr = img_arr[:,:,:,1] # arbitrarily taking b-value image for now
+                            dref['d'] = np.transpose(img_arr,axes=(2,1,0))
+                    else:
+                        raise ValueError
+                    dref['affine'] = res['NII'].affine
+                    dref['time'] = copy.copy(dtime)
 
         return
 
