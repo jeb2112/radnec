@@ -798,18 +798,36 @@ class DcmStudy(Study):
                 print('MPR, skipping...')
                 continue
 
-            # currently assuming that the pre/post Gd status can be determined for t1 from series description
-            # while flair can be deduced from series times
+            # currently assuming that the pre/post Gd can be determined for t1 from tags or series description
+            # while flair can be deduced from t1+ and relative series times
             if 't1' in ds0.SeriesDescription.lower():
-                # so far 'pre' is sufficient for t1 on Siemens
-                if 'pre' in ds0.SeriesDescription.lower():
+                # check for any contrast
+                if hasattr(ds0,'ContrastBolusAgent') and len(ds0.ContrastBolusAgent):
+                    gd = True
+                elif hasattr(ds0,'RequestedContrastAgent') and len(ds0.RequestedContrastAgent):
+                    gd = True
+                else:
+                    gd = False 
+
+                # assign t1,t1+
+                if gd:
+                    dt = 't1+'
+                # tag alone from above might not be definitive. haven't seen
+                # many philips scans yet, but so far they are not populating any
+                # Contrast tag but some do have a 'C' 'contrast' in some series or study descriptions
+                # so these followup elif cases test for that, but also for a missed tag on siemens
+
+                # so far 'pre' is sufficient for t1 on Siemens but not on philips
+                elif 'pre' in ds0.SeriesDescription.lower():
                     dt = 't1'
-                # these tags account for all post Gd on siemens philips
+                # these tags backup in case contrast tag missed above
+                # for philips c and _c_ are iffy to rely on
                 elif any(s in ds0.SeriesDescription.lower() for s in ['post','gad',' c ','_c_']):
                     dt = 't1+'
                 # otherwise it's preGd philips
                 else:
                     dt = 't1'
+
                 if hasattr(sortedseries,dt):
                     raise KeyError('sequence {} already exists'.format(dt))
                 sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':dt,'dpath':copy.copy(dpath)}
@@ -1263,7 +1281,7 @@ class DcmStudy(Study):
         img_arr_t2 = np.ascontiguousarray(np.transpose(np.array(img_t2_res.dataobj),axes=(2,1,0)))
         return img_arr_t2,img_t2_res.affine
  
-    # resample from affine to voxel coords using resample_to_output
+    # resample voxel coords using resample_to_output
     def resample_voxel(self,img_arr,affine,voxel_sizes=None,order=3):
         nimg = nb.Nifti1Image(np.transpose(img_arr,axes=(2,1,0)),affine=affine)
         nimg_res = resample_to_output(nimg,voxel_sizes=voxel_sizes,order=order)
