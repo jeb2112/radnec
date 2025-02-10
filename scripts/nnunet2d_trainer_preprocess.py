@@ -74,7 +74,7 @@ for ck in cases.keys():
         print('case = {}'.format(c))
 
         if False: #debugging
-            if c != '00019-000':
+            if c != 'M0066':
                 continue
 
         cdir = os.path.join(segdir,c)
@@ -82,10 +82,30 @@ for ck in cases.keys():
         masks = {}
         imgs = {}
 
-        for tk in ['T','TC']:
-            filename = glob.glob(os.path.join('**','mask_'+tk+'*.nii'))[0]
-            masks[tk],_ = loadnifti(os.path.split(filename)[1],os.path.join(cdir,os.path.split(filename)[0]),type='uint8')
-        masks['lbl'] = 127*masks['T'] + 255*(masks['TC'] - masks['T'])
+        for tk in ['TC','T']:
+            try:
+                filename = glob.glob(os.path.join('**','mask_'+tk+'.nii*'))[0]
+                masks[tk],_ = loadnifti(os.path.split(filename)[1],os.path.join(cdir,os.path.split(filename)[0]),type='uint8')
+            except IndexError:
+                if tk == 'T': # currently, if no tumor has been segmented, then there is no T mask file at all.
+                    masks['T'] = np.zeros_like(masks['TC'])
+                else:
+                    raise FileNotFoundError('TC mask file not found')
+            # masks[tk][masks[tk] == 255] = 0
+        # no easy way to display low contrast mask in a ping for spot verification. can't use anything
+        # non-continguous like 127,255. so, for spot checking the pings can temporarily run this code using 127,255
+        # but otherwise use 0,1,2 for nnunet. 
+
+        # check for error pixels. according to convention, 'T' should be entirely 
+        # a subset of 'TC'
+        errpixels = np.where(masks['TC'].astype(int) - masks['T'].astype(int) < 0)[0]
+        if len(errpixels):
+            masks['TC'] = masks['TC'] | masks['T']
+            print('error mask pixels detected, correcting...')
+        masks['lbl'] = 1*masks['T'] + 2*(masks['TC'] - masks['T'])
+
+        if np.any(masks['lbl'] > 2):
+            raise ValueError
 
         imgs = {}
         for ik in ['flair+','t1+']:
@@ -99,14 +119,15 @@ for ck in cases.keys():
         for dim in range(3):
             slices = np.unique(pset[dim])
             for slice in slices:
-                check=False
                 imgslice = {}
                 lblslice = np.moveaxis(masks['lbl'],dim,0)[slice]
+                if np.max(lblslice) > 2:
+                    raise ValueError
                 for ik in ('flair+','t1+'):
                     imgslice[ik] = np.moveaxis(imgs[ik],dim,0)[slice]
                 if len(np.where(lblslice)[0]) > 49:
-                    fname = 'lbl_' + str(img_idx).zfill(6) + '.png'
-                    imsave(os.path.join(output_lbldir,fname),lblslice,vmin=0,vmax=2,check_contrast=False)
+                    fname = 'img_' + str(img_idx).zfill(6) + '.png'
+                    imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
                     # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
                     for ktag,ik in zip(('0003','0001'),('flair+','t1+')):
                         fname = 'img_' + str(img_idx).zfill(6) + '_' + ktag + '.png'
