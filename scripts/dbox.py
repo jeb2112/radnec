@@ -9,14 +9,13 @@ import nibabel as nb
 
 # manually pre-generate new short lived token to use this script
 # there should be a way to do this by program with oauth or something.
-token = 'sl.u.AFgc3IoMHqqEsWJOEqqFuB3RLEUpwARsVtdZKmMvkkbRFPiCqrmfg_GhaWPTBcUbu1YK6Scfo5TEVwmq6jsjk3fYtqtnoyZ8cVReJc3fKQawlIppPqjBE4nUhPuwd-40X9CMMn4DuZYmprWXw4CREZxQMahWUMcZ2vdVvM_ugYNq28ZatqzGpGRfsqwfndolY8O2rmeUCmgPZ2vaHlwRO7Y9r6ZUGAN-hF3krEAKHY2VBYXbFfLBnyoEGOIBj8pxAgPNrsnx6-cB-9HLHz8QQOvotpE7gDSUC9ejsn_ijtq50fYLjhDGPUNkzAjQiaQqeu492kNHBNXfOHmTGdgwH5np6Q7KnlmKTKst0EBwYeZQrEeBAnp_Wp6MepovoP1_nNuWBrRWF-2ZCE6BgZjXqkiPCaf3-6wjZC5vUPdIk7rCH8d40DSbDsE5Ga5cEmUhU52sAij3pmvgdcLBUai82hCYDJ2UdrWMPIKSBd96icxjh0rhIo6ZolZStlYLIq-1raFkocK3ADfPp4J_CxHsEte-hlBNXxp5Em_5coGYZyvBok87jWcbBEuTli4Fgm02uv8qhQex7N3gCZee6LyhBnslEQSAxDwAYqtHfwH37zQmxhlihERJ-HJZ_e8zTE8_UotOyK3dQXHhg_SxsetSbhwZWwsMkH5qbbGoms0dqFMEA0C0EG7qDcpuOjFwWojeqpXKwgKayTltaDcsFkTsRyw02IEQTMEvwbtL-UCKCVAWQBL_7jNjKQgS1hoB6kXxhGVSeCMR0nVIMftmBcd0EdyHoI79B8SQ73ils-QQjabiLburY6u_4ziLOdTYPG4sZzIX2W1j_C6FDBaYdI3sbSF-HYRlq0uzYewl2JY7Z-YbYIzCyrXJikJboEYRdGB_EMhLBU1ZDCpXswqD1zQSwCnbzvHrX0AgsevzHyQSKgYT0eL8-ZI9n0V4NWGs2ADGvqzufLd2JtmBErKZPhY8nIGWoF8BHdQjA3hE6kqTbE01Sw4Xj27veZd_WfGvST2xPal3KDRwTR-BsxZov34jvxFbDR0xqWv0xBNGFSRsaJVIaeh_ibHjsjUNplSm0WXKlVaNQMzola-QesjqQXIbGieuPVuXpqpaAiJjBFYGMA3lZILrOOPU6Mileu77KtMgDeXEyXd3dE5eh9jnaMTikBkASv3IP3CHofyZb6Xv9LMl7026z7CwLi8nENDPpd7h8I5khzfuktDgpC1yRPQ24XLImTQdZ-vzbjcIhhADKVYSbj1vE3ynNSeZTqKT8V_1BZa5sxKRfjgIwRCB6YFWOCXT'
+token = 'sl.u.AFijc01qpSdQXjhLwXSfXabJAShn5q3IsKen6626fVAW8szEG9Mj3kbTp0qwk1sUm5fpYUfdkVrtX8RDKE1KRNtmCoL5a0N6Uow4CD_sTNtNgzZ7qCDr_h-Xi4UySfWhZWKVaI6zEbadW17QxME-Qdn6avIym2Nj8xzd2PGKb0Iw_HLMkK_kCxxT87_EqRtfteYb2-6XM184Wzed31QfTXE0UgT0qu3XNXN2a6gfaGLlwTaY5InR-ZcpwDX6Rs6AXtvUesNb4CyFwzGaAeRjhDWbVF1cc9bEYpppKHUtt9vZ8nq8hzR24lERXjXb18Hc0-u06ExJkUhQt_G7KCgMSw2wTo3IcDl6zZ9u4tk5Lo6DrezfJqYzBUIf7arbnk5xiLxTDH2gFOWGzTCDz9OqJAioqCt0YCgasCAw2thvF5RTTZqRkuuOpEk8WHG6JLghLDkY7fsd73jQr9jbpyPKfbdGxFSpdziiDxuRVxtLoOjzfZSIEWlAraVme0K7loTBhRhPbny1IEnMKL6UAdDQ-pL_8iIt_c2O_CJCGXYom04psaehgSKjSYjwiIlzO8kcFk5hvQSVwmAGFJboJTRD4OS6z5B9ClCg_tqW1pj1KjJOtyabadSyxEr8PnGswQXm3PLo1I2TG5ah23D6kwNgaH3jLh5LvcesN9Jhn50K2ZbRRxRram7iIZpn2Gzd19cZgJq6tiAmkgKfjbSNUK45wK1Uynn18ekgGdGN40gw-MEoTJud4fGiK5ACz6k1mkcJrMM1VQE3MMBGXKPg8xma_yIfwnsohi0zCXF_kRgp0QPnuCgsCCjs8UYeAnN3ZZjWcLA78GkS2du9bLmjPLal9EIUYDMG0e-ky-_9OPIMERNemTK5um8_t0VRHYIlW_qIot_EHoO-u7aWKzJa4T7IxGb-gs_VxDmdrXt9QKPdNPme3sWLtdOThk6U8SODu-_h1TB0yOhhuxTF4m9xNvo28gJmnjzZklZkMOkoomiiLrdLFUN1FXM4kBrWZmUxwGLjcgXeRTlsIt_tnWGZ0efwww_wsmKwTNs1sybhHMwUes0YLT2bZTecqkI8hSs-4_8-Gau_KBuk_N-x_TNR8lF8a9IwG5xdl73ncsYtsxk-29bMN1VpPtJZl2NwYoqecxrpbJCkR9SUG5-AbUAPGYf86tq3Q81Oj52Vl8Y5I70sSDTbiijPnT8Yx6luubH9SLSbOlNVRwGtHZtmNWGVTUpOGmkof4QIeZQXBwJnM_i-jDJ-r_t2A1R1dGm-3etuhD5oDsabNcqMTON3Wz9C_aJXIUI0'
 
 dbox = dropbox.Dropbox(token)
 a = dbox.users_get_current_account()
 
 rootdir = '/RADOGEN/R&D/DATA/RAD NEC'
-
-datadir = os.path.join(rootdir,'SEGMENTATIONS')
+datadir = rootdir + '/SEGMENTATIONS'
 
 res = dbox.files_list_folder(datadir)
 rv = {}
@@ -24,7 +23,10 @@ for entry in res.entries:
     if entry.name.startswith('M') or entry.name.startswith('DSC_'):
         rv[entry.name] = entry
 
-localdir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2'
+if os.name == 'posix':
+    localdir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2'
+else:
+    localdir = os.path.join('D:','data','radnec2')
 segdir = os.path.join(localdir,'seg')
 
 flist = ['mask_T.nii','mask_TC.nii','t1+_processed.nii.gz','flair+_processed.nii.gz']
@@ -33,14 +35,14 @@ for c in rv.keys():
     if False:
         if c != 'M0003':
             continue
-    casedir = os.path.join(datadir,c)
+    casedir = datadir + '/' + c
 
     # study dirs. for now, only 1 study is segmented
     res = dbox.files_list_folder(casedir)
 
     for rdir in res.entries:
         
-        sdir = os.path.join(casedir,rdir.name)
+        sdir = casedir + '/' + rdir.name
         res2 = dbox.files_list_folder(sdir)
         rlist = [x.name for x in res2.entries]
         # mask_T is not present if no tumor
@@ -49,7 +51,7 @@ for c in rv.keys():
             # for individual files
             for f in flist:
                 try:
-                    md,res3 = dbox.files_download(os.path.join(sdir,f))
+                    md,res3 = dbox.files_download(sdir + '/' + f)
                 except dropbox.exceptions.HttpError as e:
                     print('HTTP error',e)
                     print('skipping {}'.format(f))
@@ -59,7 +61,7 @@ for c in rv.keys():
                     print('attempt to re-connect')
                     # this isn't global scope though
                     dbox = dropbox.Dropbox(token)
-                    md,res = dbox.files_download(os.path.join(casedir,f))
+                    md,res = dbox.files_download(sdir + '/' + f)
                     continue
                 except dropbox.exceptions.ApiError as e:
                     if 'not_found' in str(e.error):
@@ -74,7 +76,8 @@ for c in rv.keys():
                 fname = os.path.join(local_casedir,f)
                 with open(fname,'wb') as fp:
                     fp.write(res3.content)
-                    if 'mask' in f:
+                    # can't run a process by os.system on the non-boot drive in windows?
+                    if 'mask' in f and os.name == 'posix':
                         os.system('gzip --force "{}"'.format(fname))
             break
         elif rdir == res.entries[-1]:

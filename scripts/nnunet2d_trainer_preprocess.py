@@ -46,7 +46,7 @@ def load_dataset(cpath,type='t1c'):
 if os.name == 'posix':
     datadir = "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/"
 else:
-    datadir = "C:\\Users\\Chris Heyn Lab\\data\\brats2024\\raw"
+    datadir = "D:\\data\\radnec2\\"
 
 segdir = os.path.join(datadir,'seg')
 nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset139_RadNec')
