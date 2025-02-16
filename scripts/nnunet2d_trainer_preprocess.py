@@ -46,14 +46,27 @@ def load_dataset(cpath,type='t1c'):
 if os.name == 'posix':
     datadir = "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/"
 else:
-    datadir = "C:\\Users\\Chris Heyn Lab\\data\\brats2024\\raw"
+    datadir = "D:\\data\\radnec2\\"
 
 segdir = os.path.join(datadir,'seg')
 nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset139_RadNec')
 
 caselist = os.listdir(os.path.join(datadir,'seg'))
 cases = {}
-cases['casesTr'],cases['casesTs'] = train_test_split(caselist,test_size=0.2,random_state=42)
+
+# pre-read the segmentation dir to tally 
+# T vs RN. this is needed to stratify the train/test split
+finaldx = []
+for c in caselist:
+    cdir = os.path.join(segdir,c)
+    os.chdir(cdir)
+    filename = glob.glob(os.path.join('**','mask_T.nii*'))
+    if filename:
+        finaldx.append(1)
+    else:
+        finaldx.append(0)
+
+cases['casesTr'],cases['casesTs'],y_train,y_test = train_test_split(caselist,finaldx,stratify=finaldx,test_size=0.2,random_state=42)
 
 img_idx = 1
 
@@ -126,11 +139,11 @@ for ck in cases.keys():
                 for ik in ('flair+','t1+'):
                     imgslice[ik] = np.moveaxis(imgs[ik],dim,0)[slice]
                 if len(np.where(lblslice)[0]) > 49:
-                    fname = 'img_' + str(img_idx).zfill(6) + '.png'
+                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '.png'
                     imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
                     # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
                     for ktag,ik in zip(('0003','0001'),('flair+','t1+')):
-                        fname = 'img_' + str(img_idx).zfill(6) + '_' + ktag + '.png'
+                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + ktag + '.png'
                         imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
                     img_idx += 1
         
