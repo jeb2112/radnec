@@ -21,9 +21,12 @@ import argparse
 import numpy as np
 import nibabel as nb
 from nibabel.processing import resample_from_to
+from scipy.spatial.distance import dice,directed_hausdorff
+import matplotlib.pyplot as plt
 
-def do_registration(fixed,moving):
-    mytx = ants.registration(fixed=fixed, moving=moving, type_of_transform = 'Affine' )
+
+def do_registration(fixed,moving,type='Rigid'):
+    mytx = ants.registration(fixed=fixed, moving=moving, type_of_transform = type )
     m_arr = mytx['warpedmovout'].numpy()
     m_sitk = sitk.GetImageFromArray(m_arr)
     # m_sitk.CopyInformation(fixed)
@@ -82,13 +85,23 @@ def main():
         cases = sorted(os.listdir(args.d))
 
         for c in cases:
+
+            if False:
+                if c != 'DSC_0013':
+                    continue
             print(c)
             casedir = os.path.join(args.d,c)
             sdir = os.path.join(casedir,os.listdir(casedir)[0]) # just one study for now
             flist = os.listdir(sdir)
-            flist = [os.path.join(sdir,f) for f in flist if ('nii' in f and 'ref' not in f)]
+            reglist = [f for f in flist if ('reg' in f)]
+            for r in reglist:
+                os.remove(os.path.join(sdir,r))
+                flist.remove(r)
+            flist = [f for f in flist if ('nii' in f and 'ref' not in f)]
             fixed_sitk = sitk.ReadImage(os.path.join(sdir,'t1+_reference.nii.gz'))
-            fixed_ants = ants.from_numpy(sitk.GetArrayFromImage(fixed_sitk).astype('double'))
+            fixed_arr = sitk.GetArrayFromImage(fixed_sitk).astype('double')
+            fixed_ants = ants.from_numpy(fixed_arr)
+            fixed_background = np.where(fixed_arr == 0)
 
             for t in ['t1+','t1']:
 
@@ -99,18 +112,34 @@ def main():
                     flist = [f for f in flist if reftag not in f]
                     break
 
-            moving_sitk = sitk.ReadImage(moving_reference)
-            moving_ants = ants.from_numpy(sitk.GetArrayFromImage(moving_sitk).astype('double'))
+            moving_sitk = sitk.ReadImage(os.path.join(sdir,moving_reference))
+            moving_arr = sitk.GetArrayFromImage(moving_sitk).astype('double')
+            moving_arr[fixed_background] = 0
+            moving_ants = ants.from_numpy(moving_arr)
             m_sitk,tform = do_registration(fixed_ants,moving_ants)
             m_sitk.CopyInformation(fixed_sitk)
-            output_fname = os.path.split(moving_reference)[1][:-7] + '_reg.nii.gz' # the suffix is hard-coded here.
+
+            # could test dice for successful registration, but for now the brains aren't extracted and 
+            # don't have a good logic to filter only air background noise
+            if False:
+                dice_test = (1-dice(fixed_arr.astype(bool).flatten(),moving_arr.astype(bool).flatten()))
+                if dice_test < 0.95:
+                    raise RuntimeWarning('possible registration failure')
+
+            if False:
+                output_fname = os.path.split(moving_reference)[1][:-7] + '_reg.nii.gz' # the suffix is hard-coded here.
+            else:
+                output_fname = moving_reference
             sitk.WriteImage(m_sitk, os.path.join(sdir,output_fname))
 
             for f in flist:
-                moving_sitk = sitk.ReadImage(f)
+                moving_sitk = sitk.ReadImage(os.path.join(sdir,f))
                 m_ants = tform.apply_to_image(ants.from_numpy(sitk.GetArrayFromImage(moving_sitk)),reference=fixed_ants)
                 m_arr = m_ants.numpy()
-                output_fname = os.path.split(f)[1][:-7] + '_reg.nii.gz' # the suffix is hard-coded here.
+                if False:
+                    output_fname = os.path.split(f)[1][:-7] + '_reg.nii.gz' # the suffix is hard-coded here.
+                else:
+                    output_fname = f
                 m_sitk = sitk.GetImageFromArray(m_arr)
                 m_sitk.CopyInformation(fixed_sitk)
                 sitk.WriteImage(m_sitk, os.path.join(sdir,output_fname))
