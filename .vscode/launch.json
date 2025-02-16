@@ -122,6 +122,18 @@
             "console": "integratedTerminal",
             "justMyCode": false
         },
+        {
+            "name": "register",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/ants_register.py",
+            "args": [
+                "-d","/media/jbishop/WD4/brainmets/sunnybrook/radnec2/dicom2nifti/",
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
 
 
         

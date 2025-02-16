@@ -855,7 +855,7 @@ class DcmStudy(Study):
             # likewise adc will be stored in the 'dwi' channel for processing purposes 
             elif any([f in ds0.SeriesDescription.lower() for f in ['adc']]):
                 dt = 'dwi'
-                sortedseries[dc] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'adc','dt':dt,'dpath':copy.copy(dpath)}
+                sortedseries['adc'] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'adc','dt':dt,'dpath':copy.copy(dpath)}
                 continue 
 
             else:
