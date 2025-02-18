@@ -65,20 +65,25 @@ for c in cases:
     os.chdir(cdir)
     imgs = {}
 
-    for ik in ['flair+','t1+']:
-        filename = glob.glob(os.path.join('**',ik+'_processed*'))[0]
-        # will use 8 bit now for png, but could be 32bit tiffs
-        imgs[ik],_ = loadnifti(os.path.split(filename)[1],os.path.join(cdir,os.path.split(filename)[0]),type='uint8')
+    studies = os.listdir(cdir)
 
-    for dim in range(3):
-        slices = range(np.shape(imgs[ik])[dim])
-        for slice in slices:
-            imgslice = {}
- 
-            for ktag,ik in zip(('0003','0001'),('flair+','t1+')):
-                imgslice[ik] = np.moveaxis(imgs[ik],dim,0)[slice]
-                fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + ktag + '.png'
-                imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
-            img_idx += 1
+    for s in studies:
+
+        imgs = {}
+        for ik in ['flair+','t1+']:
+            filename = glob.glob(os.path.join(s,ik+'_processed*'))[0]
+            # will use 8 bit now for png, but could be 32bit tiffs
+            imgs[ik],_ = loadnifti(os.path.split(filename)[1],os.path.join(cdir,s),type='uint8')
+
+        for dim in range(3):
+            slices = range(np.shape(imgs[ik])[dim])
+            for slice in slices:
+                imgslice = {}
+    
+                for ktag,ik in zip(('0003','0001'),('flair+','t1+')):
+                    imgslice[ik] = np.moveaxis(imgs[ik],dim,0)[slice]
+                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + s + '_' + ktag + '.png'
+                    imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
+                img_idx += 1
         
     a=1   
