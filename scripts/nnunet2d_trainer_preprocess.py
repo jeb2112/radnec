@@ -1,4 +1,4 @@
-# script selects random slices from each radnec segmented volume
+# script selects slices from each radnec segmented volume
 # and copies to a nnunet file and directory format
 
 import numpy as np
