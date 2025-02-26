@@ -93,7 +93,7 @@ cases = sorted(set([re.search('(M|DSC)_?[0-9u]*',f)[0] for f in os.listdir(image
 for case in cases:
 
     if False: # debugging
-        if case != 'DSC_0016u':
+        if case != 'M0012':
             continue
 
     imgs = sorted([f for f in os.listdir(imagedir) if case in f])
@@ -157,11 +157,17 @@ for case in cases:
             print(case,s,lesion)
 
             pred_3d = {'obl_ax':None,'obl_sag':None,'obl_cor':None,'ax':None,'sag':None,'cor':None,'comp_OR':None,'comp_AND':None}
+            t1_3d = {'obl_ax':None,'obl_sag':None,'obl_cor':None,'ax':None,'sag':None,'cor':None,'comp_OR':None,'comp_AND':None}
             # pred_3d = {}
 
             for k in pred_3d.keys():
                 pred_3d[k] = np.zeros(image_dim)
+                t1_3d[k] = np.zeros(image_dim)
 
+            # in nnunet2d_trainer_preprocess, the training images are labelled with a numeric
+            # linear index while cycling through the slice dimensions. in this script, the cycled dimensions
+            # have to be assigned from the linear indexing as it is read back in. these conventions would 
+            # be better organized in a json dict
             orient = next(recycle_dims(orients))
             pred_3d[orient[1]] = np.moveaxis(pred_3d[orient[1]],0,orient[0])
             islice = np.min(np.where(np.moveaxis(lbl_TC[lesion],orient[0],0))[0])
@@ -175,50 +181,59 @@ for case in cases:
 
             for t1,flair,p,l in zip(lesion_imgs[::2],lesion_imgs[1::2],lesion_preds,lesion_lbls):
                 inum = int(re.search('[0-9]{6}',t1)[0])
+                jslice = int(re.search('[0-9]{8}_([0-9]{1,3})_',t1).group(1))
                 if False:
                     print(case,s,inum,lesion)
 
                 pfile = os.path.join(predictiondir,p)
                 pred_arr = imageio.v3.imread(pfile)
+                t1_arr = imageio.v3.imread(os.path.join(imagedir,t1))
                 idim = np.array(np.shape(pred_arr))
 
+                # change in the image shape means a dimension cycle has been reached. this simple device
+                # is hard-coded to the fact that all images are currently registered and sampled
+                # to the MNI template reference which has three unique matrix dimensions.
                 if any(idim != idimold):
                         pred_3d[orient[1]] = np.moveaxis(pred_3d[orient[1]],0,orient[0])
+                        t1_3d[orient[1]] = np.moveaxis(t1_3d[orient[1]],0,orient[0])
 
                         if False:
                             output_fname = os.path.join(predictiondir,'pred_3d','pred_' + case + '_' + s + '_' + orient[1] + '.nii')
                             writenifti(pred_3d[orient[1]],output_fname,affine=affine)
                         orient = next(recycle_dims(orients))
                         pred_3d[orient[1]] = np.moveaxis(pred_3d[orient[1]],orient[0],0)
-                        islice = np.min(np.where(np.moveaxis(lbl_TC[lesion],orient[0],0))[0])
+                        t1_3d[orient[1]] = np.moveaxis(t1_3d[orient[1]],orient[0],0)
+                        # islice = np.min(np.where(np.moveaxis(lbl_TC[lesion],orient[0],0))[0])+1
+                        islice = np.min(np.where(lbl_TC[lesion])[orient[0]])
                         idimold = np.copy(idim)
                 else:
                     pass
 
                 if islice >= np.shape(pred_3d[orient[1]])[0]:
                     raise IndexError
-                pred_3d[orient[1]][islice] = np.copy(pred_arr)
+                pred_3d[orient[1]][jslice] = np.copy(pred_arr)
+                t1_3d[orient[1]][jslice] = np.copy(t1_arr)
                 islice += 1
 
-            # output the final 'cor' 3d. according to the hard-coded ordering, this is not an oblique
+            # output the final 'cor' 3d. 
             pred_3d[orient[1]] = np.moveaxis(pred_3d[orient[1]],0,orient[0])
+            t1_3d[orient[1]] = np.moveaxis(t1_3d[orient[1]],0,orient[0])
             if False:
                 output_fname = os.path.join(predictiondir,'pred_3d','pred_' + case + '_' + s + '_' + orient[1] + '.nii')
                 writenifti(pred_3d[orient[1]],output_fname,affine=affine)
 
-
             # de-rotate if oblique volume
-            for o in olist[:3]:
-                        
-                center = np.array(np.shape(pred_3d[o[1]]))/2
-                offset = center - np.matmul(r_obl,center)
-                pred_3d[o[1]] = affine_transform(pred_3d[o[1]],r_obl,offset=offset,order=3)
-
+            if False:
+                for o in olist[:3]:
+                    center = np.array(np.shape(pred_3d[o[1]]))/2
+                    offset = center - np.matmul(r_obl,center)
+                    pred_3d[o[1]] = affine_transform(pred_3d[o[1]],r_obl,offset=offset,order=0)
 
             if True: # output composite 3d
                 compT_OR = np.zeros_like(pred_3d['ax'])
                 compRN_OR = np.zeros_like(pred_3d['ax'])
-                for _,o in olist:
+                # for _,o in olist[3:]:
+                for o in ['cor']:
                     compT_OR = (pred_3d[o]==1) | (compT_OR==1)
                     compRN_OR = (pred_3d[o]==2) | (compRN_OR==2)
                 pred_3d['compOR'] = np.zeros_like(lbl_TC[lesion])
@@ -228,7 +243,7 @@ for case in cases:
                 # if multiple lesions appear in one slice, filter out the redundant ones
                 # to create output files of a single predicted lesion, to match the input
                 # label files
-                if True:
+                if False:
                     pred_3d_mask = np.zeros_like(pred_3d['compOR'])
                     pred_3d_mask[np.where(pred_3d['compOR'])] = 1
                     lbl_T_RN_mask = np.where(lbl_T_RN[lesion])

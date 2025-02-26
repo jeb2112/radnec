@@ -114,7 +114,7 @@ for ck in cases.keys():
         print('case = {}'.format(c))
 
         if False: #debugging
-            if c != 'DSC_0016u':
+            if c != 'M0012':
                 continue
 
         cdir = os.path.join(segdir,c)
@@ -194,11 +194,11 @@ for ck in cases.keys():
                             for ik in (rtag+'flair+',rtag+'t1+'):
                                 imgslice[ik] = np.moveaxis(imgs[ik],dim,0)[slice]
                             if len(np.where(lblslice)[0]) > 49:
-                                fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + lesion + '.png'
+                                fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.png'
                                 imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
                                 # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
                                 for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
-                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + lesion + '_' + ktag + '.png'
+                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
                                     imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
 
                                 # create test output pngs
