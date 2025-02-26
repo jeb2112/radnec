@@ -123,6 +123,7 @@ for ck in cases.keys():
         for ddict in tally[c]['dirs']:
 
             imgs = {}
+            study = os.path.split(ddict['dir'])[1]
 
             # arbitrary rotation for oblique slicing
             refvec = np.array([1,0,0])
@@ -149,6 +150,12 @@ for ck in cases.keys():
 
             for tc_file,t_file in zip(ddict['TC'],ddict['T']):
                 masks = {}
+                # format for a lesion number is currently hard-coded here, underscore plus single digit
+                lesion = re.search('_([1-9])',tc_file)
+                if lesion:
+                    lesion = lesion.group(1)
+                else:
+                    lesion = '1'
                 masks['TC'],affine = loadnifti(tc_file,ddict['dir'],type='uint8')
                 if t_file:
                     masks['T'],_ = loadnifti(t_file,ddict['dir'],type='uint8')
@@ -187,11 +194,11 @@ for ck in cases.keys():
                             for ik in (rtag+'flair+',rtag+'t1+'):
                                 imgslice[ik] = np.moveaxis(imgs[ik],dim,0)[slice]
                             if len(np.where(lblslice)[0]) > 49:
-                                fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '.png'
+                                fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + lesion + '.png'
                                 imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
                                 # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
                                 for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
-                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + ktag + '.png'
+                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + lesion + '_' + ktag + '.png'
                                     imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
 
                                 # create test output pngs
