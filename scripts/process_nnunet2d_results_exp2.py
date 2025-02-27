@@ -223,7 +223,7 @@ for case in cases:
                 writenifti(pred_3d[orient[1]],output_fname,affine=affine)
 
             # de-rotate if oblique volume
-            if False:
+            if True:
                 for o in olist[:3]:
                     center = np.array(np.shape(pred_3d[o[1]]))/2
                     offset = center - np.matmul(r_obl,center)
@@ -232,8 +232,7 @@ for case in cases:
             if True: # output composite 3d
                 compT_OR = np.zeros_like(pred_3d['ax'])
                 compRN_OR = np.zeros_like(pred_3d['ax'])
-                # for _,o in olist[3:]:
-                for o in ['cor']:
+                for _,o in olist:
                     compT_OR = (pred_3d[o]==1) | (compT_OR==1)
                     compRN_OR = (pred_3d[o]==2) | (compRN_OR==2)
                 pred_3d['compOR'] = np.zeros_like(lbl_TC[lesion])
@@ -243,7 +242,7 @@ for case in cases:
                 # if multiple lesions appear in one slice, filter out the redundant ones
                 # to create output files of a single predicted lesion, to match the input
                 # label files
-                if False:
+                if True:
                     pred_3d_mask = np.zeros_like(pred_3d['compOR'])
                     pred_3d_mask[np.where(pred_3d['compOR'])] = 1
                     lbl_T_RN_mask = np.where(lbl_T_RN[lesion])
