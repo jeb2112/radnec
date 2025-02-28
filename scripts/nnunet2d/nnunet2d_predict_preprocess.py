@@ -1,5 +1,5 @@
 # script copies 3d processed nifti files to a 2d nnunet file and directory 
-# format for prediction
+# format for nnunet2d inference prediction
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -40,7 +40,8 @@ else:
     datadir = "D:\\data\\radnec2\\"
 
 niidir = os.path.join(datadir,'dicom2nifti')
-nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset139_RadNec')
+# nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset139_RadNec')
+pred_dir = os.path.join(datadir,'nnUNet_raw','misc','imagesTs')
 
 cases = sorted(os.listdir(niidir))
 
@@ -49,12 +50,12 @@ img_idx = 1
 for c in cases:
     print(c)
 
-    output_imgdir = os.path.join(nnunetdir,'imagesTs')
-    try:
-        shutil.rmtree(output_imgdir)
-    except FileNotFoundError:
-        pass
-    os.makedirs(output_imgdir,exist_ok=True)
+    output_imgdir = pred_dir
+    # try:
+    #     shutil.rmtree(output_imgdir)
+    # except FileNotFoundError:
+    #     pass
+    # os.makedirs(output_imgdir,exist_ok=True)
 
 
     if False: #debugging

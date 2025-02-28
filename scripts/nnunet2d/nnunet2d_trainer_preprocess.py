@@ -1,5 +1,5 @@
 # script selects slices from each radnec segmented volume
-# and copies to a nnunet file and directory format
+# and copies to a nnunet file and directory format for model training
 
 import numpy as np
 from sklearn.model_selection import train_test_split
