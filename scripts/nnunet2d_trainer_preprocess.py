@@ -57,7 +57,9 @@ else:
     datadir = "D:\\data\\radnec2\\"
 
 segdir = os.path.join(datadir,'seg')
-nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset139_RadNec')
+nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset139_RadNecClassify')
+
+normalslice_flag = True # flag for outputting normal brain cross-sections
 
 caselist = os.listdir(os.path.join(datadir,'seg'))
 cases = {}
@@ -175,7 +177,12 @@ for ck in cases.keys():
 
                 # oblique,orthogonal slices
                 for rtag in ['R','']:
-                    pset = np.where(masks[rtag+'lbl'])
+                    if normalslice_flag: # use all brain volume slices. since brains are not extracted
+                        # use estimate to exclude the air background
+                        noise = np.max(imgs['t1+'][:,0,0])
+                        pset = np.where( (imgs[rtag+'t1+'] > 10*noise) & (imgs[rtag+'flair'] > 10*noise) )
+                    else: # create only slices with a lesion cross-section.
+                        pset = np.where(masks[rtag+'lbl'])
                     npixels = len(pset[0])
                     for dim in range(3):
                         slices = np.unique(pset[dim])
@@ -186,26 +193,38 @@ for ck in cases.keys():
                                 raise ValueError
                             for ik in (rtag+'flair+',rtag+'t1+'):
                                 imgslice[ik] = np.moveaxis(imgs[ik],dim,0)[slice]
-                            if len(np.where(lblslice)[0]) > 49:
-                                fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '.png'
-                                imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
-                                # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
+
+                            if normalslice_flag:
                                 for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
                                     fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + ktag + '.png'
                                     imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
+                                fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '.png'
+                                if len(np.where(lblslice)[0]) > 49:
+                                    imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
+                                else:
+                                    imsave(os.path.join(output_lbldir,fname),lblslice*0,check_contrast=False)
 
-                                # create test output pngs
-                                if False:
-                                    lbl_ros = np.where(lblslice)
-                                    lbl_rost = np.where(lblslice == 127)
-                                    lbl_rosrn = np.where(lblslice == 255)
+                            else:
+                                if len(np.where(lblslice)[0]) > 49:
+                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '.png'
+                                    imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
+                                    # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
+                                    for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
+                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + ktag + '.png'
+                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
 
-                                    lbl_ovly = skimage.color.gray2rgba(np.copy(imgslice[rtag+'flair+']))/255
-                                    lbl_ovly[lbl_rost] = colors.to_rgb(defcolors[0]) +(0.5,)
-                                    lbl_ovly[lbl_rosrn] = colors.to_rgb(defcolors[1]) +(0.5,)
-                                    lbl_ovly  = (lbl_ovly*255).astype('uint8')
-                                    fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '.png'
-                                    imsave(os.path.join(output_lbldir,fname),lbl_ovly,check_contrast=False)
+                                    # create test output pngs
+                                    if False:
+                                        lbl_ros = np.where(lblslice)
+                                        lbl_rost = np.where(lblslice == 127)
+                                        lbl_rosrn = np.where(lblslice == 255)
+
+                                        lbl_ovly = skimage.color.gray2rgba(np.copy(imgslice[rtag+'flair+']))/255
+                                        lbl_ovly[lbl_rost] = colors.to_rgb(defcolors[0]) +(0.5,)
+                                        lbl_ovly[lbl_rosrn] = colors.to_rgb(defcolors[1]) +(0.5,)
+                                        lbl_ovly  = (lbl_ovly*255).astype('uint8')
+                                        fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '.png'
+                                        imsave(os.path.join(output_lbldir,fname),lbl_ovly,check_contrast=False)
 
                                 img_idx += 1
 
