@@ -1,5 +1,5 @@
 # script selects slices from each radnec segmented volume
-# and copies to a nnunet file and directory format
+# and copies to a nnunet file and directory format for model training
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -116,7 +116,7 @@ for ck in cases.keys():
         print('case = {}'.format(c))
 
         if False: #debugging
-            if c != 'DSC_0016u':
+            if c != 'M0012':
                 continue
 
         cdir = os.path.join(segdir,c)
@@ -125,6 +125,7 @@ for ck in cases.keys():
         for ddict in tally[c]['dirs']:
 
             imgs = {}
+            study = os.path.split(ddict['dir'])[1]
 
             # arbitrary rotation for oblique slicing
             refvec = np.array([1,0,0])
@@ -151,6 +152,12 @@ for ck in cases.keys():
 
             for tc_file,t_file in zip(ddict['TC'],ddict['T']):
                 masks = {}
+                # format for a lesion number is currently hard-coded here, underscore plus single digit
+                lesion = re.search('_([1-9])',tc_file)
+                if lesion:
+                    lesion = lesion.group(1)
+                else:
+                    lesion = '1'
                 masks['TC'],affine = loadnifti(tc_file,ddict['dir'],type='uint8')
                 if t_file:
                     masks['T'],_ = loadnifti(t_file,ddict['dir'],type='uint8')
@@ -195,10 +202,11 @@ for ck in cases.keys():
                                 imgslice[ik] = np.moveaxis(imgs[ik],dim,0)[slice]
 
                             if normalslice_flag:
+                                # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
                                 for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
-                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + ktag + '.png'
+                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
                                     imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
-                                fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '.png'
+                                fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.png'
                                 if len(np.where(lblslice)[0]) > 49:
                                     imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
                                 else:
@@ -206,11 +214,11 @@ for ck in cases.keys():
 
                             else:
                                 if len(np.where(lblslice)[0]) > 49:
-                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '.png'
+                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.png'
                                     imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
                                     # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
                                     for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
-                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + ktag + '.png'
+                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
                                         imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
 
                                     # create test output pngs
