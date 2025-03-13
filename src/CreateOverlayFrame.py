@@ -29,7 +29,7 @@ class CreateOverlayFrame(CreateFrame):
         super().__init__(frame,ui=ui,padding=padding)
 
         self.buttonpress_id = None # temp var for keeping track of button press event
-        self.overlay_value['finalROI'] = tk.BooleanVar(value=False)
+        # self.overlay_value['finalROI'] = tk.BooleanVar(value=False)
         self.overlay_value = tk.BooleanVar(value=False)
         self.mask_value = tk.BooleanVar(value=False)
         roidict = {'ET':{'t12':None,'flair':None,'bc':None},'T2 hyper':{'t12':None,'flair':None,'bc':None}}
