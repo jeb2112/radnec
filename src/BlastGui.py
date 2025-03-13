@@ -19,6 +19,7 @@ from src.CreateCaseFrame import CreateCaseFrame
 from src.roi.CreateSAMROIFrame import CreateSAMROIFrame
 from src.CreateOverlayFrame import CreateOverlayFrame
 from src.roi.Create4PanelROIFrame import Create4PanelROIFrame
+from src.roi.CreateROIFrame import CreateROIFrame
 from src.CreateFrame import Command
 from src.OverlayPlots import *
 from src.sam.SAM import SAM
@@ -184,24 +185,38 @@ class BlastGui(object):
         # slice viewer frames, roi frames 
         self.sliceviewerframes = {'BLAST':None,'4panel':None,'overlay':None}
         self.roiframes = {'BLAST':None,'4panel':None,'overlay':None}
-        if self.function.get() == '4panel':
+
+        if True: # make all the sliceviewers
             self.sliceviewerframes['4panel'] = Create4PanelSVFrame(self.mainframe,ui=self,padding='0')
             self.roiframes['4panel'] = Create4PanelROIFrame(self.mainframe,ui=self,padding='0')
-        elif self.function.get() == 'BLAST':
             self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
-            self.roiframes['BLAST'] = CreateSAMROIFrame(self.mainframe,ui=self,padding='0')
-        elif self.function.get() == 'overlay':
+            self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
             self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
             self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
-        elif self.function.get() == 'SAM':
             self.sliceviewerframes['SAM'] = CreateSAMSVFrame(self.mainframe,ui=self,padding='0')
             self.roiframes['SAM'] = CreateSAMROIFrame(self.mainframe,ui=self,padding='0')
 
-        
+        else: # just make the default sliceviewer
+
+            if self.function.get() == '4panel':
+                self.sliceviewerframes['4panel'] = Create4PanelSVFrame(self.mainframe,ui=self,padding='0')
+                self.roiframes['4panel'] = Create4PanelROIFrame(self.mainframe,ui=self,padding='0')
+            elif self.function.get() == 'BLAST':
+                self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
+                self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
+            elif self.function.get() == 'overlay':
+                self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
+                self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
+            elif self.function.get() == 'SAM':
+                self.sliceviewerframes['SAM'] = CreateSAMSVFrame(self.mainframe,ui=self,padding='0')
+                self.roiframes['SAM'] = CreateSAMROIFrame(self.mainframe,ui=self,padding='0')
+
+        self.roiframe = self.roiframes[self.function.get()]
+
         # overlay/blast function mode
         self.functionmenu = ttk.OptionMenu(self.mainframe,self.function,self.functionlist['overlay'],
                                         *self.functionlist,command=Command(self.function_callback,update=True))
-        if False: # not for general use
+        if True: # not for general use
             self.functionmenu.grid(row=0,column=1,sticky='e')
         self.function_callback()
 

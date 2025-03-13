@@ -370,6 +370,23 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
             plt.setp(plt.getp(self.labels['colorbar_A'].ax.axes,'yticklabels'),color='w')
             
 
+    # resize root window to match current sliceviewer
+    # needs updating
+    def resize(self):
+        if self.canvas:
+            w = self.canvas.get_tk_widget().winfo_width()
+            h = self.canvas.get_tk_widget().winfo_height()
+        else:
+            w = self.blankcanvas.get_tk_widget().winfo_width()
+            h = self.blankcanvas.get_tk_widget().winfo_height()
 
-
-
+        min_height = max(self.ui.caseframe.frame.winfo_height(),self.ui.functionmenu.winfo_height()) + \
+            max(self.normal_frame.winfo_height(),self.ui.roiframe.frame.winfo_height()) + \
+            2*int(self.ui.mainframe_padding)
+        min_width = max(self.ui.roiframe.frame.winfo_width() + self.normal_frame.winfo_width(), \
+                        self.ui.caseframe.frame.winfo_width()+self.ui.functionmenu.winfo_width())
+        w = max(w,min_width)
+        h += min_height
+        print('resize {},{}'.format(w,h))
+        self.ui.root.geometry(f'{w}x{h}')
+        return

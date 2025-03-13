@@ -21,7 +21,7 @@ from scipy.spatial.distance import dice
 from scipy.ndimage import binary_closing as scipy_binary_closing
 from scipy.io import savemat
 if os.name == 'posix':
-    from cucim.skimage.morphology import binary_closing as cucim_binary_closing
+    from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
 elif os.name == 'nt':
     from cupyx.scipy.ndimage import binary_closing as cupy_binary_closing
 import cupy as cp
@@ -598,7 +598,7 @@ class CreateROIFrame(CreateFrame):
                 se_cp = cp.array(se)
                 # TODO: iterate binary_closing?
                 if os.name == 'posix':
-                    close_object_cucim = cucim_binary_closing(objectmask_cp,footprint=se_cp)
+                    close_object_cucim = cupy_binary_closing(objectmask_cp,footprint=se_cp)
                     objectmask_closed = np.array(close_object_cucim.get())
                 elif os.name == 'nt':
                     close_object_cupy = cupy_binary_closing(objectmask_cp,se_cp)
@@ -857,7 +857,7 @@ class CreateROIFrame(CreateFrame):
                 self.ui.updateslice()
 
     # eliminate all ROIs, ie for loading another case
-    def resetROI(self):
+    def resetROI(self,data=False):
         self.currentroi.set(0)
         self.ui.roi[self.ui.s] = [0]
         self.ui.roiframe.overlay_value['finalROI'].set(False)
