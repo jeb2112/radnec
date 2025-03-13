@@ -19,6 +19,7 @@ import cc3d
 import random
 import glob
 import copy
+import platform
 
 # load a single nifti file
 def loadnifti(t1_file,dir,type=None):
@@ -52,7 +53,11 @@ def load_dataset(cpath,type='t1c'):
 defcolors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 if os.name == 'posix':
-    datadir = "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/"
+    uname = platform.uname()
+    if 'dellxps' in uname.node:
+        datadir = "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/"
+    elif 'XPS-8950' in uname.node:
+        datadir = "/home/jbishop/data/radnec2/"
 else:
     datadir = "D:\\data\\radnec2\\"
 
@@ -98,6 +103,8 @@ for k,v in tally.items():
 cases['casesTr'],cases['casesTs'],y_train,y_test = train_test_split(casesdx,finaldx,stratify=finaldx,test_size=0.2,random_state=42)
 
 img_idx = 1
+random.seed(42) # random numbers for normal slices
+
 
 for ck in cases.keys():
     print(ck)
@@ -187,7 +194,7 @@ for ck in cases.keys():
                     if normalslice_flag: # use all brain volume slices. since brains are not extracted
                         # use estimate to exclude the air background
                         noise = np.max(imgs['t1+'][:,0,0])
-                        pset = np.where( (imgs[rtag+'t1+'] > 10*noise) & (imgs[rtag+'flair'] > 10*noise) )
+                        pset = np.where( (imgs[rtag+'t1+'] > 10*noise) & (imgs[rtag+'flair+'] > 10*noise) )
                     else: # create only slices with a lesion cross-section.
                         pset = np.where(masks[rtag+'lbl'])
                     npixels = len(pset[0])
@@ -203,14 +210,22 @@ for ck in cases.keys():
 
                             if normalslice_flag:
                                 # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
-                                for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
-                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
-                                    imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
-                                fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.png'
+                                lblfname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.png'
                                 if len(np.where(lblslice)[0]) > 49:
-                                    imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
+                                    for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
+                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
+                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
+                                    imsave(os.path.join(output_lbldir,lblfname),lblslice,check_contrast=False)
+                                elif len(np.where(lblslice)[0]) > 0: # don't want to use these cross-sections at all.
+                                    continue
+                                elif random.random() < 0.05:
+                                    # don't need all the normal slices just a few
+                                    for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
+                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
+                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
+                                    imsave(os.path.join(output_lbldir,lblfname),lblslice*0,check_contrast=False)
                                 else:
-                                    imsave(os.path.join(output_lbldir,fname),lblslice*0,check_contrast=False)
+                                    continue
 
                             else:
                                 if len(np.where(lblslice)[0]) > 49:
@@ -234,6 +249,6 @@ for ck in cases.keys():
                                         fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '.png'
                                         imsave(os.path.join(output_lbldir,fname),lbl_ovly,check_contrast=False)
 
-                                img_idx += 1
+                            img_idx += 1
 
 a=1

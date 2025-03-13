@@ -13,6 +13,7 @@ from skimage.io import imsave
 import cc3d
 import random
 import glob
+import platform
 
 # load a single nifti file
 def loadnifti(t1_file,dir,type=None):
@@ -35,7 +36,12 @@ def loadnifti(t1_file,dir,type=None):
 # main
 
 if os.name == 'posix':
-    datadir = "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/"
+    uname = platform.uname()
+    if 'dellxps' in uname.node:
+        datadir = "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/"
+    elif 'XPS-8950' in uname.node:
+        datadir = "/home/jbishop/data/radnec2/"
+
 else:
     datadir = "D:\\data\\radnec2\\"
 

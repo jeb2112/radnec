@@ -16,6 +16,7 @@ import nibabel as nb
 import pandas as pd
 import json
 import copy
+import platform
 
 
 # load a single nifti file
@@ -52,7 +53,11 @@ def recycle_dims(alist):
             yield item
 
 if os.name == 'posix':
-    datadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2/'
+    uname = platform.uname()
+    if 'dellxps' in uname.node:
+        datadir = "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/"
+    elif 'XPS-8950' in uname.node:
+        datadir = "/home/jbishop/data/radnec2/"
 else:
     datadir = os.path.join('D:','data','radnec2')
 niftidir = os.path.join(datadir,'dicom2nifti')
@@ -65,12 +70,16 @@ orients = recycle_dims(olist)
 
 os.makedirs(resultsdir,exist_ok=True)
 
-cases = sorted(set([re.search('(M|DSC)_?[0-9]*',f)[0] for f in os.listdir(niftidir)]))
+try:
+    cases = sorted(set([re.search('(M|DSC)_?[0-9]*',f)[0] for f in os.listdir(niftidir)]))
+except TypeError:
+    print('no case prefixes M|DSC')
+    cases = sorted(set(os.listdir(niftidir)))
 
 for case in cases:
 
     preds = sorted([f for f in os.listdir(predictiondir) if case in f])
-    studies = sorted(set([re.search('[0-9]{8}',f)[0] for f in preds]))
+    studies = sorted(set([re.search('[2][0-9]{7}',f)[0] for f in preds]))
 
     for s in studies:
 

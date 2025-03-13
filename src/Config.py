@@ -4,6 +4,7 @@ from matplotlib.colors import ListedColormap
 import matplotlib.cm as cm
 import numpy as np
 import re
+import platform
 
 class Config(object):
     def __init__(self):
@@ -53,8 +54,14 @@ class Config(object):
             # self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
             # self.UIawsdir = '/home/ec2-user'
             # dicoms
-            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2'
-            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2/dicom2nifti'
+            uname = platform.uname()
+            if 'dellxps15' in uname.node:
+                self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2'
+                self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2/dicom2nifti'
+            elif 'XPS-8950' in uname.node:
+                self.UIdatadir = '/home/jbishop/data/radnec2'
+                self.UIlocaldir = '/home/jbishop/data/radnec2/dicom2nifti'
+
 
         # the value here is no longer being using, instead the default is assigned in CreateCaseFrame
         self.UIdataroot = 'BraTS2021_'
