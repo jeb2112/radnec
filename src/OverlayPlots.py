@@ -118,10 +118,12 @@ def generate_blast_overlay(input_image: np.ndarray, segmentation: np.ndarray = N
     output_image = np.squeeze(output_image)
     return output_image.astype(np.float32)
 
-# a convenience method for the separate tempo colormap
+# a convenience method for the custom colormaps
 def get_cmap(colormap):
     if colormap == 'tempo':
         return ListedColormap(np.array([[0 ,1, 0, 1],[0, .5, 0, 1]]))
+    elif colormap == 'nnunet':
+        return ListedColormap(np.array([[0,1,1,1],[1,0,1,1]]))
     else:
         return None
 
@@ -139,7 +141,26 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.nda
 
     # create a copy of image
     image = np.copy(image)
-    overlay = np.copy(overlay)
+
+    if mask is None:
+        # general case for un-masked z-score or cbv
+        mask_ros = np.where(overlay)
+    else:
+        mask_ros = np.where( (mask != 0) & (overlay != 0) )
+
+    if overlay is not None:
+        overlay = np.copy(overlay)
+        # rescale overlay to provided window/level
+        if overlay_wl is not None:
+            overlay = overlay - (overlay_wl[1]-overlay_wl[0]/2)
+            overlay = overlay / (overlay_wl[0])
+            if False:
+                overlay = np.clip(overlay,0,1)
+        else:
+            overlay = overlay - overlay.min()
+            overlay = overlay / overlay.max() * 1
+    else:
+        overlay = np.zeros_like(image)
 
     if len(image.shape) == 3:
         image = np.tile(image[:,:,:,np.newaxis], (1,1,1,4))
@@ -157,23 +178,6 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.nda
     image[:,:,:,3] = 1
 
 
-    if mask is None:
-        # general case for un-masked z-score or cbv
-        mask_ros = np.where(overlay)
-    else:
-        mask_ros = np.where( (mask != 0) & (overlay != 0) )
-
-
-    # rescale overlay to provided window/level
-    if overlay_wl is not None:
-        overlay = overlay - (overlay_wl[1]-overlay_wl[0]/2)
-        overlay = overlay / (overlay_wl[0])
-        if False:
-            overlay = np.clip(overlay,0,1)
-    else:
-        overlay = overlay - overlay.min()
-        overlay = overlay / overlay.max() * 1
-
     if colormap in plt.colormaps():
         cmap = plt.get_cmap(colormap)
     else:
@@ -182,7 +186,13 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.nda
     overlay_cmap = cmap(overlay)
     overlay_cmap[:,:,:,3] = overlay_intensity
 
-    image[mask_ros] = overlay_cmap[mask_ros]
+    if overlay_intensity == 1:
+        image[mask_ros] = overlay_cmap[mask_ros]
+    else:
+        # temp kludge. use window/level params.
+        image *= (1-0.25*overlay_intensity)
+        image[mask_ros] += overlay_cmap[mask_ros]
+        image = np.clip(image,a_min=0,a_max=1)
                      
     return image.astype(np.float32)
 

@@ -103,7 +103,7 @@ class Config(object):
         self.thresholddefaults = {'t12':0,'flair':0,'bc':3}
 
         # < 1 overlay by alpha compositing, == 1 replacement
-        self.OverlayIntensity = 1.0
+        self.OverlayIntensity = 0.6
 
         # image panel size
         self.PanelSize = 3 # inches at 100 dpi
@@ -120,16 +120,18 @@ class Config(object):
         self.cbvinc = 100
 
         # default 'z-score' or 'CBV' overlay
-        self.OverlayType = 'z'
+        self.OverlayType = 'nnunet'
 
         # default BLAST overlay, contour or area
         self.BlastOverlayType = 1
         self.MaskType = 'ET'
 
         # colormaps
-        self.OverlayCmap = {'z':'viridis','cbv':'viridis','tempo':'tempo'}
+        self.OverlayCmap = {'z':'viridis','cbv':'viridis','tempo':'tempo','nnunet':'nnunet'}
         cmap_tempo = ListedColormap(np.array([[0 ,.5, 0, 1],[0,0,0,1],[0, 1, 0, 1]]))
+        cmap_nnunet = ListedColormap(np.array([[0,1,1,1],[1,0,1,1]]))
         cm.register_cmap(name='tempo',cmap=cmap_tempo)
+        cm.register_cmap(name='nnunet',cmap=cmap_nnunet)
 
         # default viewer type
         self.DefaultViewer = 'BLAST'

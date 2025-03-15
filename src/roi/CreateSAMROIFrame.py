@@ -751,8 +751,8 @@ class CreateSAMROIFrame(CreateFrame):
         for dt in ['ET','WT']:
             self.ui.data[s].mask['blast'][dt]['d'] = copy.deepcopy(self.ui.roi[s][self.ui.currentroi].data[dt])
             self.ui.data[s].mask['blast'][dt]['ex'] = True
-            if self.ui.sliceviewerframes['overlay'] is not None:
-                self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
+            if type(self.ui.sliceviewerframe).__name__ == 'CreateOverlaySVFrame':
+                self.ui.sliceviewerframe.maskdisplay_button['blast'].configure(state='active')
             if updatemask and False:
                 # by this option, a BLAST segmentation could overwrite the current UI mask directly as a convenience.
                 # otherwise, it will be done in separate step from the Overlay sliceviewer. 
@@ -772,8 +772,8 @@ class CreateSAMROIFrame(CreateFrame):
         for dt in ['TC','WT']:
             self.ui.data[s].mask['sam'][dt]['d'] = copy.deepcopy(self.ui.rois['sam'][s][self.ui.currentroi].data[dt])
             self.ui.data[s].mask['sam'][dt]['ex'] = True
-            if self.ui.sliceviewerframes['overlay'] is not None:
-                self.ui.sliceviewerframes['overlay'].maskdisplay_button['blast'].configure(state='active')
+            if type(self.ui.sliceviewerframe).__name__ == 'CreateOverlaySVFrame':
+                self.ui.sliceviewerframe.maskdisplay_button['blast'].configure(state='active')
 
 
     # eliminate latest ROI if there are multiple ROIs in current case

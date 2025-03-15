@@ -206,7 +206,6 @@ class CreateSliceViewerFrame(CreateFrame):
 
         self.canvas.draw()
 
-
     def b1release(self,event=None):
         self.b1x = self.b1y = None
 
@@ -311,6 +310,23 @@ class CreateSliceViewerFrame(CreateFrame):
             self.prevtime = 0
             self.sliceinc = 0
             # self.canvas.get_tk_widget().unbind('<ButtonPress>')
+
+    # mouse/keyboard bindings
+    def bindings(self,action=True):
+        if action:
+            if self.ui.OS in ('win32','darwin'):
+                self.ui.root.bind('<MouseWheel>',self.mousewheel_win32)
+
+            if self.ui.OS == 'linux':
+                self.ui.root.bind('<Button-4>',self.mousewheel)
+                self.ui.root.bind('<Button-5>',self.mousewheel)
+        else:
+            if self.ui.OS in ('win32','darwin'):
+                self.ui.root.unbind('<MouseWheel>',self.mousewheel_win32)
+
+            if self.ui.OS == 'linux':
+                self.ui.root.unbind('<Button-4>',self.mousewheel)
+                self.ui.root.unbind('<Button-5>',self.mousewheel)
 
     # mouse drag for slice selection
     def b3motion_reset(self,event):
@@ -517,3 +533,6 @@ class CreateSliceViewerFrame(CreateFrame):
             return ('x={:5.1f}, y={:5.1f}'.format(img_coord[0],img_coord[1]))
         return lbl2img_coord
 
+    # default
+    def normalslice_callback(self,event=None):
+        return

@@ -6,6 +6,7 @@ import glob
 import copy
 import re
 import logging
+import fnmatch
 import copy
 import subprocess
 import pickle
@@ -489,14 +490,16 @@ class Study():
         self.dset['z'] = {v:cp(self.dprop) for v in self.channels.values()}
         # SAM segmentation
         self.dset['seg_sam'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # nnunet segmentation
+        self.dset['nnunet'] = {v:cp(self.dprop) for v in self.channels.values()}
         # tempo regression differences of the 'raw' data at two time points
         self.dset['tempo'] = {v:cp(self.dprop) for v in self.channels.values()}
         # color overlay of the z-scores
         self.dset['zoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
         # color overlay of the CBV
         self.dset['cbvoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
-        # color overlay of the regression.
-        self.dset['tempooverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # color overlay of a unet segmentation.
+        self.dset['nnunetoverlay'] = {v:cp(self.dprop) for v in self.channels.values()}
         # color overlay of the raw blast segmentation. has different keys for separate layers
         self.dset['seg_raw_fusion'] = {v:cp(self.dprop_layer) for v in self.channels.values()}
         # a copy for display purposes which can be scaled for colormap. maybe not needed?
@@ -643,12 +646,28 @@ class NiftiStudy(Study):
                 self.dset['tempo'][dt]['min'] = np.min(self.dset['tempo'][dt]['d'])
                 self.dset['tempo'][dt]['ex'] = True
 
-        # load other
+        # load other non-channel specific images
         for dt in ['cbv','ref','adc']:
             dt_file = dt + '_processed.nii.gz'
             if dt_file in files:
                 self.dset[dt]['d'],_ = self.loadnifti(dt_file)                    
                 self.dset[dt]['ex'] = True
+                # create per-channel refernces
+                for ch in self.channels.values():
+                    self.dset[dt][ch]['d'] = self.dset[dt]['d']
+                    self.dset[dt][ch]['ex'] = self.dset[dt]['ex']
+
+        # load nnunet prediction
+        for dt in ['nnunet']:
+            dt_file = fnmatch.filter(files,dt+'*.nii.gz')
+            if len(dt_file):
+                self.dset[dt]['d'],_ = self.loadnifti(dt_file[0])                    
+                self.dset[dt]['ex'] = True
+                # create per-channel refernces
+                for ch in self.channels.values():
+                    self.dset[dt][ch]['d'] = self.dset[dt]['d']
+                    self.dset[dt][ch]['ex'] = self.dset[dt]['ex']
+
 
         # load masks
         for dt in ['ET','WT']:

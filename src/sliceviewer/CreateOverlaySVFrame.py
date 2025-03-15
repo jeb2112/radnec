@@ -59,7 +59,9 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.level = np.array([0.5,0.5],dtype='float')
         # window/level values for overlays and images. hard-coded for now.
         # RELCCBV raw units off scanner are [0,4095]
-        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023],'tempo':[2,0]}
+        # currently, nnunet is using levels of 5,6 for tumor/RN as that was conveient for itksnap
+        # and this window/level is hard-coded for that.
+        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023],'tempo':[2,0],'nnunet':[1,5.5]}
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
@@ -102,8 +104,6 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
                                                     command=self.updatemask,state='disabled')
         self.maskdisplay_button['blast'].grid(column=2,row=1,sticky='w')
 
-
-
         # overlay type contour mask. no longer used
         if False:
             overlaytype_label = ttk.Label(self.normal_frame, text='overlay type: ')
@@ -119,14 +119,12 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
         self.messagelabel.grid(row=2,column=0,columnspan=3,sticky='ew')
 
-        if self.ui.OS in ('win32','darwin'):
-            self.ui.root.bind('<MouseWheel>',self.mousewheel_win32)
+        self.bindings(action=True)
 
-        if self.ui.OS == 'linux':
-            self.ui.root.bind('<Button-4>',self.mousewheel)
-            self.ui.root.bind('<Button-5>',self.mousewheel)
-
+    def __del__(self):
+        self.bindings(action=False)
      
+
     # main canvas created when data are loaded
     def create_canvas(self,figsize=None):
         slicefovratio = self.dim[0]/self.dim[1]
@@ -138,8 +136,8 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.fig,self.axs = plt.subplot_mosaic([['A','B'],['A','B']],
                                      width_ratios=[self.ui.current_panelsize,self.ui.current_panelsize],
                                      figsize=figsize,dpi=self.ui.dpi)
-        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
-        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='lower',aspect=1)
+        self.ax_img = self.axs['A'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
+        self.ax2_img = self.axs['B'].imshow(np.zeros((self.dim[1],self.dim[2])),vmin=0,vmax=1,cmap='gray',origin='upper',aspect=1)
         self.ax_img.format_cursor_data = self.make_cursordata_format()
         self.ax2_img.format_cursor_data = self.make_cursordata_format()
 
@@ -185,14 +183,16 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
             l,b,w,h = self.axs['A'].get_position().bounds
             self.xyfig['colorbar_A'] = np.array([l,b+.25])
 
+        
         # record the data to figure coords of each label for each axis
-        self.xyfig['Im_A']= figtrans['A'].transform((5,self.dim[1]-20))
-        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),5))
-        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),5))
-        self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),5))
-        self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),5))
-        self.xyfig['date_A'] = figtrans['A'].transform((5,self.dim[1]-10))
-        self.xyfig['date_B'] = figtrans['B'].transform((5,self.dim[1]-10))
+        self.xyfig['Im_A']= figtrans['A'].transform((5,25))
+        self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),self.dim[1]-15))
+        self.xyfig['L_A'] = figtrans['A'].transform((int(self.dim[1]*3/4),self.dim[1]-15))
+        self.xyfig['W_B'] = figtrans['B'].transform((int(self.dim[1]/2),self.dim[1]-15))
+        self.xyfig['L_B'] = figtrans['B'].transform((int(self.dim[1]*3/4),self.dim[1]-15))
+        
+        self.xyfig['date_A'] = figtrans['A'].transform((5,15))
+        self.xyfig['date_B'] = figtrans['B'].transform((5,15))
         self.figtrans = figtrans
 
         # figure canvas
@@ -202,7 +202,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         newcanvas.get_tk_widget().grid(row=0, column=0, sticky='')
 
         self.tbar = NavigationBar(newcanvas,self.normal_frame,pack_toolbar=False,ui=self.ui,axs=self.axs)
-        self.tbar.grid(column=0,row=2,columnspan=3,sticky='NW')
+        self.tbar.grid(column=0,row=0,columnspan=3,sticky='NW')
 
         if self.canvas is not None:
             self.cw.delete('all')
@@ -248,7 +248,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.ax_img.set(data=self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection][self.ui.chselection]['d'][slice])
         self.ax2_img.set(data=self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection][self.ui.chselection]['d'][slice])
         # add current slice overlay
-        self.update_labels(colorbar='overlay' in self.ui.dataselection)
+        self.update_labels(colorbar=('overlay' in self.ui.dataselection and 'nnunet' not in self.ui.dataselection))
 
         if 'overlay' in self.ui.dataselection:
             # need to check in case overlay only available for one study

@@ -310,8 +310,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         else:
             self.ax_img.set(cmap='gray')
             self.updatewl(ax=0)
-            self.ax3_img.set(cmap='gray')
-            self.updatewl(ax=2)
+            self.ax2_img.set(cmap='gray')
+            self.updatewl(ax=1)
             self.ax4_img.set(cmap='gray')
             self.updatewl(ax=3)
         if wl:   
