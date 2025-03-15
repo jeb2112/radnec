@@ -122,7 +122,7 @@ def generate_blast_overlay(input_image: np.ndarray, segmentation: np.ndarray = N
 def get_cmap(colormap):
     if colormap == 'tempo':
         return ListedColormap(np.array([[0 ,1, 0, 1],[0, .5, 0, 1]]))
-    elif colormap == 'nnunet':
+    elif colormap == 'radnec':
         return ListedColormap(np.array([[0,1,1,1],[1,0,1,1]]))
     else:
         return None

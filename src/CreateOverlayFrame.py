@@ -76,9 +76,9 @@ class CreateOverlayFrame(CreateFrame):
         self.overlay_type_button['cbv'] = ttk.Radiobutton(self.frame,text='CBV',variable=self.overlay_type,value='cbv',
                                                     command=Command(self.overlay_callback))
         self.overlay_type_button['cbv'].grid(row=0,column=4,sticky='w')
-        self.overlay_type_button['nnunet'] = ttk.Radiobutton(self.frame,text='nnUNet',variable=self.overlay_type,value='nnunet',
+        self.overlay_type_button['radnec'] = ttk.Radiobutton(self.frame,text='RadNec',variable=self.overlay_type,value='radnec',
                                                     command=Command(self.overlay_callback))
-        self.overlay_type_button['nnunet'].grid(row=0,column=5,sticky='w')
+        self.overlay_type_button['radnec'].grid(row=0,column=5,sticky='w')
 
         # on/off button
         overlay_label = ttk.Label(self.frame,text='overlay on/off')
@@ -113,8 +113,8 @@ class CreateOverlayFrame(CreateFrame):
         ########################
         self.sliderframe['dummy'] = ttk.Frame(self.frame,padding=0)
         self.sliderframe['dummy'].grid(column=0,row=2,columnspan=6,sticky='news')
-        self.sliderframe['nnunet'] = ttk.Frame(self.frame,padding=0)
-        self.sliderframe['nnunet'].grid(column=0,row=2,columnspan=6,sticky='news')
+        self.sliderframe['radnec'] = ttk.Frame(self.frame,padding=0)
+        self.sliderframe['radnec'].grid(column=0,row=2,columnspan=6,sticky='news')
 
         self.sliderframe['z'] = ttk.Frame(self.frame,padding='0')
         self.sliderframe['z'].grid(column=0,row=2,columnspan=6,sticky='e')
@@ -189,8 +189,8 @@ class CreateOverlayFrame(CreateFrame):
             ovly_str = ovly + 'overlay'
             ch = self.ui.sliceviewerframe.chdisplay.get()
             usemask = self.mask_value.get()
-            if ovly == 'nnunet': # probably want an attribute for this
-                colormap = 'nnunet'
+            if ovly == 'radnec': # probably want an attribute for this
+                colormap = 'radnec'
             else:
                 colormap = 'viridis'
 
@@ -295,3 +295,5 @@ class CreateOverlayFrame(CreateFrame):
         
     def clear_stats(self):
         return
+    
+    

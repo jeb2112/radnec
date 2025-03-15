@@ -40,49 +40,23 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         super().__init__(parentframe,ui=ui,padding=padding,style=style)
 
         # ui variables
-        self.currentslice = tk.IntVar(value=75)
-        self.currentsagslice = tk.IntVar(value=120)
-        self.currentcorslice = tk.IntVar(value=120)
-        self.labels = {'Im_A':None,'Im_B':None,'Im_C':None,'W_A':None,'L_A':None,'W_B':None,'L_B':None}
         self.axslicelabel = None
-        self.corslicelabel = None
-        self.sagslicelabel = None
         self.windowlabel = None
         self.levellabel = None
-        self.lines = {'A':{'h':None,'v':None},'B':{'h':None,'v':None},'C':{'h':None,'v':None},'D':{'h':None,'v':None}}
-        self.chdisplay = tk.StringVar(value='t1+')
         self.maskdisplay = tk.StringVar(value='unet')
-        # self.overlaytype = tk.IntVar(value=self.config.OverlayType)
-        self.slicevolume_norm = tk.IntVar(value=1)
-        # blast window/level values for T1,T2. replace with self.wl
-        self.window = np.array([1.,1.],dtype='float')
-        self.level = np.array([0.5,0.5],dtype='float')
-        # window/level values for overlays and images. hard-coded for now.
-        # RELCCBV raw units off scanner are [0,4095]
-        # currently, nnunet is using levels of 5,6 for tumor/RN as that was conveient for itksnap
-        # and this window/level is hard-coded for that.
-        self.wl = {'t1':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023],'tempo':[2,0],'nnunet':[1,5.5]}
-        self.wlflag = False
-        self.b1x = self.b1y = None # for tracking window/level mouse drags
-        self.b3y = None # mouse drag for cor,sag slices\
-        self.sliceinc = 0
-        self.prevtime = 0
-        # image dimensions
-        self.dim = self.ui.config.ImageDim
-        self.canvas = None
-        self.cw = None
-        self.blankcanvas = None
-        self.fig = None
-        self.resizer_count = 1
-        self.ui = ui
 
-        self.frame.grid(row=1, column=0, columnspan=6, in_=self.parentframe,sticky='NSEW')
-        self.fstyle.configure('sliceviewerframe.TFrame',background='#000000')
-        self.frame.configure(style='sliceviewerframe.TFrame')
-
-        # t1/t2 base layer selection
-        self.normal_frame = ttk.Frame(self.parentframe,padding='0')
-        self.normal_frame.grid(row=3,column=0,sticky='NW')
+        # flythrough scroll
+        slice0_label = ttk.Label(self.normal_frame,text='start')
+        slice0_label.grid(row=2,column=0,sticky='e')
+        self.slice0_entry = ttk.Entry(self.normal_frame,width=8,textvariable=self.scrollslice0)
+        self.slice0_entry.grid(row=2,column=1)
+        slice1_label = ttk.Label(self.normal_frame,text='end')
+        slice1_label.grid(row=2,column=2,sticky='e')
+        self.slice1_entry = ttk.Entry(self.normal_frame,width=8,textvariable=self.scrollslice1)
+        self.slice1_entry.grid(row=2,column=3)
+        scroll_button = ttk.Button(self.normal_frame,text='Scroll',
+                                               command=self.scroll_callback)
+        scroll_button.grid(row=2,column=4,sticky='w')
 
         self.create_blank_canvas()
 
@@ -92,17 +66,17 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.canvasframe.configure(style='canvasframe.TFrame')
         self.canvasframe.grid(row=1,column=0,columnspan=3,sticky='NW')
 
-
         # BLAST/UNet segmentation selection
-        maskdisplay_label = ttk.Label(self.normal_frame, text='segmentation: ')
-        maskdisplay_label.grid(row=1,column=0,padx=(50,0),sticky='e')
-        self.maskdisplay_button = {}
-        self.maskdisplay_button['unet'] = ttk.Radiobutton(self.normal_frame,text='UNet',variable=self.maskdisplay,value='unet',
-                                                    command=self.updatemask)
-        self.maskdisplay_button['unet'].grid(column=1,row=1,sticky='w')
-        self.maskdisplay_button['blast'] = ttk.Radiobutton(self.normal_frame,text='BLAST',variable=self.maskdisplay,value='blast',
-                                                    command=self.updatemask,state='disabled')
-        self.maskdisplay_button['blast'].grid(column=2,row=1,sticky='w')
+        if False:
+            maskdisplay_label = ttk.Label(self.normal_frame, text='segmentation: ')
+            maskdisplay_label.grid(row=1,column=0,padx=(50,0),sticky='e')
+            self.maskdisplay_button = {}
+            self.maskdisplay_button['unet'] = ttk.Radiobutton(self.normal_frame,text='UNet',variable=self.maskdisplay,value='unet',
+                                                        command=self.updatemask)
+            self.maskdisplay_button['unet'].grid(column=1,row=1,sticky='w')
+            self.maskdisplay_button['blast'] = ttk.Radiobutton(self.normal_frame,text='BLAST',variable=self.maskdisplay,value='blast',
+                                                        command=self.updatemask,state='disabled')
+            self.maskdisplay_button['blast'].grid(column=2,row=1,sticky='w')
 
         # overlay type contour mask. no longer used
         if False:
@@ -116,8 +90,8 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
             self.overlaytype_button.grid(row=1,column=2,sticky='w')
 
         # messages text frame
-        self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
-        self.messagelabel.grid(row=2,column=0,columnspan=3,sticky='ew')
+        # self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
+        # self.messagelabel.grid(row=2,column=0,columnspan=3,sticky='ew')
 
         self.bindings(action=True)
 
@@ -231,10 +205,8 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.frame.update()
 
     # TODO: different bindings and callbacks need some organization
-    def updateslice(self,event=None,wl=False,blast=False,layer=None):
+    def updateslice(self,event=None,wl=False,blast=False,layer=None,update=False):
         slice=self.currentslice.get()
-        slicesag = self.currentsagslice.get()
-        slicecor = self.currentcorslice.get()
         self.ui.set_currentslice()
         if 'overlay' in self.ui.dataselection:
             # if at least one overlay is existing, don't recalculate. hard-coded two studies
@@ -248,7 +220,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.ax_img.set(data=self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection][self.ui.chselection]['d'][slice])
         self.ax2_img.set(data=self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection][self.ui.chselection]['d'][slice])
         # add current slice overlay
-        self.update_labels(colorbar=('overlay' in self.ui.dataselection and 'nnunet' not in self.ui.dataselection))
+        self.update_labels(colorbar=('overlay' in self.ui.dataselection and 'radnec' not in self.ui.dataselection))
 
         if 'overlay' in self.ui.dataselection:
             # need to check in case overlay only available for one study
@@ -280,6 +252,9 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
                 self.clipwl_raw()
 
         self.canvas.draw()
+        if update:
+            self.canvas.draw_idle()
+            self.canvas.flush_events()
     
     def updatemask(self):
 

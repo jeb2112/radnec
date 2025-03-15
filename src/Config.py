@@ -120,7 +120,7 @@ class Config(object):
         self.cbvinc = 100
 
         # default 'z-score' or 'CBV' overlay
-        self.OverlayType = 'nnunet'
+        self.OverlayType = 'radnec'
 
         # default BLAST overlay, contour or area
         self.BlastOverlayType = 1
