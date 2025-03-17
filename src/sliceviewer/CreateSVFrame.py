@@ -45,6 +45,8 @@ class CreateSliceViewerFrame(CreateFrame):
         self.currentcorslice = tk.IntVar(value=120)
         self.scrollslice0 = tk.IntVar(value=0)
         self.scrollslice1 = tk.IntVar(value=-1)
+        self.record_scroll = tk.IntVar(value=1)
+        self.anno_label = tk.IntVar(value=0)
         self.labels = {'Im_A':None,'Im_B':None,'Im_C':None,'W_A':None,'L_A':None,'W_B':None,'L_B':None}
         self.lines = {k:{'h':None,'v':None} for k in ['A','B','C','D']}
         self.measurement = []
@@ -78,7 +80,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
         # misc frame for various functions
         self.normal_frame = ttk.Frame(self.parentframe,padding='0')
-        self.normal_frame.grid(row=3,column=0,sticky='NW')
+        self.normal_frame.grid(row=3,column=0,columnspan=3,sticky='NW')
 
         self.create_blank_canvas()
 
@@ -94,7 +96,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
         # t1/t2 base layer selection
         chdisplay_label = ttk.Label(self.normal_frame, text='base image: ')
-        chdisplay_label.grid(row=1,column=0,padx=(50,0),sticky='e')
+        chdisplay_label.grid(row=1,column=0,padx=(0,0),sticky='e')
         self.chdisplay_button = {}
         self.chdisplay_button['t1'] = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.chdisplay,value='t1',
                                                     command=self.updateslice)
@@ -115,6 +117,13 @@ class CreateSliceViewerFrame(CreateFrame):
                                                     command=self.updateslice)
         self.chdisplay_button['dwi'].grid(column=6,row=1,sticky='w')
         # self.chdisplay_keys = ['t1','t1+','flair','flair']
+
+        # labels/annotation
+        # anno_label = ttk.Label(self.normal_frame,text='labels: ')
+        # anno_label.grid(row=1,column=7,sticky='e',padx=(10,0))
+        anno_button = ttk.Checkbutton(self.normal_frame,text='labels',
+                                               variable=self.anno_label)
+        anno_button.grid(row=1,column=7,sticky='w',padx=(10,0))        
 
 
         # overlay type contour mask
@@ -540,8 +549,8 @@ class CreateSliceViewerFrame(CreateFrame):
         return
     
     # flythrough function. AX only for now
-    def scroll_callback(self,delay=1):
-        slice1 = self.scrollslice1.get()
+    def scroll_callback(self,delay=1,record=False):
+        slice1 = self.scrollslice1.get()+1
         if slice1 < 0:
             slice1 = self.dim[0]-1
         elif slice1 >= self.dim[0]:
@@ -550,10 +559,26 @@ class CreateSliceViewerFrame(CreateFrame):
         slice0 = self.scrollslice0.get()
         if slice0 < 0:
             slice0 = 0
+
+        if self.record_scroll.get():
+            nslice = np.abs(slice1 - slice0)
+            display = os.getenv('DISPLAY')
+            dref = self.ui.data[self.ui.s]
+            outputfile = os.path.join(dref.studydir,dref.case+'_'+dref.date+'_scroll.mp4')
+            coords = self.get_canvas_coords()
+            command = ["ffmpeg","-y","-f","x11grab","-video_size"]
+            command += [str(coords[2])+"x"+str(coords[3])]
+            command += ["-framerate","30","-i",display+"+"+str(coords[0])+","+str(coords[1])]
+            command += ["-t",str(nslice+2)]
+            command.append(outputfile)
+            subprocess.Popen(command)
+
         for s in range(slice0,slice1):
             self.currentslice.set(s)
             self.updateslice(update=True)
             sleep(delay)
+
+        return
 
     # implement in subclass
     def updateslice(self):

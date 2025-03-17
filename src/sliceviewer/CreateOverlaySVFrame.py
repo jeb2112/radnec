@@ -46,17 +46,22 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.maskdisplay = tk.StringVar(value='unet')
 
         # flythrough scroll
-        slice0_label = ttk.Label(self.normal_frame,text='start')
+        slice0_label = ttk.Label(self.normal_frame,text='start: ')
         slice0_label.grid(row=2,column=0,sticky='e')
         self.slice0_entry = ttk.Entry(self.normal_frame,width=8,textvariable=self.scrollslice0)
-        self.slice0_entry.grid(row=2,column=1)
-        slice1_label = ttk.Label(self.normal_frame,text='end')
+        self.slice0_entry.grid(row=2,column=1,sticky='w')
+        slice1_label = ttk.Label(self.normal_frame,text='end: ')
         slice1_label.grid(row=2,column=2,sticky='e')
         self.slice1_entry = ttk.Entry(self.normal_frame,width=8,textvariable=self.scrollslice1)
-        self.slice1_entry.grid(row=2,column=3)
+        self.slice1_entry.grid(row=2,column=3,sticky='w')
         scroll_button = ttk.Button(self.normal_frame,text='Scroll',
-                                               command=self.scroll_callback)
+                                               command=Command(self.scroll_callback,record=True))
         scroll_button.grid(row=2,column=4,sticky='w')
+        record_label = ttk.Label(self.normal_frame,text='record: ')
+        record_label.grid(row=2,column=5,sticky='e')
+        record_button = ttk.Checkbutton(self.normal_frame,text='',
+                                               variable=self.record_scroll)
+        record_button.grid(row=2,column=6,sticky='w')        
 
         self.create_blank_canvas()
 
@@ -220,7 +225,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.ax_img.set(data=self.ui.data[self.ui.timepoints[0]].dset[self.ui.dataselection][self.ui.chselection]['d'][slice])
         self.ax2_img.set(data=self.ui.data[self.ui.timepoints[1]].dset[self.ui.dataselection][self.ui.chselection]['d'][slice])
         # add current slice overlay
-        self.update_labels(colorbar=('overlay' in self.ui.dataselection and 'radnec' not in self.ui.dataselection))
+        self.update_labels(colorbar=('overlay' in self.ui.dataselection and 'radnec' not in self.ui.dataselection),show=self.anno_label.get())
 
         if 'overlay' in self.ui.dataselection:
             # need to check in case overlay only available for one study
@@ -268,7 +273,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.ui.roiframe.overlay_callback(redo=True)
 
 
-    def update_labels(self,colorbar=False):
+    def update_labels(self,colorbar=False,show=True):
 
         # handle colorbar separately, since it doesn't have an Artist.remove()
         if 'colorbar_A' in self.labels.keys():
@@ -291,13 +296,14 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
                 except ValueError as e:
                     print(e)
         # convert data units to figure units
-        self.labels['Im_A'] = self.axs['labelA'].text(self.xyfig['Im_A'][0],0+self.xyfig['Im_A'][1],'Im:'+str(self.currentslice.get()),color='w')
-        self.labels['W_A'] = self.axs['labelA'].text(self.xyfig['W_A'][0],self.xyfig['W_A'][1],'W = '+'{:d}'.format(int(self.window[0])),color='w')
-        self.labels['L_A'] = self.axs['labelA'].text(self.xyfig['L_A'][0],self.xyfig['L_A'][1],'L = '+'{:d}'.format(int(self.level[0])),color='w')
-        self.labels['W_B'] = self.axs['labelB'].text(self.xyfig['W_B'][0],self.xyfig['W_B'][1],'W = '+'{:d}'.format(int(self.window[1])),color='w')
-        self.labels['L_B'] = self.axs['labelB'].text(self.xyfig['L_B'][0],self.xyfig['L_B'][1],'L = '+'{:d}'.format(int(self.level[1])),color='w')
-        self.labels['date_A'] = self.axs['labelA'].text(self.xyfig['date_A'][0],self.xyfig['date_A'][1],self.ui.data[self.ui.timepoints[0]].date,color='w')
-        self.labels['date_B'] = self.axs['labelB'].text(self.xyfig['date_B'][0],self.xyfig['date_B'][1],self.ui.data[self.ui.timepoints[1]].date,color='w')
+        if show:
+            self.labels['Im_A'] = self.axs['labelA'].text(self.xyfig['Im_A'][0],0+self.xyfig['Im_A'][1],'Im:'+str(self.currentslice.get()),color='w')
+            self.labels['W_A'] = self.axs['labelA'].text(self.xyfig['W_A'][0],self.xyfig['W_A'][1],'W = '+'{:d}'.format(int(self.window[0])),color='w')
+            self.labels['L_A'] = self.axs['labelA'].text(self.xyfig['L_A'][0],self.xyfig['L_A'][1],'L = '+'{:d}'.format(int(self.level[0])),color='w')
+            self.labels['W_B'] = self.axs['labelB'].text(self.xyfig['W_B'][0],self.xyfig['W_B'][1],'W = '+'{:d}'.format(int(self.window[1])),color='w')
+            self.labels['L_B'] = self.axs['labelB'].text(self.xyfig['L_B'][0],self.xyfig['L_B'][1],'L = '+'{:d}'.format(int(self.level[1])),color='w')
+            self.labels['date_A'] = self.axs['labelA'].text(self.xyfig['date_A'][0],self.xyfig['date_A'][1],self.ui.data[self.ui.timepoints[0]].date,color='w')
+            self.labels['date_B'] = self.axs['labelB'].text(self.xyfig['date_B'][0],self.xyfig['date_B'][1],self.ui.data[self.ui.timepoints[1]].date,color='w')
 
         # add colorbars. for now just one colorbar on axis 'A'
         if colorbar and True:
@@ -365,3 +371,20 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         print('resize {},{}'.format(w,h))
         self.ui.root.geometry(f'{w}x{h}')
         return
+
+    def get_canvas_coords(self,canvas=None):
+        if canvas is None:
+            canvas = self.canvas
+
+        x = canvas.get_tk_widget().winfo_x()  # X position relative to screen
+        y = canvas.get_tk_widget().winfo_y()  # Y position relative to screen
+        width = canvas.get_tk_widget().winfo_width()  # Width of the canvas
+        height = canvas.get_tk_widget().winfo_height()  # Height of the canvas
+
+        xf = self.ui.sliceviewerframe.frame.winfo_x()
+        yf = self.ui.sliceviewerframe.frame.winfo_y()
+
+        xr = self.ui.root.winfo_rootx()
+        yr = self.ui.root.winfo_rooty()
+ 
+        return (x+xr+xf,y+yr+yf,width,height)
