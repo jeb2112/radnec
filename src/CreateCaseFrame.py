@@ -209,14 +209,7 @@ class CreateCaseFrame(CreateFrame):
         sv = self.ui.sliceviewerframe
         sv.dim = np.shape(self.ui.data[s].dset['raw']['t1+']['d'])
         # auto window/level is hard-coded to t1+ here
-        sv.level = []
-        sv.window = []
-        for dt in self.ui.data[s].channels.values():
-            if self.ui.data[s].dset['raw'][dt]['ex']:
-                sv.level.append(self.ui.data[s].dset['raw'][dt]['l'])
-                sv.window.append(self.ui.data[s].dset['raw'][dt]['w'])
-        sv.level = np.array(sv.level)
-        sv.window = np.array(sv.window)
+        self.ui.sliceviewerframe.setwl()
         sv.create_canvas()
         sv.resize()
 

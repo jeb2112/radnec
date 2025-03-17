@@ -184,15 +184,8 @@ def generate_overlay(image: np.ndarray, overlay: np.ndarray = None, mask: np.nda
         cmap = get_cmap(colormap)
 
     overlay_cmap = cmap(overlay)
-    overlay_cmap[:,:,:,3] = overlay_intensity
-
-    if overlay_intensity == 1:
-        image[mask_ros] = overlay_cmap[mask_ros]
-    else:
-        # temp kludge. use window/level params.
-        image[mask_ros] *= (1-overlay_intensity)
-        image[mask_ros] += overlay_cmap[mask_ros]
-        image = np.clip(image,a_min=0,a_max=1)
+    image[mask_ros] = (1-overlay_intensity)*image[mask_ros] + overlay_intensity*overlay_cmap[mask_ros]
+    image = np.clip(image,a_min=0,a_max=1)
                      
     return image.astype(np.float32)
 

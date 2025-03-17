@@ -621,6 +621,7 @@ class NiftiStudy(Study):
                 self.dset['raw'][dt]['ex'] = True
                 self.dset['raw'][dt]['w'] = self.dset['raw'][dt]['max']/2
                 self.dset['raw'][dt]['l'] = self.dset['raw'][dt]['max']/4
+
             # z-scores
             dt_file = 'z' + dt + '_processed.nii.gz'
             if dt_file in files:

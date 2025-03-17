@@ -46,11 +46,11 @@ class CreateSliceViewerFrame(CreateFrame):
         self.scrollslice0 = tk.IntVar(value=0)
         self.scrollslice1 = tk.IntVar(value=-1)
         self.record_scroll = tk.IntVar(value=1)
-        self.anno_label = tk.IntVar(value=0)
+        self.anno_label = tk.IntVar(value=1)
         self.labels = {'Im_A':None,'Im_B':None,'Im_C':None,'W_A':None,'L_A':None,'W_B':None,'L_B':None}
         self.lines = {k:{'h':None,'v':None} for k in ['A','B','C','D']}
         self.measurement = []
-        self.chdisplay = tk.StringVar(value='t1+')
+        self.chdisplay = tk.StringVar(value=self.ui.config.DefaultChannel)
         self.slicevolume_norm = tk.IntVar(value=1)
         # blast window/level values for T1,T2. replace with self.wl
         self.window = np.array([1.,1.],dtype='float')
@@ -584,3 +584,9 @@ class CreateSliceViewerFrame(CreateFrame):
     def updateslice(self):
         raise NotImplementedError('updateslice')
         return
+    
+    # sets initial window/levels after a case is loaded
+    def setwl(self):
+        raise NotImplementedError('setwl')
+        return
+        

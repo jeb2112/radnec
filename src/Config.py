@@ -137,7 +137,7 @@ class Config(object):
         self.DefaultViewer = 'BLAST'
 
         # default channel. 
-        self.DefaultChannel = 'flair'
+        self.DefaultChannel = 't1+'
         self.DefaultLayer = 'WT'
         self.DefaultBlastLayer = 'T2 hyper'
 

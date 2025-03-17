@@ -162,7 +162,6 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
             l,b,w,h = self.axs['A'].get_position().bounds
             self.xyfig['colorbar_A'] = np.array([l,b+.25])
 
-        
         # record the data to figure coords of each label for each axis
         self.xyfig['Im_A']= figtrans['A'].transform((5,25))
         self.xyfig['W_A'] = figtrans['A'].transform((int(self.dim[1]/2),self.dim[1]-15))
@@ -388,3 +387,18 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         yr = self.ui.root.winfo_rooty()
  
         return (x+xr+xf,y+yr+yf,width,height)
+
+    # for now the overlay mode shows images of the same type in both windows
+    def setwl(self):
+        self.level = []
+        self.window = []
+        s = self.ui.s
+        # for w in ['A','B']:
+        ch = self.ui.chselection
+        if self.ui.data[s].dset['raw'][ch]['ex']:
+            for w in range(2):
+                self.level.append(self.ui.data[s].dset['raw'][ch]['l'])
+                self.window.append(self.ui.data[s].dset['raw'][ch]['w'])
+            self.wl[ch] = [self.ui.data[s].dset['raw'][ch]['w'],self.ui.data[s].dset['raw'][ch]['l']]
+        self.level = np.array(self.level)
+        self.window = np.array(self.window)
