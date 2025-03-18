@@ -388,17 +388,56 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
  
         return (x+xr+xf,y+yr+yf,width,height)
 
-    # for now the overlay mode shows images of the same type in both windows
+    # this function populates the per-axis window/level lists from the 
+    # currently loaded 'raw' data, based on the current channel selection.
+    # ie they govern the display of the grayscale 'raw' data.
+
+    # note for now the overlay mode shows images of the same type in both windows.
+    # therefore, this arrangement of having separate window/level per axis
+    # is redundant, because if the type of image is the same in both axes,
+    # the window/level should be the same. this arrangement was originally 
+    # assigned from the original BLAST viewer showing T1/Flair in the two main axes.
+    # as a result, here the time point 0 values are used for both axes
+
+    # a separate dict{} wl is also populated. this dict is currently being used
+    # for the optional colorbar in this viewer when an overlay is displayed. this 
+    # code has not been tested lately.
+
+    # these two separate conventions for 
+    # window and level are not fully reconciled and probably need simplification.
     def setwl(self):
         self.level = []
         self.window = []
-        s = self.ui.s
         # for w in ['A','B']:
         ch = self.ui.chselection
-        if self.ui.data[s].dset['raw'][ch]['ex']:
-            for w in range(2):
-                self.level.append(self.ui.data[s].dset['raw'][ch]['l'])
-                self.window.append(self.ui.data[s].dset['raw'][ch]['w'])
-            self.wl[ch] = [self.ui.data[s].dset['raw'][ch]['w'],self.ui.data[s].dset['raw'][ch]['l']]
+        for s in range(2): # hard-coded for only 2 studies 
+            if self.ui.data[s].dset['raw'][ch]['ex']:
+                self.level.append(self.ui.data[0].dset['raw'][ch]['l'])
+                self.window.append(self.ui.data[0].dset['raw'][ch]['w'])
+            else:
+                raise ValueError('No data for channel {}'.format(ch))
+        # arbitrarily using timepoint0 here
+        self.wl[ch] = [self.ui.data[0].dset['raw'][ch]['w'],self.ui.data[0].dset['raw'][ch]['l']]
         self.level = np.array(self.level)
         self.window = np.array(self.window)
+        return
+
+
+    # in this viewer, the window/level of either axis tracks the other
+    def updatewl(self,ax=0,lval=None,wval=None):
+
+        self.wlflag = True
+        # only process on main panels
+        if ax < 2:
+            if lval:
+                self.level = [l + lval for l in self.level]
+            if wval:
+                self.window = [w + wval for w in self.window]
+
+            vmin = self.level[ax] - self.window[ax]/2
+            vmax = self.level[ax] + self.window[ax]/2
+
+            self.ax_img.set_clim(vmin=vmin,vmax=vmax)
+            self.ax2_img.set_clim(vmin=vmin,vmax=vmax)
+
+            self.canvas.draw()

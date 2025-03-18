@@ -215,7 +215,7 @@ class CreateOverlayFrame(CreateFrame):
                             mask = None
 
                         # selecting which study to overlay is hard-coded here
-                        if s == 0:
+                        if s >= 0: # overlay on
                             self.ui.data[s].dset[ovly_str][ch]['d'] = generate_overlay(
                                 self.ui.data[s].dset['raw'][ch]['d'],
                                 self.ui.data[s].dset[ovly][ch]['d'],
@@ -224,7 +224,7 @@ class CreateOverlayFrame(CreateFrame):
                                 overlay_wl = self.ui.sliceviewerframe.wl[ovly],
                                 overlay_intensity=self.config.OverlayIntensity,
                                 colormap = colormap)
-                        else:
+                        else: # overlay off
                             self.ui.data[s].dset[ovly_str][ch]['d'] = generate_overlay(
                                 self.ui.data[s].dset['raw'][ch]['d'],
                                 mask=mask,
