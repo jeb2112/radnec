@@ -60,8 +60,13 @@ if os.name == 'posix':
         datadir = "/home/jbishop/data/radnec2/"
 else:
     datadir = os.path.join('D:','data','radnec2')
-niftidir = os.path.join(datadir,'dicom2nifti')
+# this is the same niftidir as hard-coded in nnunet2d_predict_preprocess.py
+# in this script, it is used to find the case list and optionally load the
+# t1+ nii.gz
+niftidir = os.path.join(datadir,'dicom2nifti_prediction')
+# where to find the nnUNet 2d prediction output, ie  the -o arg of nnUNetv2_predict
 predictiondir = os.path.join(datadir,'nnUNet_predictions','misc')
+# where to write the composite 3d prediction 
 resultsdir = os.path.join(predictiondir,'comp')
 
 # hard-coded convention from nnunet_predict_preprocess

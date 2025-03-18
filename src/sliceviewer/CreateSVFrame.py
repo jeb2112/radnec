@@ -549,7 +549,7 @@ class CreateSliceViewerFrame(CreateFrame):
         return
     
     # flythrough function. AX only for now
-    def scroll_callback(self,delay=1,record=False):
+    def scroll_callback(self,delay=1):
         slice1 = self.scrollslice1.get()+1
         if slice1 < 0:
             slice1 = self.dim[0]-1
@@ -564,7 +564,7 @@ class CreateSliceViewerFrame(CreateFrame):
             nslice = np.abs(slice1 - slice0)
             display = os.getenv('DISPLAY')
             dref = self.ui.data[self.ui.s]
-            outputfile = os.path.join(dref.studydir,dref.case+'_'+dref.date+'_scroll.mp4')
+            outputfile = os.path.join(dref.studydir,dref.case+'_'+dref.date+'_scroll_'+str(slice0)+'-'+str(slice1)+'.mp4')
             coords = self.get_canvas_coords()
             command = ["ffmpeg","-y","-f","x11grab","-video_size"]
             command += [str(coords[2])+"x"+str(coords[3])]
@@ -575,7 +575,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
         for s in range(slice0,slice1):
             self.currentslice.set(s)
-            self.updateslice(update=True)
+            self.updateslice(update=True)                
             sleep(delay)
 
         return

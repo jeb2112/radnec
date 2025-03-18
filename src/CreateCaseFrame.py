@@ -206,12 +206,10 @@ class CreateCaseFrame(CreateFrame):
                 # if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
                     self.ui.sliceviewerframe.chdisplay_button[dt]['state'] = 'normal'
 
-        sv = self.ui.sliceviewerframe
-        sv.dim = np.shape(self.ui.data[s].dset['raw']['t1+']['d'])
-        # auto window/level is hard-coded to t1+ here
         self.ui.sliceviewerframe.setwl()
-        sv.create_canvas()
-        sv.resize()
+        self.ui.sliceviewerframe.create_canvas()
+        self.ui.sliceviewerframe.resize()
+        self.ui.sliceviewerframe.normalslice_callback()
 
         # update roiframes according to data loaded
         if False: # cbv will have to display just one overlay if necessary
@@ -219,11 +217,7 @@ class CreateCaseFrame(CreateFrame):
                 if not(self.ui.data[0].dset[dt]['ex'] and self.ui.data[1].dset[dt]['ex']):
                     self.ui.roiframe.overlay_type_button[dt]['state'] = 'disabled'
                 else:
-                    self.ui.roiframe.overlay_type_button[dt]['state'] = 'normal'
-
-        # run normal stats
-        self.ui.sliceviewerframe.normalslice_callback()
-    
+                    self.ui.roiframe.overlay_type_button[dt]['state'] = 'normal'    
 
     # probably don't need this anymore
     def loadData(self,dt_file,type=None):

@@ -45,7 +45,7 @@ if os.name == 'posix':
 else:
     datadir = "D:\\data\\radnec2\\"
 
-niidir = os.path.join(datadir,'dicom2nifti')
+niidir = os.path.join(datadir,'dicom2nifti_prediction')
 # nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset139_RadNec')
 pred_dir = os.path.join(datadir,'nnUNet_raw','misc','imagesTs')
 
@@ -57,11 +57,11 @@ for c in cases:
     print(c)
 
     output_imgdir = pred_dir
-    # try:
-    #     shutil.rmtree(output_imgdir)
-    # except FileNotFoundError:
-    #     pass
-    # os.makedirs(output_imgdir,exist_ok=True)
+    try:
+        shutil.rmtree(output_imgdir)
+    except FileNotFoundError:
+        pass
+    os.makedirs(output_imgdir,exist_ok=True)
 
 
     if False: #debugging
