@@ -55,7 +55,7 @@ class CreateOverlaySVFrame(CreateSliceViewerFrame):
         self.slice1_entry = ttk.Entry(self.normal_frame,width=8,textvariable=self.scrollslice1)
         self.slice1_entry.grid(row=2,column=3,sticky='w')
         scroll_button = ttk.Button(self.normal_frame,text='Scroll',
-                                               command=Command(self.scroll_callback,record=True))
+                                               command=Command(self.scroll_callback))
         scroll_button.grid(row=2,column=4,sticky='w')
         record_label = ttk.Label(self.normal_frame,text='record: ')
         record_label.grid(row=2,column=5,sticky='e')
