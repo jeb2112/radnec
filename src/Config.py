@@ -125,7 +125,7 @@ class Config(object):
         cm.register_cmap(name='tempo',cmap=cmap_tempo)
 
         # default viewer type
-        self.DefaultViewer = 'BLAST'
+        self.DefaultViewer = 'SAM'
 
         # default channel. 
         self.DefaultChannel = 'flair'
