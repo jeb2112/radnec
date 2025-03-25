@@ -53,7 +53,6 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.sagslicelabel = None
         self.windowlabel = None
         self.levellabel = None
-        self.sagcordisplay = tk.IntVar(value=0)
         self.overlay_type = tk.IntVar(value=self.config.BlastOverlayType)
         self.prompt_type = tk.StringVar(value='point')
 
@@ -310,7 +309,7 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         else:
             self.ax_img.set(cmap='gray')
             self.updatewl(ax=0)
-            self.ax2_img.set(cmap='gray')
+            self.ax3_img.set(cmap='gray')
             self.updatewl(ax=1)
             self.ax4_img.set(cmap='gray')
             self.updatewl(ax=3)
@@ -381,22 +380,12 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
             if wval:
                 self.window[ax] += wval
 
-            vmin = self.level[ax] - self.window[ax]/2
-            vmax = self.level[ax] + self.window[ax]/2
+        vmin = self.level[0] - self.window[0]/2
+        vmax = self.level[0] + self.window[0]/2
 
-        vmin0 = self.level[0] - self.window[0]/2
-        vmax0 = self.level[0] + self.window[0]/2
-        vmin1 = self.level[1] - self.window[1]/2
-        vmax1 = self.level[1] + self.window[1]/2
-
-        if ax==0:
-            self.ax_img.set_clim(vmin=vmin,vmax=vmax)
-        if self.sagcordisplay.get() == 0:
-            self.ax3_img.set_clim(vmin=vmin0,vmax=vmax0)
-            self.ax4_img.set_clim(vmin=vmin0,vmax=vmax0)
-        elif self.sagcordisplay.get() == 1:
-            self.ax3_img.set_clim(vmin=vmin1,vmax=vmax1)
-            self.ax4_img.set_clim(vmin=vmin1,vmax=vmax1)
+        self.ax_img.set_clim(vmin=vmin,vmax=vmax)
+        self.ax3_img.set_clim(vmin=vmin,vmax=vmax)
+        self.ax4_img.set_clim(vmin=vmin,vmax=vmax)
 
         self.canvas.draw()
 
@@ -1028,6 +1017,26 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
     #######
     # other
     #######
+
+    # set initial window/level values. 
+    # in the SAM viewer there is only 1 axis, and 1 channel displayed
+    # so the window/level here is arbitrarily extended for 2 axes
+    # to be compatible. some arrangement to store for multiple studies is needed.
+    def setwl(self):
+        self.level = []
+        self.window = []
+        # for w in ['A','B']:
+        ch = self.ui.chselection
+        for ax in range(2):
+            if self.ui.data[self.ui.s].dset['raw'][ch]['ex']:
+                self.level.append(self.ui.data[self.ui.s].dset['raw'][ch]['l'])
+                self.window.append(self.ui.data[self.ui.s].dset['raw'][ch]['w'])
+            else:
+                raise ValueError('No data for channel {}'.format(ch))
+        # arbitrarily using timepoint0 here
+        self.level = np.array(self.level)
+        self.window = np.array(self.window)
+        return
 
     # load an alternate mask.
     # just hard-coded for BraTS now.
