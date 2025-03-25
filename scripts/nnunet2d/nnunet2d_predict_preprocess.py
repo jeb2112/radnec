@@ -13,6 +13,7 @@ from skimage.io import imsave
 import cc3d
 import random
 import glob
+import platform
 
 # load a single nifti file
 def loadnifti(t1_file,dir,type=None):
@@ -35,11 +36,16 @@ def loadnifti(t1_file,dir,type=None):
 # main
 
 if os.name == 'posix':
-    datadir = "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/"
+    uname = platform.uname()
+    if 'dellxps' in uname.node:
+        datadir = "/media/jbishop/WD4/brainmets/sunnybrook/radnec2/"
+    elif 'XPS-8950' in uname.node:
+        datadir = "/home/jbishop/data/radnec2/"
+
 else:
     datadir = "D:\\data\\radnec2\\"
 
-niidir = os.path.join(datadir,'dicom2nifti')
+niidir = os.path.join(datadir,'dicom2nifti_prediction')
 # nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset139_RadNec')
 pred_dir = os.path.join(datadir,'nnUNet_raw','misc','imagesTs')
 
@@ -51,11 +57,11 @@ for c in cases:
     print(c)
 
     output_imgdir = pred_dir
-    # try:
-    #     shutil.rmtree(output_imgdir)
-    # except FileNotFoundError:
-    #     pass
-    # os.makedirs(output_imgdir,exist_ok=True)
+    try:
+        shutil.rmtree(output_imgdir)
+    except FileNotFoundError:
+        pass
+    os.makedirs(output_imgdir,exist_ok=True)
 
 
     if False: #debugging

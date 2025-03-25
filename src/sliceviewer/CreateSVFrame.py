@@ -1,10 +1,7 @@
 import os,sys
 import numpy as np
-import glob
 import copy
-import re
-import logging
-import subprocess
+from time import sleep
 import tkinter as tk
 import nibabel as nb
 from nibabel.processing import resample_from_to
@@ -46,17 +43,23 @@ class CreateSliceViewerFrame(CreateFrame):
         self.currentslice = tk.IntVar(value=75)
         self.currentsagslice = tk.IntVar(value=120)
         self.currentcorslice = tk.IntVar(value=120)
+        self.scrollslice0 = tk.IntVar(value=0)
+        self.scrollslice1 = tk.IntVar(value=-1)
+        self.record_scroll = tk.IntVar(value=1)
+        self.anno_label = tk.IntVar(value=1)
         self.labels = {'Im_A':None,'Im_B':None,'Im_C':None,'W_A':None,'L_A':None,'W_B':None,'L_B':None}
         self.lines = {k:{'h':None,'v':None} for k in ['A','B','C','D']}
         self.measurement = []
-        self.chdisplay = tk.StringVar(value='t1+')
+        self.chdisplay = tk.StringVar(value=self.ui.config.DefaultChannel)
         self.slicevolume_norm = tk.IntVar(value=1)
         # blast window/level values for T1,T2. replace with self.wl
         self.window = np.array([1.,1.],dtype='float')
         self.level = np.array([0.5,0.5],dtype='float')
         # window/level values for overlays and images. hard-coded for now.
         # RELCCBV raw units off scanner are [0,4095]
-        self.wl = {'t1':[600,300],'t1+':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023],'tempo':[2,2]}
+        # currently, nnunet is using levels of 5,6 for tumor/RN as that was conveient for itksnap
+        # and this window/level is hard-coded for that.        
+        self.wl = {'t1':[600,300],'t1+':[600,300],'flair':[600,300],'z':[12,6],'cbv':[2047,1023],'tempo':[2,2],'radnec':[1,5.5]}
         self.wlflag = False
         self.b1x = self.b1y = None # for tracking window/level mouse drags
         self.b3y = None # mouse drag for cor,sag slices\
@@ -77,7 +80,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
         # misc frame for various functions
         self.normal_frame = ttk.Frame(self.parentframe,padding='0')
-        self.normal_frame.grid(row=3,column=0,sticky='NW')
+        self.normal_frame.grid(row=3,column=0,columnspan=3,sticky='NW')
 
         self.create_blank_canvas()
 
@@ -93,27 +96,35 @@ class CreateSliceViewerFrame(CreateFrame):
 
         # t1/t2 base layer selection
         chdisplay_label = ttk.Label(self.normal_frame, text='base image: ')
-        chdisplay_label.grid(row=0,column=0,padx=(50,0),sticky='e')
+        chdisplay_label.grid(row=1,column=0,padx=(0,0),sticky='e')
         self.chdisplay_button = {}
         self.chdisplay_button['t1'] = ttk.Radiobutton(self.normal_frame,text='T1',variable=self.chdisplay,value='t1',
                                                     command=self.updateslice)
-        self.chdisplay_button['t1'].grid(column=1,row=0,sticky='w')
+        self.chdisplay_button['t1'].grid(column=1,row=1,sticky='w')
         self.chdisplay_button['t1+'] = ttk.Radiobutton(self.normal_frame,text='T1+',variable=self.chdisplay,value='t1+',
                                                     command=self.updateslice)
-        self.chdisplay_button['t1+'].grid(column=2,row=0,sticky='w')
+        self.chdisplay_button['t1+'].grid(column=2,row=1,sticky='w')
         self.chdisplay_button['t2'] = ttk.Radiobutton(self.normal_frame,text='T2',variable=self.chdisplay,value='t2',
                                                     command=self.updateslice)
-        self.chdisplay_button['t2'].grid(column=3,row=0,sticky='w')
+        self.chdisplay_button['t2'].grid(column=3,row=1,sticky='w')
         self.chdisplay_button['flair'] = ttk.Radiobutton(self.normal_frame,text='FLAIR',variable=self.chdisplay,value='flair',
                                                     command=self.updateslice)
-        self.chdisplay_button['flair'].grid(column=4,row=0,sticky='w')
+        self.chdisplay_button['flair'].grid(column=4,row=1,sticky='w')
         self.chdisplay_button['flair+'] = ttk.Radiobutton(self.normal_frame,text='FLAIR+',variable=self.chdisplay,value='flair+',
                                                     command=self.updateslice)
-        self.chdisplay_button['flair+'].grid(column=5,row=0,sticky='w')
+        self.chdisplay_button['flair+'].grid(column=5,row=1,sticky='w')
         self.chdisplay_button['dwi'] = ttk.Radiobutton(self.normal_frame,text='DWI',variable=self.chdisplay,value='dwi',
                                                     command=self.updateslice)
-        self.chdisplay_button['dwi'].grid(column=6,row=0,sticky='w')
+        self.chdisplay_button['dwi'].grid(column=6,row=1,sticky='w')
         # self.chdisplay_keys = ['t1','t1+','flair','flair']
+
+        # labels/annotation
+        # anno_label = ttk.Label(self.normal_frame,text='labels: ')
+        # anno_label.grid(row=1,column=7,sticky='e',padx=(10,0))
+        anno_button = ttk.Checkbutton(self.normal_frame,text='labels',
+                                               variable=self.anno_label)
+        anno_button.grid(row=1,column=7,sticky='w',padx=(10,0))        
+
 
         # overlay type contour mask
         if False:
@@ -128,7 +139,7 @@ class CreateSliceViewerFrame(CreateFrame):
 
         # messages text box
         self.messagelabel = ttk.Label(self.normal_frame,text=self.ui.message.get(),padding='5',borderwidth=0)
-        self.messagelabel.grid(row=2,column=0,columnspan=3,sticky='ew')
+        self.messagelabel.grid(row=3,column=0,columnspan=3,sticky='ew')
 
         if self.ui.OS in ('win32','darwin'):
             self.ui.root.bind('<MouseWheel>',self.mousewheel_win32)
@@ -205,7 +216,6 @@ class CreateSliceViewerFrame(CreateFrame):
             self.ax2_img.set_clim(vmin=vmin,vmax=vmax)
 
         self.canvas.draw()
-
 
     def b1release(self,event=None):
         self.b1x = self.b1y = None
@@ -311,6 +321,23 @@ class CreateSliceViewerFrame(CreateFrame):
             self.prevtime = 0
             self.sliceinc = 0
             # self.canvas.get_tk_widget().unbind('<ButtonPress>')
+
+    # mouse/keyboard bindings
+    def bindings(self,action=True):
+        if action:
+            if self.ui.OS in ('win32','darwin'):
+                self.ui.root.bind('<MouseWheel>',self.mousewheel_win32)
+
+            if self.ui.OS == 'linux':
+                self.ui.root.bind('<Button-4>',self.mousewheel)
+                self.ui.root.bind('<Button-5>',self.mousewheel)
+        else:
+            if self.ui.OS in ('win32','darwin'):
+                self.ui.root.unbind('<MouseWheel>',self.mousewheel_win32)
+
+            if self.ui.OS == 'linux':
+                self.ui.root.unbind('<Button-4>',self.mousewheel)
+                self.ui.root.unbind('<Button-5>',self.mousewheel)
 
     # mouse drag for slice selection
     def b3motion_reset(self,event):
@@ -517,3 +544,49 @@ class CreateSliceViewerFrame(CreateFrame):
             return ('x={:5.1f}, y={:5.1f}'.format(img_coord[0],img_coord[1]))
         return lbl2img_coord
 
+    # default
+    def normalslice_callback(self,event=None):
+        return
+    
+    # flythrough function. AX only for now
+    def scroll_callback(self,delay=1):
+        slice1 = self.scrollslice1.get()+1
+        if slice1 < 0:
+            slice1 = self.dim[0]-1
+        elif slice1 >= self.dim[0]:
+            slice1 = self.dim[0]-1
+    
+        slice0 = self.scrollslice0.get()
+        if slice0 < 0:
+            slice0 = 0
+
+        if self.record_scroll.get():
+            nslice = np.abs(slice1 - slice0)
+            display = os.getenv('DISPLAY')
+            dref = self.ui.data[self.ui.s]
+            outputfile = os.path.join(dref.studydir,dref.case+'_'+dref.date+'_scroll_'+str(slice0)+'-'+str(slice1)+'.mp4')
+            coords = self.get_canvas_coords()
+            command = ["ffmpeg","-y","-f","x11grab","-video_size"]
+            command += [str(coords[2])+"x"+str(coords[3])]
+            command += ["-framerate","30","-i",display+"+"+str(coords[0])+","+str(coords[1])]
+            command += ["-t",str(nslice+2)]
+            command.append(outputfile)
+            subprocess.Popen(command)
+
+        for s in range(slice0,slice1):
+            self.currentslice.set(s)
+            self.updateslice(update=True)                
+            sleep(delay)
+
+        return
+
+    # implement in subclass
+    def updateslice(self):
+        raise NotImplementedError('updateslice')
+        return
+    
+    # sets initial window/levels after a case is loaded
+    def setwl(self):
+        raise NotImplementedError('setwl')
+        return
+        

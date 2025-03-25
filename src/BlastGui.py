@@ -186,39 +186,27 @@ class BlastGui(object):
         self.sliceviewerframes = {'BLAST':None,'4panel':None,'overlay':None}
         self.roiframes = {'BLAST':None,'4panel':None,'overlay':None}
 
-        if True: # make all the sliceviewers
-            self.sliceviewerframes['4panel'] = Create4PanelSVFrame(self.mainframe,ui=self,padding='0')
-            self.roiframes['4panel'] = Create4PanelROIFrame(self.mainframe,ui=self,padding='0')
-            self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
-            self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
-            self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
-            self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
-            self.sliceviewerframes['SAM'] = CreateSAMSVFrame(self.mainframe,ui=self,padding='0')
-            self.roiframes['SAM'] = CreateSAMROIFrame(self.mainframe,ui=self,padding='0')
+        if self.function.get() == '4panel':
+            self.sliceviewerframe = Create4PanelSVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframe = Create4PanelROIFrame(self.mainframe,ui=self,padding='0')
+        elif self.function.get() == 'BLAST':
+            self.sliceviewerframe = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframe = CreateROIFrame(self.mainframe,ui=self,padding='0')
+        elif self.function.get() == 'overlay':
+            self.sliceviewerframe = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframe = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
+        elif self.function.get() == 'SAM':
+            self.sliceviewerframe = CreateSAMSVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframe = CreateSAMROIFrame(self.mainframe,ui=self,padding='0')
 
-        else: # just make the default sliceviewer
-
-            if self.function.get() == '4panel':
-                self.sliceviewerframes['4panel'] = Create4PanelSVFrame(self.mainframe,ui=self,padding='0')
-                self.roiframes['4panel'] = Create4PanelROIFrame(self.mainframe,ui=self,padding='0')
-            elif self.function.get() == 'BLAST':
-                self.sliceviewerframes['BLAST'] = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
-                self.roiframes['BLAST'] = CreateROIFrame(self.mainframe,ui=self,padding='0')
-            elif self.function.get() == 'overlay':
-                self.sliceviewerframes['overlay'] = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
-                self.roiframes['overlay'] = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
-            elif self.function.get() == 'SAM':
-                self.sliceviewerframes['SAM'] = CreateSAMSVFrame(self.mainframe,ui=self,padding='0')
-                self.roiframes['SAM'] = CreateSAMROIFrame(self.mainframe,ui=self,padding='0')
-
-        self.roiframe = self.roiframes[self.function.get()]
-
-        # overlay/blast function mode
+        # overlay/blast/4panel/SAM function mode
+        # for now, the display won't be updated automatically, that will have to wait for some
+        # positive actiion in the new function mode
         self.functionmenu = ttk.OptionMenu(self.mainframe,self.function,self.functionlist['overlay'],
-                                        *self.functionlist,command=Command(self.function_callback,update=True))
-        if True: # not for general use
-            self.functionmenu.grid(row=0,column=1,sticky='e')
-        self.function_callback()
+                                        *self.functionlist,command=Command(self.function_callback,update=False))
+        self.functionmenu.grid(row=0,column=1,sticky='e')
+        if False: # this should no longer be needed.
+            self.function_callback()
 
         # initialize default directory. no longer needed?
         if False:
@@ -230,9 +218,8 @@ class BlastGui(object):
             else:
                 self.mainframe.rowconfigure(row_num,weight=0)
         self.mainframe.columnconfigure(0,minsize=self.caseframe.frame.winfo_width(),weight=1)
-        for sv in self.sliceviewerframes.values():
-            if sv is not None:
-                self.mainframe.bind('<Configure>',sv.resizer)
+        # does this need unbind at __del__??
+        self.mainframe.bind('<Configure>',self.sliceviewerframe.resizer)
         self.mainframe.update()
 
         # resize root window according to frames
@@ -240,12 +227,26 @@ class BlastGui(object):
 
     # switching mode between BLAST segmentation, overlay, 4panel
     def function_callback(self,event=None,update=False):
+        del self.sliceviewerframe
+        del self.roiframe
+
         f = self.function.get()
-        self.set_frame(self.sliceviewerframes[f],frame='normal_frame')
-        self.sliceviewerframe = self.sliceviewerframes[f]
-        self.sliceviewerframe.frame.lift()
-        self.set_frame(self.roiframes[f])
-        self.roiframe = self.roiframes[f]
+        if f == '4panel':
+            self.sliceviewerframe = Create4PanelSVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframe = Create4PanelROIFrame(self.mainframe,ui=self,padding='0')
+        elif f == 'BLAST':
+            self.sliceviewerframe = CreateBlastSVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframe = CreateROIFrame(self.mainframe,ui=self,padding='0')
+        elif f == 'overlay':
+            self.sliceviewerframe = CreateOverlaySVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframe = CreateOverlayFrame(self.mainframe,ui=self,padding='0')
+        elif f == 'SAM':
+            self.sliceviewerframe = CreateSAMSVFrame(self.mainframe,ui=self,padding='0')
+            self.roiframe = CreateSAMROIFrame(self.mainframe,ui=self,padding='0')
+
+        self.set_frame(self.sliceviewerframe,frame='normal_frame')
+        self.set_frame(self.roiframe)
+
         # state of current data selection whether overlay or base
         # for now just revert to a base display
         self.dataselection = 'raw'

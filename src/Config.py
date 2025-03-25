@@ -4,6 +4,7 @@ from matplotlib.colors import ListedColormap
 import matplotlib.cm as cm
 import numpy as np
 import re
+import platform
 
 class Config(object):
     def __init__(self):
@@ -53,8 +54,14 @@ class Config(object):
             # self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/BraTS_2024'
             # self.UIawsdir = '/home/ec2-user'
             # dicoms
-            self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2'
-            self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2/dicom2nifti'
+            uname = platform.uname()
+            if 'dellxps15' in uname.node:
+                self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2'
+                self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2/dicom2nifti'
+            elif 'XPS-8950' in uname.node:
+                self.UIdatadir = '/home/jbishop/data/radnec2'
+                self.UIlocaldir = '/home/jbishop/data/radnec2/dicom2nifti'
+
 
         # the value here is no longer being using, instead the default is assigned in CreateCaseFrame
         self.UIdataroot = 'BraTS2021_'
@@ -96,7 +103,7 @@ class Config(object):
         self.thresholddefaults = {'t12':0,'flair':0,'bc':3}
 
         # < 1 overlay by alpha compositing, == 1 replacement
-        self.OverlayIntensity = 1.0
+        self.OverlayIntensity = 0.6
 
         # image panel size
         self.PanelSize = 3 # inches at 100 dpi
@@ -113,22 +120,24 @@ class Config(object):
         self.cbvinc = 100
 
         # default 'z-score' or 'CBV' overlay
-        self.OverlayType = 'z'
+        self.OverlayType = 'radnec'
 
         # default BLAST overlay, contour or area
         self.BlastOverlayType = 1
         self.MaskType = 'ET'
 
         # colormaps
-        self.OverlayCmap = {'z':'viridis','cbv':'viridis','tempo':'tempo'}
+        self.OverlayCmap = {'z':'viridis','cbv':'viridis','tempo':'tempo','nnunet':'nnunet'}
         cmap_tempo = ListedColormap(np.array([[0 ,.5, 0, 1],[0,0,0,1],[0, 1, 0, 1]]))
+        cmap_nnunet = ListedColormap(np.array([[0,1,1,1],[1,0,1,1]]))
         cm.register_cmap(name='tempo',cmap=cmap_tempo)
+        cm.register_cmap(name='nnunet',cmap=cmap_nnunet)
 
         # default viewer type
         self.DefaultViewer = 'SAM'
 
         # default channel. 
-        self.DefaultChannel = 'flair'
+        self.DefaultChannel = 't1+'
         self.DefaultLayer = 'WT'
         self.DefaultBlastLayer = 'T2 hyper'
 

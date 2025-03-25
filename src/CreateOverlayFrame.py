@@ -76,9 +76,9 @@ class CreateOverlayFrame(CreateFrame):
         self.overlay_type_button['cbv'] = ttk.Radiobutton(self.frame,text='CBV',variable=self.overlay_type,value='cbv',
                                                     command=Command(self.overlay_callback))
         self.overlay_type_button['cbv'].grid(row=0,column=4,sticky='w')
-        self.overlay_type_button['tempo'] = ttk.Radiobutton(self.frame,text='TEMPO',variable=self.overlay_type,value='tempo',
+        self.overlay_type_button['radnec'] = ttk.Radiobutton(self.frame,text='RadNec',variable=self.overlay_type,value='radnec',
                                                     command=Command(self.overlay_callback))
-        self.overlay_type_button['tempo'].grid(row=0,column=5,sticky='w')
+        self.overlay_type_button['radnec'].grid(row=0,column=5,sticky='w')
 
         # on/off button
         overlay_label = ttk.Label(self.frame,text='overlay on/off')
@@ -113,8 +113,8 @@ class CreateOverlayFrame(CreateFrame):
         ########################
         self.sliderframe['dummy'] = ttk.Frame(self.frame,padding=0)
         self.sliderframe['dummy'].grid(column=0,row=2,columnspan=6,sticky='news')
-        self.sliderframe['tempo'] = ttk.Frame(self.frame,padding=0)
-        self.sliderframe['tempo'].grid(column=0,row=2,columnspan=6,sticky='news')
+        self.sliderframe['radnec'] = ttk.Frame(self.frame,padding=0)
+        self.sliderframe['radnec'].grid(column=0,row=2,columnspan=6,sticky='news')
 
         self.sliderframe['z'] = ttk.Frame(self.frame,padding='0')
         self.sliderframe['z'].grid(column=0,row=2,columnspan=6,sticky='e')
@@ -180,7 +180,7 @@ class CreateOverlayFrame(CreateFrame):
     ############# 
         
     # main callback for handling the overlays
-    def overlay_callback(self,updateslice=True,wl=False,redo=False):
+    def overlay_callback(self,updateslice=True,wl=False,redo=False,timepoints=[0,1]):
 
         if self.overlay_value.get() == True:
             ovly = self.overlay_type.get()
@@ -189,8 +189,8 @@ class CreateOverlayFrame(CreateFrame):
             ovly_str = ovly + 'overlay'
             ch = self.ui.sliceviewerframe.chdisplay.get()
             usemask = self.mask_value.get()
-            if ovly == 'tempo': # probably want an attribute for this
-                colormap = 'tempo'
+            if ovly == 'radnec': # probably want an attribute for this
+                colormap = 'radnec'
             else:
                 colormap = 'viridis'
 
@@ -214,14 +214,24 @@ class CreateOverlayFrame(CreateFrame):
                         else:
                             mask = None
 
-                        self.ui.data[s].dset[ovly_str][ch]['d'] = generate_overlay(
-                            self.ui.data[s].dset['raw'][ch]['d'],
-                            self.ui.data[s].dset[ovly][ch]['d'],
-                            mask,
-                            image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],
-                            overlay_wl = self.ui.sliceviewerframe.wl[ovly],
-                            overlay_intensity=self.config.OverlayIntensity,
-                            colormap = colormap)
+                        # selecting which study to overlay is hard-coded here
+                        if s >= 0: # overlay on
+                            self.ui.data[s].dset[ovly_str][ch]['d'] = generate_overlay(
+                                self.ui.data[s].dset['raw'][ch]['d'],
+                                self.ui.data[s].dset[ovly][ch]['d'],
+                                mask,
+                                image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],
+                                overlay_wl = self.ui.sliceviewerframe.wl[ovly],
+                                overlay_intensity=self.config.OverlayIntensity,
+                                colormap = colormap)
+                        else: # overlay off
+                            self.ui.data[s].dset[ovly_str][ch]['d'] = generate_overlay(
+                                self.ui.data[s].dset['raw'][ch]['d'],
+                                mask=mask,
+                                image_wl = [self.ui.sliceviewerframe.window[0],self.ui.sliceviewerframe.level[0]],
+                                overlay_intensity=self.config.OverlayIntensity,
+                                colormap = colormap)
+                           
                         self.ui.data[s].dset[ovly_str][ch]['ex'] = True
 
             self.ui.dataselection = ovly_str
@@ -251,8 +261,8 @@ class CreateOverlayFrame(CreateFrame):
         except KeyError as e:
             print(e)
        
-    
-    def resetROI(self):
+    # there aren't any ROI's in this viewer mode
+    def resetROI(self,data=False):
         return
     
     def resetCursor(self,event=None):
@@ -283,4 +293,7 @@ class CreateOverlayFrame(CreateFrame):
             writer.Execute(img)
         return
         
-
+    def clear_stats(self):
+        return
+    
+    

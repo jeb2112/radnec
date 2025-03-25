@@ -199,26 +199,17 @@ class CreateCaseFrame(CreateFrame):
 
         # update sliceviewers according to data loaded
         s = self.ui.s
-        for sv in [self.ui.sliceviewerframes[skey] for skey in ['BLAST','overlay']]:
-            if sv is not None:
-                for dt in self.ui.data[s].channels.values():
-                    if all([self.ui.data[st].dset['raw'][dt]['ex'] for st in range(len(self.ui.data))]):
-                    # if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
-                        sv.chdisplay_button[dt]['state'] = 'normal'
-        for sv in self.ui.sliceviewerframes.values():
-            if sv is not None:
-                sv.dim = np.shape(self.ui.data[s].dset['raw']['t1+']['d'])
-                # auto window/level is hard-coded to t1+ here
-                sv.level = []
-                sv.window = []
-                for dt in self.ui.data[s].channels.values():
-                    if self.ui.data[s].dset['raw'][dt]['ex']:
-                        sv.level.append(self.ui.data[s].dset['raw'][dt]['l'])
-                        sv.window.append(self.ui.data[s].dset['raw'][dt]['w'])
-                sv.level = np.array(sv.level)
-                sv.window = np.array(sv.window)
-                sv.create_canvas()
-                sv.resize()
+        svname = type(self.ui.sliceviewerframe).__name__
+        if svname in ['CreateOverlaySVFrame','CreateBlastSVFrame']:
+            for dt in self.ui.data[s].channels.values():
+                if all([self.ui.data[st].dset['raw'][dt]['ex'] for st in range(len(self.ui.data))]):
+                # if (self.ui.data[s].dset['raw'][dt]['ex'] and self.ui.data[1].dset['raw'][dt]['ex']):
+                    self.ui.sliceviewerframe.chdisplay_button[dt]['state'] = 'normal'
+
+        self.ui.sliceviewerframe.setwl()
+        self.ui.sliceviewerframe.create_canvas()
+        self.ui.sliceviewerframe.resize()
+        self.ui.sliceviewerframe.normalslice_callback()
 
         # update roiframes according to data loaded
         if False: # cbv will have to display just one overlay if necessary
@@ -226,11 +217,7 @@ class CreateCaseFrame(CreateFrame):
                 if not(self.ui.data[0].dset[dt]['ex'] and self.ui.data[1].dset[dt]['ex']):
                     self.ui.roiframe.overlay_type_button[dt]['state'] = 'disabled'
                 else:
-                    self.ui.roiframe.overlay_type_button[dt]['state'] = 'normal'
-
-        # run normal stats
-        self.ui.sliceviewerframe.normalslice_callback()
-    
+                    self.ui.roiframe.overlay_type_button[dt]['state'] = 'normal'    
 
     # probably don't need this anymore
     def loadData(self,dt_file,type=None):
@@ -398,11 +385,24 @@ class CreateCaseFrame(CreateFrame):
     # for now, assume that if multiple dcmdirs are present
     # in selected dir, and the root dir of those dmcdirs is prefixed with a certain string,
     # then they can be further grouped as case dirs
+    # additionally, support for MRN accession number as a case identifier
     def group_dcmdirs(self,dcmdirs):
         dcm_casedirs = {}
         casedirs = []
         for i,d in enumerate(dcmdirs):
-            casedirs.append([s for s in re.split('\/|\\\\',d) if s.startswith(self.casedir_prefix)][0])
+            caselist = [s for s in re.split('\/|\\\\',d) if s.startswith(self.casedir_prefix)]
+            if len(caselist):
+                casedirs.append(caselist[0])
+            else:
+                # check for an accession number. currently there is a conflict between 8
+                # digit MRN and 8 digit studydir which is a yearmonthday date. should change the study date format,
+                # but for now will just try to filter.
+                slist = [s for s in re.split('\/|\\\\',d) if len(s)==8]
+                caselist = [s for s in slist if not (s.startswith('202') and int(s[4]) < 2 and int(s[6]) < 4)]
+                if len(caselist):
+                    casedirs.append(caselist[0])
+                else:
+                    raise ValueError('No case directory found')
         if len(casedirs) == len(dcmdirs):
             casedir_keys = set(casedirs)
             dcm_casedirs = {c:[] for c in casedir_keys}
