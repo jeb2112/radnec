@@ -111,10 +111,10 @@ class BlastGui(object):
         if self.debug:
 
             # load a nifti case for BLAST and create a ROI
-            if False:
+            if True:
                 if True:
-                    caseselect = 'M00001'
-                    caseslice = 85
+                    caseselect = 'DSC_0010'
+                    caseslice = 28
                     pointxyz = (165,129,85)
                     ETt1set = 0.2
                     ETflairset = -0.6
@@ -127,11 +127,12 @@ class BlastGui(object):
                     flairset = 1.4
                 self.caseframe.casename.set(caseselect)
                 self.caseframe.case_callback()
-                self.function.set('SAM')
-                self.function_callback(update=True)
-                if False:
+                # self.function.set('SAM')
+                # self.function_callback(update=True)
+                if True:
                     self.sliceviewerframe.currentslice.set(caseslice)
                     self.sliceviewerframe.normalslice_callback()
+                if False:
                     self.roiframe.thresholds['ET']['t12'].set(ETt1set)
                     self.roiframe.thresholds['ET']['flair'].set(ETflairset)
                     self.roiframe.updateslider('ET','t12')
@@ -147,7 +148,7 @@ class BlastGui(object):
                     self.roiframe.ROIclick(event=None)
 
             # load a nifti case for BLAST 
-            if True:
+            if False:
                 if True:
                     debugdir = os.path.join(os.path.expanduser('~'),'data','brats2024_nifti')
                     debugdir = '/media/jbishop/WD4/brainmets/sunnybrook/metastases/SAM_BraTS_2024/brats2nifti'

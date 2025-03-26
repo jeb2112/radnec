@@ -188,6 +188,8 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
      
     # main canvas created when data are loaded
     def create_canvas(self,figsize=None):
+        # update image resolution
+        self.setdim()
         slicefovratio = self.dim[0]/self.dim[1]
         if figsize is None:
             figsize = (self.ui.current_panelsize*(1 + 1/(2*slicefovratio)),self.ui.current_panelsize)

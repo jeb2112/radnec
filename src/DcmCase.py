@@ -614,8 +614,8 @@ class Study():
 
                 self.dset['z'][dt]['d'] = ( self.dset['z'][dt]['d'] - self.params[dt]['mean']) / self.params[dt]['std']
                 self.dset['z'][dt]['d'][background] = 0
-                if False:
-                    self.writenifti(self.dset['z'][dt]['d'],os.path.join(self.localstudydir,'z'+dt+'.nii'),affine=self.dset['raw'][dt]['affine'])
+                if True:
+                    self.writenifti(self.dset['z'][dt]['d'],os.path.join(self.studydir,'z'+dt+'.nii'),affine=self.dset['raw'][dt]['affine'])
         plt.savefig(os.path.join(self.studydir,'scatterplot_normal.png'))
 
         return

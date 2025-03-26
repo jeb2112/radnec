@@ -157,7 +157,7 @@ class CreateSAMROIFrame(CreateFrame):
 
     # creates a ROI selection button press event
     def selectROI(self,event=None):
-        if self.selectPointstate:
+        if self.blastpointframe.selectPointstate:
             self.selectPoint()
         # furthermore, clear the points list
         self.ui.reset_pt()
@@ -374,13 +374,20 @@ class CreateSAMROIFrame(CreateFrame):
         # this is redundant where the projections in image space overlap,
         # but picks up any situation when they don't.
         objectmask = np.zeros_like(metmaskstack)
-        for p in self.ui.pt[self.ui.s]:
-            # objectnumber = CC_labeled[roislice,ypos,xpos]
-            objectnumber = CC_labeled[p.coords['slice'],p.coords['y'],p.coords['x']]
+        if len(self.ui.pt[self.ui.s]):
+            for p in self.ui.pt[self.ui.s]:
+                # objectnumber = CC_labeled[roislice,ypos,xpos]
+                objectnumber = CC_labeled[p.coords['slice'],p.coords['y'],p.coords['x']]
+                pmask = (CC_labeled == objectnumber).astype('double')
+                objectmask = np.logical_or(pmask,objectmask)
+            # other than cc3d, currently there is no additional processing on ET or WT
+            self.ui.roi[s][roi].data[m] = objectmask.astype('uint8')
+        else: # using default BLAST slider/rect segmentation without pointclick workflow, so use ROI selected point
+            objectnumber = CC_labeled[roislice,ypos,xpos]
             pmask = (CC_labeled == objectnumber).astype('double')
             objectmask = np.logical_or(pmask,objectmask)
-        # other than cc3d, currently there is no additional processing on ET or WT
-        self.ui.roi[s][roi].data[m] = objectmask.astype('uint8')
+            # other than cc3d, currently there is no additional processing on ET or WT
+            self.ui.roi[s][roi].data[m] = objectmask.astype('uint8')
 
         if m == 'ET': # calculate TC, a smoothed/filled version of ET
             objectmask_closed = np.zeros(np.shape(self.ui.data[self.ui.s].dset[self.ui.dataselection][self.ui.chselection]['d'+m])[1:])

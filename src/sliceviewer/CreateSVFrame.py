@@ -590,3 +590,10 @@ class CreateSliceViewerFrame(CreateFrame):
         raise NotImplementedError('setwl')
         return
         
+    # sets image resolution from dataset loaded
+    def setdim(self):
+        if self.ui.data[self.ui.s].dset['raw']['t1+']['ex']:
+            self.dim = self.ui.data[0].dset['raw']['t1+']['d'].shape
+        else:
+            raise ValueError('setdim: no raw image data for t1+')
+        return

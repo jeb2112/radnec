@@ -85,7 +85,8 @@ class SAM():
                                         prompt = prompt,
                                         layer = layer,
                                         tag = tag,
-                                        orient = p)
+                                        orient = p,
+                                        debug=True)
                         print('Profile: segment_sam, local')
                         (
                             Stats(profile)
@@ -545,8 +546,7 @@ class SAM():
                                  prompt_type=prompt_args[prompt]['prompt_type'])
                                 #  image_size=img_size)
 
-            if debug == False:
-                res = self.predict_metrics(model,self.samp.dataloaders['test'],prompt_args[prompt],datadir=spath)
+            res = self.predict_metrics(model,self.samp.dataloaders['test'],prompt_args[prompt],datadir=spath)
 
             # gather the sam-predicted 2d slices into a nifti volume
             # with the torch DataLoader, the output masks for a set of image files are just in 
@@ -586,7 +586,7 @@ class SAM():
                     self.writenifti(sam_predict[ttag],os.path.join(outputdir,fname),type=np.float32,affine=affine)
 
             # clean up working directories
-            if True:
+            if not debug:
                 shutil.rmtree(spath)
                 for d in ['images','prompts','predictions']:
                     os.makedirs(os.path.join(spath,d),exist_ok=True)
