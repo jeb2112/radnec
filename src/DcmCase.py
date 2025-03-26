@@ -510,6 +510,8 @@ class Study():
         self.dset['sam_fusion'] = {v:cp(self.dprop) for v in self.channels.values()}
         # copy for colormap scaling
         self.dset['seg_fusion_d'] = {v:cp(self.dprop) for v in self.channels.values()}
+        # params for z-score
+        self.params = {dt:{'mean':0,'std':0} for dt in ['t1','t1+','flair','flair+']}
 
         
         # storage for masks derived from blast segmentation or nnUNet
@@ -565,6 +567,58 @@ class Study():
         nb.save(img_nb,filename)
         if True:
             os.system('gzip --force "{}"'.format(filename))
+
+    # calculate stats to create z-score images
+    # overlaps with normalslice_callback code in main viewer, should be combined
+    def normalstats(self,event=None,dset=None):
+        print('normal stats')
+        # do kmeans
+        # Creates a matrix of voxels for normal brain slice
+
+        # if this method is called from the viewer, provide a reference to the dataset
+        if dset:
+            self.dset = dset
+
+        X={}
+        vset = {}
+        for dt2 in [('flair','t1+'),('flair','t2')]:
+            if self.dset['z'][dt2[0]]['ex'] and self.dset['z'][dt2[1]]['ex']:
+                region_of_support = np.where(self.dset['raw'][dt2[0]]['d']*self.dset['raw'][dt2[1]]['d'] >0)
+                background = np.where(self.dset['raw'][dt2[0]]['d']*self.dset['raw'][dt2[1]]['d'] == 0)
+                # vset = np.zeros_like(region_of_support,dtype='float')
+                for dt in dt2:
+                    vset[dt] = np.ravel(self.dset['z'][dt]['d'][region_of_support])
+                # note hard-coded indexing here to match the ('flair',t12') tuple above
+                X[dt2] = np.column_stack((vset[dt2[0]],vset[dt2[1]]))
+
+        np.random.seed(1)
+        for i,layer in enumerate(X.keys()):
+            kmeans = KMeans(n_clusters=2,n_init='auto').fit(X[layer])
+            background_cluster = np.argmax(np.power(kmeans.cluster_centers_[:,0],2)+np.power(kmeans.cluster_centers_[:,1],2))
+
+            # Calculate stats for brain cluster
+            for ii,dt in enumerate(layer):
+                self.params[dt]['std'] = np.std(X[layer][kmeans.labels_==background_cluster,ii])
+                self.params[dt]['mean'] = np.mean(X[layer][kmeans.labels_==background_cluster,ii])
+
+                plt.figure(7),plt.clf()
+                ax = plt.subplot(1,2,i+1)
+                plt.scatter(X[layer][kmeans.labels_==1-background_cluster,0],X[layer][kmeans.labels_==1-background_cluster,1],c='b',s=1)
+                plt.scatter(X[layer][kmeans.labels_==background_cluster,0],X[layer][kmeans.labels_==background_cluster,1],c='r',s=1)
+                ax.set_aspect('equal')
+                # ax.set_xlim(left=0,right=1.0)
+                # ax.set_ylim(bottom=0,top=1.0)
+                # plt.text(0,1.02,'{:.3f},{:.3f}'.format(self.params[layer]['mean'],self.params[layer]['std']))
+                if False:
+                    plt.show(block=False)
+
+                self.dset['z'][dt]['d'] = ( self.dset['z'][dt]['d'] - self.params[dt]['mean']) / self.params[dt]['std']
+                self.dset['z'][dt]['d'][background] = 0
+                if False:
+                    self.writenifti(self.dset['z'][dt]['d'],os.path.join(self.localstudydir,'z'+dt+'.nii'),affine=self.dset['raw'][dt]['affine'])
+        plt.savefig(os.path.join(self.studydir,'scatterplot_normal.png'))
+
+        return
 
 
     # normalize histograms for regression
@@ -726,8 +780,6 @@ class DcmStudy(Study):
         self.seriestimeattrs = ['AcquisitionTime','SeriesTime']
         self.studytimeattrs = {'StudyDate':None,'StudyTime':None}
         self.date = None
-        # params for z-score
-        self.params = {dt:{'mean':0,'std':0} for dt in ['t1','t1+','flair','flair+']}
         # reference for talairach coords
         self.dset['ref']['d'],self.dset['ref']['affine'] = self.loadnifti('mni_icbm152_t1_tal_nlin_sym_09a.nii',
                                                                           dir=os.path.join(self.config.UIdatadir,'mni152'),
@@ -1112,69 +1164,20 @@ class DcmStudy(Study):
         # bias correction.
         # self.dbias = {} # working data for calculating z-scores
         # TODO: use viewer mode designation here
-        if False:
-            for dt in self.channels.values():
-                if self.dset['raw'][dt]['ex']:   
-                    self.dset['z'][dt]['d'] = np.copy(self.n4bias(self.dset['raw'][dt]['d']))
-                    self.dset['z'][dt]['ex'] = True
+        for dt in self.channels.values():
+            if self.dset['raw'][dt]['ex']:   
+                self.dset['z'][dt]['d'] = np.copy(self.n4bias(self.dset['raw'][dt]['d']))
+                self.dset['z'][dt]['ex'] = True
 
-            # if necessary clip any negative values introduced by the processing
-            for dt in self.channels.values():
-                if self.dset['z'][dt]['ex']:
-                    if np.min(self.dset['z'][dt]['d']) < 0:
-                        self.dset['z'][dt]['d'][self.dset['z'][dt]['d'] < 0] = 0
-                    # self.dset[dt]['d'] = self.rescale(self.dset[dt]['d'])
+        # if necessary clip any negative values introduced by the processing
+        for dt in self.channels.values():
+            if self.dset['z'][dt]['ex']:
+                if np.min(self.dset['z'][dt]['d']) < 0:
+                    self.dset['z'][dt]['d'][self.dset['z'][dt]['d'] < 0] = 0
+                # self.dset[dt]['d'] = self.rescale(self.dset[dt]['d'])
 
-            # normal brain stats and z-score images
-            self.normalstats()
-
-        return
-
-    # calculate stats to create z-score images
-    # duplicates normalslice_callback code in main viewer, should be combined
-    def normalstats(self,event=None):
-        print('normal stats')
-        # do kmeans
-        # Creates a matrix of voxels for normal brain slice
-
-        X={}
-        vset = {}
-        for dt2 in [('flair','t1+'),('flair','t2')]:
-            if self.dset['z'][dt2[0]]['ex'] and self.dset['z'][dt2[1]]['ex']:
-                region_of_support = np.where(self.dset['raw'][dt2[0]]['d']*self.dset['raw'][dt2[1]]['d'] >0)
-                background = np.where(self.dset['raw'][dt2[0]]['d']*self.dset['raw'][dt2[1]]['d'] == 0)
-                # vset = np.zeros_like(region_of_support,dtype='float')
-                for dt in dt2:
-                    vset[dt] = np.ravel(self.dset['z'][dt]['d'][region_of_support])
-                # note hard-coded indexing here to match the ('flair',t12') tuple above
-                X[dt2] = np.column_stack((vset[dt2[0]],vset[dt2[1]]))
-
-        np.random.seed(1)
-        for i,layer in enumerate(X.keys()):
-            kmeans = KMeans(n_clusters=2,n_init='auto').fit(X[layer])
-            background_cluster = np.argmax(np.power(kmeans.cluster_centers_[:,0],2)+np.power(kmeans.cluster_centers_[:,1],2))
-
-            # Calculate stats for brain cluster
-            for ii,dt in enumerate(layer):
-                self.params[dt]['std'] = np.std(X[layer][kmeans.labels_==background_cluster,ii])
-                self.params[dt]['mean'] = np.mean(X[layer][kmeans.labels_==background_cluster,ii])
-
-                plt.figure(7),plt.clf()
-                ax = plt.subplot(1,2,i+1)
-                plt.scatter(X[layer][kmeans.labels_==1-background_cluster,0],X[layer][kmeans.labels_==1-background_cluster,1],c='b',s=1)
-                plt.scatter(X[layer][kmeans.labels_==background_cluster,0],X[layer][kmeans.labels_==background_cluster,1],c='r',s=1)
-                ax.set_aspect('equal')
-                # ax.set_xlim(left=0,right=1.0)
-                # ax.set_ylim(bottom=0,top=1.0)
-                # plt.text(0,1.02,'{:.3f},{:.3f}'.format(self.params[layer]['mean'],self.params[layer]['std']))
-                if False:
-                    plt.show(block=False)
-
-                self.dset['z'][dt]['d'] = ( self.dset['z'][dt]['d'] - self.params[dt]['mean']) / self.params[dt]['std']
-                self.dset['z'][dt]['d'][background] = 0
-                if False:
-                    self.writenifti(self.dset['z'][dt]['d'],os.path.join(self.localstudydir,'z'+dt+'.nii'),affine=self.dset['raw'][dt]['affine'])
-        plt.savefig(os.path.join(self.localcasedir,'scatterplot_normal.png'))
+        # normal brain stats and z-score images
+        self.normalstats()
 
         return
 

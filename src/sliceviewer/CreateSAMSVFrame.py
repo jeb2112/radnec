@@ -426,11 +426,14 @@ class CreateSAMSVFrame(CreateSliceViewerFrame):
         self.normalslice = None
         region_of_support = np.where(self.ui.data[s].dset['raw']['t1+']['d']*self.ui.data[s].dset['raw']['flair']['d'] >0)
         vset = np.zeros_like(region_of_support,dtype='float')
-        # for i in range(3):
+        # kludge. z-score images are created in the dicom processing, but if not available then create them here            
+        if not self.ui.data[s].dset['z']['t1+']['ex'] or not self.ui.data[s].dset['z']['flair']['ex']:
+            for ch in self.ui.data[s].channels.values():
+                if self.ui.data[s].dset['raw'][ch]['ex']:
+                    self.ui.data[s].dset['z'][ch]['d'] = np.copy(self.ui.data[s].dset['raw'][ch]['d'])
+                    self.ui.data[s].dset['z'][ch]['ex'] = True
+            self.ui.data[s].normalstats(dset=self.ui.data[s].dset)
         for i,ax in enumerate(['t1+','flair']):
-            # if n4bias hasn't been done then dset['z'] might not be pre-populated, just use the uncorrected 'raw'            
-            if not self.ui.data[s].dset['z'][ax]['ex']: 
-                self.ui.data[s].dset['z'][ax]['d'] = np.copy(self.ui.data[s].dset['raw'][ax]['d'])
             vset[i] = np.ravel(self.ui.data[s].dset['z'][ax]['d'][region_of_support])
 
         # kmeans to calculate statistics for brain voxels
