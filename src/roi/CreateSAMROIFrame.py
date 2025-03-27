@@ -80,7 +80,8 @@ class CreateSAMROIFrame(CreateFrame):
 
         # blast point selection
         self.blastpointframe = CreateROIPointFrame(self.frame,ui=self.ui)
-        self.blastpointframe.frame.grid(row=2,column=0,rowspan=3,columnspan=2,sticky='w')
+        if False: # currently this is breaking the layout
+            self.blastpointframe.frame.grid(row=2,column=0,rowspan=3,columnspan=2,sticky='w')
 
         # for multiple roi's, n'th roi number choice
         roinumberlabel = ttk.Label(self.frame,text='ROI number:')
