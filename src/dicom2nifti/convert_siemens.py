@@ -21,7 +21,7 @@ import src.dicom2nifti.convert_generic as convert_generic
 from src.dicom2nifti.exceptions import ConversionValidationError, ConversionError
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.WARNING)
 
 # Disable this warning as there is not reason for an init class in an enum
 # pylint: disable=w0232, r0903, E1101

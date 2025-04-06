@@ -777,7 +777,14 @@ class DcmStudy(Study):
 
             # for now won't make use of any MPR (siemens only so far)
             if re.search('mpr[^a][^g][^e]',ds0.SeriesDescription.lower()) is not None:
+                print('MPR, skipping...')
                 continue
+
+            # subtractions may be identified?
+            if re.search('sub',ds0.SeriesDescription.lower()) is not None:
+                print('Subtraction, skipping...')
+                continue
+
 
             # record series time
             for t in self.seriestimeattrs:
@@ -821,6 +828,12 @@ class DcmStudy(Study):
             # currently assuming that the pre/post Gd can be determined for t1 from tags or series description
             # while flair can be deduced from t1+ and relative series times
             if 't1' in ds0.SeriesDescription.lower():
+                # for now, exclude SPACErip assuming mprage is standard for all t1. space 
+                # could still be used in flair.
+                if re.search('space',ds0.SeriesDescription.lower()) is not None:
+                    print('SPACE, skipping...')
+                    continue
+
                 # check for any contrast
                 if hasattr(ds0,'ContrastBolusAgent') and len(ds0.ContrastBolusAgent):
                     gd = True
@@ -848,9 +861,18 @@ class DcmStudy(Study):
                 else:
                     dt = 't1'
 
-                if hasattr(sortedseries,dt):
-                    raise KeyError('sequence {} already exists'.format(dt))
-                sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':dt,'dpath':copy.copy(dpath)}
+                # check for overlapping/partially matching series names
+                rpt_match = [item for item in sortedseries.keys() if ds0.SeriesDescription in item or item in ds0.SeriesDescription]
+                if rpt_match:
+                    if 'rpt' in rpt_match[0].lower(): # if there is a 'rpt' tag in the existing series, then keep that series
+                        continue
+                    elif 'rpt' in ds0.SeriesDescription.lower(): # if the new series has 'rpt', then substitute it
+                        sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':dt,'dpath':copy.copy(dpath)}
+                        del sortedseries[rpt_match[0]]
+                    else: # TODO. implement time to handle overlapping series.
+                        raise KeyError('sequence {} already exists'.format(dt))
+                else:
+                    sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':dt,'dpath':copy.copy(dpath)}
                 continue
 
             # there could be both a pre and post gd flair, or just one. 
@@ -925,6 +947,11 @@ class DcmStudy(Study):
                         if 'trace' in ds0.SeriesDescription.lower():
                             img_arr = img_arr[:,:,:,1] # arbitrarily taking b-value image for now
                             dref['d'] = np.transpose(img_arr,axes=(2,1,0))
+                        elif ds0.Manufacturer == 'Philips' and ds0.get((0x2001,0x1082)).value=='2':
+                            img_arr = img_arr[:,:,:,0] # fat/water acquisitino, take OP for now
+                            dref['d'] = np.transpose(img_arr,axes=(2,1,0))
+                        else:
+                            raise AttributeError('4D volume array not handled')
                     else:
                         raise ValueError
                     dref['affine'] = res['NII'].affine
@@ -1024,8 +1051,10 @@ class DcmStudy(Study):
         # currently localstudydir just creates an output directory for nifti files based on the 
         # StudyDate attribute.
         self.localstudydir = os.path.join(self.localcasedir,self.studytimeattrs['StudyDate'])
-        if not os.path.exists(self.localstudydir):
-            os.makedirs(self.localstudydir)
+
+        if False: # for now, won't create any new directories in a dicom dir. if the dir is dropbox sync'd it's messy
+            if not os.path.exists(self.localstudydir):
+                os.makedirs(self.localstudydir)
 
         if False and '0910' in self.localstudydir:
             for dt in ['t1+','t1','t2','flair','flair+','dwi']:

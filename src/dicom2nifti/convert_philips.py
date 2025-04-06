@@ -21,6 +21,7 @@ from src.dicom2nifti.exceptions import ConversionError, ConversionValidationErro
 
 pydicom_config.enforce_valid_values = False
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
 
 def dicom_to_nifti(dicom_input, output_file=None):
     """
