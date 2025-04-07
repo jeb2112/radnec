@@ -100,7 +100,8 @@ class Case():
                 self.studies.append(newstudy)
                 try:
                     self.studies[-1].loaddata()
-                except Exception as e: # might need a general arrangement for failed load
+                except Exception as e:
+                    print('study {}: {}'.format(self.studies[-1].studydir.split(self.studies[-1].case)[-1],e)) # might need a general arrangement for failed load
                     self.studies.pop()
 
         # sort studies by time and number of series
@@ -775,16 +776,17 @@ class DcmStudy(Study):
                         # but patch it back here, plus in get_affine()
                         files = sorted(files,reverse=True)
 
-            # for now won't make use of any MPR (siemens only so far)
-            if re.search('mpr[^a][^g][^e]',ds0.SeriesDescription.lower()) is not None:
-                print('MPR, skipping...')
-                continue
+            # for now won't make use of any Siemens MPR?
+            # or load it in case it's all there is.
+            if False:
+                if re.search('mpr[^a][^g][^e]',ds0.SeriesDescription.lower()) is not None:
+                    print('MPR, skipping...')
+                    continue
 
             # subtractions may be identified?
             if re.search('sub',ds0.SeriesDescription.lower()) is not None:
                 print('Subtraction, skipping...')
                 continue
-
 
             # record series time
             for t in self.seriestimeattrs:
@@ -819,11 +821,6 @@ class DcmStudy(Study):
                     slthick = float(ds0.PerFrameFunctionalGroupsSequence[0]['PixelMeasuresSequence'][0].get('SliceThickness'))
                 else:
                     print('No SliceThickness tag...')
-
-            # for now won't make use of any Siemens MPR
-            if re.search('mpr[^a][^g][^e]',ds0.SeriesDescription.lower()) is not None:
-                print('MPR, skipping...')
-                continue
 
             # currently assuming that the pre/post Gd can be determined for t1 from tags or series description
             # while flair can be deduced from t1+ and relative series times
@@ -860,6 +857,11 @@ class DcmStudy(Study):
                 # otherwise it's preGd philips
                 else:
                     dt = 't1'
+
+                # check for MPR, and replace if this is an available native scan
+                mpr_match = [item for item in sortedseries.keys() if re.search('mpr[^a][^g][^e]',item) and item['dt'] == dt]
+                if mpr_match:
+                    del sortedseries[mpr_match[0]]
 
                 # check for overlapping/partially matching series names
                 rpt_match = [item for item in sortedseries.keys() if ds0.SeriesDescription in item or item in ds0.SeriesDescription]
@@ -957,6 +959,10 @@ class DcmStudy(Study):
                     dref['affine'] = res['NII'].affine
                     dref['time'] = copy.copy(dtime)
 
+        # exclude study if no t1,t1+
+        if not(self.dset['raw']['t1']['ex'] or self.dset['raw']['t1+']['ex']):
+            raise Exception('no t1 data in this study, skipping...')
+        
         return
 
     # create nb affine from dicom 
@@ -1051,15 +1057,16 @@ class DcmStudy(Study):
         # currently localstudydir just creates an output directory for nifti files based on the 
         # StudyDate attribute.
         self.localstudydir = os.path.join(self.localcasedir,self.studytimeattrs['StudyDate'])
+        localniftidir = os.path.join(self.config.UIlocaldir,self.case,self.studytimeattrs['StudyDate'])
 
         if False: # for now, won't create any new directories in a dicom dir. if the dir is dropbox sync'd it's messy
             if not os.path.exists(self.localstudydir):
                 os.makedirs(self.localstudydir)
 
-        if False and '0910' in self.localstudydir:
+        if False and '0731' in self.localstudydir:
             for dt in ['t1+','t1','t2','flair','flair+','dwi']:
                 if self.dset['raw'][dt]['ex']:
-                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localstudydir,'img_'+dt+'_presampled.nii'),
+                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(localniftidir,'img_'+dt+'_presampled.nii'),
                                         type='float',affine=self.dset['raw'][dt]['affine'])
 
 
@@ -1077,17 +1084,10 @@ class DcmStudy(Study):
                     for dt in [c for c in self.channellist if c != t1ref]:
                     # ['flair','flair+','t1','t2','dwi']:
                         if self.dset[dc][dt]['ex']:
-                            print('Resampling ' + dc+','+dt + ' into target space...')
+                            print('Resampling ' + dc+','+dt + ' into target space ' + t1ref + '...')
                             self.dset[dc][dt]['d'],self.dset[dc][dt]['affine'] = self.resample_affine(self.dset['raw'][t1ref]['d'],self.dset[dc][dt]['d'],
                                                                                 self.dset['raw'][t1ref]['affine'],self.dset[dc][dt]['affine'])
                             self.dset[dc][dt]['d']= np.clip(self.dset[dc][dt]['d'],0,None)
-
-
-        if True and '0910' in self.localstudydir:
-            for dt in ['t1+','t1','t2','flair','flair+','dwi']:
-                if self.dset['raw'][dt]['ex']:
-                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localstudydir,'img_'+dt+'_resampled.nii'),
-                                        type='float',affine=self.dset['raw'][dt]['affine'])
                     
 
         # skull strip
@@ -1115,6 +1115,8 @@ class DcmStudy(Study):
                     if self.dset['raw'][dt]['ex']:
                         moving_image = self.dset['raw'][dt]['d']
                         self.dset['raw'][dt]['d'],tx = self.register(fixed_image,moving_image,transform='Rigid')
+                        if False:
+                            print(ants.read_transform(tx[0]).parameters)
 
                 # if t1ref image took place immediately after cbv it can be assumed no registration is 
                 # needed. 
@@ -1156,6 +1158,13 @@ class DcmStudy(Study):
 
             # normal brain stats and z-score images
             self.normalstats()
+
+        if False and '0731' in self.localstudydir:
+            for dt in ['t1+','t1','t2','flair','flair+','dwi']:
+                if self.dset['raw'][dt]['ex']:
+                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(localniftidir,'img_'+dt+'_preprocessed.nii'),
+                                        type='float',affine=self.dset['raw'][dt]['affine'])
+
 
         return
 
