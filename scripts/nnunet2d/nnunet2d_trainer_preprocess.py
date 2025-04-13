@@ -6,9 +6,9 @@ from sklearn.model_selection import train_test_split
 from scipy.spatial.transform import Rotation
 from scipy.ndimage import affine_transform
 import skimage
+import cv2
 import os
 import re
-import cv2
 import nibabel as nb
 from nibabel.processing import resample_from_to
 import shutil
@@ -20,6 +20,7 @@ import random
 import glob
 import copy
 import platform
+import json
 
 # load a single nifti file
 def loadnifti(t1_file,dir,type=None):
@@ -31,7 +32,7 @@ def loadnifti(t1_file,dir,type=None):
         return None,None
     nb_header = img_nb_t1.header.copy()
     # nibabel convention will be transposed to sitk convention
-    img_arr_t1 = np.transpose(np.array(img_nb_t1.dataobj),axes=(2,1,0))
+    img_arr_t1 = np.transpose(img_nb_t1.get_fdata(),axes=(2,1,0))
     if type is not None:
         if np.max(img_arr_t1) > 255:
             img_arr_t1 = (img_arr_t1 / np.max(img_arr_t1) * 255)
@@ -62,12 +63,13 @@ else:
     datadir = "D:\\data\\radnec2\\"
 
 segdir = os.path.join(datadir,'seg')
-nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset139_RadNecClassify')
-
+nnunetdir = os.path.join(datadir,'nnUNet_raw','Dataset139_RadNec')
+nnunet_preprocesseddir = os.path.join(datadir,'nnUNet_preprocessed','Dataset139_RadNec')
 normalslice_flag = True # flag for outputting normal brain cross-sections
 
 caselist = os.listdir(os.path.join(datadir,'seg'))
 cases = {}
+y = {}
 
 # pre-read the segmentation dir to tally 
 # T vs RN. this is needed to stratify the train/test split
@@ -80,7 +82,7 @@ for c in caselist:
     os.chdir(cdir)
     # filename = glob.glob(os.path.join('**','mask_T_*.nii*'))
     dirdict = {'dir':None,'T':[],'TC':[]}
-    tally[c] = {'dx':0,'dirs':[]}
+    tally[c] = {'dx':'RN','dirs':[]} # RN 0, T/RN 1
     for root,dirs,files in os.walk(cdir,topdown=False):
         # print('{}\n{}\n{}'.format(root,dirs,files))
         tcfiles = sorted([f for f in files if re.search('mask_TC',f)])
@@ -91,7 +93,7 @@ for c in caselist:
             tfiles = sorted([f for f in files if re.search('mask_T[^C\']',f)])
             if len(tfiles): # ie a single T mask amongst all studies
                 tally[c]['dirs'][-1]['T'] = tfiles
-                tally[c]['dx']=1
+                tally[c]['dx']='T'
             else:
                 tally[c]['dirs'][-1]['T'] = [None]*len(tcfiles)
 
@@ -100,27 +102,65 @@ casesdx = []
 for k,v in tally.items():
     finaldx.append(tally[k]['dx'])
     casesdx.append(k)
-cases['casesTr'],cases['casesTs'],y_train,y_test = train_test_split(casesdx,finaldx,stratify=finaldx,test_size=0.2,random_state=42)
+casesTr,cases['casesTs'],y_train,y['casesTs'] = train_test_split(casesdx,finaldx,stratify=finaldx,test_size=0.2,random_state=42)
+cases['casesTr'],cases['casesTv'],y['casesTr'],y['casesTv'] = train_test_split(casesTr,y_train,stratify=y_train,test_size=0.2,random_state=43)
 
 img_idx = 1
 random.seed(42) # random numbers for normal slices
+# assign numeric values for labels
+lblT = 1
+lblRN = 2
+lblT_png =127
+lblRN_png = 255
 
+splits_final = {'train':[],'val':[],'test':[]}
 
 for ck in cases.keys():
-    print(ck)
+    if 'Tv' in ck:  
+        output_imgdir = os.path.join(nnunetdir,'imagesTr')
+        output_lbldir = os.path.join(nnunetdir,'labelsTr')
+    else:
+        output_imgdir = os.path.join(nnunetdir,ck.replace('cases','images'))
+        output_lbldir = os.path.join(nnunetdir,ck.replace('cases','labels'))
 
-    output_imgdir = os.path.join(nnunetdir,ck.replace('cases','images'))
-    output_lbldir = os.path.join(nnunetdir,ck.replace('cases','labels'))
     try:
         shutil.rmtree(output_imgdir)
         shutil.rmtree(output_lbldir)
+        shutil.rmtree(output_lbldir+'_png')
     except FileNotFoundError:
         pass
     os.makedirs(output_imgdir,exist_ok=True)
     os.makedirs(output_lbldir,exist_ok=True)
+    os.makedirs(output_lbldir+'_png',exist_ok=True)
 
-    for c in cases[ck]:
-        print('case = {}'.format(c))
+for ck in ['casesTr','casesTv','casesTs']:
+    print(ck)
+
+    if 'Tv' in ck:  
+        output_imgdir = os.path.join(nnunetdir,'imagesTr')
+        output_lbldir = os.path.join(nnunetdir,'labelsTr')
+    else:
+        output_imgdir = os.path.join(nnunetdir,ck.replace('cases','images'))
+        output_lbldir = os.path.join(nnunetdir,ck.replace('cases','labels'))
+
+    # arbitrary rotation for oblique slicing
+    refvec = np.array([1,0,0],dtype=float)
+    targetlist = [refvec,np.ones((3))/np.sqrt(3),np.array([1,-1,1])/np.sqrt(3)]
+    ntarget = len(targetlist)
+    r_obl = {}
+    for i,target in enumerate(targetlist): 
+        Rangle = np.arccos(np.dot(refvec,target))
+        if np.abs(Rangle) != 0.0:
+            Raxis = np.cross(refvec,target)
+            Raxis /= np.linalg.norm(Raxis)
+            skewsim_matrix = np.array([[0,-Raxis[2],Raxis[1]],[Raxis[2],0,-Raxis[0]],[-Raxis[1],Raxis[0],0]])
+            # R = np.eye(3) + np.sin(Rangle) * skewsim_matrix + (1-np.cos(Rangle)) * np.matmul(skewsim_matrix,skewsim_matrix)
+            r_obl[str(i)] = Rotation.from_rotvec(Rangle*Raxis,degrees=False).as_matrix()
+        else:
+            r_obl[str(i)] = np.eye(3)
+
+    for c,dx in zip(cases[ck],y[ck]):
+        print('case = {}, {}'.format(c,dx))
 
         if False: #debugging
             if c != 'M0012':
@@ -132,30 +172,22 @@ for ck in cases.keys():
         for ddict in tally[c]['dirs']:
 
             imgs = {}
+            Rimgs = {str(i):{} for i in range(ntarget)}
+            Rlbls = {str(i):None for i in range(ntarget)}
             study = os.path.split(ddict['dir'])[1]
 
-            # arbitrary rotation for oblique slicing
-            refvec = np.array([1,0,0])
-            target = np.ones((3))/np.sqrt(3)
-            Raxis = np.cross(refvec,target)
-            Raxis /= np.linalg.norm(Raxis)
-            Rangle = np.arccos(np.dot(refvec,target))
-            skewsim_matrix = np.array([[0,-Raxis[2],Raxis[1]],[Raxis[2],0,-Raxis[0]],[-Raxis[1],Raxis[0],0]])
-            # R = np.eye(3) + np.sin(Rangle) * skewsim_matrix + (1-np.cos(Rangle)) * np.matmul(skewsim_matrix,skewsim_matrix)
-            r_obl = Rotation.from_rotvec(Rangle*Raxis,degrees=False).as_matrix()
-
-            for ik in ['flair+','t1+']:
-                filename = glob.glob(os.path.join(ddict['dir'],ik+'_processed*'))[0]
+            for ik in ['flair+','t1+','t1']:
+                try:
+                    filename = glob.glob(os.path.join(ddict['dir'],ik+'_processed*'))[0]
+                except IndexError:
+                    if ik == 't1':
+                        filename = glob.glob(os.path.join(ddict['dir'],'t1+_processed*'))[0]
                 imgs[ik],affine = loadnifti(os.path.split(filename)[1],os.path.join(cdir,os.path.split(filename)[0]),type='uint8')
-                assert np.max(imgs[ik] == 255)
-                if False:
-                    affine[:3,:3] = np.matmul(affine[:3,:3],r_obl)
-                    img_nb_res = resample_from_to(img_nb,(img_nb.shape,affine))
-                    imgs['R'+ik] = np.clip(img_nb_res.dataobj.astype('uint8'),a_min=0,a_max=None)
-                else:
+                assert np.max(imgs[ik] == 1.0)
+                for k in r_obl.keys():
                     center = np.array(np.shape(imgs[ik]))/2
-                    offset = center - np.matmul(r_obl,center)
-                    imgs['R'+ik] = affine_transform(imgs[ik],r_obl,offset=offset,order=3)
+                    offset = center - np.matmul(r_obl[k],center)
+                    Rimgs[k][ik] = affine_transform(imgs[ik],r_obl[k],offset=offset,order=3)
 
             for tc_file,t_file in zip(ddict['TC'],ddict['T']):
                 masks = {}
@@ -175,80 +207,130 @@ for ck in cases.keys():
                 # non-continguous like 127,255. so, for spot checking the pings can temporarily run this code using 127,255
                 # but otherwise use 0,1,2 for nnunet. 
 
+                # check for pure T cases
+                diffpixels = np.where(masks['TC'].astype(int) - masks['T'].astype(int))[0]
+                if len(diffpixels) == 0:
+                    print('case {} T'.format(c))
+
                 # check for error pixels. according to convention, 'T' should be entirely 
                 # a subset of 'TC'
                 errpixels = np.where(masks['TC'].astype(int) - masks['T'].astype(int) < 0)[0]
                 if len(errpixels):
                     masks['TC'] = masks['TC'] | masks['T']
                     print('error mask pixels detected, correcting...')
-                if True: # regular pixel values for training
-                    masks['lbl'] = 1*masks['T'] + 2*(masks['TC'] - masks['T'])
-                    if np.any(masks['lbl'] > 2):
-                        raise ValueError
-                else: # for test/debugging pngs with viewable contrast
-                    masks['lbl'] = 127*masks['T'] + 255*(masks['TC'] - masks['T'])
-                masks['Rlbl'] = affine_transform(masks['lbl'],r_obl,offset=offset,order=0)
+                masks['lbl'] = lblT*masks['T'] + lblRN*(masks['TC'] - masks['T'])
+                masks['lbl_png'] = lblT_png*masks['T'] + lblRN_png*(masks['TC'] - masks['T'])
+                if np.any(masks['lbl'] > lblRN):
+                    raise ValueError
+
+                for k in r_obl.keys():
+                    center = np.array(np.shape(masks['lbl']))/2
+                    offset = center - np.matmul(r_obl[k],center)
+                    Rlbls[k] = affine_transform(masks['lbl'],r_obl[k],offset=offset,order=0)
 
                 # oblique,orthogonal slices
-                for rtag in ['R','']:
+                for k in r_obl.keys():
                     if normalslice_flag: # use all brain volume slices. since brains are not extracted
                         # use estimate to exclude the air background
                         noise = np.max(imgs['t1+'][:,0,0])
-                        pset = np.where( (imgs[rtag+'t1+'] > 10*noise) & (imgs[rtag+'flair+'] > 10*noise) )
+                        pset = np.where( (Rimgs[k]['t1+'] > 20*noise) & (Rimgs[k]['flair+'] > 20*noise) )
                     else: # create only slices with a lesion cross-section.
-                        pset = np.where(masks[rtag+'lbl'])
+                        pset = np.where(Rlbls[k])
                     npixels = len(pset[0])
                     for dim in range(3):
                         slices = np.unique(pset[dim])
                         for slice in slices:
                             imgslice = {}
-                            lblslice = np.moveaxis(masks[rtag+'lbl'],dim,0)[slice]
-                            if np.max(lblslice) > 2:
+                            lblslice = np.moveaxis(Rlbls[k],dim,0)[slice]
+                            lblslice_png = np.copy(lblslice)
+                            if np.max(lblslice) > lblRN:
                                 raise ValueError
-                            for ik in (rtag+'flair+',rtag+'t1+'):
-                                imgslice[ik] = np.moveaxis(imgs[ik],dim,0)[slice]
+                            # nnunet convention is RN=2,T=1,normal=0  
+                            # for 2 classes, using RN=0, both=1                          
+                            lblset = set(np.unique(lblslice)) 
+                            if lblset == {0}:
+                                lbl = [0, 0] # normal slice
+                            elif lblset == {0, lblT, lblRN}:
+                                lbl = [1, 1] # both
+                            else:  # Check individual RN=2nd elem T=1st elem
+                                lbl = [int(lblT in lblset), int(lblRN in lblset)]                           
 
-                            if normalslice_flag:
-                                # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
-                                lblfname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.png'
-                                if len(np.where(lblslice)[0]) > 49:
-                                    for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
-                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
-                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
-                                    imsave(os.path.join(output_lbldir,lblfname),lblslice,check_contrast=False)
-                                elif len(np.where(lblslice)[0]) > 0: # don't want to use these cross-sections at all.
-                                    continue
-                                elif random.random() < 0.05:
-                                    # don't need all the normal slices just a few
-                                    for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
-                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
-                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
-                                    imsave(os.path.join(output_lbldir,lblfname),lblslice*0,check_contrast=False)
-                                else:
-                                    continue
+                            for ik in ('flair+','t1+','t1'):
+                                imgslice[ik] = np.moveaxis(Rimgs[k][ik],dim,0)[slice]
 
+                            # output a tumor slice. check minimum number of pixels in each label compartment, and total.
+                            skipslice = False
+                            for l in lblset:
+                                if len(np.where(lblslice==l)[0]) < 20:
+                                    skipslice = True
+                            if skipslice:
+                                continue
+                            elif len(np.where(lblslice)[0]) > 49:
+                                if 'Tr' in ck:
+                                    prefix='train_'    
+                                elif 'Tv' in ck:
+                                    prefix = 'val_'      
+                                elif 'Ts' in ck:
+                                    prefix = 'test_'
+                                for ktag,ik in zip(('0004','0003','0001'),('t1','flair+','t1+')):
+                                    baseid = prefix + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + 'r' + k
+                                    fname =  baseid + '_' + ktag + '.png'
+                                    splits_final[prefix[:-1]].append(baseid)
+                                    imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
+                                lblfname = prefix + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + 'r' + k + '.png'
+                                imsave(os.path.join(output_lbldir,lblfname),lblslice,check_contrast=False)
+
+                                # create test output pngs
+                                if True:
+                                    lbl_ros = np.where(lblslice_png)
+                                    lbl_rost = np.where(lblslice_png == lblT_png)
+                                    lbl_rosrn = np.where(lblslice_png == lblRN_png)
+
+                                    lbl_img = skimage.color.gray2rgba(np.copy(imgslice['t1+']))/255
+                                    lbl_ovly = np.copy(lbl_img)
+                                    lbl_ovly[lbl_rost] = colors.to_rgb(defcolors[0]) +(0.5,)
+                                    lbl_ovly[lbl_rosrn] = colors.to_rgb(defcolors[1]) +(0.5,)
+
+                                    lbl_ovly = np.concat((lbl_ovly,lbl_img),axis=1)
+                                    lbl_ovly  = (lbl_ovly*255).astype('uint8')
+                                    fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + 'r' + k + '.png'
+                                    cv2.putText(lbl_ovly, str(lbl), (5,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+                                    cv2.imwrite(os.path.join(output_lbldir+'_png',fname),cv2.cvtColor(lbl_ovly,cv2.COLOR_BGRA2RGBA))
+                                    # plt.imshow(lbl_ovly)
+                                    # plt.xticks([]),plt.yticks([])
+                                    # plt.text(10,10,lbl,c='w')
+                                    # plt.savefig(os.path.join(output_lbldir,fname),bbox_inches='tight',pad_inches=0)
+                                    # imsave(os.path.join(output_lbldir,fname),lbl_ovly,check_contrast=False)
+                                    a=1
+
+                            elif len(np.where(lblslice)[0]) > 0: # don't want to use these cross-sections at all.
+                                continue
+                            # output a normal slice. not coded yet.
+                            # elif normalslice_flag:
+                            #     if random.random() < 0.05:
+                            #         # don't need all the normal slices just a few
+                            #         for ktag,ik in zip(('0003','0001'),('flair+','t1+')):
+                            #             fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '_' + 'r' + k + '.png'
+                            #             imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
+                            #         with open(os.path.join(output_lbldir,lblfname),'w') as fp:
+                            #             json.dump({'dx':lbl},fp) 
+                            #     else:
+                            #         continue
                             else:
-                                if len(np.where(lblslice)[0]) > 49:
-                                    fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.png'
-                                    imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
-                                    # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
-                                    for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
-                                        fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
-                                        imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
+                                continue
 
-                                    # create test output pngs
-                                    if False:
-                                        lbl_ros = np.where(lblslice)
-                                        lbl_rost = np.where(lblslice == 127)
-                                        lbl_rosrn = np.where(lblslice == 255)
 
-                                        lbl_ovly = skimage.color.gray2rgba(np.copy(imgslice[rtag+'flair+']))/255
-                                        lbl_ovly[lbl_rost] = colors.to_rgb(defcolors[0]) +(0.5,)
-                                        lbl_ovly[lbl_rosrn] = colors.to_rgb(defcolors[1]) +(0.5,)
-                                        lbl_ovly  = (lbl_ovly*255).astype('uint8')
-                                        fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '.png'
-                                        imsave(os.path.join(output_lbldir,fname),lbl_ovly,check_contrast=False)
+                            # else: # no normal slices. not updated.
+                            #     if len(np.where(lblslice)[0]) > 49:
+                            #         fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '.png'
+                            #         imsave(os.path.join(output_lbldir,fname),lblslice,check_contrast=False)
+                            #         # cv2.imwrite(os.path.join(output_lbldir,fname),lblslice)
+                            #         for ktag,ik in zip(('0003','0001'),(rtag+'flair+',rtag+'t1+')):
+                            #             fname = 'img_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + ktag + '.png'
+                            #             imsave(os.path.join(output_imgdir,fname),imgslice[ik],check_contrast=False)
 
                             img_idx += 1
 
-a=1
+del splits_final['test'] # don't need this
+with open(os.path.join(nnunet_preprocesseddir,'splits_final.json'), "w") as f:
+    json.dump([splits_final], f, indent=4)
