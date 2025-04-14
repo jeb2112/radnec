@@ -283,8 +283,8 @@ for ck in ['casesTr','casesTv','casesTs']:
                                 # create test output pngs
                                 if True:
                                     lbl_ros = np.where(lblslice_png)
-                                    lbl_rost = np.where(lblslice_png == lblT_png)
-                                    lbl_rosrn = np.where(lblslice_png == lblRN_png)
+                                    lbl_rost = np.where(lblslice_png == lblT)
+                                    lbl_rosrn = np.where(lblslice_png == lblRN)
 
                                     lbl_img = skimage.color.gray2rgba(np.copy(imgslice['t1+']))/255
                                     lbl_ovly = np.copy(lbl_img)
@@ -294,7 +294,7 @@ for ck in ['casesTr','casesTv','casesTs']:
                                     lbl_ovly = np.concat((lbl_ovly,lbl_img),axis=1)
                                     lbl_ovly  = (lbl_ovly*255).astype('uint8')
                                     fname = 'ovly_' + str(img_idx).zfill(6) + '_' + c + '_' + study + '_' + str(slice) + '_' + lesion + '_' + 'r' + k + '.png'
-                                    cv2.putText(lbl_ovly, str(lbl), (5,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+                                    cv2.putText(lbl_ovly, prefix[:-1]+str(lbl), (5,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
                                     cv2.imwrite(os.path.join(output_lbldir+'_png',fname),cv2.cvtColor(lbl_ovly,cv2.COLOR_BGRA2RGBA))
                                     # plt.imshow(lbl_ovly)
                                     # plt.xticks([]),plt.yticks([])
