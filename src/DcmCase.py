@@ -122,7 +122,7 @@ class Case():
             if len(dstudies) > 1:
                 print('multiple studies for {}'.format(d))
                 for ds in dstudies[-1:0:-1]:
-                    for dc in ['raw']:
+                    for dc in ['raw','cbv']:
                         for series in list(ds.channels.values()):
                             if ds.dset[dc][series]['ex']:
                                 dstudies[0].dset[dc][series]['d'] = np.copy(ds.dset[dc][series]['d'])
@@ -903,7 +903,7 @@ class DcmStudy(Study):
                 continue 
 
             else:
-                print('series type not recognized, skipping...')
+                print('series type {} not recognized, skipping...'.format(ds0.SeriesDescription))
                 continue
 
         # sort series by acquisition time
@@ -960,8 +960,12 @@ class DcmStudy(Study):
                     dref['time'] = copy.copy(dtime)
 
         # exclude study if no t1,t1+
-        if not(self.dset['raw']['t1']['ex'] or self.dset['raw']['t1+']['ex']):
-            raise Exception('no t1 data in this study, skipping...')
+        # this is no longer an appropriate check, because depending on how studies and series were downloaded from
+        # PACs, a series like cbv could be all by itself.
+        # TODO: apply this check later after all data are loaded
+        if False:
+            if not(self.dset['raw']['t1']['ex'] or self.dset['raw']['t1+']['ex']):
+                raise Exception('no t1 data in this study, skipping...')
         
         return
 
