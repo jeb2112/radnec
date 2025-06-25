@@ -128,8 +128,12 @@
             "request": "launch",
             "program": "${workspaceFolder}/scripts/ants_register.py",
             "args": [
-                "-d","/media/jbishop/WD4/brainmets/sunnybrook/radnec2/dicom2nifti/",
-            ],
+                // "-d","/home/jbishop/WD4/data/radnec3/dicom2nifti/",
+                "-m", "/home/jbishop/data/radnec3/M0081/ /t1ce_cbv.nii",
+                "-f", "/home/jbishop/data/radnec3/M0081/ /t1ce.nii",
+                "-o", "t1ce_CBV_reg.nii",
+                "--resample","RELCBV_register.nii"
+                ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": false

@@ -65,7 +65,7 @@ class Case():
         self.case = casename
         self.datadir = datadir
         self.casedir = os.path.join(self.datadir,self.case)
-        self.studydirs = studydirs
+        self.studydirs = sorted(studydirs)
         self.studies = []
         self.debug_study = None # tag for identifying a study to debug from current case eg '04_23' for date. depends on 
                                 # how the subdirs of dicoms were named after downloading from PACS
@@ -86,7 +86,7 @@ class Case():
 
         for sd in self.studydirs:
 
-            print('loading {}\n'.format(sd))
+            print('\n\nloading study {}\n'.format(sd))
             newstudy = DcmStudy(self.case,sd,self.config)
             if self.debug_study is not None:
                 if self.debug_study in sd:
@@ -762,6 +762,8 @@ class DcmStudy(Study):
             files = sorted(os.listdir(dpath))
 
             ds0 = pd.dcmread(os.path.join(dpath,files[0]))
+            if not hasattr(ds0,'SeriesDescription'): # kludge required for RADNEC3
+                continue
             print(ds0.SeriesDescription)
 
             # check for reverse slice order using ImagePositionPatient
@@ -785,7 +787,7 @@ class DcmStudy(Study):
 
             # subtractions may be identified?
             if re.search('sub',ds0.SeriesDescription.lower()) is not None:
-                print('Subtraction, skipping...')
+                print('\tSubtraction, skipping...')
                 continue
 
             # record series time
@@ -828,7 +830,7 @@ class DcmStudy(Study):
                 # for now, exclude SPACErip assuming mprage is standard for all t1. space 
                 # could still be used in flair.
                 if re.search('space',ds0.SeriesDescription.lower()) is not None:
-                    print('SPACE, skipping...')
+                    print('\tSPACE, skipping...')
                     continue
 
                 # check for any contrast
@@ -859,8 +861,9 @@ class DcmStudy(Study):
                     dt = 't1'
 
                 # check for MPR, and replace if this is an available native scan
-                mpr_match = [item for item in sortedseries.keys() if re.search('mpr[^a][^g][^e]',item) and item['dt'] == dt]
+                mpr_match = [key for key,item in sortedseries.items() if re.search('mpr[^a][^g][^e]',key.lower()) and item['dt'] == dt]
                 if mpr_match:
+                    print('\tMPR, replacing...')
                     del sortedseries[mpr_match[0]]
 
                 # check for overlapping/partially matching series names
@@ -871,8 +874,21 @@ class DcmStudy(Study):
                     elif 'rpt' in ds0.SeriesDescription.lower(): # if the new series has 'rpt', then substitute it
                         sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':dt,'dpath':copy.copy(dpath)}
                         del sortedseries[rpt_match[0]]
-                    else: # TODO. implement time to handle overlapping series.
-                        raise KeyError('sequence {} already exists'.format(dt))
+                    elif re.search('mpr[^a][^g][^e]',ds0.SeriesDescription.lower()) is not None: 
+                        # skipping the blanket MPR check above, to allow possble MPR's in case there is no native, 
+                        # is creating a problem in rpt processing.
+                        # this check is a kludge until usage of MPR's can be firmed up.
+                        print('\tMPR, skipping...')
+                        continue
+                    # replace or ignore according to acquisition time
+                    elif seriestime > sortedseries[rpt_match[0]]['time']:
+                        sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':dt,'dpath':copy.copy(dpath)}
+                        print('\tan earlier sequence {} being replaced...'.format(dt))
+                    elif seriestime <= sortedseries[rpt_match[0]]['time']:
+                        print('\ta later sequence {} already exists, skipping...'.format(dt))
+                        continue
+                    else:
+                        raise KeyError('sequence {} already exists, not handled'.format(dt))
                 else:
                     sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':dt,'dpath':copy.copy(dpath)}
                 continue
@@ -893,8 +909,30 @@ class DcmStudy(Study):
             # TODO: the matching t1 has to come from another studydir, based on time tags
             elif any([f in ds0.SeriesDescription.lower() for f in ['relccbv']]):
                 dt = 'flair' # cbv will be stored arbitrarily as a flair channel for processing purposes
-                sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'cbv','dt':dt,'dpath':copy.copy(dpath)}
+                # kludge for RADNEC3. some relccbv dicoms are additionally processed into multi-component
+                # image files. for now, these are skipped.
+                if ds0.SamplesPerPixel == 1:
+                    sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'cbv','dt':dt,'dpath':copy.copy(dpath)}
+                # another kludge from RADNEC3. check for duplicates and keep only one
+                # so far the available pattern is duplicates have a common root description.
+                # will keep the description with the shortest name to begin with,
+                # but this is just a guess at the pattern that underlies
+                # multiple relccbv series in the same study.
+                rcbv_keys = sorted([f for f in list(sortedseries.keys()) if 'relccbv' in f.lower()])
+                if len(rcbv_keys) > 1:
+                    sortedseries.pop(rcbv_keys[-1])
+
                 continue
+
+            # elif any([f in ds0.SeriesDescription.lower() for f in ['relcbv']]):
+            #     dt = 'flair' # cbv will be stored arbitrarily as a flair channel for processing purposes
+            #     sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'ccbv','dt':dt,'dpath':copy.copy(dpath)}
+            #     continue
+
+            # elif any([f in ds0.SeriesDescription.lower() for f in ['relcbf']]):
+            #     dt = 'flair' # cbv will be stored arbitrarily as a flair channel for processing purposes
+            #     sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'cbf','dt':dt,'dpath':copy.copy(dpath)}
+            #     continue
 
             # likewise adc will be stored in the 'dwi' channel for processing purposes 
             elif any([f in ds0.SeriesDescription.lower() for f in ['adc']]):
@@ -903,26 +941,46 @@ class DcmStudy(Study):
                 continue 
 
             else:
-                print('series type {} not recognized, skipping...'.format(ds0.SeriesDescription))
+                print('\tseries type {} not recognized, skipping...'.format(ds0.SeriesDescription))
                 continue
 
         # sort series by acquisition time
         timesortedserieskeys = sorted(list(sortedseries.keys()),key=lambda x:(sortedseries[x]['time']))
 
-        # adjust flair pre/post according to t1 gd status
-        t1gdtime = 1e7
+        # assign flair pre/post. this might not be so obvious, so it isn't handled 
+        # while sorting the series above. there are three options to do this now:
+        # 1. if there are two flair series, assign by relative series times
+        # 2. if there is one, check for 'pre','post' in SeriesDescription
+        # 3. if there is only one, use series time relative to T1+ gd. 
+
+        t1gdtime = 1e7 # if no t1+ gd time found, high default value will select 'flair' below
         for k in timesortedserieskeys:
             if sortedseries[k]['dt'] == 't1+':   
                 t1gdtime = sortedseries[k]['time']
-                continue
-            if 'flair' in sortedseries[k]['dt']:
-                if sortedseries[k]['time'] > t1gdtime:
-                    sortedseries[k]['dt'] = 'flair+'
-                else:
-                    sortedseries[k]['dt'] = 'flair'
+                continue 
+
+        if nflair == 2:
+            dt = 'flair'
+            for k in timesortedserieskeys:
+                if sortedseries[k]['dc'] == 'raw' and 'flair' in sortedseries[k]['dt']:
+                    sortedseries[k]['dt'] = dt
+                    dt = 'flair+'
+        else:
+            for k in timesortedserieskeys:
+                if sortedseries[k]['dc'] == 'raw' and 'flair' in sortedseries[k]['dt']:
+                    if 'pre' in k:
+                        sortedseries[k]['dt'] = 'flair'
+                    elif 'post' in k:
+                        sortedseries[k]['dt'] = 'flair+'
+                    else:
+                        if sortedseries[k]['time'] > t1gdtime:
+                            sortedseries[k]['dt'] = 'flair+'
+                        else:
+                            sortedseries[k]['dt'] = 'flair'
 
         # load the img arrays for each series
         for sdkey in sortedseries.keys():
+            print('loading {} ...'.format(sdkey))
             ds0 = sortedseries[sdkey]['ds0']
             dc = sortedseries[sdkey]['dc']
             dt = sortedseries[sdkey]['dt']
@@ -936,9 +994,17 @@ class DcmStudy(Study):
 
                     if hasattr(ds0,'Manufacturer'):
                         if 'siemens' in ds0.Manufacturer.lower():
-                            res = convert_siemens.dicom_to_nifti(common.read_dicom_directory(dpath),None)
+                            try:
+                                res = convert_siemens.dicom_to_nifti(common.read_dicom_directory(dpath),None)
+                            except Exception as e:
+                                print('\t\033[91mdicom2nifti error!!\033[0m failed to load ...')
+                                continue
                         elif 'philips' in ds0.Manufacturer.lower():
-                            res = convert_philips.dicom_to_nifti(common.read_dicom_directory(dpath),None)
+                            try:
+                                res = convert_philips.dicom_to_nifti(common.read_dicom_directory(dpath),None)
+                            except Exception as e:
+                                print('\t\033[91mdicom2nifti error!!\033[0m failed to load ...')
+                                continue
                         else:
                             raise ValueError('Manufacturer {} not coded yet'.format(ds0.Manufacturer))
 
@@ -958,6 +1024,8 @@ class DcmStudy(Study):
                         raise ValueError
                     dref['affine'] = res['NII'].affine
                     dref['time'] = copy.copy(dtime)
+            else:
+                continue
 
         # exclude study if no t1,t1+
         # this is no longer an appropriate check, because depending on how studies and series were downloaded from
