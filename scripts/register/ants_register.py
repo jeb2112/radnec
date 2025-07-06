@@ -12,6 +12,10 @@
 # "-ot1ce_CBV_reg.nii",
 # "--resample","RELCBV_register.nii"
 
+# another mode is using args.dmoving,args.dref, in which case the T1+ image in the 
+# first time point of args.dref, is used as a registration reference for all images
+# in all time point studies, in args.dmoving.
+
 
 
 import ants
@@ -25,15 +29,16 @@ from scipy.spatial.distance import dice,directed_hausdorff
 import matplotlib.pyplot as plt
 
 
-def do_registration(fixed,moving,type='Rigid'):
+def do_registration(fixed,moving,type='Rigid',copy_affine=None):
     mytx = ants.registration(fixed=fixed, moving=moving, type_of_transform = type )
-    m_arr = mytx['warpedmovout'].numpy()
+    # in the usual pipeline, have float64 datatype, but the data are originally uint16 so this cast
+    # allows for better gzip compressibility.
+    m_arr = mytx['warpedmovout'].numpy().astype(np.uint16).astype(np.float64)
     m_sitk = sitk.GetImageFromArray(m_arr)
-    # m_sitk.CopyInformation(fixed)
+    if copy_affine:
+        m_sitk.CopyInformation(copy_affine)
 
-    # store transform to file
     tform = ants.read_transform(mytx['fwdtransforms'][0])
-    # ants.write_transform(tform,os.path.join(moving_dir,'reg2blast_ants.txt'))
     return m_sitk,tform
 
 
@@ -44,6 +49,8 @@ def main():
     parser.add_argument('-f',type=str,help='fixed input file')
     parser.add_argument('-m',type=str,help='moving input file')
     parser.add_argument('-d',type=str,help='directory of nifti case directories')
+    parser.add_argument('--dref',type=str,help='directory of nifti case directories')
+    parser.add_argument('--dmoving',type=str,help='directory of nifti case directories')
     parser.add_argument('-o',type=str,help='output file')
     parser.add_argument('--transform',type=str,help='rigid or affine',default='rigid')
     parser.add_argument('--iterations',type=int,help='number of iterations',default=256)
@@ -60,12 +67,14 @@ def main():
         moving = sitk.ReadImage(args.m)
         moving_ants = ants.from_numpy(sitk.GetArrayFromImage(moving).astype('double'))
 
-        m_sitk,tform = do_registration(fixed_ants,moving_ants)
+        m_sitk,tform = do_registration(fixed_ants,moving_ants,copy_affine=fixed)
         if args.o:
-            outputfile = args.o
-        else:
-            outputfile = os.path.join(moving_dir,)
-        sitk.WriteImage(m_sitk, os.path.join(moving_dir,args.o))
+            outputfile = os.path.join(moving_dir,args.o)
+            sitk.WriteImage(m_sitk, outputfile)
+            if True:
+                os.system('gzip --force "{}"'.format(outputfile))
+            if False:    # store transform to file
+                ants.write_transform(tform,os.path.join(moving_dir,'reg2blast_ants.txt'))
 
         # additional image to resample with registration transform
         # it is assumed these are in the dir of the moving image
@@ -74,12 +83,16 @@ def main():
                 moving = sitk.ReadImage(os.path.join(moving_dir,f))
                 m_ants = tform.apply_to_image(ants.from_numpy(sitk.GetArrayFromImage(moving)),reference=fixed_ants)
                 m_arr = m_ants.numpy()
-                output_fname = f[:-4] + '_blastreg.nii' # the suffix is hard-coded here.
+                output_fname = f[:-4] + '_rereg.nii' # the suffix is hard-coded here.
                 m_sitk = sitk.GetImageFromArray(m_arr)
                 m_sitk.CopyInformation(fixed)
-                sitk.WriteImage(m_sitk, os.path.join(moving_dir,output_fname))
+                outputfile = os.path.join(moving_dir,output_fname)
+                sitk.WriteImage(m_sitk, outputfile)
+                if True:
+                    os.system('gzip --force "{}"'.format(outputfile))
 
-    # directory of nifi case dirs. for now it is assumed that each case has a designated reference image
+    # directory of nifti case dirs. 
+    # for now it is assumed that each case has a designated reference image, hard-coded '_refernce'
     elif args.d: 
         moving_dir = args.d
         cases = sorted(os.listdir(args.d))
@@ -143,7 +156,94 @@ def main():
                 m_sitk = sitk.GetImageFromArray(m_arr)
                 m_sitk.CopyInformation(fixed_sitk)
                 sitk.WriteImage(m_sitk, os.path.join(sdir,output_fname))
+                if True:
+                    os.system('gzip --force "{}"'.format(outputfile))
 
+
+
+    # args.dmoving directory of nifti case dirs to modify. case loop is over this dir
+    # args.dref directory of matching nifti case dirs to use as refernce. it is 
+    # assumed that the first studydir in this ref dir, is the first time point
+    # of the case, which acts as the registration reference.
+    elif args.dref: 
+        moving_dir = args.dmoving
+        ref_dir = args.dref
+        cases = sorted(os.listdir(args.dmoving))
+
+        for c in cases:
+            print(c)
+            casedir = os.path.join(args.dmoving,c)
+            casedir_ref = os.path.join(args.dref,c)
+            studydirs = sorted(os.listdir(casedir))[1:] # for now, not reprocessing the first time point
+            studydirs_ref = sorted(os.listdir(casedir_ref)) 
+            studydir_ref = studydirs_ref[0] # first time point
+
+            for s in studydirs:
+                sdir = os.path.join(casedir,s) 
+                flist = os.listdir(sdir)
+                flist = [f for f in flist if 'nii' in f ]
+
+                # find the file which will be used for registration as moving
+                for t in ['t1+','t1']:
+                    moving_reference = [f for f in flist if t in f]
+                    if len(moving_reference):
+                        moving_reference = moving_reference[0]
+                        moving_sitk = sitk.ReadImage(os.path.join(sdir,moving_reference))
+                        moving_arr = sitk.GetArrayFromImage(moving_sitk).astype('double')
+                        moving_ants = ants.from_numpy(moving_arr)
+                        reftag = t
+                        flist = [f for f in flist if reftag not in f]
+                        break
+
+                sdir_ref = os.path.join(casedir_ref,studydir_ref) 
+                flist_ref = os.listdir(sdir_ref)
+                flist_ref = [f for f in flist_ref if 'nii' in f ]
+
+                # find the file which will be used for registration as moving
+                for t in ['t1+','t1']:
+                    fixed_reference = [f for f in flist_ref if t in f]
+                    if len(fixed_reference):
+                        fixed_reference = fixed_reference[0]
+                        break
+
+                # find the file from first time poitn which will be used for fixed.
+                fixed_sitk = sitk.ReadImage(os.path.join(sdir_ref,fixed_reference))
+                fixed_arr = sitk.GetArrayFromImage(fixed_sitk).astype('double')
+                fixed_ants = ants.from_numpy(fixed_arr)
+                fixed_background = np.where(fixed_arr == 0)
+
+                # register
+                m_sitk,tform = do_registration(fixed_ants,moving_ants,copy_affine=fixed_sitk)
+                m_sitk.CopyInformation(fixed_sitk)
+                if False: # new filename
+                    output_fname = os.path.split(moving_reference)[1][:-7] + '_reg.nii' # the suffix is hard-coded here.
+                else: # overwrite
+                    output_fname = moving_reference[:-3]
+                outputfile = os.path.join(sdir,output_fname)
+                sitk.WriteImage(m_sitk, outputfile)
+                if True:
+                    os.system('gzip --force "{}"'.format(outputfile))
+
+
+                # apply transform to remaining images
+                for f in flist:
+
+                    moving_sitk = sitk.ReadImage(os.path.join(sdir,f))
+                    moving_arr = sitk.GetArrayFromImage(moving_sitk).astype('double')
+                    moving_ants = ants.from_numpy(moving_arr)
+                    # moving_sitk = sitk.ReadImage(os.path.join(sdir,f))
+                    m_ants = tform.apply_to_image(moving_ants,reference=fixed_ants)
+                    m_arr = m_ants.numpy().astype(np.uint16).astype(np.float64)
+                    if False:
+                        output_fname = os.path.split(f)[1][:-7] + '_reg.nii' # the suffix is hard-coded here.
+                    else:
+                        output_fname = f[:-3]
+                    outputfile = os.path.join(sdir,output_fname)
+                    m_sitk = sitk.GetImageFromArray(m_arr)
+                    m_sitk.CopyInformation(fixed_sitk)
+                    sitk.WriteImage(m_sitk, outputfile)
+                    if True:
+                        os.system('gzip --force "{}"'.format(outputfile))
 
 
     return

@@ -5,7 +5,7 @@ import numpy as np
 import glob
 import copy
 import re
-import logging
+import shutil
 import fnmatch
 import copy
 import subprocess
@@ -80,6 +80,8 @@ class Case():
             self.process_timepoints()
         except RuntimeError:
             raise RuntimeError
+        if True: # optional nnunet segmentation
+            self.segment()
 
     # load all studies of current case
     def load_studydirs(self):
@@ -524,7 +526,7 @@ class Study():
         return
     
     # load a single nifti file
-    def loadnifti(self,t1_file,dir=None,type='uint8',rai=True):
+    def loadnifti(self,t1_file,dir=None,type='uint8',rai=False):
         img_arr_t1 = None
         if dir is None:
             dir = self.studydir
@@ -951,7 +953,9 @@ class DcmStudy(Study):
         # while sorting the series above. there are three options to do this now:
         # 1. if there are two flair series, assign by relative series times
         # 2. if there is one, check for 'pre','post' in SeriesDescription
-        # 3. if there is only one, use series time relative to T1+ gd. 
+        # 3. if there is only one, use series time relative to T1+ gd. however,
+        # in the radnec 1 cohort, the FLAIR were acquired post-contrast but before the
+        # T1, so that can be hard-coded to be FLAIR+
 
         t1gdtime = 1e7 # if no t1+ gd time found, high default value will select 'flair' below
         for k in timesortedserieskeys:
@@ -971,6 +975,8 @@ class DcmStudy(Study):
                     if 'pre' in k:
                         sortedseries[k]['dt'] = 'flair'
                     elif 'post' in k:
+                        sortedseries[k]['dt'] = 'flair+'
+                    elif 'radnec1' in self.config.UIdatadir.lower():
                         sortedseries[k]['dt'] = 'flair+'
                     else:
                         if sortedseries[k]['time'] > t1gdtime:
@@ -1122,14 +1128,14 @@ class DcmStudy(Study):
 
     # main routine for the preprocessing pipeline
     # eg resampling, registration, bias correction
-    def preprocess(self,extract=False):
+    def preprocess(self,extract=True):
 
         print('preprocess case = {},{}'.format(self.case,self.studydir))
         # TODO. don't have a great arrangement for parallel dicom and nifti directories 
         # currently localstudydir just creates an output directory for nifti files based on the 
         # StudyDate attribute.
         self.localstudydir = os.path.join(self.localcasedir,self.studytimeattrs['StudyDate'])
-        localniftidir = os.path.join(self.config.UIlocaldir,self.case,self.studytimeattrs['StudyDate'])
+        self.localniftidir = os.path.join(self.config.UIlocaldir,self.case,self.studytimeattrs['StudyDate'])
 
         if False: # for now, won't create any new directories in a dicom dir. if the dir is dropbox sync'd it's messy
             if not os.path.exists(self.localstudydir):
@@ -1138,7 +1144,7 @@ class DcmStudy(Study):
         if False and '0731' in self.localstudydir:
             for dt in ['t1+','t1','t2','flair','flair+','dwi']:
                 if self.dset['raw'][dt]['ex']:
-                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(localniftidir,'img_'+dt+'_presampled.nii'),
+                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localniftidir,'img_'+dt+'_presampled.nii'),
                                         type='float',affine=self.dset['raw'][dt]['affine'])
 
 
@@ -1164,18 +1170,19 @@ class DcmStudy(Study):
 
         # skull strip
         # hd-bet model extraction
-        if True:
-            for dt in self.channels.values():
-                if self.dset['raw'][dt]['ex']:
-                    if extract:
-                        self.dset['raw'][dt]['d'],self.dset['raw'][dt]['mask'] = self.extractbrain2(self.dset['raw'][dt]['d'],
-                                                                                                    affine=self.dset['raw'][dt]['affine'],fname=dt)
-                    else:
-                        self.dset['raw'][dt]['mask'] = np.ones_like(self.dset['raw'][dt]['d'])
+        if extract:
+            if self.dset['raw']['t1+']['ex']:
+                self.dset['raw']['t1+']['d'],self.dset['raw']['t1+']['mask'] = self.extractbrain2(self.dset['raw']['t1+']['d'],
+                                                                                                affine=self.dset['raw']['t1+']['affine'],fname='t1+_temp')
+            else:
+                raise KeyError('No t1+ image for brain extraction')
+        for dt in self.channels.values():
+            if dt != 't1+' and self.dset['raw'][dt]['ex']:
+                self.dset['raw'][dt]['d'] *= self.dset['raw']['t1+']['mask'].astype('uint16')
                                                                                                 
         # For ADC can just use the DWI mask
         if self.dset['adc']['dwi']['ex']:
-            self.dset['adc']['dwi']['d'] *= self.dset['raw']['dwi']['mask']
+            self.dset['adc']['dwi']['d'] *= self.dset['raw']['t1+']['mask'].astype('uint16')
 
         # preliminary registration, within the study to t1,t1+ image. probably this is minimal
         # and skipping it shouldn't matter too much.
@@ -1212,6 +1219,10 @@ class DcmStudy(Study):
                     if self.dset['adc']['dwi']['ex']:
                         self.dset['adc']['dwi']['d'] = self.tx(fixed_image,self.dset['adc']['dwi']['d'],tx)
 
+        # nnunet segmentation. this is before registration to the MNI matrix size
+        if False:
+            self.segment()
+
         # bias correction.
         # self.dbias = {} # working data for calculating z-scores
         # TODO: use viewer mode designation here
@@ -1234,7 +1245,7 @@ class DcmStudy(Study):
         if False and '0731' in self.localstudydir:
             for dt in ['t1+','t1','t2','flair','flair+','dwi']:
                 if self.dset['raw'][dt]['ex']:
-                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(localniftidir,'img_'+dt+'_preprocessed.nii'),
+                    self.writenifti(self.dset['raw'][dt]['d'],os.path.join(self.localniftidir,'img_'+dt+'_preprocessed.nii'),
                                         type='float',affine=self.dset['raw'][dt]['affine'])
 
 
@@ -1291,25 +1302,23 @@ class DcmStudy(Study):
     # tumour segmenation by nnUNet
     def segment(self,dpath=None):
         print('segment tumour')
+
         if dpath is None:
-            dpath = os.path.join(self.localstudydir,'nnunet')
+            dpath = os.path.join(self.localniftidir,'nnunet')
             if not os.path.exists(dpath):
                 os.mkdir(dpath)
-        for dt,suffix in zip(['t1+','flair'],['0000','0003']):
-            if os.name == 'posix':
-                l1str = 'ln -s ' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + ' '
-                l1str += os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')
-            elif os.name == 'nt':
-                l1str = 'copy  \"' + os.path.join(self.localstudydir,dt+'_processed.nii.gz') + '\" \"'
-                l1str += os.path.join(dpath,os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii.gz')) + '\"'
-            os.system(l1str)
 
+        # output temp files to work on
+        for dt,suffix in zip(['t1+','flair+'],['0001','0003']): # hard-coded for two contrast model
+            tfile = os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii')
+            self.writenifti(self.dset['raw'][dt]['d'],tfile,affine=self.dset['raw']['t1+']['affine'],norm=False,type='float')
 
+        # D138 is brats 2024 trained on two contrasts
         if os.name == 'posix':
-            command = 'conda run -n ptorch nnUNetv2_predict '
+            command = 'conda run -n nnunet nnUNetv2_predict '
             command += ' -i ' + dpath
             command += ' -o ' + dpath
-            command += ' -d137 -c 3d_fullres'
+            command += ' -d138 -c 3d_fullres'
             res = os.system(command)
         elif os.name == 'nt':
             # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
@@ -1348,10 +1357,12 @@ class DcmStudy(Study):
         ET[segmentation == 3] = 1
         WT = np.zeros_like(segmentation)
         WT[segmentation > 0] = 1
-        self.writenifti(ET,os.path.join(self.localstudydir,'ET.nii'),affine=affine)
-        self.writenifti(WT,os.path.join(self.localstudydir,'WT.nii'),affine=affine)
-        if False:
-            os.remove(os.path.join(dpath,sfile))
+        # self.writenifti(ET,os.path.join(self.localniftidir,'ET.nii'),affine=self.dset['ref']['affine'])
+        self.writenifti(ET,os.path.join(self.localniftidir,'ET.nii'),affine=affine)
+        self.writenifti(WT,os.path.join(self.localniftidir,'WT.nii'),affine=affine)
+        if True:
+            shutil.rmtree(dpath)
+            # os.rmdir(dpath)
 
         return 
 
@@ -1362,12 +1373,14 @@ class DcmStudy(Study):
         img_arr = copy.deepcopy(img_arr_input)
         if fname is None:
             fname = 'temp'
-        tfile = os.path.join(self.localstudydir,fname+'.nii')
+        tfile = os.path.join(self.localniftidir,fname+'.nii')
+        tfile_output = os.path.join(self.localniftidir,fname+'_bet.nii.gz')
         self.writenifti(img_arr,tfile,affine=affine,norm=False,type='float')
 
         if os.name == 'posix':
-            command = 'conda run -n hdbet hd-bet '
+            command = 'conda run -n hdbet hd-bet --save_bet_mask'
             command += ' -i ' + tfile
+            command += ' -o ' + tfile_output
             res = os.system(command)
         elif os.name == 'nt':
             # manually escaped for shell. can also use raw string as in r"{}".format(). or subprocess.list2cmdline()
@@ -1375,7 +1388,7 @@ class DcmStudy(Study):
             # it is currently hard-coded to anaconda3/envs location rather than .conda/envs, but anaconda3 could be installed
             # under either ProgramFiles or Users so check both
             if os.path.isfile(os.path.expanduser('~')+'\\anaconda3\Scripts\\activate.bat'):
-                activatebatch = os.path.expanduser('~')+"\\anaconda3\Scripts\\activate.bat"
+                activatebatch = os. path.expanduser('~')+"\\anaconda3\Scripts\\activate.bat"
             elif os.path.isfile("C:\Program Files\\anaconda3\Scripts\\activate.bat"):
                 activatebatch = "C:\Program Files\\anaconda3\Scripts\\activate.bat"
             else:
@@ -1394,10 +1407,10 @@ class DcmStudy(Study):
                 raise subprocess.CalledProcessError(res,cstr)
                 print(res)
 
-        img_arr,_ = self.loadnifti(fname+'_bet.nii.gz',dir=self.localstudydir)
-        img_arr_mask,_ = self.loadnifti(fname+'_bet_mask.nii.gz',dir=self.localstudydir)
-        if fname == 'temp':
-            for f in glob.glob(os.path.join(self.localstudydir,'temp*')):
+        img_arr,_ = self.loadnifti(fname+'_bet.nii.gz',dir=self.localniftidir,type='uint16')
+        img_arr_mask,_ = self.loadnifti(fname+'_bet_bet.nii.gz',dir=self.localniftidir)
+        if True:
+            for f in glob.glob(os.path.join(self.localniftidir,fname+'*')):
                 os.remove(f)
         return img_arr,img_arr_mask
                 

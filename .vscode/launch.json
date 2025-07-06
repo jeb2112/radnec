@@ -126,13 +126,15 @@
             "name": "register",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/scripts/ants_register.py",
+            "program": "${workspaceFolder}/scripts/register/ants_register.py",
             "args": [
-                // "-d","/home/jbishop/WD4/data/radnec3/dicom2nifti/",
-                "-m", "/home/jbishop/data/radnec3/M0081/ /t1ce_cbv.nii",
-                "-f", "/home/jbishop/data/radnec3/M0081/ /t1ce.nii",
-                "-o", "t1ce_CBV_reg.nii",
-                "--resample","RELCBV_register.nii"
+                // "-d","/home/jbishop/WD4/data/radnec3/dicom2nifti_test/",
+                "--dmoving","/home/jbishop/data/radnec3/dicom2nifti_test/",
+                "--dref","/home/jbishop/Dropbox/RADOGEN/R&D/DATA/RAD NEC/RAD NEC 3 NII",
+                // "-m", "/home/jbishop/data/radnec3/dicom2nifti/M0086/20240606/t1+_processed.nii",
+                // "-f", "/home/jbishop/Dropbox/RADOGEN/R&D/DATA/RAD NEC/RAD NEC 3 NII/M0086/20231203/t1+_processed.nii",
+                // "-o", "t1+_processed_rereg.nii",
+                // "--resample","cbv_processed.nii"
                 ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
