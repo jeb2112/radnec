@@ -1355,10 +1355,12 @@ class DcmStudy(Study):
         segmentation,affine = self.loadnifti(sfile,dpath)
         ET = np.zeros_like(segmentation)
         ET[segmentation == 3] = 1
+        TC = np.zeros_like(segmentation)
+        TC[segmentation > 1] = 1
         WT = np.zeros_like(segmentation)
         WT[segmentation > 0] = 1
-        # self.writenifti(ET,os.path.join(self.localniftidir,'ET.nii'),affine=self.dset['ref']['affine'])
         self.writenifti(ET,os.path.join(self.localniftidir,'ET.nii'),affine=affine)
+        self.writenifti(TC,os.path.join(self.localniftidir,'TC.nii'),affine=affine)
         self.writenifti(WT,os.path.join(self.localniftidir,'WT.nii'),affine=affine)
         if True:
             shutil.rmtree(dpath)
