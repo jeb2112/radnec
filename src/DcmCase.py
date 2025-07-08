@@ -896,9 +896,12 @@ class DcmStudy(Study):
                 continue
 
             # there could be both a pre and post gd flair, or just one. 
+            # if there are two studies having identical series description 
+            # need to handle that. this could be a more general problem, but 
+            # for now it is only handled for flair where it was first seen.
             elif any(f in ds0.SeriesDescription.lower() for f in ['flair','fluid']):
                 dt = 'flair'+str(nflair)
-                sortedseries[ds0.SeriesDescription] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':dt,'dpath':copy.copy(dpath)}
+                sortedseries[ds0.SeriesDescription+str(nflair)] = {'time':copy.copy(seriestime),'ds0':copy.deepcopy(ds0),'dc':'raw','dt':dt,'dpath':copy.copy(dpath)}
                 nflair += 1
                 continue
 
@@ -1140,6 +1143,8 @@ class DcmStudy(Study):
         if False: # for now, won't create any new directories in a dicom dir. if the dir is dropbox sync'd it's messy
             if not os.path.exists(self.localstudydir):
                 os.makedirs(self.localstudydir)
+        if not os.path.exists(self.localniftidir):
+            os.makedirs(self.localniftidir)
 
         if False and '0731' in self.localstudydir:
             for dt in ['t1+','t1','t2','flair','flair+','dwi']:
@@ -1308,10 +1313,16 @@ class DcmStudy(Study):
             if not os.path.exists(dpath):
                 os.mkdir(dpath)
 
-        # output temp files to work on
-        for dt,suffix in zip(['t1+','flair+'],['0001','0003']): # hard-coded for two contrast model
+        # output temp files to work on. use whichever of flair  flair+ are available
+        for dt,suffix in zip(['t1+','flair+','flair'],['0001','0003','0003']): # hard-coded for two contrast model
             tfile = os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii')
-            self.writenifti(self.dset['raw'][dt]['d'],tfile,affine=self.dset['raw']['t1+']['affine'],norm=False,type='float')
+            if 'flair' in dt: 
+                if self.dset['raw'][dt]['ex']:
+                    self.writenifti(self.dset['raw'][dt]['d'],tfile,affine=self.dset['raw']['t1+']['affine'],norm=False,type='float')
+                    break
+            else:
+                self.writenifti(self.dset['raw'][dt]['d'],tfile,affine=self.dset['raw']['t1+']['affine'],norm=False,type='float')
+
 
         # D138 is brats 2024 trained on two contrasts
         if os.name == 'posix':
