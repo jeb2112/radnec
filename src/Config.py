@@ -59,8 +59,8 @@ class Config(object):
                 self.UIdatadir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2'
                 self.UIlocaldir = '/media/jbishop/WD4/brainmets/sunnybrook/radnec2/dicom2nifti'
             elif 'XPS-8950' in uname.node:
-                self.UIdatadir = '/home/jbishop/data/radnec1'
-                self.UIlocaldir = '/home/jbishop/data/radnec1/dicom2nifti'
+                self.UIdatadir = '/home/jbishop/data/radnec3'
+                self.UIlocaldir = '/home/jbishop/data/radnec3/dicom2nifti'
 
 
         # the value here is no longer being using, instead the default is assigned in CreateCaseFrame

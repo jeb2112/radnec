@@ -1176,18 +1176,19 @@ class DcmStudy(Study):
         # skull strip
         # hd-bet model extraction
         if extract:
-            if self.dset['raw']['t1+']['ex']:
-                self.dset['raw']['t1+']['d'],self.dset['raw']['t1+']['mask'] = self.extractbrain2(self.dset['raw']['t1+']['d'],
-                                                                                                affine=self.dset['raw']['t1+']['affine'],fname='t1+_temp')
+            if t1ref is None:
+                print('no t1,t1+ reference available, skipping extraction')
             else:
-                raise KeyError('No t1+ image for brain extraction')
-        for dt in self.channels.values():
-            if dt != 't1+' and self.dset['raw'][dt]['ex']:
-                self.dset['raw'][dt]['d'] *= self.dset['raw']['t1+']['mask'].astype('uint16')
+                if self.dset['raw'][t1ref]['ex']:
+                    self.dset['raw'][t1ref]['d'],self.dset['raw'][t1ref]['mask'] = self.extractbrain2(self.dset['raw'][t1ref]['d'],
+                                                                                                affine=self.dset['raw'][t1ref]['affine'],fname=t1ref+'_temp')
+            for dt in self.channels.values():
+                if dt != t1ref and self.dset['raw'][dt]['ex']:
+                    self.dset['raw'][dt]['d'] *= self.dset['raw'][t1ref]['mask'].astype('uint16')
                                                                                                 
-        # For ADC can just use the DWI mask
-        if self.dset['adc']['dwi']['ex']:
-            self.dset['adc']['dwi']['d'] *= self.dset['raw']['t1+']['mask'].astype('uint16')
+            # and do adc as well
+            if self.dset['adc']['dwi']['ex']:
+                self.dset['adc']['dwi']['d'] *= self.dset['raw'][t1ref]['mask'].astype('uint16')
 
         # preliminary registration, within the study to t1,t1+ image. probably this is minimal
         # and skipping it shouldn't matter too much.
@@ -1321,9 +1322,13 @@ class DcmStudy(Study):
                     self.writenifti(self.dset['raw'][dt]['d'],tfile,affine=self.dset['raw']['t1+']['affine'],norm=False,type='float')
                     break
             else:
-                self.writenifti(self.dset['raw'][dt]['d'],tfile,affine=self.dset['raw']['t1+']['affine'],norm=False,type='float')
-
-
+                if self.dset['raw'][dt]['ex']:
+                    self.writenifti(self.dset['raw'][dt]['d'],tfile,affine=self.dset['raw']['t1+']['affine'],norm=False,type='float')
+                else:
+                    print('no t1+ for unet segmentation, skipping...')
+                    shutil.rmtree(dpath)
+                    return
+                
         # D138 is brats 2024 trained on two contrasts
         if os.name == 'posix':
             command = 'conda run -n nnunet nnUNetv2_predict '
