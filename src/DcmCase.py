@@ -1007,12 +1007,14 @@ class DcmStudy(Study):
                                 res = convert_siemens.dicom_to_nifti(common.read_dicom_directory(dpath),None)
                             except Exception as e:
                                 print('\t\033[91mdicom2nifti error!!\033[0m failed to load ...')
+                                dref['ex'] = False
                                 continue
                         elif 'philips' in ds0.Manufacturer.lower():
                             try:
                                 res = convert_philips.dicom_to_nifti(common.read_dicom_directory(dpath),None)
                             except Exception as e:
                                 print('\t\033[91mdicom2nifti error!!\033[0m failed to load ...')
+                                dref['ex'] = False
                                 continue
                         else:
                             raise ValueError('Manufacturer {} not coded yet'.format(ds0.Manufacturer))
@@ -1314,7 +1316,19 @@ class DcmStudy(Study):
             if not os.path.exists(dpath):
                 os.mkdir(dpath)
 
+
+
         # output temp files to work on. use whichever of flair  flair+ are available
+        if not self.dset['raw']['t1+']['ex']:
+            print('no t1+ for unet segmentation, skipping...')
+            shutil.rmtree(dpath)
+            return
+
+        if not (self.dset['raw']['flair']['ex'] or self.dset['raw']['flair+']['ex']):
+            print('no flair for unet segmentation, skipping...')
+            shutil.rmtree(dpath)
+            return
+
         for dt,suffix in zip(['t1+','flair+','flair'],['0001','0003','0003']): # hard-coded for two contrast model
             tfile = os.path.join(dpath,self.studytimeattrs['StudyDate']+'_'+suffix+'.nii')
             if 'flair' in dt: 
@@ -1322,13 +1336,8 @@ class DcmStudy(Study):
                     self.writenifti(self.dset['raw'][dt]['d'],tfile,affine=self.dset['raw']['t1+']['affine'],norm=False,type='float')
                     break
             else:
-                if self.dset['raw'][dt]['ex']:
-                    self.writenifti(self.dset['raw'][dt]['d'],tfile,affine=self.dset['raw']['t1+']['affine'],norm=False,type='float')
-                else:
-                    print('no t1+ for unet segmentation, skipping...')
-                    shutil.rmtree(dpath)
-                    return
-                
+                self.writenifti(self.dset['raw'][dt]['d'],tfile,affine=self.dset['raw']['t1+']['affine'],norm=False,type='float')
+
         # D138 is brats 2024 trained on two contrasts
         if os.name == 'posix':
             command = 'conda run -n nnunet nnUNetv2_predict '
